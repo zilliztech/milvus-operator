@@ -239,6 +239,27 @@ spec:
   # ... Skipped fields
 ```
 
+### Config
+Config overrides the fields of Milvus Cluster's config file template. 
+
+For example, if you want to change etcd's rootPath and minIO's bucketname:
+
+``` yaml
+spec:
+  dependencies: {}
+  components: {}
+  config: # Optional
+    etcd:
+      rootPath: my-release
+    minio:
+      bucketName: my-bucket
+```
+
+A complete set of config fields can be found at https://github.com/milvus-io/milvus/blob/master/configs/milvus.yaml
+
+NOTE! The fields of dependencies' address and port cannot be set in the Milvus Cluster CR.
+
+
 ### Dependencies
 specifications for milvus's dependencies:
 ``` yaml
@@ -338,52 +359,6 @@ spec:
 A complete fields doc can be found at https://github.com/milvus-io/milvus-helm/blob/master/charts/minio/values.yaml.
 
 
-### Config
-Config overrides the fields of Milvus Cluster's config file template. 
-
-For example, if you want to change etcd's rootPath and minIO's bucketname:
-
-``` yaml
-spec:
-  dependencies: {}
-  components: {}
-  config: # Optional
-    etcd:
-      rootPath: my-release
-    minio:
-      bucketName: my-bucket
-```
-
-A complete set of config fields can be found at https://github.com/milvus-io/milvus/blob/master/configs/milvus.yaml
-
-NOTE! The fields of dependencies' address and port cannot be set in the Milvus Cluster CR.
-
-## Status spec
-The status spec of the CR Milvus is described as below:
-``` yaml
-status:
-  # Show the generous status of the Milvus
-  # It can be "Pending", "Healthy", "Unhealthy", "Stopped", "Deleting
-  status: "Healthy"
-  # Contains details for the current condition of Milvus and its dependency
-  conditions: 
-    # Condition type
-    # It can be "EtcdReady", "StorageReady", "MsgStream", "MilvusReady"
-  - type: "MilvusReady" 
-    # Status is the status of the condition.
-    # Can be True, False, Unknown.
-    status: True
-    # Last time the condition transitioned from one status to another.
-    lastTransitionTime: <time> # Optional
-     # Unique, one-word, CamelCase reason for the condition's last transition.
-    reason: "reason" # Optional
-    # Human-readable message indicating details about last transition.
-    message: "message" # Optional
-  # The Milvus's endpoint of service
-  endpoint: "milvus:19530"
-```
-
-
 #### Dependency Pulsar
 The dependency pulsar may be specified as external or in-cluster:
 ``` yaml
@@ -413,7 +388,7 @@ The `inCluster.values` field contains pulsar's configurable helm values. For exa
 spec:
   # ... Skipped fields
   dependencies: # Optional
-    etcd: # Optional
+    pulsar: # Optional
       # ... Skipped fields
       inCluster:
         # ... Skipped fields
@@ -437,8 +412,7 @@ spec:
             replicaCount: 1
 ```
 
-A complete fields doc can be found at https://github.com/kafkaesque-io/pulsar-helm-chart/blob/pulsar-1.0.31/helm-chart-sources/pulsar/values.yaml.
-
+A complete fields doc can be found at https://github.com/kafkaesque-io/pulsar-helm-chart/blob/pulsar-1.0.31/helm-chart-sources/pulsar/values.yaml. And some of its default values are overrided by fields under `pulsar:` in https://github.com/milvus-io/milvus-helm/blob/master/charts/milvus/values.yaml
 
 #### Dependency kafka
 The dependency kafka may be specified as external or in-cluster:
@@ -446,7 +420,7 @@ The dependency kafka may be specified as external or in-cluster:
 spec:
   # ... Skipped fields
   dependencies: # Optional
-    pulsar: # Optional
+    kafka: # Optional
       # Whether (=true) to use an existed external kafka as specified in the field endpoints or 
       # (=false) create a new pulsar inside the same kubernetes cluster for milvus.
       external: false # Optional default=false
@@ -469,7 +443,7 @@ The `inCluster.values` field contains kafka's configurable helm values. For exam
 spec:
   # ... Skipped fields
   dependencies: # Optional
-    etcd: # Optional
+    kafka: # Optional
       # ... Skipped fields
       inCluster:
         # ... Skipped fields
@@ -481,4 +455,38 @@ spec:
             replicaCount: 1
 ```
 
-A complete fields doc can be found at https://github.com/bitnami/charts/blob/1fdd2283f0e5a8772e4a763b455733c77e01b119/bitnami/kafka/values.yaml
+A complete fields doc can be found at https://github.com/bitnami/charts/blob/1fdd2283f0e5a8772e4a763b455733c77e01b119/bitnami/kafka/values.yaml. And some of its default values are overrided by fields under `kafka:` in https://github.com/milvus-io/milvus-helm/blob/master/charts/milvus/values.yaml
+
+
+## Status
+The status of the CR Milvus is described as below:
+``` yaml
+status:
+  # Show the generous status of the Milvus
+  # It can be "Pending", "Healthy", "Unhealthy", "Stopped"
+  # Healthy means all milvus components are ready
+  # Unhealthy means at least one milvus component is not ready
+  # Stopped means all milvus components are stopped
+  # Pending means it's being created or resumed from stopped status.
+  status: "Healthy"
+  # Contains details for the current condition of Milvus and its dependency
+  conditions: 
+    # Condition type
+    # It can be "EtcdReady", "StorageReady", "MsgStream", "MilvusReady", "MilvusUpdated"
+  - type: "MilvusReady" 
+    # Status is the status of the condition.
+    # Can be True, False, Unknown.
+    status: True
+    # Last time the condition transitioned from one status to another.
+    lastTransitionTime: <time> # Optional
+     # Unique, one-word, CamelCase reason for the condition's last transition.
+    reason: "reason" # Optional
+    # Human-readable message indicating details about last transition.
+    message: "message" # Optional
+  # The Milvus's endpoint of service
+  endpoint: "milvus:19530"
+  # ComponentsDeployStatus contains the map of component's name to the status of each component deployment
+  componentsDeployStatus: {}
+  # When observedGeneration is smaller than spec.generation, all the above fields are out of date, the operator should update them later.
+  observedGeneration: 1
+```
