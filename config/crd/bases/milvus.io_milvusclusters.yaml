@@ -3661,6 +3661,9 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      serviceRestfulPort:
+                        format: int32
+                        type: integer
                       serviceType:
                         default: ClusterIP
                         enum:
@@ -5846,6 +5849,9 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      serviceRestfulPort:
+                        format: int32
+                        type: integer
                       serviceType:
                         default: ClusterIP
                         enum:

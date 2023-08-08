@@ -238,6 +238,9 @@ type ServiceComponent struct {
 	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	ServiceRestfulPort int32 `json:"serviceRestfulPort,omitempty"`
+
+	// +kubebuilder:validation:Optional
 	ServiceLabels map[string]string `json:"serviceLabels,omitempty"`
 
 	// +kubebuilder:validation:Optional

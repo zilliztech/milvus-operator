@@ -299,6 +299,15 @@ func TestMilvusComponent_GetServicePorts(t *testing.T) {
 	assert.Equal(t, Proxy.DefaultPort, ports[0].Port)
 	assert.Equal(t, int32(MetricPort), ports[1].Port)
 
+	com = Proxy
+	spec = newSpecCluster()
+	spec.Com.Proxy.ServiceRestfulPort = 8080
+	ports = com.GetServicePorts(spec)
+	assert.Equal(t, 3, len(ports))
+	assert.Equal(t, Proxy.DefaultPort, ports[0].Port)
+	assert.Equal(t, int32(MetricPort), ports[1].Port)
+	assert.Equal(t, com.GetRestfulPort(spec), int32(8080))
+
 	com = QueryNode
 	spec = newSpecCluster()
 	ports = com.GetServicePorts(spec)

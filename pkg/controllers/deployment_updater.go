@@ -13,6 +13,7 @@ type deploymentUpdater interface {
 	GetIntanceName() string
 	GetComponentName() string
 	GetPortName() string
+	GetRestfulPort() int32
 	GetControllerRef() metav1.Object
 	GetScheme() *runtime.Scheme
 	GetReplicas() *int32
@@ -137,6 +138,14 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 			},
 			metricPort,
 		}
+		restfulPort := updater.GetRestfulPort()
+		if restfulPort != 0 {
+			container.Ports = append(container.Ports, corev1.ContainerPort{
+				Name:          RestfulPortName,
+				ContainerPort: restfulPort,
+				Protocol:      corev1.ProtocolTCP,
+			})
+		}
 	} else {
 		container.Ports = []corev1.ContainerPort{metricPort}
 	}
@@ -233,6 +242,10 @@ func (m milvusDeploymentUpdater) GetComponentName() string {
 
 func (m milvusDeploymentUpdater) GetPortName() string {
 	return m.component.GetPortName()
+}
+
+func (m milvusDeploymentUpdater) GetRestfulPort() int32 {
+	return m.component.GetRestfulPort(m.Spec)
 }
 
 func (m milvusDeploymentUpdater) GetControllerRef() metav1.Object {

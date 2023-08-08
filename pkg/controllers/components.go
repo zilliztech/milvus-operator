@@ -20,6 +20,8 @@ const (
 	MetricPortName = "metrics"
 	MetricPath     = "/metrics"
 
+	RestfulPortName = "restful"
+
 	MixCoordName   = "mixcoord"
 	RootCoordName  = "rootcoord"
 	DataCoordName  = "datacoord"
@@ -277,12 +279,30 @@ func (c MilvusComponent) GetServicePorts(spec v1beta1.MilvusSpec) []corev1.Servi
 		}
 	}
 
+	restfulPort := c.GetRestfulPort(spec)
+	if restfulPort != 0 {
+		servicePorts = append(servicePorts, corev1.ServicePort{
+			Name:       RestfulPortName,
+			Protocol:   corev1.ProtocolTCP,
+			Port:       restfulPort,
+			TargetPort: intstr.FromString(RestfulPortName),
+		})
+	}
+
 	return servicePorts
 }
 
 // GetComponentPort returns the port of the component
 func (c MilvusComponent) GetComponentPort(spec v1beta1.MilvusSpec) int32 {
 	return c.DefaultPort
+}
+
+// GetComponentPort returns the port of the component
+func (c MilvusComponent) GetRestfulPort(spec v1beta1.MilvusSpec) int32 {
+	if c == Proxy || c == MilvusStandalone {
+		return spec.GetServiceComponent().ServiceRestfulPort
+	}
+	return 0
 }
 
 // GetSideCars returns the component sidecar conatiners
