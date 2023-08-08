@@ -23,7 +23,8 @@ func (r *MilvusReconciler) SetDefaultStatus(ctx context.Context, mc *v1beta1.Mil
 	if mc.Status.Status == "" {
 		mc.Status.Status = v1beta1.StatusPending
 		// metrics
-		milvusStatusCollector.WithLabelValues(mc.Namespace, mc.Name).Set(MilvusStatusToCode(mc.Status.Status))
+		milvusStatusCollector.WithLabelValues(mc.Namespace, mc.Name).
+			Set(MilvusStatusToCode(mc.Status.Status, mc.GetAnnotations()[MaintainingAnnotation] == "true"))
 
 		err := r.Client.Status().Update(ctx, mc)
 		return errors.Wrapf(err, "set mc default status[%s/%s] failed", mc.Namespace, mc.Name)
