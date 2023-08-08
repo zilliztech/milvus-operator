@@ -178,6 +178,14 @@ const (
 	AnnotationUpgrading                    = "upgrading"
 	AnnotationUpgraded                     = "upgraded"
 	StoppedAtAnnotation                    = MilvusIO + "/stopped-at"
+
+	// PodServiceLabelAddedAnnotation is to indicate whether the milvus.io/service=true label is added to proxy & standalone pods
+	// previously, we use milvus.io/component: proxy / standalone; to select the service pods
+	// but now we want to support a standalone updating to cluster without downtime
+	// so instead we use milvus.io/service="true" to select the service pods
+	PodServiceLabelAddedAnnotation = MilvusIO + "/pod-service-label-added"
+	// ServiceLabel is the label to indicate whether the pod is a service pod
+	ServiceLabel = "milvus.io/service"
 )
 
 var (
@@ -207,6 +215,9 @@ func (r *Milvus) DefaultMeta() {
 			r.Labels[OperatorVersionLabel] = Version
 		}
 	}
+	if r.IsFirstTimeStarting() {
+		r.Annotations[PodServiceLabelAddedAnnotation] = TrueStr
+	}
 }
 
 func (r *Milvus) DefaultMode() {
@@ -220,6 +231,9 @@ func (r *Milvus) DefaultComponents() {
 	setDefaultStr(&spec.Com.Image, config.DefaultMilvusImage)
 	if spec.Com.ImageUpdateMode == "" {
 		spec.Com.ImageUpdateMode = ImageUpdateModeRollingUpgrade
+	}
+	if spec.Com.Standalone == nil {
+		spec.Com.Standalone = &MilvusStandalone{}
 	}
 	if spec.Mode == MilvusModeCluster {
 		if spec.Com.Proxy == nil {
@@ -248,11 +262,6 @@ func (r *Milvus) DefaultComponents() {
 		if spec.Com.QueryNode == nil {
 			spec.Com.QueryNode = &MilvusQueryNode{}
 		}
-	} else {
-		// standalone
-		if spec.Com.Standalone == nil {
-			spec.Com.Standalone = &MilvusStandalone{}
-		}
 	}
 	r.defaultComponentsReplicas()
 }
@@ -260,8 +269,11 @@ func (r *Milvus) DefaultComponents() {
 func (r *Milvus) defaultComponentsReplicas() {
 	spec := &r.Spec
 	defaultReplicas := int32(1)
+	defaultNoReplicas := int32(0)
 	if spec.Mode == MilvusModeCluster {
-
+		if spec.Com.Standalone.Replicas == nil {
+			spec.Com.Standalone.Replicas = &defaultNoReplicas
+		}
 		if spec.Com.MixCoord != nil {
 			if spec.Com.MixCoord.Replicas == nil {
 				spec.Com.MixCoord.Replicas = &defaultReplicas

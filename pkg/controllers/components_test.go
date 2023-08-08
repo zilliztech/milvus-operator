@@ -514,7 +514,7 @@ func TestMilvusComponent_SetReplicas(t *testing.T) {
 
 	com = MilvusStandalone
 	err = com.SetReplicas(spec, &replicas)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func TestMilvusComponent_GetDependencies(t *testing.T) {

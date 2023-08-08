@@ -36,6 +36,7 @@ const (
 	MessageDecodeErr         = "accesskey or secretkey decode error"
 	MessageMilvusHealthy     = "All Milvus components are healthy"
 	MessageMilvusStopped     = "All Milvus components are stopped"
+	MessageMilvusStopping    = "All Milvus components are stopping"
 )
 
 var (
@@ -218,6 +219,7 @@ func (r *MilvusStatusSyncer) UpdateStatusRoutine(ctx context.Context, mc *v1beta
 
 func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, mc *v1beta1.Milvus) error {
 	beginStatus := mc.Status.DeepCopy()
+	mc.Status.ObservedGeneration = mc.Generation
 	if !mc.Spec.IsStopping() {
 		funcs := []Func{
 			r.GetEtcdCondition,

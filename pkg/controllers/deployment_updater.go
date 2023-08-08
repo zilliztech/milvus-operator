@@ -172,6 +172,9 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 	if IsEqual(currentTemplate, template) {
 		return nil
 	}
+	if componentName == ProxyName || componentName == StandaloneName {
+		template.Labels[v1beta1.ServiceLabel] = v1beta1.TrueStr
+	}
 	// will perform rolling update
 	// we add some other perfered updates
 	container.StartupProbe = GetStartupProbe()

@@ -159,3 +159,38 @@ func TestIsRollingUpdateEnabled(t *testing.T) {
 	m.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
 	assert.True(t, m.IsRollingUpdateEnabled())
 }
+
+func TestMilvus_IsChangingMode(t *testing.T) {
+	m := Milvus{}
+
+	t.Run("standalone", func(t *testing.T) {
+		m.Default()
+		assert.False(t, m.IsChangingMode())
+	})
+
+	t.Run("standalone to cluster", func(t *testing.T) {
+		m.Spec.Mode = MilvusModeCluster
+		m.Default()
+		assert.True(t, m.IsChangingMode())
+	})
+
+	t.Run("standalone to cluster finished", func(t *testing.T) {
+		m.Spec.Com.Standalone.Replicas = nil
+		m.Default()
+		assert.False(t, m.IsChangingMode())
+	})
+}
+
+func TestMilvus_IsPodServiceLabelAdded(t *testing.T) {
+	m := Milvus{}
+
+	t.Run("new node default true", func(t *testing.T) {
+		m.Default()
+		assert.True(t, m.IsPodServiceLabelAdded())
+	})
+
+	t.Run("old node default false", func(t *testing.T) {
+		m.Annotations[PodServiceLabelAddedAnnotation] = ""
+		assert.False(t, m.IsPodServiceLabelAdded())
+	})
+}

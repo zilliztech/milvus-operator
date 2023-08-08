@@ -40,6 +40,36 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 	milvus.Spec.Mode = v1beta1.MilvusModeStandalone
 	milvus.Default()
 
+	replica0 := int32(0)
+	milvus.Spec.Com.Standalone.Replicas = &replica0
+	t.Run("milvus stopping, check pod failed", func(t *testing.T) {
+		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("test"))
+		_, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *milvus)
+		assert.Error(t, err)
+	})
+
+	t.Run("milvus stopped", func(t *testing.T) {
+		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, v1beta1.ReasonMilvusStopped, ret.Reason)
+		assert.Equal(t, corev1.ConditionFalse, ret.Status)
+	})
+
+	t.Run("milvus stopping, has pods", func(t *testing.T) {
+		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, list interface{}, opts ...interface{}) error {
+			podList := list.(*corev1.PodList)
+			podList.Items = append(podList.Items, corev1.Pod{})
+			return nil
+		})
+		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, v1beta1.ReasonMilvusStopping, ret.Reason)
+		assert.Equal(t, corev1.ConditionFalse, ret.Status)
+	})
+
+	replica1 := int32(1)
+	milvus.Spec.Com.Standalone.Replicas = &replica1
 	t.Run(("get milvus condition error"), func(t *testing.T) {
 		milvus.Status.Conditions = []v1beta1.MilvusCondition{
 			{Type: v1beta1.EtcdReady, Status: corev1.ConditionTrue},
@@ -77,9 +107,9 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 			Do(func(ctx interface{}, list *appsv1.DeploymentList, opts interface{}) {
 				list.Items = []appsv1.Deployment{
 					{}, {}, {}, {},
-					{}, {}, {}, {},
+					{}, {}, {}, {}, {},
 				}
-				for i := 0; i < 8; i++ {
+				for i := 0; i < 9; i++ {
 					list.Items[i].Labels = map[string]string{
 						AppLabelComponent: MilvusComponents[i].Name,
 					}
@@ -96,14 +126,14 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 
 	milvus.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
 	milvus.Default()
-	t.Run(("cluster mixture 5 ok"), func(t *testing.T) {
+	t.Run(("cluster mixture 6 ok"), func(t *testing.T) {
 		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).
 			Do(func(ctx interface{}, list *appsv1.DeploymentList, opts interface{}) {
 				list.Items = []appsv1.Deployment{
 					{}, {}, {}, {},
-					{},
+					{}, {},
 				}
-				for i := 0; i < 5; i++ {
+				for i := 0; i < 6; i++ {
 					list.Items[i].Labels = map[string]string{
 						AppLabelComponent: MixtureComponents[i].Name,
 					}
@@ -125,9 +155,9 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 			Do(func(ctx interface{}, list *appsv1.DeploymentList, opts interface{}) {
 				list.Items = []appsv1.Deployment{
 					{}, {}, {}, {},
-					{}, {}, {}, {},
+					{}, {}, {}, {}, {},
 				}
-				for i := 0; i < 8; i++ {
+				for i := 0; i < 9; i++ {
 					list.Items[i].OwnerReferences = []metav1.OwnerReference{
 						{Controller: &trueVal, UID: "uid"},
 					}

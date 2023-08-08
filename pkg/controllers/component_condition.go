@@ -22,12 +22,37 @@ type ComponentConditionGetterImpl struct{}
 
 func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (v1beta1.MilvusCondition, error) {
 	if mc.Spec.IsStopping() {
+		reason := v1beta1.ReasonMilvusStopping
+		msg := MessageMilvusStopped
+		stopped, err := CheckMilvusStopped(ctx, cli, mc)
+		if err != nil {
+			return v1beta1.MilvusCondition{}, err
+		}
+		if stopped {
+			reason = v1beta1.ReasonMilvusStopped
+			msg = MessageMilvusStopping
+		}
+
 		return v1beta1.MilvusCondition{
 			Type:    v1beta1.MilvusReady,
 			Status:  corev1.ConditionFalse,
-			Reason:  v1beta1.ReasonMilvusStopped,
-			Message: MessageMilvusStopped,
+			Reason:  reason,
+			Message: msg,
 		}, nil
+	}
+
+	if !IsDependencyReady(mc.Status.Conditions) {
+		notReadyConditions := GetNotReadyDependencyConditions(mc.Status.Conditions)
+		reason := v1beta1.ReasonDependencyNotReady
+		var msg string
+		for depType, notReadyCondition := range notReadyConditions {
+			if notReadyCondition != nil {
+				msg += fmt.Sprintf("dep[%s]: %s;", depType, notReadyCondition.Message)
+			} else {
+				msg = "condition not probed yet"
+			}
+		}
+		ctrl.LoggerFrom(ctx).Info("milvus dependency unhealty", "reason", reason, "msg", msg)
 	}
 
 	deployList := &appsv1.DeploymentList{}
@@ -47,19 +72,14 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 	var errDetail *ComponentErrorDetail
 	var err error
 	componentDeploy := makeComponentDeploymentMap(mc, deployList.Items)
+	hasReadyReplica := false
 	for _, component := range allComponents {
 		deployment := componentDeploy[component.Name]
 		if deployment != nil && DeploymentReady(deployment.Status) {
-			// deployment ready, check replicas
 			if deployment.Status.ReadyReplicas > 0 {
-				continue
+				hasReadyReplica = true
 			}
-			switch component.Name {
-			case ProxyName, StandaloneName:
-				// proxy and standalone must have at least one replica
-			default:
-				continue
-			}
+			continue
 		}
 		notReadyComponents = append(notReadyComponents, component.Name)
 		if errDetail == nil {
@@ -75,6 +95,9 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 	}
 
 	if len(notReadyComponents) == 0 {
+		if !hasReadyReplica {
+			return v1beta1.MilvusCondition{}, nil
+		}
 		cond.Status = corev1.ConditionTrue
 		cond.Reason = v1beta1.ReasonMilvusHealthy
 		cond.Message = MessageMilvusHealthy
@@ -134,3 +157,21 @@ func GetComponentConditionGetter() ComponentConditionGetter {
 }
 
 var singletonComponentConditionGetter ComponentConditionGetter = ComponentConditionGetterImpl{}
+
+func CheckMilvusStopped(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
+	podList := &corev1.PodList{}
+	opts := &client.ListOptions{
+		Namespace: mc.Namespace,
+	}
+	opts.LabelSelector = labels.SelectorFromSet(map[string]string{
+		AppLabelInstance: mc.GetName(),
+		AppLabelName:     "milvus",
+	})
+	if err := cli.List(ctx, podList, opts); err != nil {
+		return false, err
+	}
+	if len(podList.Items) > 0 {
+		return false, nil
+	}
+	return true, nil
+}

@@ -224,6 +224,12 @@ func NewAppLabels(instance string) map[string]string {
 	}
 }
 
+func NewServicePodLabels(instance string) map[string]string {
+	labels := NewAppLabels(instance)
+	labels[v1beta1.ServiceLabel] = v1beta1.TrueStr
+	return labels
+}
+
 const ManagerName = "milvus-operator"
 
 var MergeAnnotations = MergeLabels

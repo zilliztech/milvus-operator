@@ -83,11 +83,11 @@ var (
 	MilvusStandalone = MilvusComponent{StandaloneName, StandaloneFieldName, StandalonePort}
 
 	MixtureComponents = []MilvusComponent{
-		MixCoord, DataNode, QueryNode, IndexNode, Proxy,
+		MixCoord, DataNode, QueryNode, IndexNode, Proxy, MilvusStandalone,
 	}
 
 	MilvusComponents = []MilvusComponent{
-		RootCoord, DataCoord, QueryCoord, IndexCoord, DataNode, QueryNode, IndexNode, Proxy,
+		RootCoord, DataCoord, QueryCoord, IndexCoord, DataNode, QueryNode, IndexNode, Proxy, MilvusStandalone,
 	}
 
 	StandaloneComponents = []MilvusComponent{
@@ -237,6 +237,10 @@ func (c MilvusComponent) GetContainerPorts(spec v1beta1.MilvusSpec) []corev1.Con
 			Protocol:      corev1.ProtocolTCP,
 		},
 	}
+}
+
+func (c MilvusComponent) IsService() bool {
+	return c == Proxy || c == MilvusStandalone
 }
 
 // GetServiceType returns the type of the component service

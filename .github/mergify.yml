@@ -1,14 +1,17 @@
 pull_request_rules:
-  - name: remove hold when CI passed
+  - name: remove hold when CI passed or documentation
     conditions:
-      - label=ci-passed
+      - or:
+        - label=ci-passed
+        - label=documentation
     actions:
       label:
         remove:
           - do-not-merge/hold
-  - name: add hold when CI not passed
+  - name: add hold when CI not passed or documentation
     conditions:
       - label!=ci-passed
+      - label!=documentation
     actions:
       label:
         add:

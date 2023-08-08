@@ -81,7 +81,6 @@ type MilvusReconciler struct {
 func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.statusSyncer.RunIfNot()
 	globalCommonInfo.InitIfNot(r.Client)
-
 	if !config.IsDebug() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -162,7 +161,6 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	milvus.Status.ObservedGeneration = milvus.Generation
 	if err := r.statusSyncer.UpdateStatusForNewGeneration(ctx, milvus); err != nil {
 		return ctrl.Result{}, err
 	}

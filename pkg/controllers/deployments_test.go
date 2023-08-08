@@ -6,10 +6,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -140,6 +142,8 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 					r.updateDeployment(m, cm, QueryNode)
 				case "mc-milvus-indexnode":
 					r.updateDeployment(m, cm, IndexNode)
+				case "mc-milvus-standalone":
+					r.updateDeployment(m, cm, MilvusStandalone)
 				}
 				return nil
 			}).Times(len(MilvusComponents))
@@ -155,4 +159,56 @@ func TestGetStorageSecretRefEnv(t *testing.T) {
 	assert.Len(t, ret, 0)
 	ret = GetStorageSecretRefEnv("secret")
 	assert.Len(t, ret, 2)
+}
+
+func TestReconciler_handleOldInstanceChangingMode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	r := newMilvusReconcilerForTest(ctrl)
+	mockClient := r.Client.(*MockK8sClient)
+	ctx := context.Background()
+
+	m := v1beta1.Milvus{}
+	m.Default()
+	component := MilvusStandalone
+
+	t.Run("not changing", func(t *testing.T) {
+		defer ctrl.Finish()
+		err := r.handleOldInstanceChangingMode(ctx, m, component)
+		assert.NoError(t, err)
+	})
+
+	t.Run("changing, update pod label, requeue", func(t *testing.T) {
+		defer ctrl.Finish()
+		m.Spec.Mode = v1beta1.MilvusModeCluster
+		m.Default()
+		m.Annotations[v1beta1.PodServiceLabelAddedAnnotation] = v1beta1.FalseStr
+
+		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(ctx context.Context, list interface{}, opts ...interface{}) error {
+			l := list.(*corev1.PodList)
+			l.Items = []corev1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "ns",
+						Name:      "pod1",
+					},
+				},
+			}
+			return nil
+		})
+		pod := corev1.Pod{}
+		mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&pod)).Times(2)
+		mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&m)).Times(1)
+
+		err := r.handleOldInstanceChangingMode(ctx, m, component)
+		assert.Error(t, err)
+		assert.Equal(t, ErrRequeue, errors.Cause(err))
+	})
+
+	t.Run("changing, updated", func(t *testing.T) {
+		defer ctrl.Finish()
+		m.Annotations[v1beta1.PodServiceLabelAddedAnnotation] = v1beta1.TrueStr
+		err := r.handleOldInstanceChangingMode(ctx, m, component)
+		assert.NoError(t, err)
+	})
 }

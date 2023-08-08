@@ -645,10 +645,14 @@ func Test_recordOldInfo_stopMiluvs(t *testing.T) {
 	recordOldInfo(ctx, mockClient, upgrade, milvus)
 
 	components := GetComponentsBySpec(milvus.Spec)
-	assert.Len(t, components, 8)
+	assert.Len(t, components, 9)
 	for _, component := range components {
 		replicas := component.GetMilvusReplicas(upgrade.Status.ReplicasBeforeUpgrade)
-		assert.Equal(t, 1, replicas)
+		if component != MilvusStandalone {
+			assert.Equal(t, 1, replicas)
+		} else {
+			assert.Equal(t, 0, replicas)
+		}
 	}
 
 	mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)

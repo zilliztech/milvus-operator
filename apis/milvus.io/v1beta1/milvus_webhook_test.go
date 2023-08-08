@@ -16,6 +16,10 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 	defaultComponent := Component{
 		Replicas: &replica1,
 	}
+	replica0 := int32(0)
+	stoppedComponent := Component{
+		Replicas: &replica0,
+	}
 	defaultInClusterConfig := &InClusterConfig{
 		DeletionPolicy: DeletionPolicyRetain,
 		Values: Values{
@@ -119,6 +123,11 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		},
 		QueryNode: &MilvusQueryNode{
 			Component: defaultComponent,
+		},
+		Standalone: &MilvusStandalone{
+			ServiceComponent: ServiceComponent{
+				Component: stoppedComponent,
+			},
 		},
 	}
 	t.Run("cluster not external ok", func(t *testing.T) {

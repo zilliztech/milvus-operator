@@ -52,8 +52,11 @@ type MilvusSpec struct {
 
 // IsStopping returns true if the MilvusSpec has replicas serving
 func (ms MilvusSpec) IsStopping() bool {
+	if *ms.Com.Standalone.Replicas != 0 {
+		return false
+	}
 	if ms.Mode == MilvusModeStandalone {
-		return *ms.Com.Standalone.Replicas == 0
+		return true
 	}
 	// cluster
 	if ms.Com.MixCoord != nil {
@@ -327,6 +330,8 @@ const (
 	ReasonMilvusComponentNotHealthy string = "MilvusComponentNotHealthy"
 	// ReasonMilvusStopped means milvus cluster is stopped
 	ReasonMilvusStopped string = "MilvusStopped"
+	// ReasonMilvusStopping means milvus cluster is stopping
+	ReasonMilvusStopping string = "MilvusStopping"
 	// ReasonMilvusComponentsUpdated means milvus components are updated
 	ReasonMilvusComponentsUpdated string = "MilvusComponentsUpdated"
 	// ReasonMilvusComponentsUpdating means some milvus components are not updated
@@ -367,6 +372,25 @@ type Milvus struct {
 
 	Spec   MilvusSpec   `json:"spec,omitempty"`
 	Status MilvusStatus `json:"status,omitempty"`
+}
+
+func (m *Milvus) IsFirstTimeStarting() bool {
+	return len(m.Status.Status) < 1
+}
+
+func (m *Milvus) IsChangingMode() bool {
+	if m.Spec.Mode == MilvusModeStandalone {
+		return false
+	}
+	// is cluster
+	if m.Spec.Com.Standalone == nil {
+		return false
+	}
+	return m.Spec.Com.Standalone.Replicas != nil && *m.Spec.Com.Standalone.Replicas > 0
+}
+
+func (m *Milvus) IsPodServiceLabelAdded() bool {
+	return m.Annotations[PodServiceLabelAddedAnnotation] == TrueStr
 }
 
 // Hub marks this type as a conversion hub.
