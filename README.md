@@ -27,7 +27,7 @@ helm -n milvus-operator upgrade --install milvus-operator milvus-operator/milvus
 Or with kubectl & raw manifests:
 
 ```shell
-kubectl apply -f https://github.com/milvus-io/milvus-operator/v0.7.15/deploy/manifests/deployment.yaml
+kubectl apply -f https://github.com/milvus-io/milvus-operator/v0.7.16/deploy/manifests/deployment.yaml
 ```
 
 For more infomation Check [Installation Instructions](docs/installation/installation.md)
@@ -45,11 +45,11 @@ Versions of the underlying components are listed below:
 
 <!-- source csv for table
 Components, Milvus, Pulsar / Kafka, Etcd, MinIO
-Versions, v2.2.11 `[1]`, 2.8.2 / 3.1.0, 3.5.5-2, RELEASE.2023-03-20T20-16-18Z -->
+Versions, v2.2.12 `[1]`, 2.8.2 / 3.1.0, 3.5.5-2, RELEASE.2023-03-20T20-16-18Z -->
 
 |Components| Milvus| Pulsar / Kafka| Etcd| MinIO|
 |---|---|---|---|---|
-|Versions| v2.2.11 `[1]`| 2.8.2 / 3.1.0 | 3.5.5-2 |RELEASE.2023-03-20T20-16-18Z|
+|Versions| v2.2.12 `[1]`| 2.8.2 / 3.1.0 | 3.5.5-2 |RELEASE.2023-03-20T20-16-18Z|
 
 
 > `[1]` Version of milvus is the default version we will use, you can set it to other version. The Compatibility with milvus releases is showed below.
@@ -82,13 +82,13 @@ Use helm:
 ```shell
 helm upgrade --install milvus-operator \
   -n milvus-operator --create-namespace \
-  https://github.com/milvus-io/milvus-operator/releases/download/v0.7.15/milvus-operator-0.7.15.tgz
+  https://github.com/milvus-io/milvus-operator/releases/download/v0.7.16/milvus-operator-0.7.16.tgz
 ```
 
 Or use kubectl & raw manifests:
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/milvus-io/milvus-operator/v0.7.15/deploy/manifests/deployment.yaml
+kubectl apply -f https://raw.githubusercontent.com/milvus-io/milvus-operator/v0.7.16/deploy/manifests/deployment.yaml
 ```
 
 
