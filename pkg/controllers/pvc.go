@@ -18,7 +18,10 @@ func getPVCNameByInstName(instName string) string {
 }
 
 func (r *MilvusReconciler) ReconcilePVCs(ctx context.Context, mil v1beta1.Milvus) error {
-	persistence := mil.Spec.Dep.RocksMQ.Persistence
+	persistence := mil.Spec.GetPersistenceConfig()
+	if persistence == nil {
+		return nil
+	}
 	needPVC := persistence.Enabled && len(persistence.PersistentVolumeClaim.ExistingClaim) < 1
 	if !needPVC {
 		return nil
@@ -51,7 +54,7 @@ func (r *MilvusReconciler) syncUpdatePVC(ctx context.Context, namespacedName typ
 	r.syncPVC(ctx, milvusPVC, new)
 	// volume name set by pvc controller
 	new.Spec.VolumeName = old.Spec.VolumeName
-	if milvusPVC.Spec.StorageClassName == nil {
+	if milvusPVC.GetSpec().StorageClassName == nil {
 		// if nil, default storage class name set by pvc controller
 		new.Spec.StorageClassName = old.Spec.StorageClassName
 	}
@@ -67,7 +70,7 @@ func (r *MilvusReconciler) syncUpdatePVC(ctx context.Context, namespacedName typ
 func (r *MilvusReconciler) syncPVC(ctx context.Context, milvusPVC v1beta1.PersistentVolumeClaim, pvc *corev1.PersistentVolumeClaim) {
 	pvc.Labels = milvusPVC.Labels
 	pvc.Annotations = milvusPVC.Annotations
-	pvc.Spec = milvusPVC.Spec
+	pvc.Spec = *milvusPVC.GetSpec()
 	if len(pvc.Spec.AccessModes) < 1 {
 		pvc.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{
 			corev1.ReadWriteOnce,

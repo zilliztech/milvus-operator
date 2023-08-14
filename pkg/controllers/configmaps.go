@@ -72,7 +72,14 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 		// delete other mq config to make milvus use rocksmq
 		delete(conf, "pulsar")
 		delete(conf, "kafka")
+	default:
+		// we use mq.type to handle it
 	}
+	_, found := conf["mq"]
+	if conf["mq"] == nil || !found {
+		conf["mq"] = map[string]interface{}{}
+	}
+	conf["mq"].(map[string]interface{})["type"] = mc.Spec.Dep.MsgStreamType
 
 	conf[util.MqTypeConfigKey] = mc.Spec.Dep.MsgStreamType
 

@@ -221,6 +221,10 @@ func TestMilvus_ValidateCreate_NoError(t *testing.T) {
 	mc := Milvus{}
 	err := mc.ValidateCreate()
 	assert.NoError(t, err)
+
+	mc.Default()
+	err = mc.ValidateCreate()
+	assert.NoError(t, err)
 }
 
 func TestMilvus_ValidateCreate_Invalid1(t *testing.T) {
@@ -333,13 +337,31 @@ func Test_DefaultConf_EnableRollingUpdate(t *testing.T) {
 	})
 }
 
-func TestMilvus_validateCommon_EnableRollingUpdate(t *testing.T) {
+func TestMilvus_validateCommon(t *testing.T) {
 	mc := Milvus{}
-	mc.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
-	err := mc.validateCommon()
-	assert.NotNil(t, err)
+	t.Run("validate rollingupdate", func(t *testing.T) {
+		mc.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
+		err := mc.validateCommon()
+		assert.NotNil(t, err)
 
-	mc.Spec.Dep.MsgStreamType = MsgStreamTypeKafka
-	err = mc.validateCommon()
-	assert.Nil(t, err)
+		mc.Spec.Dep.MsgStreamType = MsgStreamTypeKafka
+		err = mc.validateCommon()
+		assert.Nil(t, err)
+	})
+	t.Run("validate persist default ok", func(t *testing.T) {
+		mc.Spec.Com.EnableRollingUpdate = util.BoolPtr(false)
+		mc.Spec.Dep.MsgStreamType = ""
+		mc.Default()
+		err := mc.validateCommon()
+		assert.Nil(t, err)
+	})
+	t.Run("validate persist failed", func(t *testing.T) {
+		mc.Spec.Dep.MsgStreamType = MsgStreamTypeRocksMQ
+		mc.Spec.Com.EnableRollingUpdate = util.BoolPtr(false)
+		mc.Spec.Dep.RocksMQ.Persistence.PersistentVolumeClaim.Spec.Data = map[string]interface{}{
+			"accessModes": "bad",
+		}
+		err := mc.validateCommon()
+		assert.Error(t, err)
+	})
 }

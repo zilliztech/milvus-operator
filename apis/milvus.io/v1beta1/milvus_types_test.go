@@ -216,3 +216,16 @@ func TestGetMilvusVersionByGlobalImage(t *testing.T) {
 	_, err = m.Spec.GetMilvusVersionByImage()
 	assert.Error(t, err)
 }
+
+func TestGetPersistenceConfig(t *testing.T) {
+	m := Milvus{}
+	m.Spec.Dep.MsgStreamType = MsgStreamTypePulsar
+	assert.Nil(t, m.Spec.GetPersistenceConfig())
+
+	m.Spec.Dep.MsgStreamType = MsgStreamTypeRocksMQ
+	m.Spec.Dep.NatsMQ.Persistence.Enabled = true
+	assert.Same(t, &m.Spec.Dep.RocksMQ.Persistence, m.Spec.GetPersistenceConfig())
+
+	m.Spec.Dep.MsgStreamType = MsgStreamTypeNatsMQ
+	assert.Same(t, &m.Spec.Dep.NatsMQ.Persistence, m.Spec.GetPersistenceConfig())
+}
