@@ -16,7 +16,7 @@ type MilvusDependencies struct {
 	// +kubebuilder:validation:Optional
 	Etcd MilvusEtcd `json:"etcd"`
 
-	// +kubebuilder:validation:Enum:={"pulsar", "kafka", "rocksmq", ""}
+	// +kubebuilder:validation:Enum:={"pulsar", "kafka", "rocksmq", "natsmq", ""}
 	// +kubebuilder:validation:Optional
 	// MsgStreamType default to pulsar for cluster, rocksmq for standalone
 	MsgStreamType MsgStreamType `json:"msgStreamType,omitempty"`
@@ -28,7 +28,10 @@ type MilvusDependencies struct {
 	Kafka MilvusKafka `json:"kafka,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	RocksMQ MilvusRocksMQ `json:"rocksmq,omitempty"`
+	RocksMQ MilvusBuildInMQ `json:"rocksmq,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	NatsMQ MilvusBuildInMQ `json:"natsmq,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	Storage MilvusStorage `json:"storage"`
@@ -40,6 +43,7 @@ const (
 	MsgStreamTypePulsar  MsgStreamType = "pulsar"
 	MsgStreamTypeKafka   MsgStreamType = "kafka"
 	MsgStreamTypeRocksMQ MsgStreamType = "rocksmq"
+	MsgStreamTypeNatsMQ  MsgStreamType = "natsmq"
 )
 
 type MilvusEtcd struct {
@@ -88,8 +92,8 @@ type MilvusStorage struct {
 	External bool `json:"external,omitempty"`
 }
 
-// MilvusRocksMQ configuration
-type MilvusRocksMQ struct {
+// MilvusBuildInMQ (rocksmq or natsmq) configuration
+type MilvusBuildInMQ struct {
 	Persistence Persistence `json:"persistence"`
 }
 

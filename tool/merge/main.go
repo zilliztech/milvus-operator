@@ -13,6 +13,7 @@ import (
 var mqConfigsToDelete = map[string]bool{
 	"kafka":   true,
 	"rocksmq": true,
+	"natsmq":  true,
 	"pulsar":  true,
 }
 

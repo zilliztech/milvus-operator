@@ -18,7 +18,10 @@ func getPVCNameByInstName(instName string) string {
 }
 
 func (r *MilvusReconciler) ReconcilePVCs(ctx context.Context, mil v1beta1.Milvus) error {
-	persistence := mil.Spec.Dep.RocksMQ.Persistence
+	persistence := mil.Spec.GetPersistenceConfig()
+	if persistence == nil {
+		return nil
+	}
 	needPVC := persistence.Enabled && len(persistence.PersistentVolumeClaim.ExistingClaim) < 1
 	if !needPVC {
 		return nil
