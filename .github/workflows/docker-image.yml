@@ -43,8 +43,8 @@ jobs:
         shell: bash
         run: |
           IMAGE_TAG=${{ steps.extracter.outputs.git_tag }}
-          docker login -u ${{ secrets.DOCKER_USERNAME }} \
-                       -p ${{ secrets.DOCKER_PWD }}
+          docker login -u ${{ secrets.MILVUSDB_DOCKER_USER }} \
+                       -p ${{ secrets.MILVUSDB_DOCKER_PWD }}
           docker push ${REGISTRY_NAME}:${IMAGE_TAG}
           docker push ${REGISTRY_NAME}:latest
 
@@ -74,6 +74,6 @@ jobs:
         shell: bash
         run: |
           IMAGE_TAG=${{ steps.extracter.outputs.git_tag }}
-          docker login -u ${{ secrets.DOCKER_USERNAME }} \
-                       -p ${{ secrets.DOCKER_PWD }}
+          docker login -u ${{ secrets.MILVUSDB_DOCKER_USER }} \
+                       -p ${{ secrets.MILVUSDB_DOCKER_PWD }}
           make docker-tool-push
