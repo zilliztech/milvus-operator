@@ -19,7 +19,7 @@ The Milvus Operator provides an easy and solid solution to deploy and manage a f
 Install or upgrade to latest version with helm:
 
 ```shell
-helm repo add milvus-operator https://milvus-io.github.io/milvus-operator/
+helm repo add milvus-operator https://zilliztech.github.io/milvus-operator/
 helm repo update milvus-operator
 helm -n milvus-operator upgrade --install milvus-operator milvus-operator/milvus-operator
 ```
