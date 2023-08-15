@@ -12,7 +12,7 @@ For quick start, install with one line command:
 ```shell
 helm install milvus-operator \
   -n milvus-operator --create-namespace \
-  https://github.com/milvus-io/milvus-operator/releases/download/v0.7.17/milvus-operator-0.7.17.tgz
+  https://github.com/zilliztech/milvus-operator/releases/download/v0.7.17/milvus-operator-0.7.17.tgz
 ```
 
 If you already have `cert-manager` v1.0+ installed which is not in its default configuration, you may encounter some error with the check of cert-manager installation. you can install with special options to disable the check:
@@ -20,7 +20,7 @@ If you already have `cert-manager` v1.0+ installed which is not in its default c
 ```
 helm install milvus-operator \
   -n milvus-operator --create-namespace \
-  https://github.com/milvus-io/milvus-operator/releases/download/v0.7.17/milvus-operator-0.7.17.tgz \
+  https://github.com/zilliztech/milvus-operator/releases/download/v0.7.17/milvus-operator-0.7.17.tgz \
   --set checker.disableCertManagerCheck=true
 ```
 
@@ -39,7 +39,7 @@ use helm commands to upgrade earlier milvus-operator to current version:
 
 ```shell
 helm upgrade -n milvus-operator milvus-operator --reuse-values \
-  https://github.com/milvus-io/milvus-operator/releases/download/v0.7.17/milvus-operator-0.7.17.tgz
+  https://github.com/zilliztech/milvus-operator/releases/download/v0.7.17/milvus-operator-0.7.17.tgz
 ```
 
 ## Delete operator
@@ -62,7 +62,7 @@ If you don't want to use helm you can also install with kubectl and raw manifest
 ## Installation
 It is recommended to install the milvus operator with a newest stable version
 ```shell
-kubectl apply -f https://github.com/milvus-io/milvus-operator/v0.7.17/deploy/manifests/deployment.yaml
+kubectl apply -f https://github.com/zilliztech/milvus-operator/v0.7.17/deploy/manifests/deployment.yaml
 ``` 
 
 Check the installed operators:
@@ -85,7 +85,7 @@ Same as installation, you can update the milvus operator with a newer version by
 Delete the milvus operator stack by the deployment manifest:
 
 ```shell
-kubectl delete -f https://github.com/milvus-io/milvus-operator/v0.7.17/deploy/manifests/deployment.yaml
+kubectl delete -f https://github.com/zilliztech/milvus-operator/v0.7.17/deploy/manifests/deployment.yaml
 ```
 
 Or delete the milvus operator stack by using makefile:
@@ -97,10 +97,10 @@ make undeploy
 # Deploy a demo Milvus instance
 
 ## Deploy a Milvus standalone demo
-`kubectl apply -f https://raw.githubusercontent.com/milvus-io/milvus-operator/main/config/samples/demo.yaml`
+`kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/main/config/samples/demo.yaml`
 
 ## Deploy a Milvus cluster demo
-`kubectl apply -f https://raw.githubusercontent.com/milvus-io/milvus-operator/main/config/samples/cluster_demo.yaml`
+`kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/main/config/samples/cluster_demo.yaml`
 
 
 ## Wait for the Milvus instance to be ready. 
@@ -137,9 +137,9 @@ Follow the [Hello Milvus Guide](https://milvus.io/docs/example_code.md)
 
 # What's next
 
-- Administration Guides: https://github.com/milvus-io/milvus-operator/tree/main/docs/administration
+- Administration Guides: https://github.com/zilliztech/milvus-operator/tree/main/docs/administration
 - Docs for all configuration fields for Milvus CRD here: [Milvus CRD](../CRD/milvus.md)
-- Common configuration samples here: https://github.com/milvus-io/milvus-operator/tree/main/config/samples
+- Common configuration samples here: https://github.com/zilliztech/milvus-operator/tree/main/config/samples
 
 
 # Install Kind for Development

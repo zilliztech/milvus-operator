@@ -1,8 +1,8 @@
 # Milvus Operator
 
-[![CI Pipeline](https://github.com/milvus-io/milvus-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/milvus-io/milvus-operator/actions/workflows/ci.yml/badge.svg)
-[![codecov](https://codecov.io/gh/milvus-io/milvus-operator/branch/main/graph/badge.svg?token=DAXmgusBQq)](https://codecov.io/gh/milvus-io/milvus-operator)
-[![Go Reference](https://pkg.go.dev/badge/github.com/milvus-io/milvus-operator.svg)](https://pkg.go.dev/github.com/milvus-io/milvus-operator)
+[![CI Pipeline](https://github.com/zilliztech/milvus-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/zilliztech/milvus-operator/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/zilliztech/milvus-operator/branch/main/graph/badge.svg?token=DAXmgusBQq)](https://codecov.io/gh/zilliztech/milvus-operator)
+[![Go Reference](https://pkg.go.dev/badge/github.com/zilliztech/milvus-operator.svg)](https://pkg.go.dev/github.com/zilliztech/milvus-operator)
 <img src="https://img.shields.io/github/license/milvus-io/milvus" alt="license">
 
 
@@ -27,17 +27,17 @@ helm -n milvus-operator upgrade --install milvus-operator milvus-operator/milvus
 Or with kubectl & raw manifests:
 
 ```shell
-kubectl apply -f https://github.com/milvus-io/milvus-operator/v0.7.17/deploy/manifests/deployment.yaml
+kubectl apply -f https://github.com/zilliztech/milvus-operator/v0.7.17/deploy/manifests/deployment.yaml
 ```
 
 For more infomation Check [Installation Instructions](docs/installation/installation.md)
 
 ## Create milvus demo instance
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/milvus-io/milvus-operator/main/config/samples/demo.yaml
+kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/main/config/samples/demo.yaml
 ```
 
-> Note: The demo instance starts a standalone milvus & its dependencies with the least resources requests. It is not suitable for production environment. For more deployment examples please check https://github.com/milvus-io/milvus-operator/blob/main/config/samples
+> Note: The demo instance starts a standalone milvus & its dependencies with the least resources requests. It is not suitable for production environment. For more deployment examples please check https://github.com/zilliztech/milvus-operator/blob/main/config/samples
 
 # Versioning
 
@@ -82,13 +82,13 @@ Use helm:
 ```shell
 helm upgrade --install milvus-operator \
   -n milvus-operator --create-namespace \
-  https://github.com/milvus-io/milvus-operator/releases/download/v0.7.17/milvus-operator-0.7.17.tgz
+  https://github.com/zilliztech/milvus-operator/releases/download/v0.7.17/milvus-operator-0.7.17.tgz
 ```
 
 Or use kubectl & raw manifests:
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/milvus-io/milvus-operator/v0.7.17/deploy/manifests/deployment.yaml
+kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/v0.7.17/deploy/manifests/deployment.yaml
 ```
 
 
