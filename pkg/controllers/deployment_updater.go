@@ -82,7 +82,9 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 		template.Annotations = map[string]string{}
 	}
 	template.Annotations = MergeAnnotations(template.Annotations, mergedComSpec.PodAnnotations)
-	template.Annotations[AnnotationCheckSum] = updater.GetConfCheckSum()
+	if !spec.Com.UpdateConfigMapOnly {
+		template.Annotations[AnnotationCheckSum] = updater.GetConfCheckSum()
+	}
 
 	// update configmap volume
 	volumes := &template.Spec.Volumes

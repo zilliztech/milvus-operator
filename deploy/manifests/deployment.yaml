@@ -1485,6 +1485,8 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
+                  disableConfigmap:
+                    type: boolean
                   disableMetric:
                     type: boolean
                   enableRollingUpdate:
@@ -8845,6 +8847,8 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
+                  disableConfigmap:
+                    type: boolean
                   disableMetric:
                     type: boolean
                   enableRollingUpdate:
