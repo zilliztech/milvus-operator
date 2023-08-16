@@ -24,6 +24,7 @@ import (
 	"github.com/milvus-io/milvus-operator/pkg/helm/values"
 	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -81,11 +82,43 @@ func (r *Milvus) ValidateCreate() error {
 }
 
 func (r *Milvus) validateCommon() *field.Error {
-	if r.Spec.Mode != MilvusModeCluster &&
-		(r.Spec.Dep.MsgStreamType == "" || r.Spec.Dep.MsgStreamType == MsgStreamTypeRocksMQ) &&
-		r.Spec.Com.EnableRollingUpdate != nil && *r.Spec.Com.EnableRollingUpdate {
-		fp := field.NewPath("spec").Child("components").Child("enableRollingUpdate")
-		return field.Invalid(fp, r.Spec.Com.EnableRollingUpdate, "enableRollingUpdate is not supported for msgStream rocksmq. Set it to false or set spec.msgStreamType to kafka/pulsar")
+	if err := r.validateEnableRolingUpdate(); err != nil {
+		return err
+	}
+	// examine values
+	if err := r.validatePersistConfig(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Milvus) validateEnableRolingUpdate() *field.Error {
+	if r.Spec.Com.EnableRollingUpdate == nil {
+		return nil
+	}
+	if !*r.Spec.Com.EnableRollingUpdate {
+		return nil
+	}
+
+	if r.Spec.Mode == MilvusModeCluster {
+		return nil
+	}
+	switch r.Spec.Dep.MsgStreamType {
+	case MsgStreamTypeKafka, MsgStreamTypePulsar:
+		return nil
+	}
+	fp := field.NewPath("spec").Child("components").Child("enableRollingUpdate")
+	return field.Invalid(fp, r.Spec.Com.EnableRollingUpdate, "enableRollingUpdate is not supported for msgStream rocksmq or natsmq. Set it to false or set spec.msgStreamType to kafka/pulsar")
+}
+
+func (r *Milvus) validatePersistConfig() *field.Error {
+	persistconfig := r.Spec.GetPersistenceConfig()
+	if persistconfig == nil {
+		return nil
+	}
+	if err := persistconfig.PersistentVolumeClaim.Spec.AsObject(new(corev1.PersistentVolumeClaimSpec)); err != nil {
+		fp := field.NewPath("spec").Child("dependencies").Child("rocksmq/natsmq").Child("persistence").Child("persistentVolumeClaim").Child("spec")
+		return field.Invalid(fp, persistconfig, err.Error())
 	}
 	return nil
 }
@@ -419,8 +452,6 @@ func (r *Milvus) defaultMsgStream() {
 				r.Spec.Dep.Pulsar.InCluster.DeletionPolicy = DeletionPolicyRetain
 			}
 		}
-	case MsgStreamTypeRocksMQ:
-		// do nothing
 	}
 }
 
@@ -477,7 +508,8 @@ const EnableActiveStandByConfig = "enableActiveStandby"
 
 func (r *Milvus) isRollingUpdateEnabledByConfig() bool {
 	if r.Spec.Mode != MilvusModeCluster {
-		if r.Spec.Dep.MsgStreamType == MsgStreamTypeRocksMQ {
+		switch r.Spec.Dep.MsgStreamType {
+		case MsgStreamTypeRocksMQ, MsgStreamTypeNatsMQ:
 			return false
 		}
 	}

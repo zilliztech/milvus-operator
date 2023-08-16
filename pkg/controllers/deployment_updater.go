@@ -230,10 +230,7 @@ func newMilvusDeploymentUpdater(m v1beta1.Milvus, scheme *runtime.Scheme, compon
 }
 
 func (m milvusDeploymentUpdater) GetPersistenceConfig() *v1beta1.Persistence {
-	if m.Milvus.Spec.Dep.RocksMQ.Persistence.Enabled {
-		return &m.Milvus.Spec.Dep.RocksMQ.Persistence
-	}
-	return nil
+	return m.Milvus.Spec.GetPersistenceConfig()
 }
 
 func (m milvusDeploymentUpdater) GetIntanceName() string {

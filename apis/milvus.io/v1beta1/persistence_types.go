@@ -36,7 +36,16 @@ type PersistentVolumeClaim struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 
 	// Spec defines the desired characteristics of a volume requested by a pod author.
+	// It's same as corev1.PersistentVolumeClaimSpec, we use a Values here to avoid the CRD become too large
 	// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
-	// +kubebuilder:validation:Optional
-	Spec corev1.PersistentVolumeClaimSpec `json:"spec,omitempty"`
+	// +optional
+	// +nullable
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Spec Values `json:"spec,omitempty"`
+}
+
+func (p *PersistentVolumeClaim) GetSpec() *corev1.PersistentVolumeClaimSpec {
+	ret := new(corev1.PersistentVolumeClaimSpec)
+	p.Spec.AsObject(ret)
+	return ret
 }

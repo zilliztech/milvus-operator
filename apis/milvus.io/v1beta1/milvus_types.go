@@ -114,6 +114,16 @@ func (ms MilvusSpec) GetMilvusVersionByImage() (*semver.Version, error) {
 	return provisioner.GetSemanticVersion(splited[1])
 }
 
+func (ms *MilvusSpec) GetPersistenceConfig() *Persistence {
+	switch ms.Dep.MsgStreamType {
+	case MsgStreamTypeRocksMQ:
+		return &ms.Dep.RocksMQ.Persistence
+	case MsgStreamTypeNatsMQ:
+		return &ms.Dep.NatsMQ.Persistence
+	}
+	return nil
+}
+
 // MilvusMode defines the mode of Milvus deployment
 type MilvusMode string
 

@@ -1,0 +1,15 @@
+# This is a sample to deploy a standalone milvus with rocksmq.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  # for now natsmq only support standalone mode
+  mode: standalone
+  dependencies:
+    msgStreamType: natsmq
+    natsmq:
+      persistence:
+        enabled: true

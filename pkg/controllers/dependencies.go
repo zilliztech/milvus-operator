@@ -158,7 +158,7 @@ func (r *MilvusReconciler) ReconcileMsgStream(ctx context.Context, mc v1beta1.Mi
 	switch mc.Spec.Dep.MsgStreamType {
 	case v1beta1.MsgStreamTypeKafka:
 		return r.ReconcileKafka(ctx, mc)
-	case v1beta1.MsgStreamTypeRocksMQ:
+	case v1beta1.MsgStreamTypeRocksMQ, v1beta1.MsgStreamTypeNatsMQ:
 		// built in, do nothing
 		return nil
 	default:
