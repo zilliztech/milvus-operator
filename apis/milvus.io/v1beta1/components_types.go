@@ -161,6 +161,10 @@ type MilvusComponents struct {
 
 	// +kubebuilder:validation:Optional
 	Standalone *MilvusStandalone `json:"standalone,omitempty"`
+
+	// UpdateConfigMapOnly only reconcile ConfigMap resource
+	// +kubebuilder:validation:Optional
+	UpdateConfigMapOnly bool `json:"updateConfigMapOnly,omitempty"`
 }
 
 type Component struct {

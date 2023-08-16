@@ -52,6 +52,11 @@ func (r *MilvusReconciler) ReconcileMilvus(ctx context.Context, mc v1beta1.Milvu
 		return fmt.Errorf("configmap: %w", err)
 	}
 
+	// Stop here if UpdateConfigMapOnly is `true`
+	if mc.Spec.Com.UpdateConfigMapOnly {
+		return nil
+	}
+
 	comReconcilers := []Func{
 		r.ReconcilePVCs,
 		r.ReconcileDeployments,
