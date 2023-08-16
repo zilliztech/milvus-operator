@@ -70,8 +70,8 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		assert.Len(t, deployment.Spec.Template.Spec.Containers[0].VolumeMounts, 3)
 	})
 
-	const oldImage = "milvusdb/milvus:old"
-	const newImage = "milvusdb/milvus:new"
+	const oldImage = "milvusdb/milvus:2.2.13"
+	const newImage = "milvusdb/milvus:2.3.0"
 
 	t.Run("rolling update image", func(t *testing.T) {
 		inst := env.Inst.DeepCopy()

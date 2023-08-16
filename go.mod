@@ -19,15 +19,13 @@ require (
 	github.com/minio/madmin-go v1.3.14
 	github.com/minio/minio-go/v7 v7.0.23
 	github.com/mitchellh/copystructure v1.2.0 // indirect
-	github.com/onsi/ginkgo v1.16.4
-	github.com/onsi/gomega v1.14.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/prashantv/gostub v1.1.0
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.51.2
-	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/client_golang v1.11.1
 	github.com/segmentio/kafka-go v0.4.39
 	github.com/stretchr/testify v1.8.0
 	go.etcd.io/etcd/api/v3 v3.5.0

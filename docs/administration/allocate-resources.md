@@ -39,7 +39,7 @@ spec:
 
 # More samples for different scale Milvus
 
-check samples in https://www.github.com/milvus-io/milvus-operator/tree/master/config/samples/by-scale
+check samples in https://www.github.com/zilliztech/milvus-operator/tree/master/config/samples/by-scale
 
 # How much resources should I allocate for Milvus
 

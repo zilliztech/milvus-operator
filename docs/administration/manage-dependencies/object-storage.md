@@ -9,7 +9,7 @@ This topic assumes that you have deployed Milvus Operator.
 You need to specify a configuration file for using Milvus Operator to start a Milvus.
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/milvus-io/milvus-operator/main/config/samples/demo.yaml
+kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/main/config/samples/demo.yaml
 ```
 
 You only need to edit the code template in `demo.yaml` to configure third-party dependencies. The following sections introduce how to configure object storage.

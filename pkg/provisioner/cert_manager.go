@@ -177,13 +177,13 @@ func certManagerCRDsExist(crdMap map[string]string) bool {
 	return true
 }
 
-func getSemanticVersion(version string) (*semver.Version, error) {
+func GetSemanticVersion(version string) (*semver.Version, error) {
 	return semver.NewVersion(strings.TrimPrefix(version, "v"))
 }
 
 func certManagerVersionSatisfied(crdVersionMap map[string]string) bool {
 	for _, crdName := range certManagerCrdNames {
-		currentVersion, err := getSemanticVersion(crdVersionMap[crdName])
+		currentVersion, err := GetSemanticVersion(crdVersionMap[crdName])
 		if err != nil {
 			err = errors.Wrapf(err, "failed to parse crd version")
 			logger.Error(err, "crdName", crdName, "version", crdVersionMap[crdName])

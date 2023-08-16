@@ -39,6 +39,7 @@ func (d *dependencyGraphImpl) GetReversedDependencies(component MilvusComponent)
 }
 
 func init() {
+	// v2.2.x
 	clusterDependencyGraph.AddDependency(RootCoord, []MilvusComponent{})
 	clusterDependencyGraph.AddDependency(DataCoord, []MilvusComponent{RootCoord})
 	clusterDependencyGraph.AddDependency(IndexCoord, []MilvusComponent{DataCoord})
@@ -48,6 +49,16 @@ func init() {
 	clusterDependencyGraph.AddDependency(DataNode, []MilvusComponent{QueryCoord})
 	clusterDependencyGraph.AddDependency(Proxy, []MilvusComponent{IndexNode, QueryNode, DataNode})
 
+	// v2.3+
+	clusterDependencyGraphV2p3.AddDependency(RootCoord, []MilvusComponent{})
+	clusterDependencyGraphV2p3.AddDependency(IndexCoord, []MilvusComponent{RootCoord})
+	clusterDependencyGraphV2p3.AddDependency(DataCoord, []MilvusComponent{IndexCoord})
+	clusterDependencyGraphV2p3.AddDependency(QueryCoord, []MilvusComponent{DataCoord})
+	clusterDependencyGraphV2p3.AddDependency(IndexNode, []MilvusComponent{QueryCoord})
+	clusterDependencyGraphV2p3.AddDependency(QueryNode, []MilvusComponent{QueryCoord})
+	clusterDependencyGraphV2p3.AddDependency(DataNode, []MilvusComponent{QueryCoord})
+	clusterDependencyGraphV2p3.AddDependency(Proxy, []MilvusComponent{IndexNode, QueryNode, DataNode})
+
 	mixCoordClusterDependencyGraph.AddDependency(MixCoord, []MilvusComponent{})
 	mixCoordClusterDependencyGraph.AddDependency(IndexNode, []MilvusComponent{MixCoord})
 	mixCoordClusterDependencyGraph.AddDependency(QueryNode, []MilvusComponent{MixCoord})
@@ -55,4 +66,7 @@ func init() {
 	mixCoordClusterDependencyGraph.AddDependency(Proxy, []MilvusComponent{IndexNode, QueryNode, DataNode})
 }
 
-var clusterDependencyGraph, mixCoordClusterDependencyGraph dependencyGraph = newDependencyGraphImpl(), newDependencyGraphImpl()
+var (
+	clusterDependencyGraph, mixCoordClusterDependencyGraph = newDependencyGraphImpl(), newDependencyGraphImpl()
+	clusterDependencyGraphV2p3                             = newDependencyGraphImpl()
+)

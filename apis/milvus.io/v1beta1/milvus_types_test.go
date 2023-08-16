@@ -194,3 +194,25 @@ func TestMilvus_IsPodServiceLabelAdded(t *testing.T) {
 		assert.False(t, m.IsPodServiceLabelAdded())
 	})
 }
+
+func TestGetMilvusVersionByGlobalImage(t *testing.T) {
+	m := Milvus{}
+	_, err := m.Spec.GetMilvusVersionByImage()
+	assert.Error(t, err)
+
+	m.Default()
+	_, err = m.Spec.GetMilvusVersionByImage()
+	assert.NoError(t, err)
+
+	m.Spec.Com.ComponentSpec.Image = "milvusdb/milvus:v2.3.1-beta1"
+	ver, err := m.Spec.GetMilvusVersionByImage()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), ver.Major)
+	assert.Equal(t, int64(3), ver.Minor)
+	assert.Equal(t, int64(1), ver.Patch)
+	assert.Equal(t, "beta1", ver.PreRelease.Slice()[0])
+
+	m.Spec.Com.ComponentSpec.Image = "harbor.milvus.io/milvus/milvus:latest"
+	_, err = m.Spec.GetMilvusVersionByImage()
+	assert.Error(t, err)
+}

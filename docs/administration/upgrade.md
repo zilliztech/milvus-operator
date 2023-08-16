@@ -91,7 +91,7 @@ The metadata structure of Milvus 2.2.x is different from that of Milvus 2.1.x. T
 Run the following command to upgrade the version of your Milvus Operator to latest stable version.
 
 ```
-helm repo add milvus-operator https://milvus-io.github.io/milvus-operator/
+helm repo add milvus-operator https://zilliztech.github.io/milvus-operator/
 helm repo update milvus-operator
 helm -n milvus-operator upgrade milvus-operator milvus-operator/milvus-operator
 ```

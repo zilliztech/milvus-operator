@@ -333,7 +333,7 @@ spec:
       bucketName: my-bucket
 ```
 
-A complete set of config fields can be found at https://github.com/milvus-io/milvus-operator/blob/main/config/assets/templates/milvus-cluster/milvus.yaml.tmpl. 
+A complete set of config fields can be found at https://github.com/zilliztech/milvus-operator/blob/main/config/assets/templates/milvus-cluster/milvus.yaml.tmpl. 
 
 NOTE! The fields of dependencies' address and port cannot be set in the Milvus Cluster CR.
 
