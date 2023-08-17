@@ -132,6 +132,10 @@ type MilvusComponents struct {
 	// +kubebuilder:validation:Optional
 	UpdateToolImage bool `json:"updateToolImage,omitempty"`
 
+	// UpdateConfigMapOnly when enabled, will not rollout pods. By default pods will be restarted when configmap changed
+	// +kubebuilder:validation:Optional
+	UpdateConfigMapOnly bool `json:"disableConfigmap,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	Proxy *MilvusProxy `json:"proxy,omitempty"`
 
