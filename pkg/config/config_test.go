@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 func TestInit_NewConfigFailed(t *testing.T) {

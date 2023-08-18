@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	networkingv1 "k8s.io/api/networking/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -18,9 +18,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/milvus-io/milvus-operator/pkg/client/clientset/versioned"
-	milvusv1beta1 "github.com/milvus-io/milvus-operator/pkg/client/clientset/versioned/typed/milvus.io/v1beta1"
-	fakemilvusv1beta1 "github.com/milvus-io/milvus-operator/pkg/client/clientset/versioned/typed/milvus.io/v1beta1/fake"
+	clientset "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned"
+	milvusv1beta1 "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned/typed/milvus.io/v1beta1"
+	fakemilvusv1beta1 "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned/typed/milvus.io/v1beta1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

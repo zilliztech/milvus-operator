@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/milvus-io/milvus-operator/pkg/helm"
 	"github.com/stretchr/testify/assert"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/helm"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"

@@ -21,8 +21,8 @@ import (
 	"context"
 	"time"
 
-	v1beta1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	scheme "github.com/milvus-io/milvus-operator/pkg/client/clientset/versioned/scheme"
+	v1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	scheme "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"

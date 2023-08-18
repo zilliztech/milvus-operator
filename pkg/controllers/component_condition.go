@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"

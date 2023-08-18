@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/milvus-io/milvus-operator/pkg/config"
 	"github.com/pkg/errors"
+	"github.com/zilliztech/milvus-operator/pkg/config"
 	"helm.sh/helm/v3/pkg/cli"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,9 +15,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	milvusv1alpha1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1alpha1"
-	milvusv1beta1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	milvuscluster "github.com/milvus-io/milvus-operator/pkg/controllers/milvuscluster"
+	milvusv1alpha1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1alpha1"
+	milvusv1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	milvuscluster "github.com/zilliztech/milvus-operator/pkg/controllers/milvuscluster"
 )
 
 var configFlagInsecure = true

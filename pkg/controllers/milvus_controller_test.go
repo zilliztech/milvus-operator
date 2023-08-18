@@ -11,10 +11,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/milvus-io/milvus-operator/pkg/config"
-	"github.com/milvus-io/milvus-operator/pkg/helm"
-	"github.com/milvus-io/milvus-operator/pkg/util"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/helm"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 func TestClusterReconciler(t *testing.T) {

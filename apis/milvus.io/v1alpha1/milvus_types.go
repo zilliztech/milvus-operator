@@ -17,7 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1beta1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	v1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -111,9 +111,9 @@ type MilvusReplicas struct {
 
 // +genclient
 // +genclient:noStatus
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:path=milvuses,singular=milvus,shortName=mi
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:path=milvuses,singular=milvus,shortName=mi
 // Milvus is the Schema for the milvus API
 type Milvus struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -123,7 +123,7 @@ type Milvus struct {
 	Status v1beta1.MilvusStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 // MilvusList contains a list of Milvus
 type MilvusList struct {
 	metav1.TypeMeta `json:",inline"`

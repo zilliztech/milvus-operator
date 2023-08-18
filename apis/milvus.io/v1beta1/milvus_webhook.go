@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/milvus-io/milvus-operator/pkg/config"
-	"github.com/milvus-io/milvus-operator/pkg/helm/values"
-	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/pkg/errors"
+	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/helm/values"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"

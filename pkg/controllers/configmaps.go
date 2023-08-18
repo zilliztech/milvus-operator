@@ -9,9 +9,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/milvus-io/milvus-operator/pkg/config"
-	"github.com/milvus-io/milvus-operator/pkg/util"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Milvus) (string, string) {

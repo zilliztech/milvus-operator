@@ -17,7 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1beta1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	v1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -145,9 +145,9 @@ type MilvusCondition struct {
 // +genclient
 // +genclient:noStatus
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:path=milvusclusters,singular=milvuscluster,shortName=mc;mic
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:path=milvusclusters,singular=milvuscluster,shortName=mc;mic
 // MilvusCluster is the Schema for the milvusclusters API
 type MilvusCluster struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -175,7 +175,7 @@ func (r *MilvusCluster) UpdateStatusFrom(src *v1beta1.Milvus) {
 	r.Status = src.Status
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 // MilvusClusterList contains a list of MilvusCluster
 type MilvusClusterList struct {
 	metav1.TypeMeta `json:",inline"`

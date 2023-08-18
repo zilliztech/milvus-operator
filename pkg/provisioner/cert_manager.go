@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/milvus-io/milvus-operator/pkg/config"
-	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/pkg/errors"
+	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"

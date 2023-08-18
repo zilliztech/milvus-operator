@@ -20,7 +20,7 @@ package versioned
 import (
 	"fmt"
 
-	milvusv1beta1 "github.com/milvus-io/milvus-operator/pkg/client/clientset/versioned/typed/milvus.io/v1beta1"
+	milvusv1beta1 "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned/typed/milvus.io/v1beta1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

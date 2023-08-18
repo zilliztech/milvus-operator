@@ -17,7 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1beta1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	v1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"

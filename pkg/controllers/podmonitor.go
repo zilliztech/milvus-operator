@@ -8,7 +8,7 @@ import (
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 func (r *MilvusReconciler) updatePodMonitor(

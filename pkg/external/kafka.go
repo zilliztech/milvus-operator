@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/segmentio/kafka-go"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 func CheckKafka(brokerList []string) error {

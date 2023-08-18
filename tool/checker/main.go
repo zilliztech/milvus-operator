@@ -9,8 +9,8 @@ import (
 
 	ctrlConfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/milvus-io/milvus-operator/pkg/config"
-	"github.com/milvus-io/milvus-operator/pkg/provisioner"
+	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/provisioner"
 )
 
 func main() {

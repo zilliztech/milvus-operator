@@ -1,7 +1,7 @@
 package milvus
 
 import (
-	"github.com/milvus-io/milvus-operator/pkg/util"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 const (

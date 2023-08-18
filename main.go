@@ -29,11 +29,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/milvus-io/milvus-operator/pkg/config"
-	"github.com/milvus-io/milvus-operator/pkg/controllers"
-	"github.com/milvus-io/milvus-operator/pkg/helm/values"
-	"github.com/milvus-io/milvus-operator/pkg/manager"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/controllers"
+	"github.com/zilliztech/milvus-operator/pkg/helm/values"
+	"github.com/zilliztech/milvus-operator/pkg/manager"
 )
 
 var (

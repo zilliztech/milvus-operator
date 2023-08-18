@@ -7,10 +7,10 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/golang/mock/gomock"
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/milvus-io/milvus-operator/pkg/external"
 	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/external"
 	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"

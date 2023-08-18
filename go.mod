@@ -1,4 +1,4 @@
-module github.com/milvus-io/milvus-operator
+module github.com/zilliztech/milvus-operator
 
 go 1.16
 

@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 

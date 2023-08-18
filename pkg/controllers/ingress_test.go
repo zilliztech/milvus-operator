@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/stretchr/testify/assert"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
