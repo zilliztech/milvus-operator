@@ -47,9 +47,50 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 		deployment.Spec.Selector = new(metav1.LabelSelector)
 		deployment.Spec.Selector.MatchLabels = appLabels
 	}
-	template := &deployment.Spec.Template
+	updatePodTemplate(updater, &deployment.Spec.Template, appLabels, isCreating)
+	return nil
+}
+
+func updatePodTemplate(
+	updater deploymentUpdater,
+	template *corev1.PodTemplateSpec,
+	appLabels map[string]string,
+	isCreating bool,
+) {
 	currentTemplate := template.DeepCopy()
-	//update initContainers
+
+	updatePodMeta(template, appLabels, updater)
+	updateInitContainers(template, updater)
+	updateVolumes(template, updater)
+	updateScheduleSpec(template, updater)
+	updateMilvusContainer(template, updater, isCreating)
+	updateSidecars(template, updater)
+	// no rolling update
+	if IsEqual(currentTemplate, template) {
+		return
+	}
+	// some defaults change will cause rolling update, so we only perform when rolling update
+	updateSomeFieldsOnlyWhenRolling(template, updater)
+}
+
+func updatePodMeta(template *corev1.PodTemplateSpec, appLabels map[string]string, updater deploymentUpdater) {
+	mergedComSpec := updater.GetMergedComponentSpec()
+	spec := updater.GetMilvus().Spec
+	if template.Labels == nil {
+		template.Labels = map[string]string{}
+	}
+	template.Labels = MergeLabels(template.Labels, mergedComSpec.PodLabels)
+	template.Labels = MergeLabels(template.Labels, appLabels)
+	if template.Annotations == nil {
+		template.Annotations = map[string]string{}
+	}
+	template.Annotations = MergeAnnotations(template.Annotations, mergedComSpec.PodAnnotations)
+	if !spec.Com.UpdateConfigMapOnly {
+		template.Annotations[AnnotationCheckSum] = updater.GetConfCheckSum()
+	}
+}
+
+func updateInitContainers(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
 	configContainerIdx := GetContainerIndex(template.Spec.InitContainers, configContainerName)
 	spec := updater.GetMilvus().Spec
 	if configContainerIdx < 0 {
@@ -72,21 +113,23 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 			}
 		}
 	}
+}
 
-	if template.Labels == nil {
-		template.Labels = map[string]string{}
+func updateScheduleSpec(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
+	mergedComSpec := updater.GetMergedComponentSpec()
+	if len(mergedComSpec.SchedulerName) > 0 {
+		template.Spec.SchedulerName = mergedComSpec.SchedulerName
 	}
-	template.Labels = MergeLabels(template.Labels, mergedComSpec.PodLabels)
-	template.Labels = MergeLabels(template.Labels, appLabels)
-	if template.Annotations == nil {
-		template.Annotations = map[string]string{}
-	}
-	template.Annotations = MergeAnnotations(template.Annotations, mergedComSpec.PodAnnotations)
-	if !spec.Com.UpdateConfigMapOnly {
-		template.Annotations[AnnotationCheckSum] = updater.GetConfCheckSum()
-	}
+	template.Spec.Affinity = mergedComSpec.Affinity
+	template.Spec.Tolerations = mergedComSpec.Tolerations
+	template.Spec.NodeSelector = mergedComSpec.NodeSelector
+	template.Spec.ImagePullSecrets = mergedComSpec.ImagePullSecrets
+	template.Spec.ServiceAccountName = mergedComSpec.ServiceAccountName
+	template.Spec.PriorityClassName = mergedComSpec.PriorityClassName
+}
 
-	// update configmap volume
+func updateVolumes(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
+	mergedComSpec := updater.GetMergedComponentSpec()
 	volumes := &template.Spec.Volumes
 	addVolume(volumes, configVolumeByName(updater.GetIntanceName()))
 	addVolume(volumes, toolVolume)
@@ -102,16 +145,11 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 			addVolume(volumes, persisentVolumeByName(getPVCNameByInstName(updater.GetIntanceName())))
 		}
 	}
-	if len(mergedComSpec.SchedulerName) > 0 {
-		template.Spec.SchedulerName = mergedComSpec.SchedulerName
-	}
-	template.Spec.Affinity = mergedComSpec.Affinity
-	template.Spec.Tolerations = mergedComSpec.Tolerations
-	template.Spec.NodeSelector = mergedComSpec.NodeSelector
-	template.Spec.ImagePullSecrets = mergedComSpec.ImagePullSecrets
-	template.Spec.ServiceAccountName = mergedComSpec.ServiceAccountName
-	template.Spec.PriorityClassName = mergedComSpec.PriorityClassName
-	// update component container
+}
+
+func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentUpdater, isCreating bool) {
+	mergedComSpec := updater.GetMergedComponentSpec()
+
 	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponentName())
 	if containerIdx < 0 {
 		template.Spec.Containers = append(
@@ -170,10 +208,12 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 	}
 
 	container.Resources = *mergedComSpec.Resources
-	// no rolling update
-	if IsEqual(currentTemplate, template) {
-		return nil
-	}
+}
+
+func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
+	componentName := updater.GetComponentName()
+	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponentName())
+	container := &template.Spec.Containers[containerIdx]
 	if componentName == ProxyName || componentName == StandaloneName {
 		template.Labels[v1beta1.ServiceLabel] = v1beta1.TrueStr
 	}
@@ -199,8 +239,10 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 			},
 		}
 	}
+	template.Spec.TerminationGracePeriodSeconds = int64Ptr(300)
+}
 
-	////update or append sidecar container
+func updateSidecars(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
 	sidecars := updater.GetSideCars()
 	if len(sidecars) > 0 {
 		for _, c := range sidecars {
@@ -211,9 +253,6 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 			}
 		}
 	}
-
-	template.Spec.TerminationGracePeriodSeconds = int64Ptr(300)
-	return nil
 }
 
 // milvusDeploymentUpdater implements deploymentUpdater for milvus
