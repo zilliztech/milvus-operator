@@ -1453,8 +1453,6 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
-                  disableConfigmap:
-                    type: boolean
                   disableMetric:
                     type: boolean
                   enableRollingUpdate:
@@ -5926,6 +5924,8 @@ spec:
                     type: array
                   toolImage:
                     type: string
+                  updateConfigMapOnly:
+                    type: boolean
                   updateToolImage:
                     type: boolean
                   volumeMounts:
