@@ -2,14 +2,14 @@
 
 Milvus supports horizontal scaling of its components. This means you can either increase or decrease the number of worker nodes of each type according to your own need.
 
-This topic describes how to scale out and scale in a Milvus cluster. We assume that you have already [installed a Milvus cluster](../installation/installation.md#deploy-a-milvus-cluster-demo) before scaling. Also, we recommend familiarizing yourself with the [Milvus architecture](architecture_overview.md) before you begin.  
+This topic describes how to scale out and scale in a Milvus cluster. We assume that you have already [installed a Milvus cluster](../installation/installation.md#deploy-a-milvus-cluster-demo) before scaling. Also, we recommend familiarizing yourself with the [Milvus architecture](https://milvus.io/docs/architecture_overview.md) before you begin.  
 
 This tutorial takes scaling out three query nodes as an example. To scale out other types of nodes, replace queryNode with the corresponding node type in the command line.
 
 ## Scaling out
 Scaling out refers to increasing the number of nodes in a cluster. Unlike scaling up, scaling out does not require you to allocate more resources to one node in the cluster. Instead, scaling out expands the cluster horizontally by adding more nodes.
 
-According to the [Milvus architecture](architecture_overview.md), stateless worker nodes include query node, data node, index node, and proxy. Therefore, you can scale out these type of nodes to suit your business needs and application scenarios.
+According to the [Milvus architecture](https://milvus.io/docs/architecture_overview.md), stateless worker nodes include query node, data node, index node, and proxy. Therefore, you can scale out these type of nodes to suit your business needs and application scenarios.
 
 Generally, you will need to scale out the Milvus cluster you created if it is over-utilized. Below are some typical situations where you may need to scale out the Milvus cluster:
 - The CPU and memory utilization is high for a period of time.

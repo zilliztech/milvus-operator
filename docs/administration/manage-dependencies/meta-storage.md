@@ -4,7 +4,7 @@ For now Milvus supports only etcd for storing metadata. We're planning to suppor
 
 This topic assumes that you have deployed Milvus Operator.
 
-> See [Deploy Milvus Operator](../installation/installation.md) for more information.
+> See [Deploy Milvus Operator](../../installation/installation.md) for more information.
 
 You need to specify a configuration file for using Milvus Operator to start a Milvus.
 
@@ -55,7 +55,7 @@ spec:
 
 It will deploy an etcd cluster with 3 node, each of 1 cpu core & 4Gi memory.
 
-The fields under `inCluster.values` are the same as the values in its Helm Chart, the complete configuration fields can be found in (https://github.com/milvus-io/milvus-helm/blob/master/charts/minio/values.yaml)
+The fields under `inCluster.values` are the same as the values in its Helm Chart, the complete configuration fields can be found in (https://github.com/zilliztech/milvus-helm/blob/master/charts/minio/values.yaml)
 
 > You can set the `deletionPolicy` to `Retain` before delete Milvus instance if you want to start the milvus later without removing the dependency service.
 > Or you can set `deletionPolicy` to `Delete` and the `pvcDeletion` to `false` to only keep your data volume (PVC).
