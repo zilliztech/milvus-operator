@@ -2,11 +2,27 @@ apiVersion: v1
 entries:
   milvus-operator:
   - apiVersion: v2
+    appVersion: 0.8.0
+    created: "2023-08-23T22:46:45.62806+08:00"
+    description: A Helm chart for deploying Milvus Operator
+    digest: 7e01dc2d697e8dc5a99614b2a1a33e391dd0df06a88c8b2501df7c0a94151362
+    home: https://github.com/zilliztech/milvus-operator
+    kubeVersion: '>= 1.16.0-0'
+    maintainers:
+    - email: devops@zilliz.com
+      name: devops team of zilliz
+      url: zilliz.com
+    name: milvus-operator
+    type: application
+    urls:
+    - https://github.com/zilliztech/milvus-operator/releases/download/v0.8.0/milvus-operator-0.8.0.tgz
+    version: 0.8.0
+  - apiVersion: v2
     appVersion: 0.7.17
     created: "2023-08-14T17:28:15.874945+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 80b89ab40ebc7fdf59697e75c55bea709679f57d2c0f6532dd7b28f3fa06884d
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -22,7 +38,7 @@ entries:
     created: "2023-08-14T17:28:15.873182+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 8578e7319ffd0047beeb0bf78a44e8dc21e3074694ef1a5710c71c3a575d55da
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -38,7 +54,7 @@ entries:
     created: "2023-08-14T17:28:15.867532+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 29ba879eddf0192054dfeff1211c30e5b8c2a0ed419e53a4e02e90377655650d
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -54,7 +70,7 @@ entries:
     created: "2023-08-14T17:28:15.864175+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 5797b7f43d080381bc3a47e893233f3712c763738228d0150a5338a29d634d1f
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -70,7 +86,7 @@ entries:
     created: "2023-06-02T17:21:15.537401+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 25ac4c7ad16cd792c79d51f0cf52ea912f6ba84779b445cf61d9f626887a74a4
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -86,7 +102,7 @@ entries:
     created: "2023-06-02T17:21:15.536127+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 9b1fa298a29218108bc395fbe101df3bf02048e6f91a7b6981fe61af32f68f89
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -102,7 +118,7 @@ entries:
     created: "2023-06-02T17:21:15.532728+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: bfc297c25240c2833282dde7ab1f805aa81a514fb309fc1b4f7582891c7edb0a
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -118,7 +134,7 @@ entries:
     created: "2023-04-14T11:21:31.674632+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: e4a64420277184b77c6cb491dd45104e0ce855b249a1f2f5f76a9ba677c9e41d
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -134,7 +150,7 @@ entries:
     created: "2023-03-30T09:52:27.100232+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: eb13aefeaabea6de8965291f9a36ebb3685dbf683f7fe60c03e40bf3b0adf81e
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -150,7 +166,7 @@ entries:
     created: "2023-03-17T18:38:06.908504+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 68a716935f58998cf7f594a5e94a3c8f16bfec48e0ebbc8f3bbe5700b2e16b5c
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -166,7 +182,7 @@ entries:
     created: "2023-02-15T14:01:08.326345+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: dd28e4f62b08d49c24f3d06acbb85023da9071ad0756862bb04ae6c93d5044d4
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -182,7 +198,7 @@ entries:
     created: "2023-02-15T11:28:03.020116+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 35f3bf5c2e3231c9b2c4b38a627ecc200f65ea4d6af7b75dcbe9734303c94bcf
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -198,7 +214,7 @@ entries:
     created: "2023-02-10T17:30:41.542338+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: cd9b6b67e9db43f4f78c2bdc761d625c8b2d70522bcdb7c11c67c223b45b8686
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -214,7 +230,7 @@ entries:
     created: "2023-01-13T15:27:46.93353+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 59aed4bbce0f6cd1bb7d742de81ba113a08c763aab92661264ea3c4fbaf2451d
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -230,7 +246,7 @@ entries:
     created: "2022-12-22T17:39:10.9012+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 238128bc4bdae0246793f88c902adf5710d0dace135ce50cb7cde42d5554b030
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -246,7 +262,7 @@ entries:
     created: "2022-12-15T16:50:59.851593+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 039f7d0d3100bddc714b6e45f9d1a0dadc26710e12de103e4cf24cf3befe0e97
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -262,7 +278,7 @@ entries:
     created: "2022-11-24T18:45:44.031522+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 9548673effb18bf2a1949c13c6a608c93e1364bbfed725108cb65dd8cf0c731e
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -278,7 +294,7 @@ entries:
     created: "2022-11-18T18:30:20.400796+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: 4614e00b10b4a2fa466d6eb236aa8498904ddef1a9425a9f36f529e332f9d8bd
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -294,7 +310,7 @@ entries:
     created: "2022-10-10T18:52:26.16186+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: ee0fb991ff9d38611225d1c43e6623ee7897d476520ff8ff34afc5fdd3f842bc
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
@@ -310,7 +326,7 @@ entries:
     created: "2022-10-10T18:52:26.159626+08:00"
     description: A Helm chart for deploying Milvus Operator
     digest: f445a64936239ebcdd8a9e280edfacda4b761ad32d7b66c903225530d01c7f59
-    home: https://github.com/milvus-io/milvus-operator
+    home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
     - email: devops@zilliz.com
