@@ -4,7 +4,7 @@ Milvus uses MinIO or S3 as object storage to persist large-scale files, such as 
 
 This topic assumes that you have deployed Milvus Operator.
 
-> See [Deploy Milvus Operator](../installation/installation.md) for more information.
+> See [Deploy Milvus Operator](../../installation/installation.md) for more information.
 
 You need to specify a configuration file for using Milvus Operator to start a Milvus.
 
@@ -17,7 +17,7 @@ You only need to edit the code template in `demo.yaml` to configure third-party 
 
 ## Internal object storage
 
-Milvus supports object storage deployed external or in-cluster. By default, Milvus Operator deploy an in-cluster MinIO for milvus. You can change its configuration or use an external object storage through the `spec.dependencies.storage` field in the `Milvus` CRD. Let's take the [demo instance as example](../../config/samples/demo.yaml):
+Milvus supports object storage deployed external or in-cluster. By default, Milvus Operator deploy an in-cluster MinIO for milvus. You can change its configuration or use an external object storage through the `spec.dependencies.storage` field in the `Milvus` CRD. Let's take the [demo instance as example](../../../config/samples/demo.yaml):
 
 ```yaml
 apiVersion: milvus.io/v1beta1
@@ -43,7 +43,7 @@ spec:
 
 It configures the in-cluster MinIO to run in standalone mode, and set the memory limit to `100Mi`. The `deletionPolicy` field specifies the deletion policy of the in-cluster MinIO.  The `pvcDeletion` field specifies whether to delete the PVC(Persistent Volume Claim) when the in-cluster MinIO is deleted.
 
-The fields under `inCluster.values` are the same as the values in its Helm Chart, the complete configuration fields can be found in (https://github.com/milvus-io/milvus-helm/blob/master/charts/minio/values.yaml)
+The fields under `inCluster.values` are the same as the values in its Helm Chart, the complete configuration fields can be found in (https://github.com/zilliztech/milvus-helm/blob/master/charts/minio/values.yaml)
 
 > You can set the `deletionPolicy` to `Retain` before delete Milvus instance if you want to start the milvus later without removing the dependency service.
 > Or you can set `deletionPolicy` to `Delete` and the `pvcDeletion` to `false` to only keep your data volume (PVC).
@@ -56,7 +56,7 @@ To use an external object storage, you need to properly set fields under `spec.d
 
 
 # Use AWS S3 as External object storage
-Let's take a look at the [AWS S3 example](../../config/samples/s3.yaml)
+Let's take a look at the [AWS S3 example](../../../config/samples/milvus_s3.yaml)
 
 An S3 bucket can usually be accessed by a pair of Access Key and Secret Key. You can create a secret to store them in your kubernetes: 
 

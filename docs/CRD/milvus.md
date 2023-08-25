@@ -356,7 +356,7 @@ spec:
           mode: standalone
 ```
 
-A complete fields doc can be found at https://github.com/milvus-io/milvus-helm/blob/master/charts/minio/values.yaml.
+A complete fields doc can be found at https://github.com/zilliztech/milvus-helm/blob/master/charts/minio/values.yaml.
 
 
 #### Dependency Pulsar
@@ -412,7 +412,7 @@ spec:
             replicaCount: 1
 ```
 
-A complete fields doc can be found at https://github.com/kafkaesque-io/pulsar-helm-chart/blob/pulsar-1.0.31/helm-chart-sources/pulsar/values.yaml. And some of its default values are overrided by fields under `pulsar:` in https://github.com/milvus-io/milvus-helm/blob/master/charts/milvus/values.yaml
+A complete fields doc can be found at https://github.com/kafkaesque-io/pulsar-helm-chart/blob/pulsar-1.0.31/helm-chart-sources/pulsar/values.yaml. And some of its default values are overrided by fields under `pulsar:` in https://github.com/zilliztech/milvus-helm/blob/master/charts/milvus/values.yaml
 
 #### Dependency kafka
 The dependency kafka may be specified as external or in-cluster:
@@ -455,7 +455,7 @@ spec:
             replicaCount: 1
 ```
 
-A complete fields doc can be found at https://github.com/bitnami/charts/blob/1fdd2283f0e5a8772e4a763b455733c77e01b119/bitnami/kafka/values.yaml. And some of its default values are overrided by fields under `kafka:` in https://github.com/milvus-io/milvus-helm/blob/master/charts/milvus/values.yaml
+A complete fields doc can be found at https://github.com/bitnami/charts/blob/1fdd2283f0e5a8772e4a763b455733c77e01b119/bitnami/kafka/values.yaml. And some of its default values are overrided by fields under `kafka:` in https://github.com/zilliztech/milvus-helm/blob/master/charts/milvus/values.yaml
 
 
 ## Status
