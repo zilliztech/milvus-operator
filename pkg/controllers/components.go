@@ -366,15 +366,6 @@ func (c MilvusComponent) GetDependencies(spec v1beta1.MilvusSpec) []MilvusCompon
 	}
 	// cluster mode
 	var depGraph = clusterDependencyGraph
-	semeticVersion, err := spec.GetMilvusVersionByImage()
-	if err != nil || semeticVersion.Major < 2 {
-		// unknown version, ordered rolling not supported
-		return []MilvusComponent{}
-	}
-	// new upgrade order starts from v2.3.0
-	if semeticVersion.Major >= 3 || semeticVersion.Minor >= 3 {
-		depGraph = clusterDependencyGraphV2p3
-	}
 
 	isMixCoord := spec.Com.MixCoord != nil
 	isDowngrade := spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeRollingDowngrade
