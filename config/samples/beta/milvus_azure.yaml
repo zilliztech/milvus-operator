@@ -1,0 +1,32 @@
+# This sample file is used to deploy Milvus with Azure Storage as its object storage with access-key.
+# change the <parameters> to match your environment
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  config:
+    common:
+      storageType: remote
+    minio:
+      cloudProvider: azure
+      bucketName: <my-container-name>
+      rootPath: milvus/my-release
+      useSSL: true
+  dependencies:
+    storage:
+      external: true
+      type: Azure
+      endpoint: core.windows.net:443
+      secretRef: "my-release-azure-secret"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-release-azure-secret
+type: Opaque
+stringData:
+  accesskey: <my-azure-storage-eaccount-name>
+  secretkey: <my-azure-storage-access-key>

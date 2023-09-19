@@ -6119,6 +6119,7 @@ spec:
                         enum:
                         - MinIO
                         - S3
+                        - Azure
                         - ""
                         type: string
                     type: object

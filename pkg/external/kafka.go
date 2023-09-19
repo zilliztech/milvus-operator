@@ -25,5 +25,5 @@ func CheckKafka(brokerList []string) error {
 		err := r.SetOffsetAt(ctx, time.Now())
 		return errors.Wrap(err, "check consume offset from borker failed")
 	}
-	return util.DoWithBackoff("checkKafka", checkKafka, util.DefaultMaxRetry, util.DefualtBackOffInterval)
+	return util.DoWithBackoff("checkKafka", checkKafka, util.DefaultMaxRetry, util.DefaultBackOffInterval)
 }

@@ -4,11 +4,13 @@ import (
 	"testing"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/milvus-io/milvus-operator/pkg/util"
 	madmin "github.com/minio/madmin-go"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCheckMinIO(t *testing.T) {
+	util.DefaultMaxRetry = 1
 	// badendpoint
 	err := CheckMinIO(CheckMinIOArgs{
 		Type:     v1beta1.StorageTypeS3,
@@ -69,6 +71,30 @@ func TestCheckMinIO(t *testing.T) {
 		SK:       "",
 		Endpoint: "storage.googleapis.com:443",
 		Bucket:   "bucket",
+		UseSSL:   true,
+		UseIAM:   true,
+	})
+	assert.NoError(t, err)
+}
+
+func TestCheckMinIOAzure(t *testing.T) {
+	err := CheckMinIO(CheckMinIOArgs{
+		Type:     v1beta1.StorageTypeAzure,
+		AK:       "",
+		SK:       "",
+		Endpoint: "any",
+		Bucket:   "any",
+		UseSSL:   true,
+		UseIAM:   true,
+	})
+	assert.Error(t, err)
+
+	err = CheckMinIO(CheckMinIOArgs{
+		Type:     v1beta1.StorageTypeAzure,
+		AK:       "myaccount",
+		SK:       "",
+		Endpoint: "any",
+		Bucket:   "any",
 		UseSSL:   true,
 		UseIAM:   true,
 	})

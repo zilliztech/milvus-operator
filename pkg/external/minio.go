@@ -52,6 +52,12 @@ func CheckMinIO(args CheckMinIOArgs) error {
 			// according to https://aws.amazon.com/s3/pricing/
 			_, err = cli.GetBucketLocation(ctx, args.Bucket)
 			return err
+		case v1beta1.StorageTypeAzure:
+			// azure storage uses a compleletly different set of api. we simply assume ok to support azure for now
+			if args.AK == "" {
+				return errors.New("azure storage account name is required to be set as AK")
+			}
+			return nil
 		default:
 			// default to minio
 			mcli, err := madmin.New(args.Endpoint, args.AK, args.SK, args.UseSSL)
@@ -65,7 +71,7 @@ func CheckMinIO(args CheckMinIOArgs) error {
 			return isHealthyByServerInfo(st)
 		}
 	}
-	return util.DoWithBackoff("checkMinIO", checkMinio, util.DefaultMaxRetry, util.DefualtBackOffInterval)
+	return util.DoWithBackoff("checkMinIO", checkMinio, util.DefaultMaxRetry, util.DefaultBackOffInterval)
 }
 
 func isHealthyByServerInfo(st madmin.InfoMessage) error {

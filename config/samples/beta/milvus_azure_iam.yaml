@@ -1,0 +1,36 @@
+# This sample file is used to deploy Milvus with Azure Storage as its object storage with AD workload identity.
+# see: https://azure.github.io/azure-workload-identity/docs/ for detail
+# change the <parameters> to match your environment
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  config:
+    common:
+      storageType: remote
+    minio:
+      cloudProvider: azure
+      bucketName: <my-container-name>
+      rootPath: milvus/my-release
+      useSSL: true
+      useIAM: true
+      accessKeyID: <my-storage-account>
+  components:
+    serviceAccountName: my-release-sa
+    podLabels:
+      azure.workload.identity/use: "true"
+  dependencies:
+    storage:
+      external: true
+      type: Azure
+      endpoint: core.windows.net:443
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: my-release-sa
+  annotations:
+    azure.workload.identity/client-id: <client-id>
