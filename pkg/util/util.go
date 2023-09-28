@@ -158,7 +158,7 @@ func BoolPtr(val bool) *bool {
 	return &val
 }
 
-var DefualtBackOffInterval = time.Second * 1
+var DefaultBackOffInterval = time.Second * 1
 var DefaultMaxRetry = 3
 
 func DoWithBackoff(name string, fn func() error, maxRetry int, backOff time.Duration) error {

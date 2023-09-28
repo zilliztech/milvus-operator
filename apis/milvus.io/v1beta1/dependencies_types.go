@@ -10,6 +10,7 @@ const (
 const (
 	StorageTypeMinIO = "MinIO"
 	StorageTypeS3    = "S3"
+	StorageTypeAzure = "Azure"
 )
 
 type MilvusDependencies struct {
@@ -74,7 +75,7 @@ type InClusterConfig struct {
 
 type MilvusStorage struct {
 	// +kubebuilder:default:="MinIO"
-	// +kubebuilder:validation:Enum:={"MinIO", "S3", ""}
+	// +kubebuilder:validation:Enum:={"MinIO", "S3", "Azure", ""}
 	// +kubebuilder:validation:Optional
 	Type string `json:"type"`
 

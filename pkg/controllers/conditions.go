@@ -239,7 +239,7 @@ func GetEndpointsHealth(endpoints []string) map[string]EtcdEndPointHealth {
 				}
 				return errors.New(errMsg)
 			}
-			err := util.DoWithBackoff("checkEtcd", checkEtcd, util.DefaultMaxRetry, util.DefualtBackOffInterval)
+			err := util.DoWithBackoff("checkEtcd", checkEtcd, util.DefaultMaxRetry, util.DefaultBackOffInterval)
 			if err == nil {
 				hch <- EtcdEndPointHealth{Ep: ep, Health: true}
 				return

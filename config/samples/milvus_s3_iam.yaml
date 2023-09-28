@@ -19,12 +19,6 @@ spec:
       useSSL: true
       useIAM: true
   dependencies:
-    etcd:
-      inCluster:
-        values:
-          replicaCount: 1
-        deletionPolicy: Delete
-        pvcDeletion: true
     storage:
       external: true
       type: S3
