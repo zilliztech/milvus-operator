@@ -3,7 +3,7 @@ name: milvus-operator
 description: A Helm chart for deploying Milvus Operator
 kubeVersion: '>= 1.16.0-0'
 
-home: https://github.com/milvus-io/milvus-operator
+home: https://github.com/zilliztech/milvus-operator
 
 # A chart can be either an 'application' or a 'library' chart.
 #
@@ -27,6 +27,6 @@ version: 0.8.1
 appVersion: "0.8.1"
 
 maintainers:
-  - name: devops team of zilliz
-    email: devops@zilliz.com
-    url: zilliz.com
+- name: zilliztech
+  email: devops@zilliz.com
+  url: https://zilliz.com

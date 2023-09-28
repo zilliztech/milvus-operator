@@ -10,7 +10,7 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-      serviceAccountName: "{{ .Release.Name }}-checker"
+      serviceAccountName: {{ include "chart.checkerServiceAccountName" . | quote }}
       restartPolicy: OnFailure
       containers:
       - name: checker
