@@ -676,6 +676,8 @@ github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5
 github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 h1:I0XW9+e1XWDxdcEniV4rQAIOPUGDq67JSCiRCgGCZLI=
 github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369/go.mod h1:BSXmuO+STAnVfrANrmjBb36TMTDstsz7MSK+HVaYKv4=
 github.com/miekg/dns v1.0.14/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nrg=
+github.com/milvus-io/milvus-operator v0.7.17 h1:C/pdgsoJoWLeprB23G8LIu8Er+detOyStpQM6N0zfYo=
+github.com/milvus-io/milvus-operator v0.7.17/go.mod h1:1Kt5LT1+qC0NPHyTpHJ+c/NdIglpokBdEYQe9N3eyMU=
 github.com/minio/madmin-go v1.3.14 h1:9f9ZylP5Yn/TcplE/wowsBjb+Czt2+/NRCa2IqpNLcI=
 github.com/minio/madmin-go v1.3.14/go.mod h1:ez87VmMtsxP7DRxjKJKD4RDNW+nhO2QF9KSzwxBDQ98=
 github.com/minio/md5-simd v1.1.0 h1:QPfiOqlZH+Cj9teu0t9b1nTBfPbyTl16Of5MeuShdK4=

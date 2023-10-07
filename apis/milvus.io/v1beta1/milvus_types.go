@@ -52,6 +52,10 @@ type MilvusSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Conf Values `json:"config,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	HookConf Values `json:"hookConfig,omitempty"`
 }
 
 // IsStopping returns true if the MilvusSpec has replicas serving
