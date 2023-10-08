@@ -375,12 +375,7 @@ func GetMinioUseIAM(conf map[string]interface{}) bool {
 }
 
 func GetMinioIAMEndpoint(conf map[string]interface{}) string {
-	fields := []string{"minio", "iamEndpoint"}
-	val, exist := util.GetStringValue(conf, fields...)
-	if exist {
-		return val
-	}
-	return ""
+	return GetStringValueWithDefault(conf, "", "minio", "iamEndpoint")
 }
 
 func GetMinioSecure(conf map[string]interface{}) bool {
@@ -394,12 +389,19 @@ func GetMinioSecure(conf map[string]interface{}) bool {
 }
 
 func GetMinioBucket(conf map[string]interface{}) string {
-	fields := []string{"minio", "bucketName"}
+	return GetStringValueWithDefault(conf, defaultBucketName, "minio", "bucketName")
+}
+
+func GetAzureStorageAccount(conf map[string]interface{}) string {
+	return GetStringValueWithDefault(conf, "", "minio", "accessKeyID")
+}
+
+func GetStringValueWithDefault(conf map[string]interface{}, defaultVal string, fields ...string) string {
 	val, exist := util.GetStringValue(conf, fields...)
 	if exist {
 		return val
 	}
-	return defaultBucketName
+	return defaultVal
 }
 
 const defaultBucketName = "milvus-bucket"
