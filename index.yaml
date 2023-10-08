@@ -5,7 +5,7 @@ entries:
     appVersion: 0.8.2
     created: "2023-10-04T21:49:55.037235+08:00"
     description: A Helm chart for deploying Milvus Operator
-    digest: 6398c2d02a95f0384bd6a4b2c0503a90d08b4d633d8349f82e2b078332dd07ad
+    digest: 70339e3b1fa60ad9a930e27a8ec4d9885f3c5e62a98319fa5c32c952fce00842
     home: https://github.com/zilliztech/milvus-operator
     kubeVersion: '>= 1.16.0-0'
     maintainers:
