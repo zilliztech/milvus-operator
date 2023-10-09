@@ -22,6 +22,7 @@ const (
 	MilvusOriginalConfigPath     = "/milvus/configs/milvus.yaml"
 	MilvusUserConfigMountPath    = "/milvus/configs/user.yaml"
 	MilvusUserConfigMountSubPath = "user.yaml"
+	MilvusHookConfigMountSubPath = "hook.yaml"
 	AccessKey                    = "accesskey"
 	SecretKey                    = "secretkey"
 	AnnotationCheckSum           = "checksum/config"
