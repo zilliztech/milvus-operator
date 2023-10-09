@@ -55,7 +55,7 @@ func CheckMinIO(args CheckMinIOArgs) error {
 		case v1beta1.StorageTypeAzure:
 			// azure storage uses a compleletly different set of api. we simply assume ok to support azure for now
 			if args.AK == "" {
-				return errors.New("azure storage account name is required to be set as AK")
+				return errors.New("azure storage account name is required to be set as minio.accessKeyID")
 			}
 			return nil
 		default:

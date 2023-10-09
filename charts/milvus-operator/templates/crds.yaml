@@ -6120,6 +6120,7 @@ spec:
                         enum:
                         - MinIO
                         - S3
+                        - Azure
                         - ""
                         type: string
                     type: object
@@ -6850,6 +6851,7 @@ spec:
                         enum:
                         - MinIO
                         - S3
+                        - Azure
                         - ""
                         type: string
                     type: object
@@ -13344,6 +13346,7 @@ spec:
                         enum:
                         - MinIO
                         - S3
+                        - Azure
                         - ""
                         type: string
                     type: object
