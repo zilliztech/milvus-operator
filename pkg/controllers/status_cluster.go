@@ -389,12 +389,13 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 func (r *MilvusStatusSyncer) GetMinioCondition(
 	ctx context.Context, mc v1beta1.Milvus) (v1beta1.MilvusCondition, error) {
 	info := StorageConditionInfo{
-		Namespace:   mc.Namespace,
-		Bucket:      GetMinioBucket(mc.Spec.Conf.Data),
-		Storage:     mc.Spec.Dep.Storage,
-		UseSSL:      GetMinioSecure(mc.Spec.Conf.Data),
-		UseIAM:      GetMinioUseIAM(mc.Spec.Conf.Data),
-		IAMEndpoint: GetMinioIAMEndpoint(mc.Spec.Conf.Data),
+		Namespace:      mc.Namespace,
+		Bucket:         GetMinioBucket(mc.Spec.Conf.Data),
+		Storage:        mc.Spec.Dep.Storage,
+		UseSSL:         GetMinioSecure(mc.Spec.Conf.Data),
+		UseIAM:         GetMinioUseIAM(mc.Spec.Conf.Data),
+		IAMEndpoint:    GetMinioIAMEndpoint(mc.Spec.Conf.Data),
+		StorageAccount: GetAzureStorageAccount(mc.Spec.Conf.Data),
 	}
 	getter := wrapMinioConditionGetter(ctx, r.logger, r.Client, info)
 	return GetCondition(getter, []string{mc.Spec.Dep.Storage.Endpoint}), nil

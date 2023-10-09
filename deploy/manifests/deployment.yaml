@@ -4,11 +4,11 @@ kind: Namespace
 metadata:
   name: milvus-operator
 ---
-# Source: milvus-operator/templates/serviceaccount.yaml
+# Source: milvus-operator/templates/checker_serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: "milvus-operator"
+  name: "milvus-operator-checker"
   namespace: "milvus-operator"
   labels:
     helm.sh/chart: milvus-operator-0.8.2
@@ -21,7 +21,7 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: "milvus-operator-checker"
+  name: "milvus-operator"
   namespace: "milvus-operator"
   labels:
     helm.sh/chart: milvus-operator-0.8.2
@@ -6151,6 +6151,7 @@ spec:
                         enum:
                         - MinIO
                         - S3
+                        - Azure
                         - ""
                         type: string
                     type: object
@@ -6882,6 +6883,7 @@ spec:
                         enum:
                         - MinIO
                         - S3
+                        - Azure
                         - ""
                         type: string
                     type: object
@@ -13376,10 +13378,15 @@ spec:
                         enum:
                         - MinIO
                         - S3
+                        - Azure
                         - ""
                         type: string
                     type: object
                 type: object
+              hookConfig:
+                nullable: true
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
               mode:
                 default: standalone
                 enum:
@@ -13706,7 +13713,7 @@ status:
   conditions: []
   storedVersions: []
 ---
-# Source: milvus-operator/templates/clusterrole.yaml
+# Source: milvus-operator/templates/checker_role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -14366,7 +14373,7 @@ rules:
   - update
   - watch
 ---
-# Source: milvus-operator/templates/clusterrolebinding.yaml
+# Source: milvus-operator/templates/checker_rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -14377,7 +14384,7 @@ roleRef:
   name: 'milvus-operator-checker-role'
 subjects:
 - kind: ServiceAccount
-  name: 'milvus-operator-checker'
+  name: "milvus-operator-checker"
   namespace: "milvus-operator"
 ---
 # Source: milvus-operator/templates/clusterrolebinding.yaml
