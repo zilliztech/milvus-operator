@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -12,6 +13,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 func TestReconcileConfigMaps_CreateIfNotfound(t *testing.T) {
@@ -61,6 +63,9 @@ func TestReconcileConfigMaps_Existed(t *testing.T) {
 	mc := env.Inst
 
 	t.Run("call client.Update if changed configmap", func(t *testing.T) {
+		mc.Spec.HookConf.Data = map[string]interface{}{
+			"x": "y",
+		}
 		gomock.InOrder(
 			mockClient.EXPECT().
 				Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{})).
@@ -81,6 +86,33 @@ func TestReconcileConfigMaps_Existed(t *testing.T) {
 
 	err := r.ReconcileConfigMaps(ctx, mc)
 	assert.NoError(t, err)
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{})).
+		DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			cm := obj.(*corev1.ConfigMap)
+			cm.Name = "cm1"
+			cm.Namespace = "ns"
+			err := mockClient.Get(ctx, client.ObjectKeyFromObject(cm), cm)
+			if err != nil {
+				return err
+			}
+			if len(cm.Data) == 0 {
+				return errors.New("expect data in configmap")
+			}
+			if _, ok := cm.Data["hook.yaml"]; !ok {
+				return errors.New("expect hook.yaml as key in data")
+			}
+			expected, err := yaml.Marshal(map[string]string{
+				"x": "y",
+			})
+			if err != nil {
+				return err
+			}
+			if cm.Data["hook.yaml"] != string(expected) {
+				return fmt.Errorf("content not match, expected: %s, got: %s", cm.Data["hook.yaml"], string(expected))
+			}
+			return nil
+		})
 
 	t.Run("not call client.Update if configmap not changed", func(t *testing.T) {
 		gomock.InOrder(

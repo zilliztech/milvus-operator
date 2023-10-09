@@ -13351,6 +13351,10 @@ spec:
                         type: string
                     type: object
                 type: object
+              hookConfig:
+                nullable: true
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
               mode:
                 default: standalone
                 enum:
