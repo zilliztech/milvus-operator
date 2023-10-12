@@ -86,6 +86,9 @@ jobs:
       matrix:
         os: [ubuntu18.04]
     steps:
+      - name: Free Up Disk Space
+        run:
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/local/share/boost /opt/ghc
       - name: Maximize build space
         uses: easimon/maximize-build-space@v7
         with:
@@ -117,6 +120,9 @@ jobs:
       matrix:
         os: [ubuntu18.04]
     steps:
+      - name: Free Up Disk Space
+        run:
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/local/share/boost /opt/ghc
       - name: Maximize build space
         uses: easimon/maximize-build-space@v7
         with:
@@ -147,6 +153,9 @@ jobs:
       matrix:
         os: [ubuntu18.04]
     steps:
+      - name: Free Up Disk Space
+        run:
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/local/share/boost /opt/ghc
       - name: Checkout
         uses: actions/checkout@v2
       - name: Prepare Docker Images
@@ -171,6 +180,9 @@ jobs:
       matrix:
         os: [ubuntu18.04]
     steps:
+      - name: Free Up Disk Space
+        run:
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/local/share/boost /opt/ghc
       - name: Checkout
         uses: actions/checkout@v2
       - name: Prepare Docker Images
@@ -195,6 +207,9 @@ jobs:
       matrix:
         os: [ubuntu18.04]
     steps:
+      - name: Free Up Disk Space
+        run:
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/local/share/boost /opt/ghc
       - name: Checkout
         uses: actions/checkout@v2
       - name: Setup KinD Cluster

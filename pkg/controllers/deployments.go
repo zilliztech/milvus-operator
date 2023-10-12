@@ -17,15 +17,16 @@ import (
 )
 
 const (
-	MilvusDataVolumeName         = "milvus-data" // for standalone persistence only
-	MilvusConfigVolumeName       = "milvus-config"
-	MilvusOriginalConfigPath     = "/milvus/configs/milvus.yaml"
-	MilvusUserConfigMountPath    = "/milvus/configs/user.yaml"
-	MilvusUserConfigMountSubPath = "user.yaml"
-	MilvusHookConfigMountSubPath = "hook.yaml"
-	AccessKey                    = "accesskey"
-	SecretKey                    = "secretkey"
-	AnnotationCheckSum           = "checksum/config"
+	MilvusDataVolumeName             = "milvus-data" // for standalone persistence only
+	MilvusConfigVolumeName           = "milvus-config"
+	MilvusOriginalConfigPath         = "/milvus/configs/milvus.yaml"
+	MilvusUserConfigMountPath        = "/milvus/configs/user.yaml"
+	MilvusHookConfigUpdatesMountPath = "/milvus/configs/hook_updates.yaml"
+	MilvusUserConfigMountSubPath     = "user.yaml"
+	MilvusHookConfigMountSubPath     = "hook.yaml"
+	AccessKey                        = "accesskey"
+	SecretKey                        = "secretkey"
+	AnnotationCheckSum               = "checksum/config"
 
 	ToolsVolumeName = "tools"
 	ToolsMountPath  = "/milvus/tools"
@@ -266,6 +267,13 @@ var (
 		ReadOnly:  true,
 		MountPath: MilvusUserConfigMountPath,
 		SubPath:   MilvusUserConfigMountSubPath,
+	}
+
+	hookConfigVolumeMount = corev1.VolumeMount{
+		Name:      MilvusConfigVolumeName,
+		ReadOnly:  true,
+		MountPath: MilvusHookConfigUpdatesMountPath,
+		SubPath:   MilvusHookConfigMountSubPath,
 	}
 )
 
