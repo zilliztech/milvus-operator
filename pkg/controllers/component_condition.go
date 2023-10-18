@@ -158,7 +158,7 @@ func GetComponentConditionGetter() ComponentConditionGetter {
 
 var singletonComponentConditionGetter ComponentConditionGetter = ComponentConditionGetterImpl{}
 
-func CheckMilvusStopped(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
+var CheckMilvusStopped = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
 	podList := &corev1.PodList{}
 	opts := &client.ListOptions{
 		Namespace: mc.Namespace,

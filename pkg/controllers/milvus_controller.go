@@ -117,6 +117,11 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 
+		stopped, err := CheckMilvusStopped(ctx, r.Client, *milvus)
+		if !stopped || err != nil {
+			return ctrl.Result{RequeueAfter: unhealthySyncInterval}, err
+		}
+
 		if controllerutil.ContainsFinalizer(milvus, MilvusFinalizerName) {
 			if err := r.Finalize(ctx, *milvus); err != nil {
 				return ctrl.Result{}, err
