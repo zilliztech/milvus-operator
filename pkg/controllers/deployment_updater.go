@@ -27,6 +27,7 @@ type deploymentUpdater interface {
 	GetPersistenceConfig() *v1beta1.Persistence
 	GetMilvus() *v1beta1.Milvus
 	RollingUpdateImageDependencyReady() bool
+	HasHookConfig() bool
 }
 
 func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) error {
@@ -192,6 +193,9 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 
 	addVolumeMount(&container.VolumeMounts, configVolumeMount)
 	addVolumeMount(&container.VolumeMounts, toolVolumeMount)
+	if updater.HasHookConfig() {
+		addVolumeMount(&container.VolumeMounts, hookConfigVolumeMount)
+	}
 	if persistence := updater.GetPersistenceConfig(); persistence != nil && persistence.Enabled {
 		addVolumeMount(&container.VolumeMounts, persistentVolumeMount(*persistence))
 	}
@@ -346,4 +350,8 @@ func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 		}
 	}
 	return true
+}
+
+func (m milvusDeploymentUpdater) HasHookConfig() bool {
+	return len(m.Milvus.Spec.HookConf.Data) > 0
 }

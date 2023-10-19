@@ -42,3 +42,5 @@ require (
 	sigs.k8s.io/controller-runtime v0.9.6
 	sigs.k8s.io/yaml v1.2.0
 )
+
+replace github.com/milvus-io/milvus-operator => github.com/mintcckey/milvus-operator-new v0.8.3-r2
