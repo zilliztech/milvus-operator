@@ -27,7 +27,7 @@ helm -n milvus-operator upgrade --install milvus-operator milvus-operator/milvus
 Or with kubectl & raw manifests:
 
 ```shell
-kubectl apply -f https://github.com/zilliztech/milvus-operator/v0.8.2/deploy/manifests/deployment.yaml
+kubectl apply -f https://github.com/zilliztech/milvus-operator/v0.8.3/deploy/manifests/deployment.yaml
 ```
 
 For more infomation Check [Installation Instructions](docs/installation/installation.md)
@@ -82,13 +82,13 @@ Use helm:
 ```shell
 helm upgrade --install milvus-operator \
   -n milvus-operator --create-namespace \
-  https://github.com/zilliztech/milvus-operator/releases/download/v0.8.2/milvus-operator-0.8.2.tgz
+  https://github.com/zilliztech/milvus-operator/releases/download/v0.8.3/milvus-operator-0.8.3.tgz
 ```
 
 Or use kubectl & raw manifests:
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/v0.8.2/deploy/manifests/deployment.yaml
+kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/v0.8.3/deploy/manifests/deployment.yaml
 ```
 
 
