@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
@@ -17,7 +18,19 @@ import (
 	"github.com/milvus-io/milvus-operator/pkg/util"
 )
 
+var mockCheckMilvusStopRet = false
+var mockCheckMilvusStopErr error = nil
+var mockCheckMilvusStop = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
+	return mockCheckMilvusStopRet, mockCheckMilvusStopErr
+}
+
 func TestClusterReconciler(t *testing.T) {
+	bak := CheckMilvusStopped
+	defer func() {
+		CheckMilvusStopped = bak
+	}()
+	CheckMilvusStopped = mockCheckMilvusStop
+
 	config.Init(util.GetGitRepoRootDir())
 
 	ctrl := gomock.NewController(t)
@@ -65,7 +78,7 @@ func TestClusterReconciler(t *testing.T) {
 
 	t.Run("case delete remove finalizer", func(t *testing.T) {
 		defer ctrl.Finish()
-
+		mockCheckMilvusStopRet = true
 		m.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
 			Do(func(ctx, key, obj interface{}) {
@@ -87,6 +100,27 @@ func TestClusterReconciler(t *testing.T) {
 
 		_, err := r.Reconcile(ctx, reconcile.Request{})
 		assert.NoError(t, err)
+	})
+
+	t.Run("milvus not stopped or check failed", func(t *testing.T) {
+		defer ctrl.Finish()
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx, key, obj interface{}) {
+				o := obj.(*v1beta1.Milvus)
+				*o = m
+			}).
+			Return(nil).Times(2)
+
+		mockCheckMilvusStopRet = false
+		m.Status.Status = v1beta1.StatusDeleting
+		m.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+		_, err := r.Reconcile(ctx, reconcile.Request{})
+		assert.NoError(t, err)
+
+		mockCheckMilvusStopErr = errMock
+		ret, err := r.Reconcile(ctx, reconcile.Request{})
+		assert.Error(t, err)
+		assert.True(t, ret.RequeueAfter > 0)
 	})
 }
 
