@@ -2,6 +2,22 @@ apiVersion: v1
 entries:
   milvus-operator:
   - apiVersion: v2
+    appVersion: 0.8.3
+    created: "2023-10-19T14:46:59.647519+08:00"
+    description: A Helm chart for deploying Milvus Operator
+    digest: 6544b409ad4a993a3a2a3276d553ca7e95bd85585eed3cc8aaa61371a31fccc2
+    home: https://github.com/zilliztech/milvus-operator
+    kubeVersion: '>= 1.16.0-0'
+    maintainers:
+    - email: devops@zilliz.com
+      name: zilliztech
+      url: https://zilliz.com
+    name: milvus-operator
+    type: application
+    urls:
+    - https://github.com/zilliztech/milvus-operator/releases/download/v0.8.3/milvus-operator-0.8.3.tgz
+    version: 0.8.3
+  - apiVersion: v2
     appVersion: 0.8.2
     created: "2023-10-04T21:49:55.037235+08:00"
     description: A Helm chart for deploying Milvus Operator
