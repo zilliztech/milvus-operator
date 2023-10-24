@@ -39,23 +39,22 @@ func (d *dependencyGraphImpl) GetReversedDependencies(component MilvusComponent)
 }
 
 func init() {
-	clusterDependencyGraph.AddDependency(RootCoord, []MilvusComponent{})
+	clusterDependencyGraph.AddDependency(IndexNode, []MilvusComponent{})
+	clusterDependencyGraph.AddDependency(RootCoord, []MilvusComponent{IndexNode})
 	clusterDependencyGraph.AddDependency(DataCoord, []MilvusComponent{RootCoord})
 	clusterDependencyGraph.AddDependency(IndexCoord, []MilvusComponent{DataCoord})
 	clusterDependencyGraph.AddDependency(QueryCoord, []MilvusComponent{IndexCoord})
-	clusterDependencyGraph.AddDependency(IndexNode, []MilvusComponent{QueryCoord})
 	clusterDependencyGraph.AddDependency(QueryNode, []MilvusComponent{QueryCoord})
-	clusterDependencyGraph.AddDependency(DataNode, []MilvusComponent{QueryCoord})
-	clusterDependencyGraph.AddDependency(Proxy, []MilvusComponent{IndexNode, QueryNode, DataNode})
+	clusterDependencyGraph.AddDependency(DataNode, []MilvusComponent{QueryNode})
+	clusterDependencyGraph.AddDependency(Proxy, []MilvusComponent{DataNode})
 
-	mixCoordClusterDependencyGraph.AddDependency(MixCoord, []MilvusComponent{})
-	mixCoordClusterDependencyGraph.AddDependency(IndexNode, []MilvusComponent{MixCoord})
+	mixCoordClusterDependencyGraph.AddDependency(IndexNode, []MilvusComponent{})
+	mixCoordClusterDependencyGraph.AddDependency(MixCoord, []MilvusComponent{IndexNode})
 	mixCoordClusterDependencyGraph.AddDependency(QueryNode, []MilvusComponent{MixCoord})
-	mixCoordClusterDependencyGraph.AddDependency(DataNode, []MilvusComponent{MixCoord})
-	mixCoordClusterDependencyGraph.AddDependency(Proxy, []MilvusComponent{IndexNode, QueryNode, DataNode})
+	mixCoordClusterDependencyGraph.AddDependency(DataNode, []MilvusComponent{QueryNode})
+	mixCoordClusterDependencyGraph.AddDependency(Proxy, []MilvusComponent{DataNode})
 }
 
 var (
 	clusterDependencyGraph, mixCoordClusterDependencyGraph = newDependencyGraphImpl(), newDependencyGraphImpl()
-	clusterDependencyGraphV2p3                             = newDependencyGraphImpl()
 )

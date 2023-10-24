@@ -528,14 +528,14 @@ func TestMilvusComponent_GetDependencies(t *testing.T) {
 		m.Spec.Mode = v1beta1.MilvusModeCluster
 		m.Spec.Com.Image = "milvusdb/milvus:v2.3.0"
 		m.Default()
-		assert.Len(t, RootCoord.GetDependencies(m.Spec), 0)
+		assert.Len(t, IndexNode.GetDependencies(m.Spec), 0)
+		assert.Equal(t, IndexNode, RootCoord.GetDependencies(m.Spec)[0])
 		assert.Equal(t, RootCoord, DataCoord.GetDependencies(m.Spec)[0])
 		assert.Equal(t, DataCoord, IndexCoord.GetDependencies(m.Spec)[0])
 		assert.Equal(t, IndexCoord, QueryCoord.GetDependencies(m.Spec)[0])
-		assert.Equal(t, QueryCoord, DataNode.GetDependencies(m.Spec)[0])
-		assert.Equal(t, QueryCoord, IndexNode.GetDependencies(m.Spec)[0])
 		assert.Equal(t, QueryCoord, QueryNode.GetDependencies(m.Spec)[0])
-		assert.Len(t, Proxy.GetDependencies(m.Spec), 3)
+		assert.Equal(t, QueryNode, DataNode.GetDependencies(m.Spec)[0])
+		assert.Equal(t, DataNode, Proxy.GetDependencies(m.Spec)[0])
 	})
 
 	t.Run("clusterModeDowngrade", func(t *testing.T) {
@@ -544,13 +544,14 @@ func TestMilvusComponent_GetDependencies(t *testing.T) {
 		m.Spec.Mode = v1beta1.MilvusModeCluster
 		m.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeRollingDowngrade
 		m.Default()
+
+		assert.Equal(t, RootCoord, IndexNode.GetDependencies(m.Spec)[0])
 		assert.Equal(t, DataCoord, RootCoord.GetDependencies(m.Spec)[0])
 		assert.Equal(t, IndexCoord, DataCoord.GetDependencies(m.Spec)[0])
 		assert.Equal(t, QueryCoord, IndexCoord.GetDependencies(m.Spec)[0])
-		assert.Len(t, QueryCoord.GetDependencies(m.Spec), 3)
+		assert.Equal(t, QueryNode, QueryCoord.GetDependencies(m.Spec)[0])
+		assert.Equal(t, DataNode, QueryNode.GetDependencies(m.Spec)[0])
 		assert.Equal(t, Proxy, DataNode.GetDependencies(m.Spec)[0])
-		assert.Equal(t, Proxy, IndexNode.GetDependencies(m.Spec)[0])
-		assert.Equal(t, Proxy, QueryNode.GetDependencies(m.Spec)[0])
 		assert.Len(t, Proxy.GetDependencies(m.Spec), 0)
 	})
 
@@ -559,11 +560,11 @@ func TestMilvusComponent_GetDependencies(t *testing.T) {
 		m.Spec.Mode = v1beta1.MilvusModeCluster
 		m.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
 		m.Default()
-		assert.Len(t, MixCoord.GetDependencies(m.Spec), 0)
-		assert.Equal(t, MixCoord, DataNode.GetDependencies(m.Spec)[0])
-		assert.Equal(t, MixCoord, IndexNode.GetDependencies(m.Spec)[0])
+		assert.Len(t, IndexNode.GetDependencies(m.Spec), 0)
+		assert.Equal(t, IndexNode, MixCoord.GetDependencies(m.Spec)[0])
 		assert.Equal(t, MixCoord, QueryNode.GetDependencies(m.Spec)[0])
-		assert.Len(t, Proxy.GetDependencies(m.Spec), 3)
+		assert.Equal(t, QueryNode, DataNode.GetDependencies(m.Spec)[0])
+		assert.Equal(t, DataNode, Proxy.GetDependencies(m.Spec)[0])
 	})
 
 	t.Run("mixcoordDowngrade", func(t *testing.T) {
@@ -572,10 +573,10 @@ func TestMilvusComponent_GetDependencies(t *testing.T) {
 		m.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeRollingDowngrade
 		m.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
 		m.Default()
-		assert.Len(t, MixCoord.GetDependencies(m.Spec), 3)
+		assert.Equal(t, MixCoord, IndexNode.GetDependencies(m.Spec)[0])
+		assert.Equal(t, QueryNode, MixCoord.GetDependencies(m.Spec)[0])
+		assert.Equal(t, DataNode, QueryNode.GetDependencies(m.Spec)[0])
 		assert.Equal(t, Proxy, DataNode.GetDependencies(m.Spec)[0])
-		assert.Equal(t, Proxy, IndexNode.GetDependencies(m.Spec)[0])
-		assert.Equal(t, Proxy, QueryNode.GetDependencies(m.Spec)[0])
 		assert.Len(t, Proxy.GetDependencies(m.Spec), 0)
 	})
 

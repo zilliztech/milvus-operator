@@ -70,8 +70,8 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		assert.Len(t, deployment.Spec.Template.Spec.Containers[0].VolumeMounts, 3)
 	})
 
-	const oldImage = "milvusdb/milvus:2.2.13"
-	const newImage = "milvusdb/milvus:2.3.0"
+	const oldImage = "milvusdb/milvus:v2.3.0"
+	const newImage = "milvusdb/milvus:v2.3.1"
 
 	t.Run("rolling update image", func(t *testing.T) {
 		inst := env.Inst.DeepCopy()
@@ -85,31 +85,36 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		deployment := &appsv1.Deployment{}
 		deployment.Name = "deploy"
 		deployment.Namespace = "ns"
-
+		inDeploy := deployment.DeepCopy()
 		// default
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MixCoord)
 		updateDeployment(deployment, updater)
 		assert.Equal(t, inst.Spec.Com.Image, deployment.Spec.Template.Spec.Containers[0].Image)
 
+		updater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, IndexNode)
+		updateDeployment(inDeploy, updater)
+		assert.Equal(t, inst.Spec.Com.Image, inDeploy.Spec.Template.Spec.Containers[0].Image)
+
+		// updates:
 		inst.Spec.Com.Image = newImage
 
 		// dep not updated
-		updater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, DataNode)
+		updater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MixCoord)
 		updateDeployment(deployment, updater)
 		assert.Equal(t, oldImage, deployment.Spec.Template.Spec.Containers[0].Image)
 
 		// no dep updated
-		updater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MixCoord)
-		updateDeployment(deployment, updater)
-		assert.Equal(t, newImage, deployment.Spec.Template.Spec.Containers[0].Image)
+		updater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, IndexNode)
+		updateDeployment(inDeploy, updater)
+		assert.Equal(t, newImage, inDeploy.Spec.Template.Spec.Containers[0].Image)
 
 		// dep updated
 		inst.Status.ComponentsDeployStatus = make(map[string]v1beta1.ComponentDeployStatus)
-		inst.Status.ComponentsDeployStatus[MixCoordName] = v1beta1.ComponentDeployStatus{
+		inst.Status.ComponentsDeployStatus[IndexNodeName] = v1beta1.ComponentDeployStatus{
 			Image:  inst.Spec.Com.Image,
 			Status: readyDeployStatus,
 		}
-		updater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, DataNode)
+		updater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MixCoord)
 		updateDeployment(deployment, updater)
 		assert.Equal(t, newImage, deployment.Spec.Template.Spec.Containers[0].Image)
 
@@ -127,7 +132,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 			Status: readyDeployStatus,
 		}
 		inst.Status.ComponentsDeployStatus[DataNodeName] = componentReady
-		inst.Status.ComponentsDeployStatus[IndexNodeName] = componentReady
+		inst.Status.ComponentsDeployStatus[ProxyName] = componentReady
 		updater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MixCoord)
 		updateDeployment(deployment, updater)
 		assert.Equal(t, newImage, deployment.Spec.Template.Spec.Containers[0].Image)
