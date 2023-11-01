@@ -20,8 +20,8 @@ Install or upgrade to latest version with helm:
 
 ```shell
 helm repo add milvus-operator https://zilliztech.github.io/milvus-operator/
-helm repo update milvus-operator --create-namespace
-helm -n milvus-operator upgrade --install milvus-operator milvus-operator/milvus-operator
+helm repo update milvus-operator
+helm -n milvus-operator upgrade --install --create-namespace milvus-operator milvus-operator/milvus-operator
 ```
 
 Or with kubectl & raw manifests:
