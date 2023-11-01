@@ -371,7 +371,7 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 	var eps = []string{}
 	var getter func() v1beta1.MilvusCondition
 	switch mc.Spec.Dep.MsgStreamType {
-	case v1beta1.MsgStreamTypeRocksMQ, v1beta1.MsgStreamTypeNatsMQ:
+	case v1beta1.MsgStreamTypeRocksMQ, v1beta1.MsgStreamTypeNatsMQ, v1beta1.MsgStreamTypeCustom:
 		// rocksmq / natsmq is built in, assume ok
 		return msgStreamReadyCondition, nil
 	case v1beta1.MsgStreamTypeKafka:

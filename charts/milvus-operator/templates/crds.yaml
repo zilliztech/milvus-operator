@@ -5960,6 +5960,10 @@ spec:
                 x-kubernetes-preserve-unknown-fields: true
               dependencies:
                 properties:
+                  customMsgStream:
+                    nullable: true
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   etcd:
                     properties:
                       endpoints:
@@ -6014,6 +6018,7 @@ spec:
                     - kafka
                     - rocksmq
                     - natsmq
+                    - custom
                     - ""
                     type: string
                   natsmq:
@@ -6691,6 +6696,10 @@ spec:
                 x-kubernetes-preserve-unknown-fields: true
               dependencies:
                 properties:
+                  customMsgStream:
+                    nullable: true
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   etcd:
                     properties:
                       endpoints:
@@ -6745,6 +6754,7 @@ spec:
                     - kafka
                     - rocksmq
                     - natsmq
+                    - custom
                     - ""
                     type: string
                   natsmq:
@@ -13186,6 +13196,10 @@ spec:
                 x-kubernetes-preserve-unknown-fields: true
               dependencies:
                 properties:
+                  customMsgStream:
+                    nullable: true
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   etcd:
                     properties:
                       endpoints:
@@ -13240,6 +13254,7 @@ spec:
                     - kafka
                     - rocksmq
                     - natsmq
+                    - custom
                     - ""
                     type: string
                   natsmq:

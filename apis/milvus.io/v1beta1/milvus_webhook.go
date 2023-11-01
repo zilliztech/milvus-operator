@@ -104,7 +104,7 @@ func (r *Milvus) validateEnableRolingUpdate() *field.Error {
 		return nil
 	}
 	switch r.Spec.Dep.MsgStreamType {
-	case MsgStreamTypeKafka, MsgStreamTypePulsar:
+	case MsgStreamTypeKafka, MsgStreamTypePulsar, MsgStreamTypeCustom:
 		return nil
 	}
 	fp := field.NewPath("spec").Child("components").Child("enableRollingUpdate")

@@ -114,6 +114,13 @@ func TestMilvusStatusSyncer_GetDependencyCondition(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, corev1.ConditionTrue, ret.Status)
 	})
+	t.Run("GetMsgStreamCondition_custom", func(t *testing.T) {
+		defer ctrl.Finish()
+		milvus.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeCustom
+		ret, err := s.GetMsgStreamCondition(ctx, milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionTrue, ret.Status)
+	})
 }
 
 var updatedCondition = v1beta1.MilvusCondition{
