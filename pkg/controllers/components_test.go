@@ -222,6 +222,28 @@ func TestMergeComponentSpec(t *testing.T) {
 		merged = MergeComponentSpec(src, dst).PriorityClassName
 		assert.Equal(t, "b", merged)
 	})
+
+	t.Run("merge volumeMounts", func(t *testing.T) {
+		dst.VolumeMounts = []corev1.VolumeMount{
+			{SubPath: "a.yaml"},
+		}
+		merged := MergeComponentSpec(src, dst).VolumeMounts
+		assert.Equal(t, 1, len(merged))
+		assert.Equal(t, "a.yaml", merged[0].SubPath)
+
+		src.VolumeMounts = []corev1.VolumeMount{
+			{SubPath: "b.yaml"},
+		}
+		merged = MergeComponentSpec(src, dst).VolumeMounts
+		assert.Equal(t, 2, len(merged))
+
+		src.VolumeMounts = []corev1.VolumeMount{
+			{SubPath: "a.yaml", Name: "c"},
+		}
+		merged = MergeComponentSpec(src, dst).VolumeMounts
+		assert.Equal(t, 2, len(merged))
+		assert.Equal(t, "c", merged[1].Name)
+	})
 }
 
 func TestMilvusComponent_GetReplicas(t *testing.T) {
