@@ -1,6 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
+  annotations: {{- toYaml .Values.checker.annotations | nindent 4 }}
   labels: {{- include "chart.labels" . | nindent 4 }}
   name: "{{ .Release.Name }}-checker"
   namespace: {{ .Release.Namespace | quote }}

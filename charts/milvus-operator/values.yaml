@@ -17,6 +17,8 @@ monitoringEnabled: false
 checker:
   disableCertManagerCheck: false
   disableCertManagerInstall: false
+  # checker.annotations -- Annotations to add to the checker job
+  annotations: {}
 
 # check and install the dependencies when enabled, this need an extra service account with privileged clusterroles
 installDependencies:
