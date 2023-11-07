@@ -582,7 +582,17 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 	}
 
 	if src.VolumeMounts != nil {
-		dst.VolumeMounts = src.VolumeMounts
+		if dst.VolumeMounts == nil {
+			dst.VolumeMounts = []corev1.VolumeMount{}
+		}
+		for _, srcVolumeMount := range src.VolumeMounts {
+			idx := GetVolumeMountIndex(dst.VolumeMounts, srcVolumeMount.SubPath)
+			if idx < 0 {
+				dst.VolumeMounts = append(dst.VolumeMounts, srcVolumeMount)
+			} else {
+				dst.VolumeMounts[idx] = srcVolumeMount
+			}
+		}
 	}
 
 	if src.Volumes != nil {
