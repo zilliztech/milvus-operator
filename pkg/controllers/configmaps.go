@@ -75,13 +75,14 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 	default:
 		// we use mq.type to handle it
 	}
-	_, found := conf["mq"]
-	if conf["mq"] == nil || !found {
-		conf["mq"] = map[string]interface{}{}
+	if mc.Spec.Dep.MsgStreamType != v1beta1.MsgStreamTypeCustom {
+		_, found := conf["mq"]
+		if conf["mq"] == nil || !found {
+			conf["mq"] = map[string]interface{}{}
+		}
+		conf["mq"].(map[string]interface{})["type"] = mc.Spec.Dep.MsgStreamType
+		conf[util.MqTypeConfigKey] = mc.Spec.Dep.MsgStreamType
 	}
-	conf["mq"].(map[string]interface{})["type"] = mc.Spec.Dep.MsgStreamType
-
-	conf[util.MqTypeConfigKey] = mc.Spec.Dep.MsgStreamType
 
 	milvusYaml, err := yaml.Marshal(conf)
 	if err != nil {

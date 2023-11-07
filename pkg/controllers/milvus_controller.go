@@ -133,7 +133,7 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 		// Stop reconciliation as the item is being deleted
-		return ctrl.Result{}, nil
+		return ctrl.Result{RequeueAfter: unhealthySyncInterval}, nil
 	}
 
 	old := milvus.DeepCopy()

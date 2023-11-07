@@ -17,7 +17,7 @@ type MilvusDependencies struct {
 	// +kubebuilder:validation:Optional
 	Etcd MilvusEtcd `json:"etcd"`
 
-	// +kubebuilder:validation:Enum:={"pulsar", "kafka", "rocksmq", "natsmq", ""}
+	// +kubebuilder:validation:Enum:={"pulsar", "kafka", "rocksmq", "natsmq", "custom", ""}
 	// +kubebuilder:validation:Optional
 	// MsgStreamType default to pulsar for cluster, rocksmq for standalone
 	MsgStreamType MsgStreamType `json:"msgStreamType,omitempty"`
@@ -36,6 +36,13 @@ type MilvusDependencies struct {
 
 	// +kubebuilder:validation:Optional
 	Storage MilvusStorage `json:"storage"`
+
+	// CustomMsgStream user can implements reconciler on this field
+	// milvus-operator will not check the mq status
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +nullable
+	CustomMsgStream Values `json:"customMsgStream,omitempty"`
 }
 
 type MsgStreamType string
@@ -45,6 +52,7 @@ const (
 	MsgStreamTypeKafka   MsgStreamType = "kafka"
 	MsgStreamTypeRocksMQ MsgStreamType = "rocksmq"
 	MsgStreamTypeNatsMQ  MsgStreamType = "natsmq"
+	MsgStreamTypeCustom  MsgStreamType = "custom"
 )
 
 type MilvusEtcd struct {
