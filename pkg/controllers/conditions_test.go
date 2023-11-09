@@ -68,7 +68,7 @@ func TestWrapGetters(t *testing.T) {
 	ctx := context.TODO()
 	logger := logf.Log
 	t.Run("kafka", func(t *testing.T) {
-		fn := wrapKafkaConditonGetter(ctx, logger, v1beta1.MilvusKafka{})
+		fn := wrapKafkaConditonGetter(ctx, logger, v1beta1.MilvusKafka{}, external.CheckKafkaConfig{})
 		fn()
 	})
 	t.Run("pulsar", func(t *testing.T) {
@@ -95,12 +95,12 @@ func getMockPulsarNewClient(cli pulsar.Client, err error) func(options pulsar.Cl
 }
 
 func TestGetKafkaCondition(t *testing.T) {
-	checkKafka = func([]string) error { return nil }
-	ret := GetKafkaCondition(context.TODO(), logf.Log.WithName("test"), v1beta1.MilvusKafka{})
+	checkKafka = func(external.CheckKafkaConfig) error { return nil }
+	ret := GetKafkaCondition(context.TODO(), logf.Log.WithName("test"), v1beta1.MilvusKafka{}, external.CheckKafkaConfig{})
 	assert.Equal(t, corev1.ConditionTrue, ret.Status)
 
-	checkKafka = func([]string) error { return errors.New("failed") }
-	ret = GetKafkaCondition(context.TODO(), logf.Log.WithName("test"), v1beta1.MilvusKafka{})
+	checkKafka = func(external.CheckKafkaConfig) error { return errors.New("failed") }
+	ret = GetKafkaCondition(context.TODO(), logf.Log.WithName("test"), v1beta1.MilvusKafka{}, external.CheckKafkaConfig{})
 	assert.Equal(t, corev1.ConditionFalse, ret.Status)
 }
 

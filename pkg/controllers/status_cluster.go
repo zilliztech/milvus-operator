@@ -20,6 +20,7 @@ import (
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/config"
+	"github.com/milvus-io/milvus-operator/pkg/external"
 )
 
 //go:generate mockgen -package=controllers -source=status_cluster.go -destination=status_cluster_mock.go
@@ -366,6 +367,23 @@ func (r *MilvusStatusSyncer) GetMilvusEndpoint(ctx context.Context, mc v1beta1.M
 	return GetMilvusEndpoint(ctx, r.logger, r.Client, info)
 }
 
+// GetKafkaConfFromCR get kafka config from CR
+func GetKafkaConfFromCR(mc v1beta1.Milvus) (*external.CheckKafkaConfig, error) {
+	kafkaConf := external.CheckKafkaConfig{}
+	allConf := mc.Spec.Conf
+	kafkaConfData, exist := allConf.Data["kafka"]
+	if exist {
+		kafkaConfValues := v1beta1.Values{
+			Data: kafkaConfData.(map[string]interface{}),
+		}
+		err := kafkaConfValues.AsObject(&kafkaConf)
+		if err != nil {
+			return nil, errors.Wrap(err, "decode kafka config failed")
+		}
+	}
+	return &kafkaConf, nil
+}
+
 func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 	ctx context.Context, mc v1beta1.Milvus) (v1beta1.MilvusCondition, error) {
 	var eps = []string{}
@@ -375,7 +393,15 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 		// rocksmq / natsmq is built in, assume ok
 		return msgStreamReadyCondition, nil
 	case v1beta1.MsgStreamTypeKafka:
-		getter = wrapKafkaConditonGetter(ctx, r.logger, mc.Spec.Dep.Kafka)
+		kafkaConf, err := GetKafkaConfFromCR(mc)
+		if err != nil {
+			return v1beta1.MilvusCondition{
+				Type:    v1beta1.MsgStreamReady,
+				Status:  corev1.ConditionUnknown,
+				Message: err.Error(),
+			}, nil
+		}
+		getter = wrapKafkaConditonGetter(ctx, r.logger, mc.Spec.Dep.Kafka, *kafkaConf)
 		eps = mc.Spec.Dep.Kafka.BrokerList
 	default:
 		// default pulsar

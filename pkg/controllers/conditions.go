@@ -46,8 +46,8 @@ func GetCondition(getter func() v1beta1.MilvusCondition, eps []string) v1beta1.M
 }
 
 var (
-	wrapKafkaConditonGetter = func(ctx context.Context, logger logr.Logger, p v1beta1.MilvusKafka) func() v1beta1.MilvusCondition {
-		return func() v1beta1.MilvusCondition { return GetKafkaCondition(ctx, logger, p) }
+	wrapKafkaConditonGetter = func(ctx context.Context, logger logr.Logger, p v1beta1.MilvusKafka, cfg external.CheckKafkaConfig) func() v1beta1.MilvusCondition {
+		return func() v1beta1.MilvusCondition { return GetKafkaCondition(ctx, logger, p, cfg) }
 	}
 	wrapPulsarConditonGetter = func(ctx context.Context, logger logr.Logger, p v1beta1.MilvusPulsar) func() v1beta1.MilvusCondition {
 		return func() v1beta1.MilvusCondition { return GetPulsarCondition(ctx, logger, p) }
@@ -95,8 +95,8 @@ var msgStreamReadyCondition = v1beta1.MilvusCondition{
 
 var checkKafka = external.CheckKafka
 
-func GetKafkaCondition(ctx context.Context, logger logr.Logger, p v1beta1.MilvusKafka) v1beta1.MilvusCondition {
-	err := checkKafka(p.BrokerList)
+func GetKafkaCondition(ctx context.Context, logger logr.Logger, p v1beta1.MilvusKafka, cfg external.CheckKafkaConfig) v1beta1.MilvusCondition {
+	err := checkKafka(cfg)
 	if err != nil {
 		return newErrMsgStreamCondResult(v1beta1.ReasonMsgStreamNotReady, err.Error())
 	}
