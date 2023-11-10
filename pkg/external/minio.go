@@ -26,9 +26,11 @@ type CheckMinIOArgs struct {
 	IAMEndpoint string
 }
 
+var DependencyCheckTimeout = 5 * time.Second
+
 func CheckMinIO(args CheckMinIOArgs) error {
 	var checkMinio = func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), DependencyCheckTimeout)
 		defer cancel()
 
 		switch args.Type {
