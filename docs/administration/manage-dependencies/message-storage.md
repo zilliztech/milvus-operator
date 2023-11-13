@@ -235,7 +235,15 @@ metadata:
   name: my-release
   labels:
     app: milvus
-spec: 
+spec:
+  config:
+    kafka:
+      # securityPolicy supports: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL 
+      securityPolicy: PLAINTEXT
+      # saslMechanisms supports: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512
+      saslMechanisms: PLAIN
+      saslUsername: ""
+      saslPassword: ""
   # Omit other fields ...
   dependencies:
     # Omit other fields ...
