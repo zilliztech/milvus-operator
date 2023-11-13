@@ -246,6 +246,12 @@ spec:
         - "kafkaBrokerAddr1:9092"
         - "kafkaBrokerAddr2:9092"
         # ...
+      # securityPolicy supports: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL 
+      securityPolicy: PLAINTEXT
+      # saslMechanisms supports: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512
+      saslMechanisms: PLAIN
+      saslUsername: ""
+      saslPassword: ""
 ```
 
 ### Internal Kafka
