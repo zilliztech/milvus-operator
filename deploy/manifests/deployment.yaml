@@ -903,6 +903,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -1434,6 +1436,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -2047,6 +2051,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -2578,6 +2584,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -3111,6 +3119,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -3681,6 +3691,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -4230,6 +4242,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -4761,6 +4775,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -5311,6 +5327,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -5362,6 +5380,8 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
+                  runWithSubProcess:
+                    type: boolean
                   schedulerName:
                     type: string
                   serviceAccountName:
@@ -5869,6 +5889,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -7056,6 +7078,8 @@ spec:
                       x-kubernetes-int-or-string: true
                     type: object
                 type: object
+              runWithSubProcess:
+                type: boolean
               schedulerName:
                 type: string
               serviceAccountName:
@@ -8140,6 +8164,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -8671,6 +8697,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -9284,6 +9312,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -9815,6 +9845,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -10348,6 +10380,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -10918,6 +10952,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -11467,6 +11503,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -11998,6 +12036,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -12548,6 +12588,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:
@@ -12599,6 +12641,8 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
+                  runWithSubProcess:
+                    type: boolean
                   schedulerName:
                     type: string
                   serviceAccountName:
@@ -13106,6 +13150,8 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      runWithSubProcess:
+                        type: boolean
                       schedulerName:
                         type: string
                       serviceAccountName:

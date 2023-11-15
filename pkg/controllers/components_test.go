@@ -244,6 +244,22 @@ func TestMergeComponentSpec(t *testing.T) {
 		assert.Equal(t, 2, len(merged))
 		assert.Equal(t, "c", merged[1].Name)
 	})
+
+	t.Run("merge runWithSubProcess", func(t *testing.T) {
+		merged := MergeComponentSpec(src, dst).RunWithSubProcess
+		assert.Nil(t, merged)
+		src.RunWithSubProcess = new(bool)
+		*src.RunWithSubProcess = true
+		merged = MergeComponentSpec(src, dst).RunWithSubProcess
+		assert.Equal(t, true, *merged)
+		dst.RunWithSubProcess = new(bool)
+		*dst.RunWithSubProcess = false
+		merged = MergeComponentSpec(src, dst).RunWithSubProcess
+		assert.Equal(t, true, *merged)
+		*src.RunWithSubProcess = false
+		merged = MergeComponentSpec(src, dst).RunWithSubProcess
+		assert.Equal(t, false, *merged)
+	})
 }
 
 func TestMilvusComponent_GetReplicas(t *testing.T) {

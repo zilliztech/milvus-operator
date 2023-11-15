@@ -48,6 +48,11 @@ type ComponentSpec struct {
 	// +kubebuilder:validation:Optional
 	Commands []string `json:"commands,omitempty"`
 
+	// RunWithSubProcess whether to run milvus with flag --run-with-subprocess
+	// note: supported in 2.2.15, 2.3.2+
+	// +kubebuilder:validation:Optional
+	RunWithSubProcess *bool `json:"runWithSubProcess,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	ImagePullPolicy *corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
 

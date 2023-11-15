@@ -607,5 +607,9 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 		dst.PriorityClassName = src.PriorityClassName
 	}
 
+	if src.RunWithSubProcess != nil {
+		dst.RunWithSubProcess = &(*src.RunWithSubProcess)
+	}
+
 	return dst
 }

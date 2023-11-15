@@ -14,8 +14,7 @@ metadata:
 spec:
   mode: "standalone"
   components:
-    image: milvusdb/milvus:master-20230814-ae780e03
-    disableMetric: true
+    runWithSubProcess: true
     standalone:
       ingress:
         hosts: ["mc-sit.milvus.io"]
@@ -26,10 +25,6 @@ spec:
         pvcDeletion: true
         values:
           replicaCount: 1
-    msgStreamType: natsmq
-    natsmq:
-      persistence:
-        enabled: true
     storage:
       inCluster:
         deletionPolicy: Delete
