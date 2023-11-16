@@ -329,10 +329,17 @@ func (m milvusDeploymentUpdater) GetMergedComponentSpec() ComponentSpec {
 }
 
 func (m milvusDeploymentUpdater) GetArgs() []string {
+	var ret = []string{}
 	if len(m.GetMergedComponentSpec().Commands) > 0 {
-		return append([]string{RunScriptPath}, m.GetMergedComponentSpec().Commands...)
+		ret = append([]string{RunScriptPath}, m.GetMergedComponentSpec().Commands...)
+	} else {
+		ret = append([]string{RunScriptPath, "milvus", "run"}, m.component.GetRunCommands()...)
 	}
-	return append([]string{RunScriptPath, "milvus", "run"}, m.component.GetRunCommands()...)
+	if m.GetMergedComponentSpec().RunWithSubProcess == nil ||
+		!*m.GetMergedComponentSpec().RunWithSubProcess {
+		return ret
+	}
+	return append(ret, "--run-with-subprocess")
 }
 func (m milvusDeploymentUpdater) GetSecretRef() string {
 	return m.Spec.Dep.Storage.SecretRef
