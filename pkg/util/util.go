@@ -52,7 +52,11 @@ func SetStringSlice(values map[string]interface{}, v []string, fields ...string)
 	unstructured.SetNestedStringSlice(values, v, fields...)
 }
 
+// MergeValues merges patch into origin, you have to make sure origin is not nil, otherwise it won't work
 func MergeValues(origin, patch map[string]interface{}) {
+	if origin == nil || patch == nil {
+		return
+	}
 	for patchK, patchV := range patch {
 		if _, exist := origin[patchK]; !exist {
 			origin[patchK] = patchV

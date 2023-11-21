@@ -123,6 +123,22 @@ var mergeTests = []struct {
 			},
 		},
 	},
+	{
+		def: nil,
+		overrides: map[string]interface{}{
+			"foo": "bar",
+		},
+		expected: nil,
+	},
+	{
+		def: map[string]interface{}{
+			"foo": "bar",
+		},
+		overrides: nil,
+		expected: map[string]interface{}{
+			"foo": "bar",
+		},
+	},
 }
 
 func TestMergeValues(t *testing.T) {

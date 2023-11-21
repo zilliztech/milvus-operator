@@ -51,6 +51,9 @@ func main() {
 	if err != nil {
 		log.Fatal("read destination yaml failed: ", err)
 	}
+	if dst == nil {
+		dst = map[string]interface{}{}
+	}
 	util.MergeValues(dst, src)
 
 	// backward compatibility
