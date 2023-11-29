@@ -37,9 +37,10 @@ import (
 )
 
 const (
-	MilvusFinalizerName      = "milvus.milvus.io/finalizer"
-	PauseReconcileAnnotation = "milvus.io/pause-reconcile"
-	MaintainingAnnotation    = "milvus.io/maintaining"
+	MilvusFinalizerName         = "milvus.milvus.io/finalizer"
+	ForegroundDeletionFinalizer = "foregroundDeletion"
+	PauseReconcileAnnotation    = "milvus.io/pause-reconcile"
+	MaintainingAnnotation       = "milvus.io/maintaining"
 )
 
 // MilvusReconciler reconciles a Milvus object
@@ -117,13 +118,15 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 
-		stopped, err := CheckMilvusStopped(ctx, r.Client, *milvus)
-		if !stopped || err != nil {
-			return ctrl.Result{RequeueAfter: unhealthySyncInterval}, err
+		if controllerutil.ContainsFinalizer(milvus, ForegroundDeletionFinalizer) {
+			stopped, err := CheckMilvusStopped(ctx, r.Client, *milvus)
+			if !stopped || err != nil {
+				return ctrl.Result{RequeueAfter: unhealthySyncInterval}, err
+			}
 		}
 
 		if controllerutil.ContainsFinalizer(milvus, MilvusFinalizerName) {
-			if err := r.Finalize(ctx, *milvus); err != nil {
+			if err := Finalize(ctx, r, *milvus); err != nil {
 				return ctrl.Result{}, err
 			}
 			// metrics

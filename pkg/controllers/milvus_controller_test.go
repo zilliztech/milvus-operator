@@ -24,12 +24,23 @@ var mockCheckMilvusStop = func(ctx context.Context, cli client.Client, mc v1beta
 	return mockCheckMilvusStopRet, mockCheckMilvusStopErr
 }
 
+var mockFinalizeRet error
+var mockFinalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus) error {
+	return mockFinalizeRet
+}
+
 func TestClusterReconciler(t *testing.T) {
 	bak := CheckMilvusStopped
 	defer func() {
 		CheckMilvusStopped = bak
 	}()
 	CheckMilvusStopped = mockCheckMilvusStop
+
+	bakFinalize := Finalize
+	defer func() {
+		Finalize = bakFinalize
+	}()
+	Finalize = mockFinalize
 
 	config.Init(util.GetGitRepoRootDir())
 
@@ -76,9 +87,38 @@ func TestClusterReconciler(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("case delete remove finalizer", func(t *testing.T) {
+	t.Run("case delete background", func(t *testing.T) {
+		defer ctrl.Finish()
+		m.Finalizers = []string{MilvusFinalizerName}
+		mockCheckMilvusStopRet = false
+		m.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx, key, obj interface{}) {
+				o := obj.(*v1beta1.Milvus)
+				*o = m
+			}).
+			Return(nil)
+
+		mockClient.EXPECT().Status().Return(mockClient)
+		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Times(1)
+
+		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Do(
+			func(ctx, obj interface{}, opts ...interface{}) {
+				// finalizer should be removed
+				u := obj.(*v1beta1.Milvus)
+				assert.Equal(t, []string{}, u.Finalizers)
+			},
+		).Return(nil)
+
+		_, err := r.Reconcile(ctx, reconcile.Request{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("delete foreground deletion", func(t *testing.T) {
 		defer ctrl.Finish()
 		mockCheckMilvusStopRet = true
+		m.Finalizers = []string{ForegroundDeletionFinalizer, MilvusFinalizerName}
 		m.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
 			Do(func(ctx, key, obj interface{}) {
@@ -94,7 +134,7 @@ func TestClusterReconciler(t *testing.T) {
 			func(ctx, obj interface{}, opts ...interface{}) {
 				// finalizer should be removed
 				u := obj.(*v1beta1.Milvus)
-				assert.Equal(t, u.Finalizers, []string{})
+				assert.Equal(t, []string{ForegroundDeletionFinalizer}, u.Finalizers)
 			},
 		).Return(nil)
 
@@ -104,6 +144,7 @@ func TestClusterReconciler(t *testing.T) {
 
 	t.Run("milvus not stopped or check failed", func(t *testing.T) {
 		defer ctrl.Finish()
+		m.Finalizers = []string{ForegroundDeletionFinalizer, MilvusFinalizerName}
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
 			Do(func(ctx, key, obj interface{}) {
 				o := obj.(*v1beta1.Milvus)

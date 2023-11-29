@@ -29,7 +29,7 @@ func TestCluster_Finalize(t *testing.T) {
 	m.Default()
 
 	t.Run("no delete", func(t *testing.T) {
-		err := r.Finalize(ctx, m)
+		err := Finalize(ctx, r, m)
 		assert.NoError(t, err)
 	})
 
@@ -47,7 +47,7 @@ func TestCluster_Finalize(t *testing.T) {
 				}
 			})
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any())
-		err := r.Finalize(ctx, m)
+		err := Finalize(ctx, r, m)
 		assert.NoError(t, err)
 	})
 
@@ -66,7 +66,7 @@ func TestCluster_Finalize(t *testing.T) {
 				}
 			})
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any())
-		err := r.Finalize(ctx, m)
+		err := Finalize(ctx, r, m)
 		assert.NoError(t, err)
 	})
 
@@ -76,7 +76,7 @@ func TestCluster_Finalize(t *testing.T) {
 		m.Spec.Dep.Storage.InCluster.DeletionPolicy = v1beta1.DeletionPolicyDelete
 		m.Spec.Dep.Storage.InCluster.PVCDeletion = true
 		mockHelm.EXPECT().Uninstall(gomock.Any(), gomock.Any()).Return(errTest)
-		err := r.Finalize(ctx, m)
+		err := Finalize(ctx, r, m)
 		assert.Error(t, err)
 	})
 
@@ -90,7 +90,7 @@ func TestCluster_Finalize(t *testing.T) {
 					{},
 				}
 			}).Return(errTest)
-		err := r.Finalize(ctx, m)
+		err := Finalize(ctx, r, m)
 		assert.Error(t, err)
 	})
 
@@ -106,7 +106,7 @@ func TestCluster_Finalize(t *testing.T) {
 				}
 			})
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(errTest)
-		err := r.Finalize(ctx, m)
+		err := Finalize(ctx, r, m)
 		assert.Error(t, err)
 	})
 
@@ -117,7 +117,7 @@ func TestCluster_Finalize(t *testing.T) {
 		m.Spec.Dep.Etcd.InCluster = nil
 		m.Spec.Dep.Pulsar.InCluster = nil
 		m.Spec.Dep.Storage.InCluster = nil
-		err := r.Finalize(ctx, m)
+		err := Finalize(ctx, r, m)
 		assert.NoError(t, err)
 	})
 
