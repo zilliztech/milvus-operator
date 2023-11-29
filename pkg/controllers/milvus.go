@@ -84,7 +84,7 @@ func (r *MilvusReconciler) batchDeletePVC(ctx context.Context, namespace, labelK
 	return nil
 }
 
-func (r *MilvusReconciler) Finalize(ctx context.Context, mc v1beta1.Milvus) error {
+var Finalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus) error {
 	deletingReleases := map[string]bool{}
 	if !mc.Spec.Dep.Etcd.External && mc.Spec.Dep.Etcd.InCluster.DeletionPolicy == v1beta1.DeletionPolicyDelete {
 		deletingReleases[mc.Name+"-etcd"] = mc.Spec.Dep.Etcd.InCluster.PVCDeletion
