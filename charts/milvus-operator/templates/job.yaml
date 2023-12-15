@@ -9,6 +9,7 @@ spec:
   ttlSecondsAfterFinished: 100
   template:
     spec:
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}
       securityContext:
         runAsNonRoot: true
       serviceAccountName: {{ include "chart.checkerServiceAccountName" . | quote }}
