@@ -14171,6 +14171,7 @@ rules:
   - ""
   resources:
   - pods
+  - pods/exec
   verbs:
   - create
   - delete

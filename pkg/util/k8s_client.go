@@ -65,7 +65,6 @@ func NewK8sClientsForConfig(config *rest.Config) (*K8sClients, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create dynamic client")
 	}
-
 	return &K8sClients{
 		ClientSet:     clientSet,
 		ExtClientSet:  extClientSet,

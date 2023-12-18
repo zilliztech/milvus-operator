@@ -36,6 +36,16 @@ spec:
         pvcDeletion: true
         values:
           mode: standalone
+          persistence:
+            size: 20Gi
+    rocksmq:
+      persistence:
+        enabled: true
+        persistentVolumeClaim:
+          spec:
+            resources:
+            limits:
+              storage: 20Gi
   persistence:
     enabled: true
   config:

@@ -134,6 +134,8 @@ spec:
         pvcDeletion: true
         values:
           mode: standalone
+          persistence:
+            size: 20Gi
   config:
     milvus:
       log:

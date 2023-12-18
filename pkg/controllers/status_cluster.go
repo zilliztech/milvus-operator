@@ -16,6 +16,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
@@ -70,6 +71,7 @@ type MilvusStatusSyncer struct {
 }
 
 func NewMilvusStatusSyncer(ctx context.Context, client client.Client, logger logr.Logger) *MilvusStatusSyncer {
+	ctx = ctrl.LoggerInto(ctx, logger)
 	return &MilvusStatusSyncer{
 		ctx:                 ctx,
 		Client:              client,

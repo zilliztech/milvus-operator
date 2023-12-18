@@ -3,9 +3,11 @@ package controllers
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/milvus-io/milvus-operator/pkg/util/rest"
 	"github.com/pkg/errors"
 	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
@@ -262,5 +264,44 @@ func TestGetComponentErrorDetail(t *testing.T) {
 		ret, err := getComponentErrorDetail(ctx, cli, component, deploy)
 		assert.NoError(t, err)
 		assert.Equal(t, "creating", ret.Deployment.Message)
+	})
+}
+
+func TestExecKillIfTerminatingTooLong(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockRestClient := rest.NewMockRestClient(mockCtrl)
+	ctx := context.Background()
+	rest.SetRestClient(mockRestClient)
+	pods := &corev1.PodList{
+		Items: []corev1.Pod{{}, {}},
+	}
+	t.Run("delete not sent yet", func(t *testing.T) {
+		err := ExecKillIfTerminatingTooLong(ctx, pods)
+		assert.NoError(t, err)
+	})
+
+	t.Run("delete sent, but not timeout", func(t *testing.T) {
+		pods.Items[0].DeletionTimestamp = &metav1.Time{Time: time.Now()}
+		pods.Items[1].DeletionTimestamp = &metav1.Time{Time: time.Now()}
+		err := ExecKillIfTerminatingTooLong(ctx, pods)
+		assert.NoError(t, err)
+	})
+
+	t.Run("kill ok", func(t *testing.T) {
+		pods.Items[0].DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Hour)}
+		pods.Items[1].DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Hour)}
+		mockRestClient.EXPECT().Exec(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", "", nil).Times(2)
+		err := ExecKillIfTerminatingTooLong(ctx, pods)
+		assert.NoError(t, err)
+	})
+
+	t.Run("kill 1 ok,1 error", func(t *testing.T) {
+		pods.Items[0].DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Hour)}
+		pods.Items[1].DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Hour)}
+		mockRestClient.EXPECT().Exec(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", "", errors.New("test")).Times(1)
+		mockRestClient.EXPECT().Exec(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", "", nil).Times(1)
+		err := ExecKillIfTerminatingTooLong(ctx, pods)
+		assert.Error(t, err)
 	})
 }

@@ -56,7 +56,8 @@ check_milvus_available(){
 delete_milvus_cluster(){
     # Delete CR
     log "Deleting MilvusCluster ..."
-    kubectl delete -f $mcManifest
+    kubectl -n mc-sit delete milvus milvus --timeout=300s
+    kubectl delete ns mc-sit
     log "Checking PVC deleted ..."
     kubectl wait --timeout=1m pvc -n mc-sit --for=delete -l release=mc-sit-minio
     kubectl wait --timeout=1m pvc -n mc-sit --for=delete -l release=mc-sit-$msgStream
@@ -105,7 +106,8 @@ case_create_delete_cluster(){
 delete_milvus(){
     # Delete CR
     log "Deleting Milvus ..."
-    kubectl delete -f $milvusManifest
+    kubectl -n milvus-sit delete milvus milvus --timeout=300s
+    kubectl delete ns milvus-sit
     log "Checking PVC deleted ..."
     kubectl wait --timeout=1m pvc -n milvus-sit --for=delete -l release=milvus-sit-minio
     kubectl wait --timeout=1m pvc -n milvus-sit --for=delete -l app.kubernetes.io/instance=milvus-sit-etcd

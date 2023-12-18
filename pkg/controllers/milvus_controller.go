@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -59,7 +60,7 @@ type MilvusReconciler struct {
 //+kubebuilder:rbac:groups=apps,resources=statefulsets;deployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=pods;secrets;services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=pods;pods/exec,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=services;configmaps;secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
@@ -82,6 +83,8 @@ type MilvusReconciler struct {
 func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.statusSyncer.RunIfNot()
 	globalCommonInfo.InitIfNot(r.Client)
+	logger := r.logger.WithValues("milvus", req.NamespacedName)
+	ctx = ctrl.LoggerInto(ctx, logger)
 	if !config.IsDebug() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -111,25 +114,38 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 	} else {
+		logger.Info("deleteing milvus")
 		if milvus.Status.Status != milvusv1beta1.StatusDeleting {
+			if !controllerutil.ContainsFinalizer(milvus, ForegroundDeletionFinalizer) {
+				// delete self again with foreground deletion
+				logger.Info("change background delete to foreground")
+				if err := r.Delete(ctx, milvus, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
 			milvus.Status.Status = milvusv1beta1.StatusDeleting
 			if err := r.Status().Update(ctx, milvus); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 
-		if controllerutil.ContainsFinalizer(milvus, ForegroundDeletionFinalizer) {
-			stopped, err := CheckMilvusStopped(ctx, r.Client, *milvus)
-			if !stopped || err != nil {
-				return ctrl.Result{RequeueAfter: unhealthySyncInterval}, err
+		stopped, err := CheckMilvusStopped(ctx, r.Client, *milvus)
+		if !stopped || err != nil {
+			if err != nil {
+				logger.Error(err, "deleting milvus: check milvus stopped failed")
+			} else {
+				logger.Info("deleting milvus: not all pod stopped, requeue")
 			}
+			return ctrl.Result{RequeueAfter: unhealthySyncInterval}, err
 		}
 
+		logger.Info("finalizing milvus")
 		if controllerutil.ContainsFinalizer(milvus, MilvusFinalizerName) {
 			if err := Finalize(ctx, r, *milvus); err != nil {
 				return ctrl.Result{}, err
 			}
 			// metrics
+			logger.Info("deleted milvus")
 			milvusStatusCollector.DeleteLabelValues(milvus.Namespace, milvus.Name)
 			controllerutil.RemoveFinalizer(milvus, MilvusFinalizerName)
 			err := r.Update(ctx, milvus)
