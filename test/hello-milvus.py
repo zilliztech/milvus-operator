@@ -169,3 +169,8 @@ print(f"query after delete by expr=`{expr}` -> result: {result}\n")
 # Finally, drop the hello_milvus collection
 print(fmt.format("Drop collection `hello_milvus`"))
 utility.drop_collection("hello_milvus")
+
+
+# create collection again to test stopping with collection
+print(fmt.format("Recreate collection `hello_milvus`"))
+hello_milvus = Collection("hello_milvus", schema, consistency_level="Strong")

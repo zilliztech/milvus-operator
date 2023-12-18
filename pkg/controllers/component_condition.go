@@ -3,8 +3,10 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/milvus-io/milvus-operator/pkg/util/rest"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -171,7 +173,39 @@ var CheckMilvusStopped = func(ctx context.Context, cli client.Client, mc v1beta1
 		return false, err
 	}
 	if len(podList.Items) > 0 {
-		return false, nil
+		logger := ctrl.LoggerFrom(ctx)
+		logger.Info("milvus has pods not stopped", "pods count", len(podList.Items))
+		return false, ExecKillIfTerminatingTooLong(ctx, podList)
 	}
 	return true, nil
+}
+
+var gracefulStopTimeout = time.Second * 30
+
+func ExecKillIfTerminatingTooLong(ctx context.Context, podList *corev1.PodList) error {
+	// we use kubectl exec to kill milvus process, because tini ignore SIGKILL
+	cli := rest.GetRestClient()
+	var ret error
+	for _, pod := range podList.Items {
+		if pod.DeletionTimestamp == nil {
+			continue
+		}
+		if time.Since(pod.DeletionTimestamp.Time) < gracefulStopTimeout {
+			continue
+		}
+		// kill milvus process
+		logger := ctrl.LoggerFrom(ctx)
+		containerName := pod.Labels[AppLabelComponent]
+		logger.Info("kill milvus process", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "container", containerName)
+		stdout, stderr, err := cli.Exec(ctx, pod.Namespace, pod.Name, containerName, []string{"bash", "-c", "pid=$(ps -C milvus -o pid=); kill -9 $pid"})
+		if err != nil {
+			logger.Error(err, "kill milvus process err", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "container", containerName)
+			ret = err
+		}
+		logger.Info("kill milvus output", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "stdout", stdout, "stderr", stderr)
+	}
+	if ret != nil {
+		return errors.Wrap(ret, "failed to kill some milvus pod")
+	}
+	return nil
 }

@@ -42,9 +42,16 @@ spec:
           resources:
             requests:
               memory: 100Mi
+          persistence:
+            size: 20Gi
     rocksmq:
       persistence:
         enabled: true
+        persistentVolumeClaim:
+          spec:
+            resources:
+            limits:
+              storage: 20Gi
   config:
     milvus:
       log:

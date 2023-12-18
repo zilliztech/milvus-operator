@@ -87,7 +87,7 @@ func TestClusterReconciler(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("case delete background", func(t *testing.T) {
+	t.Run("case delete background, change to foreground failed", func(t *testing.T) {
 		defer ctrl.Finish()
 		m.Finalizers = []string{MilvusFinalizerName}
 		mockCheckMilvusStopRet = false
@@ -103,16 +103,10 @@ func TestClusterReconciler(t *testing.T) {
 		mockClient.EXPECT().Status().Return(mockClient)
 		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Times(1)
 
-		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Do(
-			func(ctx, obj interface{}, opts ...interface{}) {
-				// finalizer should be removed
-				u := obj.(*v1beta1.Milvus)
-				assert.Equal(t, []string{}, u.Finalizers)
-			},
-		).Return(nil)
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any(), client.PropagationPolicy(metav1.DeletePropagationForeground)).Times(1).Return(errMock)
 
 		_, err := r.Reconcile(ctx, reconcile.Request{})
-		assert.NoError(t, err)
+		assert.Error(t, err)
 	})
 
 	t.Run("delete foreground deletion", func(t *testing.T) {
