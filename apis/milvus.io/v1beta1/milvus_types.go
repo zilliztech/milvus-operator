@@ -166,6 +166,9 @@ type MilvusStatus struct {
 	// +optional
 	ComponentsDeployStatus map[string]ComponentDeployStatus `json:"componentsDeployStatus,omitempty"`
 
+	// RollingMode is the version of rolling mode the milvus CR is using
+	RollingMode RollingMode `json:"rollingModeVersion,omitempty"`
+
 	// ObservedGeneration has same usage as deployment.status.observedGeneration
 	// it represents the .metadata.generation that the condition was set based upon.
 	// For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
@@ -174,6 +177,18 @@ type MilvusStatus struct {
 	// +kubebuilder:validation:Minimum=0
 	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
 }
+
+// RollingMode we have changed our rolling mode several times, so we use this enum to track the version of rolling mode the milvus CR is using
+type RollingMode int
+
+// RollingMode definitions
+const (
+	RollingModeNotSet RollingMode = iota
+	// this mode has 1 query node deployment, uses k8s deployment's default rolling update strategy
+	RollingModeV1
+	// this mode has 2 query node deployment, operator takes care of querynode rolling update
+	RollingModeV2
+)
 
 type ComponentDeployStatus struct {
 	// Generation of the deployment

@@ -32,6 +32,12 @@ const (
 	AppLabelName      = AppLabel + "name"
 	AppLabelManagedBy = AppLabel + "managed-by"
 	HelmReleaseLabel  = "release"
+
+	MilvusIO                        = "milvus.io/"
+	MilvusIOLabelQueryNodeGroupId   = MilvusIO + "querynode-group-id"
+	MilvusIOLabelDeploymentRevision = MilvusIO + "deployment-revision"
+
+	MilvusIOAnnotationChangingQueryNodeMode = MilvusIO + "changing-querynode-mode"
 )
 
 func getServicePortIdx(srcPorts []corev1.ServicePort, dst corev1.ServicePort) int {
