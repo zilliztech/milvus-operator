@@ -928,6 +928,8 @@ spec:
                   standalone:
                     type: integer
                 type: object
+              rollingModeVersion:
+                type: integer
               status:
                 default: Pending
                 type: string
@@ -7242,6 +7244,8 @@ spec:
                   standalone:
                     type: integer
                 type: object
+              rollingModeVersion:
+                type: integer
               status:
                 default: Pending
                 type: string
