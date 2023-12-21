@@ -32,12 +32,6 @@ const (
 	AppLabelName      = AppLabel + "name"
 	AppLabelManagedBy = AppLabel + "managed-by"
 	HelmReleaseLabel  = "release"
-
-	MilvusIO                        = "milvus.io/"
-	MilvusIOLabelQueryNodeGroupId   = MilvusIO + "querynode-group-id"
-	MilvusIOLabelDeploymentRevision = MilvusIO + "deployment-revision"
-
-	MilvusIOAnnotationChangingQueryNodeMode = MilvusIO + "changing-querynode-mode"
 )
 
 func getServicePortIdx(srcPorts []corev1.ServicePort, dst corev1.ServicePort) int {
@@ -466,4 +460,18 @@ var (
 func int64Ptr(i int64) *int64 {
 	ret := int64(i)
 	return &ret
+}
+
+func getDeployReplicas(deploy *appsv1.Deployment) int {
+	if deploy.Spec.Replicas == nil {
+		return 1
+	}
+	return int(*deploy.Spec.Replicas)
+}
+
+func int32Value(i *int32) int32 {
+	if i == nil {
+		return 0
+	}
+	return *i
 }

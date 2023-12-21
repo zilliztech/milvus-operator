@@ -25,6 +25,7 @@ rules:
   resources:
   - deployments
   - statefulsets
+  - replicasets
   verbs:
   - create
   - delete

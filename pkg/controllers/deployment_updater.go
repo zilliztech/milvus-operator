@@ -243,8 +243,10 @@ func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater d
 			},
 		}
 	}
-	template.Spec.TerminationGracePeriodSeconds = int64Ptr(1800)
+	template.Spec.TerminationGracePeriodSeconds = int64Ptr(terminationGracePeriodSeconds)
 }
+
+const terminationGracePeriodSeconds = 1800
 
 func updateSidecars(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
 	sidecars := updater.GetSideCars()

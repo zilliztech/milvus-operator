@@ -2,12 +2,14 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // QueryNodeController controls milvus cluster querynode deployments
@@ -15,13 +17,15 @@ type QueryNodeController interface {
 	Reconcile(context.Context, v1beta1.Milvus, MilvusComponent) error
 }
 
+var _ QueryNodeController = &QueryNodeControllerImpl{}
+
 // QueryNodeControllerImpl is the implementation of QueryNodeController
 type QueryNodeControllerImpl struct {
 	biz                     QueryNodeControllerBiz
 	oneDeployModeController QueryNodeController
 }
 
-func (c *QueryNodeControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus) error {
+func (c *QueryNodeControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus, _ MilvusComponent) error {
 	logger := ctrl.LoggerFrom(ctx)
 	rollingMode, err := c.biz.CheckAndUpdateRollingMode(ctx, mc)
 	if err != nil {
@@ -54,6 +58,10 @@ func (c *QueryNodeControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milv
 	}
 
 	// is already in two deployment mode
+	err = c.biz.HandleCreate(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "handle create")
+	}
 
 	if c.biz.IsPaused(ctx, mc) {
 		return nil
@@ -81,14 +89,19 @@ type QueryNodeControllerBiz interface {
 
 	// 2 deployment mode logic
 	IsPaused(ctx context.Context, mc v1beta1.Milvus) bool
+	HandleCreate(ctx context.Context, mc v1beta1.Milvus) error
 	HandleScaling(ctx context.Context, mc v1beta1.Milvus) error
 	HandleRolling(ctx context.Context, mc v1beta1.Milvus) error
 }
+
+var _ QueryNodeControllerBiz = &QueryNodeControllerBizImpl{}
 
 // QueryNodeControllerBizImpl implements QueryNodeControllerBiz
 type QueryNodeControllerBizImpl struct {
 	statusSyncer MilvusStatusSyncerInterface
 	util         QueryNodeControllerBizUtil
+	modeChanger  DeployModeChanger
+	cli          client.Client
 }
 
 func (c *QueryNodeControllerBizImpl) CheckAndUpdateRollingMode(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error) {
@@ -105,7 +118,8 @@ func (c *QueryNodeControllerBizImpl) CheckAndUpdateRollingMode(ctx context.Conte
 		return mode, errors.Wrap(err, "check rolling mode in cluster")
 	}
 
-	err = c.util.UpdateStatusRollingMode(ctx, mc, mode)
+	mc.Status.RollingMode = mode
+	err = c.cli.Status().Update(ctx, &mc)
 	if err != nil {
 		return mode, errors.Wrap(err, "update status rolling mode")
 	}
@@ -125,7 +139,7 @@ func (c *QueryNodeControllerBizImpl) checkRollingModeInCluster(ctx context.Conte
 }
 
 func (c *QueryNodeControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Milvus) (bool, error) {
-	if c.util.IsChangingDeployMode(mc) {
+	if v1beta1.Labels().IsChangeQueryNodeMode(mc) {
 		return false, nil
 	}
 	if mc.Spec.IsStopping() {
@@ -145,37 +159,52 @@ func (c *QueryNodeControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.
 		return false, errors.Errorf("unknown condition status[%s]: %s", cond.Reason, cond.Message)
 	}
 
-	newPodtemplate, err := c.util.RenderPodTemplate(mc, QueryNode)
-	if err != nil {
-		return false, errors.Wrap(err, "render pod template")
-	}
 	deploy, err := c.util.GetOldQueryNodeDeploy(ctx, mc)
 	if err != nil {
 		return false, errors.Wrap(err, "get querynode deployments")
 	}
+	newPodtemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &deploy.Spec.Template, QueryNode)
 	return c.util.IsNewRollout(ctx, deploy, newPodtemplate), nil
 
 }
 
+func formatSaveOldDeployName(mc v1beta1.Milvus) string {
+	return fmt.Sprintf("%s-old-deploy", mc.Name)
+}
+
+func formatSaveOldReplicaSetListName(mc v1beta1.Milvus) string {
+	return fmt.Sprintf("%s-old-replicas", mc.Name)
+}
+
 func (c *QueryNodeControllerBizImpl) ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error {
-	err := c.util.MarkChangingDeployMode(ctx, mc)
+	err := c.modeChanger.MarkChangingDeployMode(ctx, mc, true)
 	if err != nil {
 		return errors.Wrap(err, "mark changing deploy mode")
 	}
-	oldDeploy, err := c.util.GetOldQueryNodeDeploy(ctx, mc)
-	if err == nil {
-		err = c.util.OrphanDeleteDeploy(ctx, oldDeploy)
-		if err != nil {
-			return errors.Wrap(err, "orphan delete old deploy")
-		}
+	err = c.modeChanger.SaveDeleteOldDeploy(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "save and delete old deploy")
 	}
-	if err != nil && !kerrors.IsNotFound(err) {
-		return errors.Wrap(err, "get querynode deployments")
+	err = c.modeChanger.SaveDeleteOldReplicaSet(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "save and delete old replica set")
 	}
-	// not found or already orphan deleted
-
-	// c.util.Render()
-	// TODO
+	err = c.modeChanger.UpdateOldPodLabels(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "update old pod labels")
+	}
+	err = c.modeChanger.RecoverReplicaSets(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "recover replica sets")
+	}
+	err = c.modeChanger.RecoverDeploy(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "recover deploy")
+	}
+	err = c.modeChanger.MarkChangingDeployMode(ctx, mc, false)
+	if err != nil {
+		return errors.Wrap(err, "unmark changing deploy mode")
+	}
 	return nil
 }
 
@@ -187,37 +216,75 @@ func (c *QueryNodeControllerBizImpl) IsPaused(ctx context.Context, mc v1beta1.Mi
 }
 
 func (c *QueryNodeControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.Milvus) error {
-	podTemplate, err := c.util.RenderPodTemplate(mc, QueryNode)
+	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "render pod template")
+		return errors.Wrap(err, "get querynode deploys")
+	}
+	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, QueryNode)
+
+	if c.util.ShouldRollback(ctx, lastDeploy, podTemplate) {
+		currentDeploy, lastDeploy = lastDeploy, currentDeploy
+		return c.util.Rollout(ctx, mc, currentDeploy, lastDeploy)
 	}
 
-	currentDeploy, lastDeploy, err := c.util.GetRevisionedQueryNodeDeploys(ctx, mc)
+	lastRolloutFinished, err := c.util.LastRolloutFinished(ctx, mc, currentDeploy, lastDeploy)
+	if err != nil {
+		return errors.Wrap(err, "check last rollout")
+	}
+	if !lastRolloutFinished {
+		return c.util.Rollout(ctx, mc, currentDeploy, lastDeploy)
+	}
+
+	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
+		currentDeploy, _ = lastDeploy, currentDeploy
+		if currentDeploy == nil {
+			return c.util.CreateQueryNodeDeploy(ctx, mc, podTemplate, 1)
+		}
+		labelHelper := v1beta1.Labels()
+		labelHelper.SetCurrentQueryNodeGroupIDStr(&mc, labelHelper.GetLabelQueryNodeGroupID(currentDeploy))
+		labelHelper.SetLastRolloutFinished(&mc, false)
+		return c.util.UpdateAndRequeue(ctx, &mc)
+	}
+
+	return nil
+}
+
+func (c *QueryNodeControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.Milvus) error {
+	currentDeploy, _, err := c.util.GetQueryNodeDeploys(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "get querynode deploys")
 	}
 
 	if currentDeploy == nil {
-		return c.util.CreateQueryNodeDeploy(ctx, mc, podTemplate, 0)
+		err := c.util.MarkMilvusQueryNodeGroupId(ctx, mc, 0)
+		if err != nil {
+			return errors.Wrap(err, "mark milvus querynode group id to 0")
+		}
+		return c.util.CreateQueryNodeDeploy(ctx, mc, nil, 0)
 	}
-	if lastDeploy == nil {
-		return c.util.CreateQueryNodeDeploy(ctx, mc, nil, 1)
-	}
-
-	if c.util.ShouldRollback(ctx, lastDeploy, podTemplate) {
-		currentDeploy, lastDeploy = lastDeploy, currentDeploy
-		return c.util.Rollout(ctx, currentDeploy, lastDeploy)
-	}
-
-	if c.util.LastRolloutNotFinished(ctx, currentDeploy, lastDeploy) {
-		return c.util.Rollout(ctx, currentDeploy, lastDeploy)
-	}
-
-	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
-		currentDeploy, lastDeploy = lastDeploy, currentDeploy
-		currentDeploy.Spec.Template = *podTemplate
-		return c.util.Rollout(ctx, currentDeploy, lastDeploy)
-	}
-
 	return nil
+}
+
+func (c *QueryNodeControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.Milvus) error {
+	expectedReplicasPtr := QueryNode.GetReplicas(mc.Spec)
+	var expectedReplicas int32 = 1
+	if expectedReplicasPtr != nil {
+		expectedReplicas = *expectedReplicasPtr
+	}
+	currentDeploy, _, err := c.util.GetQueryNodeDeploys(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "get querynode deploys")
+	}
+	currentReplicasPtr := currentDeploy.Spec.Replicas
+	var currentReplicas int32 = 1
+	if currentReplicasPtr != nil {
+		currentReplicas = *currentReplicasPtr
+	}
+
+	if expectedReplicas == currentReplicas {
+		return nil
+	}
+
+	currentDeploy.Spec.Replicas = expectedReplicasPtr
+	return c.cli.Update(ctx, currentDeploy)
 }
