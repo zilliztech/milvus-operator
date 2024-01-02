@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
@@ -10,13 +11,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+//go:generate mockgen -destination=./query_node_mode_changer_mock.go -package=controllers github.com/milvus-io/milvus-operator/pkg/controllers DeployModeChanger
+
+// DeployModeChanger changes deploy mode
 type DeployModeChanger interface {
-	MarkChangingDeployMode(ctx context.Context, mc v1beta1.Milvus, changing bool) error
-	SaveDeleteOldDeploy(ctx context.Context, mc v1beta1.Milvus) error
-	SaveDeleteOldReplicaSet(ctx context.Context, mc v1beta1.Milvus) error
-	UpdateOldPodLabels(ctx context.Context, mc v1beta1.Milvus) error
-	RecoverReplicaSets(ctx context.Context, mc v1beta1.Milvus) error
-	RecoverDeploy(ctx context.Context, mc v1beta1.Milvus) error
+	ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error
 }
 
 var _ DeployModeChanger = &DeployModeChangerImpl{}
@@ -26,7 +25,46 @@ type DeployModeChangerImpl struct {
 	util QueryNodeControllerBizUtil
 }
 
-func (c *DeployModeChangerImpl) MarkChangingDeployMode(ctx context.Context, mc v1beta1.Milvus, changing bool) error {
+type step struct {
+	Name string
+	Func func(context.Context, v1beta1.Milvus) error
+}
+
+func newStep(name string, f func(context.Context, v1beta1.Milvus) error) step {
+	return step{
+		Name: name,
+		Func: f,
+	}
+}
+
+func (c *DeployModeChangerImpl) ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error {
+	steps := []step{
+		newStep("mark changing deploy mode", c.MarkChangingDeployModeTrue),
+		newStep("save and delete old deploy", c.SaveDeleteOldDeploy),
+		newStep("save and delete old replica set", c.SaveDeleteOldReplicaSet),
+		newStep("update old pod labels", c.UpdateOldPodLabels),
+		newStep("recover replica sets", c.RecoverReplicaSets),
+		newStep("recover deploy", c.RecoverDeploy),
+		newStep("unmark changing deploy mode", c.MarkChangingDeployModeFalse),
+	}
+	for i, step := range steps {
+		err := step.Func(ctx, mc)
+		if err != nil {
+			return errors.Wrapf(err, "step[no.%d][%s]", i, step.Name)
+		}
+	}
+	return nil
+}
+
+func (c *DeployModeChangerImpl) MarkChangingDeployModeTrue(ctx context.Context, mc v1beta1.Milvus) error {
+	return c.markChangingDeployMode(ctx, mc, true)
+}
+
+func (c *DeployModeChangerImpl) MarkChangingDeployModeFalse(ctx context.Context, mc v1beta1.Milvus) error {
+	return c.markChangingDeployMode(ctx, mc, false)
+}
+
+func (c *DeployModeChangerImpl) markChangingDeployMode(ctx context.Context, mc v1beta1.Milvus, changing bool) error {
 	if v1beta1.Labels().IsChangeQueryNodeMode(mc) == changing {
 		return nil
 	}
@@ -42,7 +80,7 @@ func (c *DeployModeChangerImpl) MarkChangingDeployMode(ctx context.Context, mc v
 func (c *DeployModeChangerImpl) SaveDeleteOldDeploy(ctx context.Context, mc v1beta1.Milvus) error {
 	oldDeploy, err := c.util.GetOldQueryNodeDeploy(ctx, mc)
 	if err == nil {
-		err := c.util.SaveObject(ctx, formatSaveOldDeployName(mc), oldDeploy)
+		err := c.util.SaveObject(ctx, mc, formatSaveOldDeployName(mc), oldDeploy)
 		if err != nil {
 			return errors.Wrap(err, "save old deploy")
 		}
@@ -62,7 +100,7 @@ func (c *DeployModeChangerImpl) SaveDeleteOldReplicaSet(ctx context.Context, mc 
 	if err != nil {
 		return errors.Wrap(err, "list old replica sets")
 	}
-	c.util.SaveObject(ctx, formatSaveOldReplicaSetListName(mc), &replicasetList)
+	c.util.SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList)
 	for _, rs := range replicasetList.Items {
 		err = c.util.OrphanDelete(ctx, &rs)
 		if err != nil {
@@ -89,7 +127,11 @@ func (c *DeployModeChangerImpl) UpdateOldPodLabels(ctx context.Context, mc v1bet
 
 func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1beta1.Milvus) error {
 	replicasetList := &appsv1.ReplicaSetList{}
-	err := c.util.GetSavedObject(ctx, formatSaveOldReplicaSetListName(mc), replicasetList)
+	key := client.ObjectKey{
+		Namespace: mc.Namespace,
+		Name:      formatSaveOldReplicaSetListName(mc),
+	}
+	err := c.util.GetSavedObject(ctx, key, replicasetList)
 	if err != nil {
 		return errors.Wrap(err, "list old replica sets")
 	}
@@ -108,7 +150,11 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 
 func (c *DeployModeChangerImpl) RecoverDeploy(ctx context.Context, mc v1beta1.Milvus) error {
 	oldDeploy := &appsv1.Deployment{}
-	err := c.util.GetSavedObject(ctx, formatSaveOldDeployName(mc), oldDeploy)
+	key := client.ObjectKey{
+		Namespace: mc.Namespace,
+		Name:      formatSaveOldDeployName(mc),
+	}
+	err := c.util.GetSavedObject(ctx, key, oldDeploy)
 	if err != nil {
 		return errors.Wrap(err, "get old deploy")
 	}
@@ -121,4 +167,12 @@ func (c *DeployModeChangerImpl) RecoverDeploy(ctx context.Context, mc v1beta1.Mi
 		return errors.Wrap(err, "recover old deploy")
 	}
 	return nil
+}
+
+func formatSaveOldDeployName(mc v1beta1.Milvus) string {
+	return fmt.Sprintf("%s-old-deploy", mc.Name)
+}
+
+func formatSaveOldReplicaSetListName(mc v1beta1.Milvus) string {
+	return fmt.Sprintf("%s-old-replicas", mc.Name)
 }

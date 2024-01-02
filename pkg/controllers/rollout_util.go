@@ -13,8 +13,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+//go:generate mockgen -destination=./rollout_util_mock.go -package=controllers github.com/milvus-io/milvus-operator/pkg/controllers K8sUtil
+
 type K8sUtil interface {
-	// write
+	// write:
+
+	// CreateObject if not exist
 	CreateObject(ctx context.Context, obj client.Object) error
 	OrphanDelete(ctx context.Context, obj client.Object) error
 	MarkMilvusQueryNodeGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error
@@ -34,6 +38,12 @@ type K8sUtilImpl struct {
 	cli client.Client
 }
 
+func NewK8sUtil(cli client.Client) *K8sUtilImpl {
+	return &K8sUtilImpl{
+		cli: cli,
+	}
+}
+
 func (c *K8sUtilImpl) CreateObject(ctx context.Context, obj client.Object) error {
 	err := c.cli.Get(ctx, client.ObjectKeyFromObject(obj), obj)
 	if err == nil {
@@ -43,6 +53,31 @@ func (c *K8sUtilImpl) CreateObject(ctx context.Context, obj client.Object) error
 		return errors.Wrap(err, "check object exist")
 	}
 	return c.cli.Create(ctx, obj)
+}
+
+func (c *K8sUtilImpl) OrphanDelete(ctx context.Context, obj client.Object) error {
+	err := c.cli.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationOrphan))
+	if err != nil && !kerrors.IsNotFound(err) {
+		return errors.Wrap(err, "delete old object")
+	}
+	return nil
+}
+
+func (c *K8sUtilImpl) MarkMilvusQueryNodeGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error {
+	groupIdStr := strconv.Itoa(groupId)
+	if v1beta1.Labels().GetCurrentQueryNodeGroupId(&mc) == groupIdStr {
+		return nil
+	}
+	v1beta1.Labels().SetCurrentQueryNodeGroupID(&mc, groupId)
+	return c.UpdateAndRequeue(ctx, &mc)
+}
+
+func (c *K8sUtilImpl) UpdateAndRequeue(ctx context.Context, obj client.Object) error {
+	err := c.cli.Update(ctx, obj)
+	if err != nil {
+		return errors.Wrap(err, "update object")
+	}
+	return errors.Wrap(ErrRequeue, "update and requeue")
 }
 
 func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus) (appsv1.ReplicaSetList, error) {
@@ -80,28 +115,6 @@ func (c *K8sUtilImpl) ListOldPods(ctx context.Context, mc v1beta1.Milvus) ([]cor
 	return ret, nil
 }
 
-func (c *K8sUtilImpl) OrphanDelete(ctx context.Context, obj client.Object) error {
-	err := c.cli.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationOrphan))
-	if err != nil && !kerrors.IsNotFound(err) {
-		return errors.Wrap(err, "delete old object")
-	}
-	return nil
-}
-
-func (c *K8sUtilImpl) MarkMilvusQueryNodeGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error {
-	groupIdStr := strconv.Itoa(groupId)
-	if v1beta1.Labels().GetCurrentQueryNodeGroupId(&mc) == groupIdStr {
-		return nil
-	}
-	v1beta1.Labels().SetCurrentQueryNodeGroupID(&mc, groupId)
-	err := c.cli.Update(ctx, &mc)
-	if err != nil {
-		return errors.Wrap(err, "update milvus spec")
-	}
-	// return error to abort this reconcile, and trigger next
-	return errors.Wrap(ErrRequeue, "update milvus querynode group id anotation")
-}
-
 func (c *K8sUtilImpl) ListDeployPods(ctx context.Context, deploy *appsv1.Deployment) ([]corev1.Pod, error) {
 	pods := corev1.PodList{}
 	labels := deploy.Spec.Selector.MatchLabels
@@ -113,43 +126,30 @@ func (c *K8sUtilImpl) ListDeployPods(ctx context.Context, deploy *appsv1.Deploym
 }
 
 func (c *K8sUtilImpl) DeploymentIsStable(deploy *appsv1.Deployment, allPods []corev1.Pod) bool {
-	terminatingPods := FilterTerminatingPods(allPods)
-	if len(terminatingPods) > 0 {
-		return false
-	}
-
-	notReadyPods := FilterNotReadyPods(allPods)
-	if len(notReadyPods) > 0 {
-		return false
-	}
-
+	terminatingPods := GetTerminatingPods(allPods)
+	notReadyPods := GetNotReadyPods(allPods)
 	deployReplicas := getDeployReplicas(deploy)
-	if len(allPods) != deployReplicas {
-		return false
-	}
 
-	if deploy.Status.ObservedGeneration != deploy.Generation {
-		return false
-	}
-	if int32(getDeployReplicas(deploy)) != deploy.Status.Replicas {
-		return false
-	}
-	if deploy.Status.Replicas != deploy.Status.UpdatedReplicas {
-		return false
-	}
-	if deploy.Status.Replicas != deploy.Status.AvailableReplicas {
-		return false
-	}
-
-	return true
+	return logicAnd(
+		len(terminatingPods) < 1,
+		len(notReadyPods) < 1,
+		len(allPods) == deployReplicas,
+		deploy.Status.ObservedGeneration == deploy.Generation,
+		int32(deployReplicas) == deploy.Status.Replicas,
+		deploy.Status.Replicas == deploy.Status.UpdatedReplicas,
+		deploy.Status.Replicas == deploy.Status.AvailableReplicas,
+		deploy.Status.Replicas == deploy.Status.ReadyReplicas,
+		deploy.Status.UnavailableReplicas == 0,
+	)
 }
 
-func (c *K8sUtilImpl) UpdateAndRequeue(ctx context.Context, obj client.Object) error {
-	err := c.cli.Update(ctx, obj)
-	if err != nil {
-		return errors.Wrap(err, "update object")
+func logicAnd(b ...bool) bool {
+	for _, v := range b {
+		if !v {
+			return false
+		}
 	}
-	return errors.Wrap(ErrRequeue, "update and requeue")
+	return true
 }
 
 func GetDeploymentGroupId(deploy *appsv1.Deployment) (int, error) {
@@ -160,7 +160,7 @@ func GetDeploymentGroupId(deploy *appsv1.Deployment) (int, error) {
 	return groupId, nil
 }
 
-func FilterTerminatingPods(pods []corev1.Pod) []corev1.Pod {
+func GetTerminatingPods(pods []corev1.Pod) []corev1.Pod {
 	ret := []corev1.Pod{}
 	for _, pod := range pods {
 		if pod.DeletionTimestamp != nil {
@@ -170,7 +170,7 @@ func FilterTerminatingPods(pods []corev1.Pod) []corev1.Pod {
 	return ret
 }
 
-func FilterNotReadyPods(pods []corev1.Pod) []corev1.Pod {
+func GetNotReadyPods(pods []corev1.Pod) []corev1.Pod {
 	ret := []corev1.Pod{}
 	for _, pod := range pods {
 		if pod.Status.Phase != corev1.PodRunning {
@@ -180,9 +180,10 @@ func FilterNotReadyPods(pods []corev1.Pod) []corev1.Pod {
 		for _, cond := range pod.Status.Conditions {
 			if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
 				continue
+			} else {
+				ret = append(ret, pod)
 			}
 		}
-		ret = append(ret, pod)
 
 	}
 	return ret

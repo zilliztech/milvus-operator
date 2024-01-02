@@ -32,7 +32,7 @@ const (
 
 	// query node rolling related labels
 	MilvusIOLabelQueryNodeGroupId = MilvusIO + "querynode-group-id"
-	MilvusIOLabelRolloutFinished  = MilvusIO + "rollout-finished"
+	MilvusIOLabelQueryNodeRolling = MilvusIO + "querynode-rolling-id"
 	// query node rolling related annotations
 	MilvusIOAnnotationCurrentQueryNodeGroupId = MilvusIO + "current-querynode-group-id"
 	MilvusIOAnnotationChangingQueryNodeMode   = MilvusIO + "changing-querynode-mode"
@@ -67,7 +67,11 @@ func (LabelsImpl) GetLabelQueryNodeGroupID(obj client.Object) string {
 }
 
 func (l LabelsImpl) SetQueryNodeGroupID(labels map[string]string, groupId int) {
-	labels[MilvusIOLabelQueryNodeGroupId] = strconv.Itoa(groupId)
+	l.SetQueryNodeGroupIDStr(labels, strconv.Itoa(groupId))
+}
+
+func (l LabelsImpl) SetQueryNodeGroupIDStr(labels map[string]string, groupIdStr string) {
+	labels[MilvusIOLabelQueryNodeGroupId] = groupIdStr
 }
 
 func (LabelsImpl) GetCurrentQueryNodeGroupId(m *Milvus) string {
@@ -86,14 +90,21 @@ func (LabelsImpl) SetCurrentQueryNodeGroupIDStr(m *Milvus, groupId string) {
 	m.Annotations[MilvusIOAnnotationCurrentQueryNodeGroupId] = groupId
 }
 
-func (LabelsImpl) LastRolloutFinished(m *Milvus) bool {
-	return m.Annotations[MilvusIOLabelRolloutFinished] == TrueStr
+// IsQueryNodeRolling: if not empty, it means the query node has no rolling in progress
+func (LabelsImpl) IsQueryNodeRolling(m Milvus) bool {
+	return len(m.Labels[MilvusIOLabelQueryNodeRolling]) > 0
 }
 
-func (LabelsImpl) SetLastRolloutFinished(m *Milvus, finished bool) {
-	if finished {
-		m.Annotations[MilvusIOLabelRolloutFinished] = TrueStr
+func (LabelsImpl) GetQueryNodeRollingId(m Milvus) string {
+	return m.Labels[MilvusIOLabelQueryNodeRolling]
+}
+
+func (LabelsImpl) SetQueryNodeRolling(m *Milvus, rolling bool) {
+	if rolling {
+		if len(m.Labels[MilvusIOLabelQueryNodeRolling]) == 0 {
+			m.Labels[MilvusIOLabelQueryNodeRolling] = strconv.Itoa(int(m.GetGeneration()))
+		}
 		return
 	}
-	delete(m.Annotations, MilvusIOLabelRolloutFinished)
+	delete(m.Labels, MilvusIOLabelQueryNodeRolling)
 }

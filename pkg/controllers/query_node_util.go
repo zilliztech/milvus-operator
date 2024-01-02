@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,23 +18,28 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+//go:generate mockgen -destination=./query_node_util_mock.go -package=controllers github.com/milvus-io/milvus-operator/pkg/controllers QueryNodeControllerBizUtil
+
 // QueryNodeControllerBizUtil are the business logics of QueryNodeControllerBizImpl, abstracted for unit test
 type QueryNodeControllerBizUtil interface {
 	RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent) *corev1.PodTemplateSpec
 
 	GetOldQueryNodeDeploy(ctx context.Context, mc v1beta1.Milvus) (*appsv1.Deployment, error)
 	// SaveObject in controllerrevision
-	SaveObject(ctx context.Context, name string, obj runtime.Object) error
+	SaveObject(ctx context.Context, mc v1beta1.Milvus, name string, obj runtime.Object) error
 	// GetObject from controllerrevision
-	GetSavedObject(ctx context.Context, name string, obj interface{}) error
+	GetSavedObject(ctx context.Context, key client.ObjectKey, obj interface{}) error
 
 	GetQueryNodeDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error)
+	// CreateQueryNodeDeploy with replica = 0
 	CreateQueryNodeDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error
 
-	ShouldRollback(ctx context.Context, lastDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
+	ShouldRollback(ctx context.Context, currentDeploy, lastDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
 	LastRolloutFinished(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) (bool, error)
 	IsNewRollout(ctx context.Context, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
 	Rollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error
+	// PrepareNewRollout prepare a new rollout, currentDeployment can be nil, it will create a new deployment with replica = 0
+	PrepareNewRollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) error
 
 	K8sUtil
 }
@@ -43,6 +49,13 @@ var _ QueryNodeControllerBizUtil = &QueryNodeControllerBizUtilImpl{}
 type QueryNodeControllerBizUtilImpl struct {
 	K8sUtil
 	cli client.Client
+}
+
+func NewQueryNodeControllerBizUtil(cli client.Client, k8sUtil K8sUtil) *QueryNodeControllerBizUtilImpl {
+	return &QueryNodeControllerBizUtilImpl{
+		K8sUtil: k8sUtil,
+		cli:     cli,
+	}
 }
 
 func (c *QueryNodeControllerBizUtilImpl) RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent) *corev1.PodTemplateSpec {
@@ -81,28 +94,27 @@ func (c *QueryNodeControllerBizUtilImpl) GetOldQueryNodeDeploy(ctx context.Conte
 	return &deploys[0], nil
 }
 
-func (c *QueryNodeControllerBizUtilImpl) SaveObject(ctx context.Context, name string, obj runtime.Object) error {
+// SaveObject in controllerrevision
+func (c *QueryNodeControllerBizUtilImpl) SaveObject(ctx context.Context, mc v1beta1.Milvus, name string, obj runtime.Object) error {
 	controllerRevision := &appsv1.ControllerRevision{}
 	controllerRevision.Namespace = obj.(metav1.Object).GetNamespace()
 	controllerRevision.Name = name
 	controllerRevision.Revision = 1
 	controllerRevision.Data.Object = obj
+	err := ctrl.SetControllerReference(&mc, controllerRevision, c.cli.Scheme())
+	if err != nil {
+		return errors.Wrap(err, "set controller reference")
+	}
 	return c.CreateObject(ctx, controllerRevision)
 }
 
-func (c *QueryNodeControllerBizUtilImpl) GetSavedObject(ctx context.Context, name string, obj interface{}) error {
+func (c *QueryNodeControllerBizUtilImpl) GetSavedObject(ctx context.Context, key client.ObjectKey, obj interface{}) error {
 	controllerRevision := &appsv1.ControllerRevision{}
-	controllerRevision.Namespace = obj.(metav1.Object).GetNamespace()
-	controllerRevision.Name = name
-	err := c.cli.Get(ctx, client.ObjectKeyFromObject(controllerRevision), controllerRevision)
+	err := c.cli.Get(ctx, key, controllerRevision)
 	if err != nil {
 		return errors.Wrap(err, "get saved object")
 	}
-	marshaled, err := yaml.Marshal(controllerRevision.Data.Object)
-	if err != nil {
-		return errors.Wrap(err, "marshal saved object")
-	}
-	err = yaml.Unmarshal(marshaled, obj)
+	err = yaml.Unmarshal(controllerRevision.Data.Raw, obj)
 	if err != nil {
 		return errors.Wrap(err, "unmarshal saved object")
 	}
@@ -127,12 +139,11 @@ func (c *QueryNodeControllerBizUtilImpl) GetQueryNodeDeploys(ctx context.Context
 	}
 	var current, last *appsv1.Deployment
 	labelHelper := v1beta1.Labels()
-	for _, deploy := range deploys.Items {
-
-		if labelHelper.GetLabelQueryNodeGroupID(&deploy) == labelHelper.GetCurrentQueryNodeGroupId(&mc) {
-			current = &deploy
+	for i := range deploys.Items {
+		if labelHelper.GetLabelQueryNodeGroupID(&deploys.Items[i]) == labelHelper.GetCurrentQueryNodeGroupId(&mc) {
+			current = &deploys.Items[i]
 		} else {
-			last = &deploy
+			last = &deploys.Items[i]
 		}
 	}
 	return current, last, nil
@@ -146,19 +157,22 @@ func (c *QueryNodeControllerBizUtilImpl) CreateQueryNodeDeploy(ctx context.Conte
 	deploy := new(appsv1.Deployment)
 	deploy.Namespace = mc.Namespace
 	deploy.Name = fmt.Sprintf("%s-%s-%d", mc.Name, QueryNode.Name, groupId)
+	err := ctrl.SetControllerReference(&mc, deploy, c.cli.Scheme())
+	if err != nil {
+		return errors.Wrap(err, "set controller reference")
+	}
 	labels := NewComponentAppLabels(mc.Name, QueryNode.Name)
 	v1beta1.Labels().SetQueryNodeGroupID(labels, groupId)
 	deploy.Labels = labels
-	deploy.Spec.Selector.MatchLabels = labels
+	deploy.Spec.Selector = &metav1.LabelSelector{
+		MatchLabels: labels,
+	}
 	podTemplate.Labels = MergeLabels(podTemplate.Labels, labels)
 	deploy.Spec.Template = *podTemplate
 
 	updater := newMilvusDeploymentUpdater(mc, c.cli.Scheme(), QueryNode)
-	deploy.Spec.Replicas = updater.GetReplicas()
-	if groupId != 0 {
-		// new deploy group for rolling, should be created without replica
-		deploy.Spec.Replicas = int32Ptr(0)
-	}
+	// new deploy group for rolling, should be created without replica
+	deploy.Spec.Replicas = int32Ptr(0)
 	deploy.Spec.Strategy = updater.GetDeploymentStrategy()
 	comSpec := updater.GetMergedComponentSpec()
 	deploy.Spec.Paused = comSpec.Paused
@@ -174,54 +188,47 @@ func (c *QueryNodeControllerBizUtilImpl) CreateQueryNodeDeploy(ctx context.Conte
 	return c.cli.Create(ctx, deploy)
 }
 
-func (c *QueryNodeControllerBizUtilImpl) ShouldRollback(ctx context.Context, lastDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool {
-	if lastDeployment == nil {
+// ShouldRollback returns if query node should rollback, it assumes currentDeploy not nil
+func (c *QueryNodeControllerBizUtilImpl) ShouldRollback(ctx context.Context, currentDeploy, lastDeploy *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool {
+	if lastDeploy == nil {
 		return false
 	}
-	return !IsEqual(lastDeployment.Spec.Template, *podTemplate)
+	labelHelper := v1beta1.Labels()
+	podTemplateCopy := podTemplate.DeepCopy()
+	groupIdStr := labelHelper.GetLabelQueryNodeGroupID(currentDeploy)
+	labelHelper.SetQueryNodeGroupIDStr(podTemplateCopy.Labels, groupIdStr)
+	if IsEqual(currentDeploy.Spec.Template, *podTemplateCopy) {
+		return false
+	}
+	groupIdStr = labelHelper.GetLabelQueryNodeGroupID(lastDeploy)
+	labelHelper.SetQueryNodeGroupIDStr(podTemplateCopy.Labels, groupIdStr)
+	return IsEqual(lastDeploy.Spec.Template, *podTemplateCopy)
 }
 
 func (c *QueryNodeControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) (bool, error) {
-	if v1beta1.Labels().LastRolloutFinished(&mc) {
+	if !v1beta1.Labels().IsQueryNodeRolling(mc) {
 		return true, nil
 	}
-	finished, err := c.checkLastRolloutFinishedByDeploy(ctx, currentDeployment, lastDeployment)
-	if err != nil {
-		return false, err
-	}
-	if finished {
-		v1beta1.Labels().SetLastRolloutFinished(&mc, true)
-		return true, c.K8sUtil.UpdateAndRequeue(ctx, &mc)
-	}
-	return false, nil
-}
-
-func (c *QueryNodeControllerBizUtilImpl) checkLastRolloutFinishedByDeploy(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment) (bool, error) {
-	if currentDeployment.Status.ObservedGeneration != currentDeployment.Generation {
-		return false, nil
-	}
-	// check current all up:
+	// assume currentDeployment & lastDeployment not nil
 	expectReplicas := int32(getDeployReplicas(currentDeployment))
-	if expectReplicas != currentDeployment.Status.UpdatedReplicas {
-		return false, nil
-	}
-	if currentDeployment.Status.UpdatedReplicas != currentDeployment.Status.Replicas {
-		return false, nil
-	}
-	if currentDeployment.Status.UpdatedReplicas != currentDeployment.Status.AvailableReplicas {
-		return false, nil
-	}
 
-	// check last all down:
-	if lastDeployment == nil {
-		return true, nil
-	}
-	if getDeployReplicas(lastDeployment) > 0 {
+	deploymentShowsRolloutFinished := logicAnd(
+		// spec & status up to date:
+		int32Value(mc.Spec.Com.QueryNode.Replicas) == int32Value(currentDeployment.Spec.Replicas),
+		currentDeployment.Status.ObservedGeneration == currentDeployment.Generation,
+		lastDeployment.Status.ObservedGeneration == lastDeployment.Generation,
+		// check current all up:
+		expectReplicas == currentDeployment.Status.UpdatedReplicas,
+		currentDeployment.Status.UpdatedReplicas == currentDeployment.Status.Replicas,
+		currentDeployment.Status.UpdatedReplicas == currentDeployment.Status.AvailableReplicas,
+		// check last all down:
+		getDeployReplicas(lastDeployment) == 0,
+		lastDeployment.Status.Replicas == 0,
+	)
+	if !deploymentShowsRolloutFinished {
 		return false, nil
 	}
-	if lastDeployment.Status.Replicas > 0 {
-		return false, nil
-	}
+	// make sure all old pods are down
 	pods, err := c.K8sUtil.ListDeployPods(ctx, lastDeployment)
 	if err != nil {
 		return false, err
@@ -229,11 +236,18 @@ func (c *QueryNodeControllerBizUtilImpl) checkLastRolloutFinishedByDeploy(ctx co
 	if len(pods) != 0 {
 		return false, nil
 	}
-	return true, nil
+	logger := ctrl.LoggerFrom(ctx)
+	logger.Info("rollout finished", "id", v1beta1.Labels().GetQueryNodeRollingId(mc))
+	v1beta1.Labels().SetQueryNodeRolling(&mc, false)
+	return false, c.UpdateAndRequeue(ctx, &mc)
 }
 
 func (c *QueryNodeControllerBizUtilImpl) IsNewRollout(ctx context.Context, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool {
-	return !IsEqual(currentDeployment.Spec.Template, *podTemplate)
+	labelHelper := v1beta1.Labels()
+	podTemplateCopy := podTemplate.DeepCopy()
+	groupIdStr := labelHelper.GetLabelQueryNodeGroupID(currentDeployment)
+	labelHelper.SetQueryNodeGroupIDStr(podTemplateCopy.Labels, groupIdStr)
+	return !IsEqual(currentDeployment.Spec.Template, *podTemplateCopy)
 }
 
 // Rollout to current deploymement, we assume both current & last deploy is not nil
@@ -293,4 +307,30 @@ func (c *QueryNodeControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1
 		currentDeployment.Spec.Replicas = int32Ptr(getDeployReplicas(currentDeployment) + 1)
 		return c.K8sUtil.UpdateAndRequeue(ctx, currentDeployment)
 	}
+}
+
+func (c *QueryNodeControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) error {
+	logger := ctrl.LoggerFrom(ctx)
+	labelHelper := v1beta1.Labels()
+	currentGroupIdStr := "1"
+	if currentDeployment == nil {
+		logger.Info("prepare new rollout stage 1: create deployment group[1] for rolling")
+		err := c.CreateQueryNodeDeploy(ctx, mc, podTemplate, 1)
+		if err != nil {
+			return errors.Wrap(err, "create new deploy for rolling failed")
+		}
+	} else {
+		currentGroupIdStr = labelHelper.GetLabelQueryNodeGroupID(currentDeployment)
+		logger.Info("prepare new rollout stage 2", "deployGroupId", currentGroupIdStr, "podTemplateDiff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
+		currentDeployment.Spec.Template = *podTemplate
+		labelHelper.SetQueryNodeGroupIDStr(currentDeployment.Labels, currentGroupIdStr)
+		err := c.cli.Update(ctx, currentDeployment)
+		if err != nil {
+			return errors.Wrap(err, "update current deploy for rolling failed")
+		}
+	}
+	logger.Info("prepare new rollout stage 3: set milvus current querynode group id, set rolling to true", "currentGroupId", currentGroupIdStr)
+	labelHelper.SetCurrentQueryNodeGroupIDStr(&mc, currentGroupIdStr)
+	labelHelper.SetQueryNodeRolling(&mc, true)
+	return c.UpdateAndRequeue(ctx, &mc)
 }
