@@ -38,6 +38,8 @@ spec:
           resources:
             requests:
               memory: 100Mi
+          persistence:
+              size: 20Gi
         deletionPolicy: Delete
         pvcDeletion: true
     msgStreamType: kafka

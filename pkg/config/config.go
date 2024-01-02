@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	DefaultMilvusVersion   = "v2.3.3"
+	DefaultMilvusVersion   = "v2.3.4"
 	DefaultMilvusBaseImage = "milvusdb/milvus"
 	DefaultMilvusImage     = DefaultMilvusBaseImage + ":" + DefaultMilvusVersion
 	DefaultImagePullPolicy = corev1.PullIfNotPresent
