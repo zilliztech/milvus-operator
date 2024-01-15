@@ -93,13 +93,13 @@ build-only:
 
 build-config-tool:
 	mkdir -p out
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o out/merge ./tool/merge
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o out/cp ./tool/cp
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o out/merge ./tool/merge
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o out/cp ./tool/cp
 
 build-release: build-config-tool
 	mkdir -p out
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="$(BUILD_LDFLAGS)" -o out/manager main.go
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o out/checker ./tool/checker
+	CGO_ENABLED=0 go build -ldflags="$(BUILD_LDFLAGS)" -o out/manager main.go
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o out/checker ./tool/checker
 
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
@@ -135,10 +135,12 @@ docker-tool-prepare: build-config-tool
 	cp ./out/cp ./out/tool/cp
 
 docker-tool-build:
-	docker build -t ${TOOL_RELEASE_IMG} -f tool.Dockerfile . 
+	docker build --platform=linux/amd64 -t ${TOOL_RELEASE_IMG}-amd64 -f tool.Dockerfile .
+	docker build --platform=linux/arm64 -t ${TOOL_RELEASE_IMG}-arm64 -f tool.Dockerfile .
 
 docker-tool-push:
-	docker push ${TOOL_RELEASE_IMG} 
+	docker manifest create ${TOOL_RELEASE_IMG} ${TOOL_RELEASE_IMG}-amd64 ${TOOL_RELEASE_IMG}-arm64
+	docker manifest push ${TOOL_RELEASE_IMG}
 
 docker-local-build:
 	docker build -t ${IMG} -f local.Dockerfile . 
