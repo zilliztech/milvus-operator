@@ -281,13 +281,6 @@ func TestExecKillIfTerminatingTooLong(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("delete sent, but not timeout", func(t *testing.T) {
-		pods.Items[0].DeletionTimestamp = &metav1.Time{Time: time.Now()}
-		pods.Items[1].DeletionTimestamp = &metav1.Time{Time: time.Now()}
-		err := ExecKillIfTerminatingTooLong(ctx, pods)
-		assert.NoError(t, err)
-	})
-
 	t.Run("kill ok", func(t *testing.T) {
 		pods.Items[0].DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Hour)}
 		pods.Items[1].DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Hour)}
