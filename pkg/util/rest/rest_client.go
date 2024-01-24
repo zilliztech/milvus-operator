@@ -53,6 +53,7 @@ func newRestClientImpl(config *rest.Config) (*RestClientImpl, error) {
 	}
 	config.NegotiatedSerializer = serializer.NewCodecFactory(scheme)
 	config.GroupVersion = &corev1.SchemeGroupVersion
+	config.APIPath = "api"
 	restClient, err := rest.RESTClientFor(config)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create rest client")
