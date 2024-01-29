@@ -25,6 +25,13 @@ type DeployModeChangerImpl struct {
 	util QueryNodeControllerBizUtil
 }
 
+func NewDeployModeChanger(cli client.Client, util QueryNodeControllerBizUtil) *DeployModeChangerImpl {
+	return &DeployModeChangerImpl{
+		cli:  cli,
+		util: util,
+	}
+}
+
 type step struct {
 	Name string
 	Func func(context.Context, v1beta1.Milvus) error

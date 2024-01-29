@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	pkgErr "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -51,6 +52,7 @@ type MilvusReconciler struct {
 	logger         logr.Logger
 	helmReconciler HelmReconciler
 	statusSyncer   MilvusStatusSyncerInterface
+	qnController   QueryNodeController
 }
 
 //+kubebuilder:rbac:groups=milvus.io,resources=milvuses,verbs=get;list;watch;create;update;patch;delete
@@ -182,6 +184,10 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if err := r.ReconcileAll(ctx, *milvus); err != nil {
+		if pkgErr.Is(err, ErrRequeue) {
+			r.logger.Info("requeue", "err", err)
+			return ctrl.Result{RequeueAfter: unhealthySyncInterval / 2}, nil
+		}
 		return ctrl.Result{}, err
 	}
 

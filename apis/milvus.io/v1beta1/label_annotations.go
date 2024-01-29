@@ -38,6 +38,7 @@ const (
 	MilvusIOAnnotationChangingQueryNodeMode   = MilvusIO + "changing-querynode-mode"
 )
 
+// +kubebuilder:object:generate=false
 type LabelsImpl struct{}
 
 var singletonLabels = &LabelsImpl{}

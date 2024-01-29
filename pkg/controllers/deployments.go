@@ -205,6 +205,11 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 		return err
 	}
 	for _, component := range GetComponentsBySpec(mc.Spec) {
+		if mc.Spec.Mode != v1beta1.MilvusModeStandalone &&
+			component == QueryNode {
+			g.Go(WarppedReconcileComponentFunc(r.qnController.Reconcile, gtx, mc, component))
+			continue
+		}
 		g.Go(WarppedReconcileComponentFunc(r.ReconcileComponentDeployment, gtx, mc, component))
 	}
 
@@ -309,4 +314,16 @@ func persistentVolumeMount(persist v1beta1.Persistence) corev1.VolumeMount {
 		ReadOnly:  false,
 		MountPath: v1beta1.RocksMQPersistPath,
 	}
+}
+
+type CommonComponentReconciler struct {
+	r *MilvusReconciler
+}
+
+func NewCommonComponentReconciler(r *MilvusReconciler) *CommonComponentReconciler {
+	return &CommonComponentReconciler{r: r}
+}
+
+func (r *CommonComponentReconciler) Reconcile(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
+	return r.r.ReconcileComponentDeployment(ctx, mc, component)
 }

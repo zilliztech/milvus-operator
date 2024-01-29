@@ -62,13 +62,20 @@ func SetupControllers(ctx context.Context, mgr manager.Manager, stopReconcilers 
 		// should be run after mgr started to make sure the client is ready
 		statusSyncer := NewMilvusStatusSyncer(ctx, mgr.GetClient(), logger.WithName("status-syncer"))
 
-		reconcilers["milvus"] = &MilvusReconciler{
+		reconciler := &MilvusReconciler{
 			Client:         mgr.GetClient(),
 			Scheme:         mgr.GetScheme(),
 			logger:         logger.WithName("milvus"),
 			helmReconciler: helmReconciler,
 			statusSyncer:   statusSyncer,
 		}
+		k8sUtil := NewK8sUtil(mgr.GetClient())
+		bizUtil := NewQueryNodeControllerBizUtil(mgr.GetClient(), k8sUtil)
+		modeChanger := NewDeployModeChanger(mgr.GetClient(), bizUtil)
+		qnBiz := NewQueryNodeControllerBizImpl(statusSyncer, bizUtil, modeChanger, mgr.GetClient())
+		qnController := NewQueryNodeController(qnBiz, NewCommonComponentReconciler(reconciler))
+		reconciler.qnController = qnController
+		reconcilers["milvus"] = reconciler
 
 		reconcilers["milvusupgrade"] = NewMilvusUpgradeReconciler(mgr.GetClient(), mgr.GetScheme())
 

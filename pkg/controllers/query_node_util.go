@@ -247,7 +247,12 @@ func (c *QueryNodeControllerBizUtilImpl) IsNewRollout(ctx context.Context, curre
 	podTemplateCopy := podTemplate.DeepCopy()
 	groupIdStr := labelHelper.GetLabelQueryNodeGroupID(currentDeployment)
 	labelHelper.SetQueryNodeGroupIDStr(podTemplateCopy.Labels, groupIdStr)
-	return !IsEqual(currentDeployment.Spec.Template, *podTemplateCopy)
+	isNewRollout := !IsEqual(currentDeployment.Spec.Template, *podTemplateCopy)
+	if isNewRollout {
+		diff := util.DiffStr(currentDeployment.Spec.Template, *podTemplateCopy)
+		ctrl.LoggerFrom(ctx).Info("new rollout", "diff", diff, "currentGroupId", groupIdStr, "currentDeployment", currentDeployment.Name)
+	}
+	return isNewRollout
 }
 
 // Rollout to current deploymement, we assume both current & last deploy is not nil
@@ -287,6 +292,7 @@ func (c *QueryNodeControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1
 		if getDeployReplicas(lastDeployment) == 0 {
 			err = errors.Errorf("current deploy has more replicas[%d] than expected[%d]", currentReplicas, expectedReplicas)
 			ctrl.LoggerFrom(ctx).Error(err, "broken case")
+			// this case should be handled in HandleScaling()
 			return err
 		}
 		lastDeployment.Spec.Replicas = int32Ptr(getDeployReplicas(lastDeployment) - 1)
