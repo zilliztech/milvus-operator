@@ -108,7 +108,7 @@ func CheckKafka(conf CheckKafkaConfig) error {
 		ctx, cancel := context.WithTimeout(context.Background(), DependencyCheckTimeout)
 		defer cancel()
 		err := r.SetOffsetAt(ctx, time.Now())
-		return errors.Wrap(err, "check consume offset from borker failed")
+		return errors.Wrap(err, "check consume offset from broker failed")
 	}
 	return util.DoWithBackoff("checkKafka", checkKafka, util.DefaultMaxRetry, util.DefaultBackOffInterval)
 }
