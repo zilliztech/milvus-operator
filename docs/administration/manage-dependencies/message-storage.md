@@ -238,8 +238,8 @@ metadata:
 spec:
   config:
     kafka:
-      # SecurityProtocol supports: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL 
-      SecurityProtocol: PLAINTEXT
+      # securityProtocol supports: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL 
+      securityProtocol: PLAINTEXT
       # saslMechanisms supports: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512
       saslMechanisms: PLAIN
       saslUsername: ""
