@@ -22,6 +22,7 @@ import (
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/config"
 	"github.com/milvus-io/milvus-operator/pkg/external"
+	"github.com/milvus-io/milvus-operator/pkg/util"
 )
 
 //go:generate mockgen -package=controllers -source=status_cluster.go -destination=status_cluster_mock.go
@@ -296,7 +297,17 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 		return err
 	}
 	UpdateCondition(&mc.Status, milvusCond)
-	UpdateCondition(&mc.Status, GetMilvusUpdatedCondition(mc))
+	updatedCond := GetMilvusUpdatedCondition(mc)
+	hasTerminatingPod, err := CheckMilvusHasTerminatingPod(ctx, r.Client, *mc)
+	if err != nil {
+		return err
+	}
+	if hasTerminatingPod {
+		updatedCond.Status = corev1.ConditionFalse
+		updatedCond.Reason = v1beta1.ReasonMilvusComponentsUpdating
+		updatedCond.Message = v1beta1.MsgMilvusHasTerminatingPods
+	}
+	UpdateCondition(&mc.Status, updatedCond)
 
 	statusInfo := MilvusHealthStatusInfo{
 		LastState:  mc.Status.Status,
@@ -307,7 +318,8 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 	if IsEqual(beginStatus, &mc.Status) {
 		return nil
 	}
-	r.logger.Info("update status", "status", mc.Status)
+
+	r.logger.Info("update status", "diff", util.DiffStr(beginStatus, &mc.Status))
 	return r.Status().Update(ctx, mc)
 }
 

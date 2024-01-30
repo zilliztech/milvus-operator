@@ -185,7 +185,7 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if err := r.ReconcileAll(ctx, *milvus); err != nil {
 		if pkgErr.Is(err, ErrRequeue) {
-			r.logger.Info("requeue", "err", err)
+			r.logger.Info("requeue", "err", err.Error())
 			return ctrl.Result{RequeueAfter: unhealthySyncInterval / 2}, nil
 		}
 		return ctrl.Result{}, err

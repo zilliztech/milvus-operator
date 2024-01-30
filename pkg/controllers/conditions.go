@@ -327,7 +327,7 @@ func makeComponentDeploymentMap(mc v1beta1.Milvus, deploys []appsv1.Deployment) 
 				continue
 			}
 			if labelHelper.IsQueryNodeRolling(mc) {
-				UpdateDeploymentCondition(deploy.Status.Conditions, appsv1.DeploymentCondition{
+				deploy.Status.Conditions = UpdateDeploymentCondition(deploy.Status.Conditions, appsv1.DeploymentCondition{
 					Type:    appsv1.DeploymentProgressing,
 					Status:  corev1.ConditionFalse,
 					Reason:  "Rolling",

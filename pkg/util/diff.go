@@ -58,12 +58,12 @@ func DiffStr(expected interface{}, actual interface{}) string {
 	diff, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
 		A:        difflib.SplitLines(e),
 		B:        difflib.SplitLines(a),
-		FromFile: "Expected",
+		FromFile: "From",
 		FromDate: "",
-		ToFile:   "Actual",
+		ToFile:   "To",
 		ToDate:   "",
 		Context:  1,
 	})
 
-	return "\n\nDiff:\n" + diff
+	return diff
 }
