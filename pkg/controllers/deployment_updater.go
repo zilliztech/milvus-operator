@@ -352,6 +352,16 @@ func (m milvusDeploymentUpdater) GetMilvus() *v1beta1.Milvus {
 }
 
 func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
+	if m.Milvus.Status.ObservedGeneration < m.Milvus.Generation {
+		return false
+	}
+	updatedCondition := GetMilvusConditionByType(m.Milvus.Status.Conditions, v1beta1.MilvusUpdated)
+	if updatedCondition == nil {
+		return false
+	}
+	if updatedCondition.Message != v1beta1.MsgMilvusHasTerminatingPods {
+		return false
+	}
 	deps := m.component.GetDependencies(m.Spec)
 	for _, dep := range deps {
 		if !dep.IsImageUpdated(m.GetMilvus()) {

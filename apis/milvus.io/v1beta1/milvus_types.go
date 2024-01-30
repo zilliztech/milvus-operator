@@ -397,6 +397,8 @@ const (
 	ReasonSecretDecodeErr    = "SecretDecodeError"
 	ReasonClientErr          = "ClientError"
 	ReasonDependencyNotReady = "DependencyNotReady"
+
+	MsgMilvusHasTerminatingPods = "Milvus has terminating pods"
 )
 
 // +genclient

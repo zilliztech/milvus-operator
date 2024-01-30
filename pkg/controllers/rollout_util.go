@@ -197,9 +197,10 @@ func GetNotReadyPods(pods []corev1.Pod) []corev1.Pod {
 			continue
 		}
 		for _, cond := range pod.Status.Conditions {
-			if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+			if cond.Type != corev1.PodReady {
 				continue
-			} else {
+			}
+			if cond.Status != corev1.ConditionTrue {
 				ret = append(ret, pod)
 			}
 		}

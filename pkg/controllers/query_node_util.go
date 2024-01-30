@@ -156,7 +156,7 @@ func (c *QueryNodeControllerBizUtilImpl) CreateQueryNodeDeploy(ctx context.Conte
 
 	deploy := new(appsv1.Deployment)
 	deploy.Namespace = mc.Namespace
-	deploy.Name = fmt.Sprintf("%s-%s-%d", mc.Name, QueryNode.Name, groupId)
+	deploy.Name = fmt.Sprintf("%s-milvus-%s-%d", mc.Name, QueryNode.Name, groupId)
 	err := ctrl.SetControllerReference(&mc, deploy, c.cli.Scheme())
 	if err != nil {
 		return errors.Wrap(err, "set controller reference")

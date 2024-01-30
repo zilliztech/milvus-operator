@@ -273,7 +273,20 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 		return err
 	}
 	UpdateCondition(&mc.Status, milvusCond)
-	UpdateCondition(&mc.Status, GetMilvusUpdatedCondition(mc))
+	hasTerminatingPods, err := CheckMilvusHasTerminatingPod(ctx, r.Client, *mc)
+	if err != nil {
+		return errors.Wrap(err, "check milvus has terminating pods failed")
+	}
+	if hasTerminatingPods {
+		UpdateCondition(&mc.Status, v1beta1.MilvusCondition{
+			Type:    v1beta1.MilvusUpdated,
+			Status:  corev1.ConditionFalse,
+			Reason:  v1beta1.ReasonMilvusComponentsUpdating,
+			Message: v1beta1.MsgMilvusHasTerminatingPods,
+		})
+	} else {
+		UpdateCondition(&mc.Status, GetMilvusUpdatedCondition(mc))
+	}
 
 	statusInfo := MilvusHealthStatusInfo{
 		LastState:  mc.Status.Status,
