@@ -159,15 +159,14 @@ func GetComponentConditionGetter() ComponentConditionGetter {
 
 var singletonComponentConditionGetter ComponentConditionGetter = ComponentConditionGetterImpl{}
 
-var CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus, component MilvusComponent) (bool, error) {
+var CheckMilvusHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
 	podList := &corev1.PodList{}
 	opts := &client.ListOptions{
 		Namespace: mc.Namespace,
 	}
 	opts.LabelSelector = labels.SelectorFromSet(map[string]string{
-		AppLabelInstance:  mc.GetName(),
-		AppLabelName:      "milvus",
-		AppLabelComponent: component.GetName(),
+		AppLabelInstance: mc.GetName(),
+		AppLabelName:     "milvus",
 	})
 	if err := cli.List(ctx, podList, opts); err != nil {
 		return false, err
@@ -178,10 +177,6 @@ var CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Clien
 		}
 	}
 	return false, nil
-}
-
-var CheckMilvusHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
-	panic("todo")
 }
 
 var CheckMilvusStopped = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
