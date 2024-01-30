@@ -212,7 +212,17 @@ func (c *QueryNodeControllerBizUtilImpl) LastRolloutFinished(ctx context.Context
 	// assume currentDeployment & lastDeployment not nil
 	expectReplicas := int32(getDeployReplicas(currentDeployment))
 
-	deploymentShowsRolloutFinished := logicAnd(
+	reasons := []string{
+		"current deploy replicas not up to date",
+		"current deploy observed generation not up to date",
+		"last deploy observed generation not up to date",
+		"updated replicas not as expected",
+		"updated replicas not equal to replicas",
+		"updated replicas not equal to available replicas",
+		"last deploy not scale to 0",
+		"last deploy has replicas",
+	}
+	deploymentShowsRolloutFinished, failedIndex := logicAnd(
 		// spec & status up to date:
 		int32Value(mc.Spec.Com.QueryNode.Replicas) == int32Value(currentDeployment.Spec.Replicas),
 		currentDeployment.Status.ObservedGeneration == currentDeployment.Generation,
@@ -226,6 +236,8 @@ func (c *QueryNodeControllerBizUtilImpl) LastRolloutFinished(ctx context.Context
 		lastDeployment.Status.Replicas == 0,
 	)
 	if !deploymentShowsRolloutFinished {
+		logger := ctrl.LoggerFrom(ctx)
+		logger.Info("rollout not finished", "id", v1beta1.Labels().GetQueryNodeRollingId(mc), "reason", reasons[failedIndex])
 		return false, nil
 	}
 	// make sure all old pods are down
@@ -270,18 +282,18 @@ func (c *QueryNodeControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1
 	if err != nil {
 		return errors.Wrap(err, "list last deploy pods")
 	}
-	isStable := c.K8sUtil.DeploymentIsStable(lastDeployment, lastDeployPods)
+	isStable, reason := c.K8sUtil.DeploymentIsStable(lastDeployment, lastDeployPods)
 	if !isStable {
-		return errors.Wrap(ErrRequeue, "last deploy is not stable")
+		return errors.Wrapf(ErrRequeue, "last deploy is not stable[%s]", reason)
 	}
 
 	currentDeployPods, err := c.K8sUtil.ListDeployPods(ctx, currentDeployment)
 	if err != nil {
 		return errors.Wrap(err, "list current deploy pods")
 	}
-	isStable = c.K8sUtil.DeploymentIsStable(currentDeployment, currentDeployPods)
+	isStable, reason = c.K8sUtil.DeploymentIsStable(currentDeployment, currentDeployPods)
 	if !isStable {
-		return errors.Wrap(ErrRequeue, "current deploy is not stable")
+		return errors.Wrapf(ErrRequeue, "current deploy is not stable[%s]", reason)
 	}
 
 	currentReplicas := int32(getDeployReplicas(currentDeployment) + getDeployReplicas(lastDeployment))

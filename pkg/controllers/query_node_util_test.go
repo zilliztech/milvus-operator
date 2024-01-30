@@ -607,7 +607,7 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 		}
 		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
-		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(false)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(false, "")
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
 	})
@@ -623,7 +623,7 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 		}
 		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
-		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
 		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(nil, errMock)
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, errMock))
@@ -643,9 +643,9 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 		}
 		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
-		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
 		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
-		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(false)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(false, "")
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
 	})

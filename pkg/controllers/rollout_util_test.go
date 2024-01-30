@@ -271,13 +271,15 @@ func TestK8sUtilImpl_DeploymentIsStable(t *testing.T) {
 	}
 	t.Run("stable", func(t *testing.T) {
 		k8sUtilImpl := NewK8sUtil(nil)
-		assert.True(t, k8sUtilImpl.DeploymentIsStable(deploy, allPods))
+		isStable, reason := k8sUtilImpl.DeploymentIsStable(deploy, allPods)
+		assert.True(t, isStable, reason)
 	})
 
 	t.Run("not stable:has less ready relicas than expected", func(t *testing.T) {
 		k8sUtilImpl := NewK8sUtil(nil)
 		deploy.Status.ReadyReplicas = 2
-		assert.False(t, k8sUtilImpl.DeploymentIsStable(deploy, allPods))
+		isStable, reason := k8sUtilImpl.DeploymentIsStable(deploy, allPods)
+		assert.False(t, isStable, reason)
 	})
 }
 

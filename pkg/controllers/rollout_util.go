@@ -29,7 +29,9 @@ type K8sUtil interface {
 	ListDeployPods(ctx context.Context, deploy *appsv1.Deployment) ([]corev1.Pod, error)
 
 	// logic
-	DeploymentIsStable(deploy *appsv1.Deployment, allPods []corev1.Pod) bool
+	// DeploymentIsStable returns whether deployment is stable
+	// if deployment is not stable, return reason string
+	DeploymentIsStable(deploy *appsv1.Deployment, allPods []corev1.Pod) (isStable bool, reason string)
 }
 
 var _ K8sUtil = &K8sUtilImpl{}
@@ -125,12 +127,23 @@ func (c *K8sUtilImpl) ListDeployPods(ctx context.Context, deploy *appsv1.Deploym
 	return pods.Items, nil
 }
 
-func (c *K8sUtilImpl) DeploymentIsStable(deploy *appsv1.Deployment, allPods []corev1.Pod) bool {
+func (c *K8sUtilImpl) DeploymentIsStable(deploy *appsv1.Deployment, allPods []corev1.Pod) (isStable bool, reason string) {
 	terminatingPods := GetTerminatingPods(allPods)
 	notReadyPods := GetNotReadyPods(allPods)
 	deployReplicas := getDeployReplicas(deploy)
 
-	return logicAnd(
+	var reasons = []string{
+		"has terminating pods",
+		"has not ready pods",
+		"pods less than expected replicas",
+		"observed generation is not equal to generation",
+		"replicas is not equal to status replicas",
+		"not all replicas updated",
+		"not all replicas available",
+		"not all replicas ready",
+		"has unavailable replicas",
+	}
+	isStable, failedIndex := logicAnd(
 		len(terminatingPods) < 1,
 		len(notReadyPods) < 1,
 		len(allPods) == deployReplicas,
@@ -139,17 +152,23 @@ func (c *K8sUtilImpl) DeploymentIsStable(deploy *appsv1.Deployment, allPods []co
 		deploy.Status.Replicas == deploy.Status.UpdatedReplicas,
 		deploy.Status.Replicas == deploy.Status.AvailableReplicas,
 		deploy.Status.Replicas == deploy.Status.ReadyReplicas,
-		deploy.Status.UnavailableReplicas == 0,
+		deploy.Status.UnavailableReplicas < 1,
 	)
+	if isStable {
+		return isStable, ""
+	}
+	return isStable, reasons[failedIndex]
 }
 
-func logicAnd(b ...bool) bool {
-	for _, v := range b {
+// logicAnd returns if all given condition is true
+// when return false, also returns which condition is false
+func logicAnd(b ...bool) (result bool, falseIndex int) {
+	for i, v := range b {
 		if !v {
-			return false
+			return false, i
 		}
 	}
-	return true
+	return true, -1
 }
 
 func GetDeploymentGroupId(deploy *appsv1.Deployment) (int, error) {
