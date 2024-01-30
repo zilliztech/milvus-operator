@@ -30,12 +30,7 @@ type deploymentUpdater interface {
 	HasHookConfig() bool
 }
 
-func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) error {
-	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponentName())
-	deployment.Labels = MergeLabels(deployment.Labels, appLabels)
-	if err := SetControllerReference(updater.GetControllerRef(), deployment, updater.GetScheme()); err != nil {
-		return pkgErrs.Wrap(err, "set controller reference")
-	}
+func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater deploymentUpdater) error {
 	mergedComSpec := updater.GetMergedComponentSpec()
 	deployment.Spec.Paused = mergedComSpec.Paused
 	deployment.Spec.Replicas = updater.GetReplicas()
@@ -43,10 +38,23 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 	if updater.GetMilvus().IsRollingUpdateEnabled() {
 		deployment.Spec.MinReadySeconds = 30
 	}
+	return nil
+}
+
+func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) error {
+	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponentName())
+	deployment.Labels = MergeLabels(deployment.Labels, appLabels)
+	if err := SetControllerReference(updater.GetControllerRef(), deployment, updater.GetScheme()); err != nil {
+		return pkgErrs.Wrap(err, "set controller reference")
+	}
 	isCreating := deployment.Spec.Selector == nil
 	if isCreating {
 		deployment.Spec.Selector = new(metav1.LabelSelector)
 		deployment.Spec.Selector.MatchLabels = appLabels
+	}
+	err := updateDeploymentWithoutPodTemplate(deployment, updater)
+	if err != nil {
+		return err
 	}
 	updatePodTemplate(updater, &deployment.Spec.Template, appLabels, isCreating)
 	return nil
@@ -353,13 +361,6 @@ func (m milvusDeploymentUpdater) GetMilvus() *v1beta1.Milvus {
 
 func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 	if m.Milvus.Status.ObservedGeneration < m.Milvus.Generation {
-		return false
-	}
-	updatedCondition := GetMilvusConditionByType(m.Milvus.Status.Conditions, v1beta1.MilvusUpdated)
-	if updatedCondition == nil {
-		return false
-	}
-	if updatedCondition.Message != v1beta1.MsgMilvusHasTerminatingPods {
 		return false
 	}
 	deps := m.component.GetDependencies(m.Spec)

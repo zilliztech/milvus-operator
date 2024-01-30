@@ -159,15 +159,13 @@ func GetComponentConditionGetter() ComponentConditionGetter {
 
 var singletonComponentConditionGetter ComponentConditionGetter = ComponentConditionGetterImpl{}
 
-var CheckMilvusHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
+var CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus, component MilvusComponent) (bool, error) {
 	podList := &corev1.PodList{}
 	opts := &client.ListOptions{
 		Namespace: mc.Namespace,
 	}
-	opts.LabelSelector = labels.SelectorFromSet(map[string]string{
-		AppLabelInstance: mc.GetName(),
-		AppLabelName:     "milvus",
-	})
+
+	opts.LabelSelector = labels.SelectorFromSet(NewComponentAppLabels(mc.Name, component.Name))
 	if err := cli.List(ctx, podList, opts); err != nil {
 		return false, err
 	}

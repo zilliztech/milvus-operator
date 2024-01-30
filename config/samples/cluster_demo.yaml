@@ -13,6 +13,8 @@ spec:
   mode: cluster
   config: {}
   components: 
+    enableRollingUpdate: true
+    imageUpdateMode: rollingUpgrade
     proxy:
       replicas: 1
       serviceType: LoadBalancer

@@ -341,7 +341,7 @@ func (c *QueryNodeControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, 
 		currentGroupIdStr = labelHelper.GetLabelQueryNodeGroupID(currentDeployment)
 		logger.Info("prepare new rollout stage 2", "deployGroupId", currentGroupIdStr, "podTemplateDiff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
 		currentDeployment.Spec.Template = *podTemplate
-		labelHelper.SetQueryNodeGroupIDStr(currentDeployment.Labels, currentGroupIdStr)
+		labelHelper.SetQueryNodeGroupIDStr(currentDeployment.Spec.Template.Labels, currentGroupIdStr)
 		err := c.cli.Update(ctx, currentDeployment)
 		if err != nil {
 			return errors.Wrap(err, "update current deploy for rolling failed")

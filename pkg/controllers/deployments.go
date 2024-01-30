@@ -70,9 +70,18 @@ func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 }
 
 func (r *MilvusReconciler) updateDeployment(
-	mc v1beta1.Milvus, deployment *appsv1.Deployment, component MilvusComponent,
+	ctx context.Context, mc v1beta1.Milvus, deployment *appsv1.Deployment, component MilvusComponent,
 ) error {
-	return updateDeployment(deployment, newMilvusDeploymentUpdater(mc, r.Scheme, component))
+	updater := newMilvusDeploymentUpdater(mc, r.Scheme, component)
+	hasTerminatingPod, err := CheckComponentHasTerminatingPod(ctx, r.Client, mc, component)
+	if err != nil {
+		return errors.Wrap(err, "check component has terminating pod")
+	}
+	if hasTerminatingPod {
+		return updateDeploymentWithoutPodTemplate(deployment, updater)
+	}
+
+	return updateDeployment(deployment, updater)
 }
 
 func (r *MilvusReconciler) ReconcileComponentDeployment(
@@ -89,7 +98,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 				Namespace: mc.Namespace,
 			},
 		}
-		if err := r.updateDeployment(mc, new, component); err != nil {
+		if err := r.updateDeployment(ctx, mc, new, component); err != nil {
 			return err
 		}
 
@@ -105,7 +114,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 	}
 
 	cur := old.DeepCopy()
-	if err := r.updateDeployment(mc, cur, component); err != nil {
+	if err := r.updateDeployment(ctx, mc, cur, component); err != nil {
 		return err
 	}
 

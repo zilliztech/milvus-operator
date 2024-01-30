@@ -184,3 +184,20 @@ func GetDeploymentConditionByType(conditions []appsv1.DeploymentCondition, Type 
 	}
 	return DeploymentConditionNotSet
 }
+
+func UpdateDeploymentCondition(conditions []appsv1.DeploymentCondition, cond appsv1.DeploymentCondition) []appsv1.DeploymentCondition {
+	ret := []appsv1.DeploymentCondition{}
+	var updated bool
+	for _, condition := range conditions {
+		if condition.Type != cond.Type {
+			ret = append(ret, condition)
+			continue
+		}
+		updated = true
+		ret = append(ret, cond)
+	}
+	if !updated {
+		ret = append(ret, cond)
+	}
+	return ret
+}

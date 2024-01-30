@@ -47,6 +47,7 @@ var (
 		Status: GetConditionStatus(true),
 		Reason: v1beta1.ReasonS3Ready,
 	}
+	Debug = false
 )
 
 type EtcdEndPointHealth struct {
@@ -220,9 +221,7 @@ func (r *MilvusStatusSyncer) UpdateStatusRoutine(ctx context.Context, mc *v1beta
 	return errors.Wrapf(err, "UpdateStatus for milvus[%s/%s]", mc.Namespace, mc.Name)
 }
 
-func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, mc *v1beta1.Milvus) error {
-	beginStatus := mc.Status.DeepCopy()
-	mc.Status.ObservedGeneration = mc.Generation
+func (r *MilvusStatusSyncer) checkDependencyConditions(ctx context.Context, mc *v1beta1.Milvus) error {
 	if !mc.Spec.IsStopping() {
 		funcs := []Func{
 			r.GetEtcdCondition,
@@ -232,22 +231,46 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 		ress := defaultGroupRunner.RunWithResult(funcs, ctx, *mc)
 		errTexts := []string{}
 		for _, res := range ress {
-			if res.Err == nil {
-				UpdateCondition(&mc.Status, res.Data.(v1beta1.MilvusCondition))
-			} else {
+			if res.Err != nil {
 				errTexts = append(errTexts, res.Err.Error())
 			}
 		}
-
 		if len(errTexts) > 0 {
-			return fmt.Errorf("update status error: %s", strings.Join(errTexts, ":"))
+			return fmt.Errorf("check dependency conditions error: %s", strings.Join(errTexts, ":"))
+		}
+		return nil
+	}
+	// is stopping, remove all dependency conditions
+	RemoveConditions(&mc.Status, []v1beta1.MilvusConditionType{
+		v1beta1.EtcdReady,
+		v1beta1.StorageReady,
+		v1beta1.MsgStreamReady,
+	})
+	return nil
+}
+
+func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, mc *v1beta1.Milvus) error {
+	beginStatus := mc.Status.DeepCopy()
+	mc.Status.ObservedGeneration = mc.Generation
+
+	if !Debug {
+		err := r.checkDependencyConditions(ctx, mc)
+		if err != nil {
+			return errors.Wrap(err, "check dependency conditions failed")
 		}
 	} else {
-		// is stopping, remove all dependency conditions
-		RemoveConditions(&mc.Status, []v1beta1.MilvusConditionType{
-			v1beta1.EtcdReady,
-			v1beta1.StorageReady,
-			v1beta1.MsgStreamReady,
+		// debug mode, set dependency conditions to true
+		UpdateCondition(&mc.Status, v1beta1.MilvusCondition{
+			Type:   v1beta1.EtcdReady,
+			Status: corev1.ConditionTrue,
+		})
+		UpdateCondition(&mc.Status, v1beta1.MilvusCondition{
+			Type:   v1beta1.StorageReady,
+			Status: corev1.ConditionTrue,
+		})
+		UpdateCondition(&mc.Status, v1beta1.MilvusCondition{
+			Type:   v1beta1.MsgStreamReady,
+			Status: corev1.ConditionTrue,
 		})
 	}
 
@@ -273,20 +296,7 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 		return err
 	}
 	UpdateCondition(&mc.Status, milvusCond)
-	hasTerminatingPods, err := CheckMilvusHasTerminatingPod(ctx, r.Client, *mc)
-	if err != nil {
-		return errors.Wrap(err, "check milvus has terminating pods failed")
-	}
-	if hasTerminatingPods {
-		UpdateCondition(&mc.Status, v1beta1.MilvusCondition{
-			Type:    v1beta1.MilvusUpdated,
-			Status:  corev1.ConditionFalse,
-			Reason:  v1beta1.ReasonMilvusComponentsUpdating,
-			Message: v1beta1.MsgMilvusHasTerminatingPods,
-		})
-	} else {
-		UpdateCondition(&mc.Status, GetMilvusUpdatedCondition(mc))
-	}
+	UpdateCondition(&mc.Status, GetMilvusUpdatedCondition(mc))
 
 	statusInfo := MilvusHealthStatusInfo{
 		LastState:  mc.Status.Status,
