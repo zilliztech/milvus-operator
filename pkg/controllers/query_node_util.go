@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
@@ -97,11 +98,15 @@ func (c *QueryNodeControllerBizUtilImpl) GetOldQueryNodeDeploy(ctx context.Conte
 // SaveObject in controllerrevision
 func (c *QueryNodeControllerBizUtilImpl) SaveObject(ctx context.Context, mc v1beta1.Milvus, name string, obj runtime.Object) error {
 	controllerRevision := &appsv1.ControllerRevision{}
-	controllerRevision.Namespace = obj.(metav1.Object).GetNamespace()
+	controllerRevision.Namespace = mc.Namespace
 	controllerRevision.Name = name
 	controllerRevision.Revision = 1
-	controllerRevision.Data.Object = obj
-	err := ctrl.SetControllerReference(&mc, controllerRevision, c.cli.Scheme())
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return errors.Wrap(err, "marshal to-save object")
+	}
+	controllerRevision.Data.Raw = data
+	err = ctrl.SetControllerReference(&mc, controllerRevision, c.cli.Scheme())
 	if err != nil {
 		return errors.Wrap(err, "set controller reference")
 	}
@@ -149,6 +154,10 @@ func (c *QueryNodeControllerBizUtilImpl) GetQueryNodeDeploys(ctx context.Context
 	return current, last, nil
 }
 
+func formatQnDeployName(mc v1beta1.Milvus, groupId int) string {
+	return fmt.Sprintf("%s-milvus-%s-%d", mc.Name, QueryNode.Name, groupId)
+}
+
 func (c *QueryNodeControllerBizUtilImpl) CreateQueryNodeDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error {
 	if podTemplate == nil {
 		podTemplate = c.RenderPodTemplateWithoutGroupID(mc, nil, QueryNode)
@@ -156,7 +165,7 @@ func (c *QueryNodeControllerBizUtilImpl) CreateQueryNodeDeploy(ctx context.Conte
 
 	deploy := new(appsv1.Deployment)
 	deploy.Namespace = mc.Namespace
-	deploy.Name = fmt.Sprintf("%s-milvus-%s-%d", mc.Name, QueryNode.Name, groupId)
+	deploy.Name = formatQnDeployName(mc, groupId)
 	err := ctrl.SetControllerReference(&mc, deploy, c.cli.Scheme())
 	if err != nil {
 		return errors.Wrap(err, "set controller reference")
@@ -256,13 +265,14 @@ func (c *QueryNodeControllerBizUtilImpl) LastRolloutFinished(ctx context.Context
 
 func (c *QueryNodeControllerBizUtilImpl) IsNewRollout(ctx context.Context, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool {
 	labelHelper := v1beta1.Labels()
+	currentTemplateCopy := currentDeployment.Spec.Template.DeepCopy()
 	podTemplateCopy := podTemplate.DeepCopy()
-	groupIdStr := labelHelper.GetLabelQueryNodeGroupID(currentDeployment)
-	labelHelper.SetQueryNodeGroupIDStr(podTemplateCopy.Labels, groupIdStr)
-	isNewRollout := !IsEqual(currentDeployment.Spec.Template, *podTemplateCopy)
+	labelHelper.SetQueryNodeGroupIDStr(currentTemplateCopy.Labels, "")
+	labelHelper.SetQueryNodeGroupIDStr(podTemplateCopy.Labels, "")
+	isNewRollout := !IsEqual(currentTemplateCopy, podTemplateCopy)
 	if isNewRollout {
-		diff := util.DiffStr(currentDeployment.Spec.Template, *podTemplateCopy)
-		ctrl.LoggerFrom(ctx).Info("new rollout", "diff", diff, "currentGroupId", groupIdStr, "currentDeployment", currentDeployment.Name)
+		diff := util.DiffStr(currentTemplateCopy, podTemplateCopy)
+		ctrl.LoggerFrom(ctx).Info("new rollout", "diff", diff, "currentDeployment", currentDeployment.Name)
 	}
 	return isNewRollout
 }

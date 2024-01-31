@@ -42,7 +42,10 @@ func (c *QueryNodeControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milv
 	}
 	switch rollingMode {
 	case v1beta1.RollingModeV2:
-		// do nothing
+		err = c.biz.MarkDeployModeChanging(ctx, mc, false)
+		if err != nil {
+			return err
+		}
 	case v1beta1.RollingModeV1:
 		isUpdating, err := c.biz.IsUpdating(ctx, mc)
 		if err != nil {
@@ -54,12 +57,14 @@ func (c *QueryNodeControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milv
 			return c.oneDeployModeController.Reconcile(ctx, mc, QueryNode)
 		}
 
-		logger.Info("one deployment mode, changing to two deployment mode")
+		err = c.biz.MarkDeployModeChanging(ctx, mc, true)
+		if err != nil {
+			return err
+		}
 		err = c.biz.ChangeRollingModeToV2(ctx, mc)
 		if err != nil {
 			return errors.Wrap(err, "change to two deployment mode")
 		}
-		logger.Info("finished changing to two deployment mode")
 	default:
 		err = errors.Errorf("unknown rolling mode: %d", rollingMode)
 		logger.Error(err, "check and update rolling mode")

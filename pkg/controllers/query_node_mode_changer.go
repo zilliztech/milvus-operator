@@ -3,11 +3,13 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -15,6 +17,7 @@ import (
 
 // DeployModeChanger changes deploy mode
 type DeployModeChanger interface {
+	MarkDeployModeChanging(ctx context.Context, mc v1beta1.Milvus, changing bool) error
 	ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error
 }
 
@@ -46,13 +49,12 @@ func newStep(name string, f func(context.Context, v1beta1.Milvus) error) step {
 
 func (c *DeployModeChangerImpl) ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error {
 	steps := []step{
-		newStep("mark changing deploy mode", c.MarkChangingDeployModeTrue),
 		newStep("save and delete old deploy", c.SaveDeleteOldDeploy),
 		newStep("save and delete old replica set", c.SaveDeleteOldReplicaSet),
 		newStep("update old pod labels", c.UpdateOldPodLabels),
 		newStep("recover replica sets", c.RecoverReplicaSets),
 		newStep("recover deploy", c.RecoverDeploy),
-		newStep("unmark changing deploy mode", c.MarkChangingDeployModeFalse),
+		newStep("update status mode to v2", c.UpdateStatusToV2),
 	}
 	for i, step := range steps {
 		err := step.Func(ctx, mc)
@@ -63,18 +65,25 @@ func (c *DeployModeChangerImpl) ChangeRollingModeToV2(ctx context.Context, mc v1
 	return nil
 }
 
-func (c *DeployModeChangerImpl) MarkChangingDeployModeTrue(ctx context.Context, mc v1beta1.Milvus) error {
-	return c.markChangingDeployMode(ctx, mc, true)
+func (c *DeployModeChangerImpl) MarkDeployModeChanging(ctx context.Context, mc v1beta1.Milvus, changing bool) error {
+	return c.markChangingDeployMode(ctx, mc, changing)
 }
 
-func (c *DeployModeChangerImpl) MarkChangingDeployModeFalse(ctx context.Context, mc v1beta1.Milvus) error {
-	return c.markChangingDeployMode(ctx, mc, false)
+func (c *DeployModeChangerImpl) UpdateStatusToV2(ctx context.Context, mc v1beta1.Milvus) error {
+	mc.Status.RollingMode = v1beta1.RollingModeV2
+	err := c.cli.Status().Update(ctx, &mc)
+	if err != nil {
+		return errors.Wrap(err, "update status rolling mode")
+	}
+	return errors.Wrap(ErrRequeue, "update status rolling mode")
 }
 
 func (c *DeployModeChangerImpl) markChangingDeployMode(ctx context.Context, mc v1beta1.Milvus, changing bool) error {
 	if v1beta1.Labels().IsChangeQueryNodeMode(mc) == changing {
 		return nil
 	}
+	logger := ctrl.LoggerFrom(ctx)
+	logger.Info("marking changing deploy mode", "changing", changing)
 	v1beta1.Labels().SetChangingQueryNodeMode(&mc, changing)
 	err := c.cli.Update(ctx, &mc)
 	if err != nil {
@@ -147,6 +156,11 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 		labelHelper.SetQueryNodeGroupID(rs.Labels, 0)
 		labelHelper.SetQueryNodeGroupID(rs.Spec.Selector.MatchLabels, 0)
 		labelHelper.SetQueryNodeGroupID(rs.Spec.Template.Labels, 0)
+		rs.UID = ""
+		rs.ResourceVersion = ""
+		splitedName := strings.Split(rs.Name, "-")
+		rsHash := splitedName[len(splitedName)-1]
+		rs.Name = fmt.Sprintf("%s-%s", formatQnDeployName(mc, 0), rsHash)
 		err = c.util.CreateObject(ctx, &rs)
 		if err != nil {
 			return errors.Wrap(err, "recover old replica set")
@@ -169,6 +183,9 @@ func (c *DeployModeChangerImpl) RecoverDeploy(ctx context.Context, mc v1beta1.Mi
 	labelHelper.SetQueryNodeGroupID(oldDeploy.Labels, 0)
 	labelHelper.SetQueryNodeGroupID(oldDeploy.Spec.Selector.MatchLabels, 0)
 	labelHelper.SetQueryNodeGroupID(oldDeploy.Spec.Template.Labels, 0)
+	oldDeploy.UID = ""
+	oldDeploy.ResourceVersion = ""
+	oldDeploy.Name = formatQnDeployName(mc, 0)
 	err = c.util.CreateObject(ctx, oldDeploy)
 	if err != nil {
 		return errors.Wrap(err, "recover old deploy")
