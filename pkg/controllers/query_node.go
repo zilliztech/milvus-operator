@@ -252,6 +252,9 @@ func (c *QueryNodeControllerBizImpl) HandleScaling(ctx context.Context, mc v1bet
 }
 
 func (c *QueryNodeControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.Milvus) error {
+	if mc.Spec.IsStopping() {
+		return nil
+	}
 	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "get querynode deploys")
