@@ -232,7 +232,9 @@ func (r *MilvusStatusSyncer) checkDependencyConditions(ctx context.Context, mc *
 		ress := defaultGroupRunner.RunWithResult(funcs, ctx, *mc)
 		errTexts := []string{}
 		for _, res := range ress {
-			if res.Err != nil {
+			if res.Err == nil {
+				UpdateCondition(&mc.Status, res.Data.(v1beta1.MilvusCondition))
+			} else {
 				errTexts = append(errTexts, res.Err.Error())
 			}
 		}
