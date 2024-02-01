@@ -186,12 +186,7 @@ func (c *QueryNodeControllerBizUtilImpl) CreateQueryNodeDeploy(ctx context.Conte
 	comSpec := updater.GetMergedComponentSpec()
 	deploy.Spec.Paused = comSpec.Paused
 
-	var replicas = getDeployReplicas(deploy)
-	progressDeadlineSeconds := terminationGracePeriodSeconds * replicas
-	if progressDeadlineSeconds == 0 {
-		progressDeadlineSeconds = terminationGracePeriodSeconds
-	}
-	deploy.Spec.ProgressDeadlineSeconds = int32Ptr(progressDeadlineSeconds)
+	deploy.Spec.ProgressDeadlineSeconds = int32Ptr(oneMonthSeconds)
 	deploy.Spec.MinReadySeconds = 30
 
 	return c.cli.Create(ctx, deploy)

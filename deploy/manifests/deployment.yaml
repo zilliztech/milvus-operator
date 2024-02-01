@@ -14168,6 +14168,7 @@ rules:
   resources:
   - controllerrevisions
   - deployments
+  - replicasets
   - statefulsets
   verbs:
   - create

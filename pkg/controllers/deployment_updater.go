@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"time"
+
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	pkgErrs "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -38,6 +40,7 @@ func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater d
 	if updater.GetMilvus().IsRollingUpdateEnabled() {
 		deployment.Spec.MinReadySeconds = 30
 	}
+	deployment.Spec.ProgressDeadlineSeconds = int32Ptr(oneMonthSeconds)
 	return nil
 }
 
@@ -251,10 +254,12 @@ func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater d
 			},
 		}
 	}
-	template.Spec.TerminationGracePeriodSeconds = int64Ptr(terminationGracePeriodSeconds)
+	template.Spec.TerminationGracePeriodSeconds = int64Ptr(int64(oneMonthSeconds))
 }
 
-const terminationGracePeriodSeconds = 1800
+// oneMonthSeconds we set both podtemplate.spec.terminationGracePeriodSeconds &
+// deployment.spec.progressDeadlineSeconds to one month, to avoid kill -9 on pod automatically
+const oneMonthSeconds = 24 * 30 * int(time.Hour/time.Second)
 
 func updateSidecars(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
 	sidecars := updater.GetSideCars()
