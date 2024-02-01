@@ -436,6 +436,9 @@ func (m *Milvus) IsChangingMode() bool {
 }
 
 func (m *Milvus) IsPodServiceLabelAdded() bool {
+	if len(m.Annotations) < 1 {
+		return false
+	}
 	return m.Annotations[PodServiceLabelAddedAnnotation] == TrueStr
 }
 
