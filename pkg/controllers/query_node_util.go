@@ -129,27 +129,33 @@ func (c *QueryNodeControllerBizUtilImpl) GetSavedObject(ctx context.Context, key
 func (c *QueryNodeControllerBizUtilImpl) GetQueryNodeDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error) {
 	deploys := appsv1.DeploymentList{}
 	commonlabels := NewComponentAppLabels(mc.Name, QueryNode.Name)
-	err = c.cli.List(ctx, &deploys, client.InNamespace(mc.Namespace), client.MatchingLabels(commonlabels), client.HasLabels{v1beta1.MilvusIOLabelQueryNodeGroupId})
+	err = c.cli.List(ctx, &deploys, client.InNamespace(mc.Namespace), client.MatchingLabels(commonlabels))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "list querynode deployments")
 	}
-	if len(deploys.Items) > 2 {
+	var items = []*appsv1.Deployment{}
+	for i := range deploys.Items {
+		if v1beta1.Labels().GetLabelQueryNodeGroupID(&deploys.Items[i]) != "" {
+			items = append(items, &deploys.Items[i])
+		}
+	}
+	if len(items) > 2 {
 		return nil, nil, errors.Errorf("unexpected: more than 2 querynode deployments found %d, admin please fix this, leave only 2 deployments", len(deploys.Items))
 	}
-	if len(deploys.Items) == 0 {
+	if len(items) < 1 {
 		return nil, nil, nil
 	}
-	if len(deploys.Items) == 1 {
-		return &deploys.Items[0], nil, nil
+	if len(items) == 1 {
+		return items[0], nil, nil
 	}
 	var current, last *appsv1.Deployment
 	labelHelper := v1beta1.Labels()
-	for i := range deploys.Items {
-		if labelHelper.GetLabelQueryNodeGroupID(&deploys.Items[i]) == labelHelper.GetCurrentQueryNodeGroupId(&mc) {
-			current = &deploys.Items[i]
-		} else {
-			last = &deploys.Items[i]
-		}
+	if labelHelper.GetLabelQueryNodeGroupID(items[0]) == labelHelper.GetCurrentQueryNodeGroupId(&mc) {
+		current = items[0]
+		last = items[1]
+	} else {
+		last = items[0]
+		current = items[1]
 	}
 	return current, last, nil
 }

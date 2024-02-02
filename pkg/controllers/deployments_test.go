@@ -127,23 +127,23 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 				cm.Name = "mc-xxx"
 				switch key.Name {
 				case "mc-milvus-proxy":
-					r.updateDeployment(m, cm, Proxy)
+					r.updateDeployment(ctx, m, cm, Proxy)
 				case "mc-milvus-rootcoord":
-					r.updateDeployment(m, cm, RootCoord)
+					r.updateDeployment(ctx, m, cm, RootCoord)
 				case "mc-milvus-datacoord":
-					r.updateDeployment(m, cm, DataCoord)
+					r.updateDeployment(ctx, m, cm, DataCoord)
 				case "mc-milvus-querycoord":
-					r.updateDeployment(m, cm, QueryCoord)
+					r.updateDeployment(ctx, m, cm, QueryCoord)
 				case "mc-milvus-indexcoord":
-					r.updateDeployment(m, cm, IndexCoord)
+					r.updateDeployment(ctx, m, cm, IndexCoord)
 				case "mc-milvus-datanode":
-					r.updateDeployment(m, cm, DataNode)
+					r.updateDeployment(ctx, m, cm, DataNode)
 				case "mc-milvus-querynode":
-					r.updateDeployment(m, cm, QueryNode)
+					r.updateDeployment(ctx, m, cm, QueryNode)
 				case "mc-milvus-indexnode":
-					r.updateDeployment(m, cm, IndexNode)
+					r.updateDeployment(ctx, m, cm, IndexNode)
 				case "mc-milvus-standalone":
-					r.updateDeployment(m, cm, MilvusStandalone)
+					r.updateDeployment(ctx, m, cm, MilvusStandalone)
 				}
 				return nil
 			}).Times(len(MilvusComponents))
