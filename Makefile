@@ -79,7 +79,7 @@ test: manifests generate fmt vet test-only ## Run tests.
 code-check: go-generate fmt vet
 
 test-only: 
-	CGO_ENABLED=1 go test -race ./... -coverprofile tmp.out; cat tmp.out | sed '/zz_generated.deepcopy.go/d' | sed '/_mock.go/d'  > cover.out
+	CGO_ENABLED=0 go test -race ./... -coverprofile tmp.out; cat tmp.out | sed '/zz_generated.deepcopy.go/d' | sed '/_mock.go/d'  > cover.out
 
 ##@ Build
 VERSION_PATH=github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1

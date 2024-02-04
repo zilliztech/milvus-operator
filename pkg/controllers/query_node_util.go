@@ -278,6 +278,8 @@ func (c *QueryNodeControllerBizUtilImpl) IsNewRollout(ctx context.Context, curre
 	return isNewRollout
 }
 
+var errStringBrokenCase = "broken case"
+
 // Rollout to current deploymement, we assume both current & last deploy is not nil
 func (c *QueryNodeControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
 	groupId, err := GetDeploymentGroupId(currentDeployment)
@@ -314,7 +316,7 @@ func (c *QueryNodeControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1
 	case currentReplicas > expectedReplicas:
 		if getDeployReplicas(lastDeployment) == 0 {
 			err = errors.Errorf("current deploy has more replicas[%d] than expected[%d]", currentReplicas, expectedReplicas)
-			ctrl.LoggerFrom(ctx).Error(err, "broken case")
+			ctrl.LoggerFrom(ctx).Error(err, errStringBrokenCase)
 			// this case should be handled in HandleScaling()
 			return err
 		}
@@ -330,7 +332,7 @@ func (c *QueryNodeControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1
 	default:
 		// case currentReplicas < expectedReplicas:
 		err := errors.Errorf("currentReplicas %d < expectedReplicas %d", currentReplicas, expectedReplicas)
-		ctrl.LoggerFrom(ctx).Error(err, "broken case")
+		ctrl.LoggerFrom(ctx).Error(err, errStringBrokenCase)
 
 		// try fix it:
 		currentDeployment.Spec.Replicas = int32Ptr(getDeployReplicas(currentDeployment) + 1)

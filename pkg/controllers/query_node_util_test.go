@@ -668,4 +668,138 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
 	})
+
+	pods := []corev1.Pod{}
+	currentPods := []corev1.Pod{}
+	t.Run("current deploy has more spec.replicas than expected", func(t *testing.T) {
+		mc := *milvus.DeepCopy()
+		currentDeploy := new(appsv1.Deployment)
+		currentDeploy.Labels = map[string]string{}
+		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		lastDeploy := new(appsv1.Deployment)
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Replicas = int32Ptr(4)
+		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "current deploy has more replicas")
+	})
+
+	t.Run("last deploy scale in", func(t *testing.T) {
+		mc := *milvus.DeepCopy()
+		currentDeploy := new(appsv1.Deployment)
+		currentDeploy.Labels = map[string]string{}
+		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		lastDeploy := new(appsv1.Deployment)
+		lastDeploy.Spec.Replicas = int32Ptr(1)
+		currentDeploy.Spec.Replicas = int32Ptr(1)
+		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		mockutil.EXPECT().UpdateAndRequeue(ctx, lastDeploy).Return(ErrRequeue)
+		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
+		assert.True(t, errors.Is(err, ErrRequeue))
+		assert.Equal(t, int32(0), *lastDeploy.Spec.Replicas)
+	})
+
+	t.Run("current scale out", func(t *testing.T) {
+		mc := *milvus.DeepCopy()
+		currentDeploy := new(appsv1.Deployment)
+		currentDeploy.Labels = map[string]string{}
+		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		lastDeploy := new(appsv1.Deployment)
+		lastDeploy.Spec.Replicas = int32Ptr(1)
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(ErrRequeue)
+		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
+		assert.True(t, errors.Is(err, ErrRequeue))
+		assert.Equal(t, int32(1), *currentDeploy.Spec.Replicas)
+	})
+
+	t.Run("rollout finished", func(t *testing.T) {
+		mc := *milvus.DeepCopy()
+		currentDeploy := new(appsv1.Deployment)
+		currentDeploy.Labels = map[string]string{}
+		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		lastDeploy := new(appsv1.Deployment)
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Replicas = int32Ptr(1)
+		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
+		assert.NoError(t, err)
+	})
+
+	t.Run("not enough spec.replicas, current deploy scale out", func(t *testing.T) {
+		mc := *milvus.DeepCopy()
+		currentDeploy := new(appsv1.Deployment)
+		currentDeploy.Labels = map[string]string{}
+		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		lastDeploy := new(appsv1.Deployment)
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(ErrRequeue)
+		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
+		assert.True(t, errors.Is(err, ErrRequeue))
+		assert.Equal(t, int32(1), *currentDeploy.Spec.Replicas)
+	})
+}
+
+func TestQueryNodeControllerBizUtilImpl_PrepareNewRollout(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockcli := NewMockK8sClient(mockCtrl)
+	mockutil := NewMockK8sUtil(mockCtrl)
+	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+
+	ctx := context.Background()
+	mc := v1beta1.Milvus{}
+	mc.Namespace = "ns1"
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	deploy := new(appsv1.Deployment)
+	deploy.Labels = map[string]string{}
+	deploy.Spec.Template.Labels = map[string]string{}
+
+	t.Run("create deploy group 1 failed", func(t *testing.T) {
+		mockcli.EXPECT().Scheme().Return(scheme).AnyTimes()
+		mockcli.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).Return(errMock)
+		err := bizUtil.PrepareNewRollout(ctx, mc, nil, nil)
+		assert.True(t, errors.Is(err, errMock))
+	})
+
+	t.Run("update current group failed", func(t *testing.T) {
+		mockcli.EXPECT().Scheme().Return(scheme).AnyTimes()
+		mockcli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).Return(errMock)
+		err := bizUtil.PrepareNewRollout(ctx, mc, deploy, &deploy.Spec.Template)
+		assert.True(t, errors.Is(err, errMock))
+	})
+
+	t.Run("update requeue success", func(t *testing.T) {
+		mockcli.EXPECT().Scheme().Return(scheme).AnyTimes()
+		mockcli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).Return(nil)
+		mockutil.EXPECT().UpdateAndRequeue(ctx, gomock.AssignableToTypeOf(&mc)).Return(ErrRequeue)
+		err := bizUtil.PrepareNewRollout(ctx, mc, deploy, &deploy.Spec.Template)
+		assert.True(t, errors.Is(err, ErrRequeue))
+	})
 }
