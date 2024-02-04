@@ -251,9 +251,18 @@ func (c *QueryNodeControllerBizImpl) HandleScaling(ctx context.Context, mc v1bet
 	return c.cli.Update(ctx, currentDeploy)
 }
 
+func (c *QueryNodeControllerBizImpl) markRollingFinish(ctx context.Context, mc v1beta1.Milvus) error {
+	if v1beta1.Labels().IsQueryNodeRolling(mc) {
+		ctrl.LoggerFrom(ctx).Info("mark rolling finish because of milvus stopping")
+		v1beta1.Labels().SetQueryNodeRolling(&mc, false)
+		return c.util.UpdateAndRequeue(ctx, &mc)
+	}
+	return nil
+}
+
 func (c *QueryNodeControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.Milvus) error {
-	if mc.Spec.IsStopping() {
-		return nil
+	if IsQueryNodeStopping(&mc) {
+		return c.markRollingFinish(ctx, mc)
 	}
 	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
 	if err != nil {

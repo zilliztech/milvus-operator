@@ -107,6 +107,13 @@ var (
 	}
 )
 
+func IsQueryNodeStopping(m *v1beta1.Milvus) bool {
+	if m.Spec.Com.QueryNode == nil {
+		return false
+	}
+	return ReplicasValue(m.Spec.Com.QueryNode.Replicas) < 1
+}
+
 func IsMilvusDeploymentsComplete(m *v1beta1.Milvus) bool {
 	components := GetComponentsBySpec(m.Spec)
 	status := m.Status.ComponentsDeployStatus

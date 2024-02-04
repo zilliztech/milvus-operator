@@ -234,7 +234,7 @@ func (c *QueryNodeControllerBizUtilImpl) LastRolloutFinished(ctx context.Context
 	}
 	deploymentShowsRolloutFinished, failedIndex := logicAnd(
 		// spec & status up to date:
-		int32Value(mc.Spec.Com.QueryNode.Replicas) == int32Value(currentDeployment.Spec.Replicas),
+		ReplicasValue(mc.Spec.Com.QueryNode.Replicas) == ReplicasValue(currentDeployment.Spec.Replicas),
 		currentDeployment.Status.ObservedGeneration == currentDeployment.Generation,
 		lastDeployment.Status.ObservedGeneration == lastDeployment.Generation,
 		// check current all up:
@@ -308,7 +308,7 @@ func (c *QueryNodeControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1
 	}
 
 	currentReplicas := int32(getDeployReplicas(currentDeployment) + getDeployReplicas(lastDeployment))
-	expectedReplicas := int32Value(QueryNode.GetReplicas(mc.Spec))
+	expectedReplicas := ReplicasValue(QueryNode.GetReplicas(mc.Spec))
 
 	switch {
 	case currentReplicas > expectedReplicas:

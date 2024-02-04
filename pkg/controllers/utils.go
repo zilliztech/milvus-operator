@@ -469,9 +469,9 @@ func getDeployReplicas(deploy *appsv1.Deployment) int {
 	return int(*deploy.Spec.Replicas)
 }
 
-func int32Value(i *int32) int32 {
+func ReplicasValue(i *int32) int32 {
 	if i == nil {
-		return 0
+		return 1
 	}
 	return *i
 }

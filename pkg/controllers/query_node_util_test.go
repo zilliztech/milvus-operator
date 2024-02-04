@@ -233,16 +233,19 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 		mockCtrl.Finish()
 	})
 	t.Run("list failed", func(t *testing.T) {
-		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any(), gomock.Any()).Return(errMock)
+		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).Return(errMock)
 		_, _, err := bizUtil.GetQueryNodeDeploys(ctx, mc)
 		assert.Error(t, err)
 	})
 
+	deploy := appsv1.Deployment{}
+	deploy.Labels = map[string]string{}
+	v1beta1.Labels().SetQueryNodeGroupID(deploy.Labels, 0)
 	t.Run("more than 2 deploy", func(t *testing.T) {
 		deploys := []appsv1.Deployment{
-			{}, {}, {},
+			deploy, deploy, deploy,
 		}
-		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any(), gomock.Any()).
+		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
@@ -251,8 +254,23 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("no deploy after filtered ok", func(t *testing.T) {
+		deploys := []appsv1.Deployment{
+			{}, {}, {},
+		}
+		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+				list.(*appsv1.DeploymentList).Items = deploys
+				return nil
+			})
+		ret1, ret2, err := bizUtil.GetQueryNodeDeploys(ctx, mc)
+		assert.NoError(t, err)
+		assert.Nil(t, ret1)
+		assert.Nil(t, ret2)
+	})
+
 	t.Run("no deploy", func(t *testing.T) {
-		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any(), gomock.Any()).Return(nil)
+		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).Return(nil)
 		ret1, ret2, err := bizUtil.GetQueryNodeDeploys(ctx, mc)
 		assert.NoError(t, err)
 		assert.Nil(t, ret1)
@@ -261,9 +279,9 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 
 	t.Run("1 deploy", func(t *testing.T) {
 		deploys := []appsv1.Deployment{
-			{},
+			deploy,
 		}
-		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any(), gomock.Any()).
+		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
@@ -284,7 +302,7 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 		deploys[1].Labels = map[string]string{}
 		v1beta1.Labels().SetQueryNodeGroupID(deploys[0].Labels, 0)
 		v1beta1.Labels().SetQueryNodeGroupID(deploys[1].Labels, 1)
-		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any(), gomock.Any()).
+		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
@@ -380,6 +398,7 @@ func TestQueryNodeControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 	})
 
 	t.Run("not equal to current, equal to last deploy, true", func(t *testing.T) {
+		currentDeploy.Spec.Template.Name = "x"
 		lastDeploy.Spec.Template = *podTemplate.DeepCopy()
 		lastDeploy.Labels = lastDeploy.Spec.Template.Labels
 		lastDeploy.Spec.Selector = &metav1.LabelSelector{
