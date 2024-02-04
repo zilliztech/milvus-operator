@@ -9,24 +9,7 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - configmaps
-  - persistentvolumeclaims
-  - secrets
-  - serviceaccounts
-  - services
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - pods/exec
+  - '*'
   verbs:
   - create
   - delete
@@ -38,10 +21,7 @@ rules:
 - apiGroups:
   - apps
   resources:
-  - controllerrevisions
-  - deployments
-  - replicasets
-  - statefulsets
+  - '*'
   verbs:
   - create
   - delete
