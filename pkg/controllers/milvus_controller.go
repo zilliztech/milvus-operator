@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	pkgErr "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -51,20 +52,16 @@ type MilvusReconciler struct {
 	logger         logr.Logger
 	helmReconciler HelmReconciler
 	statusSyncer   MilvusStatusSyncerInterface
+	qnController   QueryNodeController
 }
 
 //+kubebuilder:rbac:groups=milvus.io,resources=milvuses,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=milvus.io,resources=milvuses/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=milvus.io,resources=milvuses/finalizers,verbs=update
 //+kubebuilder:rbac:groups=extensions,resources=statefulsets;deployments;pods;secrets;services,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=apps,resources=statefulsets;deployments,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=apps,resources=pods;secrets;services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=apps,resources="*",verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=pods;pods/exec,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=services;configmaps;secrets,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=deployments;statefulsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources="*",verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="policy",resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="policy",resources=podsecuritypolicies,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
@@ -182,6 +179,10 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if err := r.ReconcileAll(ctx, *milvus); err != nil {
+		if pkgErr.Is(err, ErrRequeue) {
+			r.logger.Info("requeue", "err", err.Error())
+			return ctrl.Result{RequeueAfter: unhealthySyncInterval / 2}, nil
+		}
 		return ctrl.Result{}, err
 	}
 

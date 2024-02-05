@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"time"
+
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	pkgErrs "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -30,12 +32,7 @@ type deploymentUpdater interface {
 	HasHookConfig() bool
 }
 
-func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) error {
-	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponentName())
-	deployment.Labels = MergeLabels(deployment.Labels, appLabels)
-	if err := SetControllerReference(updater.GetControllerRef(), deployment, updater.GetScheme()); err != nil {
-		return pkgErrs.Wrap(err, "set controller reference")
-	}
+func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater deploymentUpdater) error {
 	mergedComSpec := updater.GetMergedComponentSpec()
 	deployment.Spec.Paused = mergedComSpec.Paused
 	deployment.Spec.Replicas = updater.GetReplicas()
@@ -43,10 +40,24 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 	if updater.GetMilvus().IsRollingUpdateEnabled() {
 		deployment.Spec.MinReadySeconds = 30
 	}
+	deployment.Spec.ProgressDeadlineSeconds = int32Ptr(oneMonthSeconds)
+	return nil
+}
+
+func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) error {
+	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponentName())
+	deployment.Labels = MergeLabels(deployment.Labels, appLabels)
+	if err := SetControllerReference(updater.GetControllerRef(), deployment, updater.GetScheme()); err != nil {
+		return pkgErrs.Wrap(err, "set controller reference")
+	}
 	isCreating := deployment.Spec.Selector == nil
 	if isCreating {
 		deployment.Spec.Selector = new(metav1.LabelSelector)
 		deployment.Spec.Selector.MatchLabels = appLabels
+	}
+	err := updateDeploymentWithoutPodTemplate(deployment, updater)
+	if err != nil {
+		return err
 	}
 	updatePodTemplate(updater, &deployment.Spec.Template, appLabels, isCreating)
 	return nil
@@ -243,8 +254,12 @@ func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater d
 			},
 		}
 	}
-	template.Spec.TerminationGracePeriodSeconds = int64Ptr(1800)
+	template.Spec.TerminationGracePeriodSeconds = int64Ptr(int64(oneMonthSeconds))
 }
+
+// oneMonthSeconds we set both podtemplate.spec.terminationGracePeriodSeconds &
+// deployment.spec.progressDeadlineSeconds to one month, to avoid kill -9 on pod automatically
+const oneMonthSeconds = 24 * 30 * int(time.Hour/time.Second)
 
 func updateSidecars(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
 	sidecars := updater.GetSideCars()
@@ -350,6 +365,9 @@ func (m milvusDeploymentUpdater) GetMilvus() *v1beta1.Milvus {
 }
 
 func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
+	if m.Milvus.Status.ObservedGeneration < m.Milvus.Generation {
+		return false
+	}
 	deps := m.component.GetDependencies(m.Spec)
 	for _, dep := range deps {
 		if !dep.IsImageUpdated(m.GetMilvus()) {

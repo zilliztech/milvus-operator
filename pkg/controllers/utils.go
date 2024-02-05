@@ -461,3 +461,17 @@ func int64Ptr(i int64) *int64 {
 	ret := int64(i)
 	return &ret
 }
+
+func getDeployReplicas(deploy *appsv1.Deployment) int {
+	if deploy.Spec.Replicas == nil {
+		return 1
+	}
+	return int(*deploy.Spec.Replicas)
+}
+
+func ReplicasValue(i *int32) int32 {
+	if i == nil {
+		return 1
+	}
+	return *i
+}

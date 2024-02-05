@@ -339,8 +339,8 @@ func startMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.Milvus
 }
 
 const (
-	LabelUpgrade  = v1beta1.MilvusIO + "/upgrade"
-	LabelTaskKind = v1beta1.MilvusIO + "/task-kind"
+	LabelUpgrade  = v1beta1.MilvusIO + "upgrade"
+	LabelTaskKind = v1beta1.MilvusIO + "task-kind"
 	BackupMeta    = "backup-meta"
 	UpdateMeta    = "update-meta"
 	RollbackMeta  = "rollback-meta"

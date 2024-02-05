@@ -66,6 +66,7 @@ func main() {
 	flag.BoolVar(&enablePprof, "pprof", enablePprof, "Enable pprof")
 	flag.IntVar(&k8sQps, "k8s-qps", k8sQps, "The qps of k8s client")
 	flag.IntVar(&k8sBurst, "k8s-burst", k8sQps, "The burst of k8s client")
+	flag.BoolVar(&controllers.Debug, "debug", controllers.Debug, "Enable debug")
 	opts := zap.Options{
 		Development: true,
 	}

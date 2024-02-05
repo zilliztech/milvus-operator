@@ -159,6 +159,35 @@ func GetComponentConditionGetter() ComponentConditionGetter {
 
 var singletonComponentConditionGetter ComponentConditionGetter = ComponentConditionGetterImpl{}
 
+var CheckMilvusHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
+	opts := &client.ListOptions{
+		Namespace: mc.Namespace,
+	}
+	opts.LabelSelector = labels.SelectorFromSet(NewAppLabels(mc.Name))
+	return HasTerminatingPodByListOpts(ctx, cli, mc, opts)
+}
+
+var CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus, component MilvusComponent) (bool, error) {
+	opts := &client.ListOptions{
+		Namespace: mc.Namespace,
+	}
+	opts.LabelSelector = labels.SelectorFromSet(NewComponentAppLabels(mc.Name, component.Name))
+	return HasTerminatingPodByListOpts(ctx, cli, mc, opts)
+}
+
+var HasTerminatingPodByListOpts = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus, opts *client.ListOptions) (bool, error) {
+	podList := &corev1.PodList{}
+	if err := cli.List(ctx, podList, opts); err != nil {
+		return false, err
+	}
+	for _, pod := range podList.Items {
+		if pod.DeletionTimestamp != nil {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 var CheckMilvusStopped = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
 	podList := &corev1.PodList{}
 	opts := &client.ListOptions{

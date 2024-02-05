@@ -78,6 +78,9 @@ func (g *Group) Wait() error {
 
 	errTexts := make([]string, 0)
 	for _, e := range g.errors {
+		if errors.Is(e, ErrRequeue) {
+			return e
+		}
 		errTexts = append(errTexts, e.Error())
 	}
 

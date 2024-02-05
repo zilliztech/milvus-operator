@@ -78,7 +78,7 @@ test: manifests generate fmt vet test-only ## Run tests.
 
 code-check: go-generate fmt vet
 
-test-only: 
+test-only: 	## -race requires cgo
 	CGO_ENABLED=1 go test -race ./... -coverprofile tmp.out; cat tmp.out | sed '/zz_generated.deepcopy.go/d' | sed '/_mock.go/d'  > cover.out
 
 ##@ Build
@@ -421,7 +421,7 @@ deploy-by-manifest: sit-prepare-operator-images sit-load-operator-images sit-gen
 
 debug-start: dev-cert
 	kubectl -n milvus-operator patch deployment/milvus-operator --patch '{"spec":{"template":{"spec":{"containers":[{"name":"manager","args":["-namespace","milvus-operator","-name","milvus-operator","--health-probe-bind-address=:8081","--metrics-bind-address=:8080","--leader-elect","--stop-reconcilers=all"]}]}}}}'
-	go run ./main.go
+	go run ./main.go -debug
 
 debug-stop:
 	kubectl -n milvus-operator patch deployment/milvus-operator --patch '{"spec":{"template":{"spec":{"containers":[{"name":"manager","args":["-namespace","milvus-operator","-name","milvus-operator","--health-probe-bind-address=:8081","--metrics-bind-address=:8080","--leader-elect"]}]}}}}'

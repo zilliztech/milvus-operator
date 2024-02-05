@@ -6328,6 +6328,8 @@ spec:
                   standalone:
                     type: integer
                 type: object
+              rollingModeVersion:
+                type: integer
               status:
                 default: Pending
                 type: string
@@ -7285,6 +7287,8 @@ spec:
                   standalone:
                     type: integer
                 type: object
+              rollingModeVersion:
+                type: integer
               status:
                 default: Pending
                 type: string
@@ -13599,6 +13603,8 @@ spec:
                   standalone:
                     type: integer
                 type: object
+              rollingModeVersion:
+                type: integer
               status:
                 default: Pending
                 type: string
@@ -14131,59 +14137,7 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - configmaps
-  - secrets
-  - services
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - deployments
-  - statefulsets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - persistentvolumeclaims
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - pods/exec
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
+  - '*'
   verbs:
   - create
   - delete
@@ -14195,22 +14149,7 @@ rules:
 - apiGroups:
   - apps
   resources:
-  - deployments
-  - statefulsets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - apps
-  resources:
-  - pods
-  - secrets
-  - services
+  - '*'
   verbs:
   - create
   - delete

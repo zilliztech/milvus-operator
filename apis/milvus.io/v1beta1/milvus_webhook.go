@@ -196,31 +196,6 @@ func deleteUnsettableConf(conf map[string]interface{}) {
 	}
 }
 
-const (
-	MilvusIO             = "milvus.io"
-	OperatorVersionLabel = MilvusIO + "/operator-version"
-	// DependencyValuesLegacySyncedAnnotation : For legacy versions before v0.5.1, default value is not set to CR.
-	// So if they upgrade to v0.5.1+, if the dependency default values in milvus-helm updated
-	// the inCluster dependencies will get restarted. So we sync defaults first to prevent this
-	DependencyValuesLegacySyncedAnnotation = MilvusIO + "/dependency-values-legacy-synced"
-	DependencyValuesMergedAnnotation       = MilvusIO + "/dependency-values-merged"
-	LegacyVersion                          = "v0.5.0-legacy"
-	FalseStr                               = "false"
-	TrueStr                                = "true"
-	UpgradeAnnotation                      = MilvusIO + "/upgrade"
-	AnnotationUpgrading                    = "upgrading"
-	AnnotationUpgraded                     = "upgraded"
-	StoppedAtAnnotation                    = MilvusIO + "/stopped-at"
-
-	// PodServiceLabelAddedAnnotation is to indicate whether the milvus.io/service=true label is added to proxy & standalone pods
-	// previously, we use milvus.io/component: proxy / standalone; to select the service pods
-	// but now we want to support a standalone updating to cluster without downtime
-	// so instead we use milvus.io/service="true" to select the service pods
-	PodServiceLabelAddedAnnotation = MilvusIO + "/pod-service-label-added"
-	// ServiceLabel is the label to indicate whether the pod is a service pod
-	ServiceLabel = "milvus.io/service"
-)
-
 var (
 	Version           = "unknown"
 	MilvusHelmVersion = "unknown"
