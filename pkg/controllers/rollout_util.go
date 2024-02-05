@@ -13,27 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-//go:generate mockgen -destination=./rollout_util_mock.go -package=controllers github.com/milvus-io/milvus-operator/pkg/controllers K8sUtil
-
-type K8sUtil interface {
-	// write:
-
-	// CreateObject if not exist
-	CreateObject(ctx context.Context, obj client.Object) error
-	OrphanDelete(ctx context.Context, obj client.Object) error
-	MarkMilvusQueryNodeGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error
-	UpdateAndRequeue(ctx context.Context, obj client.Object) error
-	// read
-	ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus) (appsv1.ReplicaSetList, error)
-	ListOldPods(ctx context.Context, mc v1beta1.Milvus) ([]corev1.Pod, error)
-	ListDeployPods(ctx context.Context, deploy *appsv1.Deployment) ([]corev1.Pod, error)
-
-	// logic
-	// DeploymentIsStable returns whether deployment is stable
-	// if deployment is not stable, return reason string
-	DeploymentIsStable(deploy *appsv1.Deployment, allPods []corev1.Pod) (isStable bool, reason string)
-}
-
 var _ K8sUtil = &K8sUtilImpl{}
 
 type K8sUtilImpl struct {

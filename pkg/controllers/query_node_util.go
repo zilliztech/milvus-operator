@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-//go:generate mockgen -destination=./query_node_util_mock.go -package=controllers github.com/milvus-io/milvus-operator/pkg/controllers QueryNodeControllerBizUtil
+//go:generate mockgen -package=controllers -source=query_node_util.go -destination=./query_node_util_mock.go QueryNodeControllerBizUtil,K8sUtil
 
 // QueryNodeControllerBizUtil are the business logics of QueryNodeControllerBizImpl, abstracted for unit test
 type QueryNodeControllerBizUtil interface {
@@ -43,6 +43,25 @@ type QueryNodeControllerBizUtil interface {
 	PrepareNewRollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) error
 
 	K8sUtil
+}
+
+type K8sUtil interface {
+	// write:
+
+	// CreateObject if not exist
+	CreateObject(ctx context.Context, obj client.Object) error
+	OrphanDelete(ctx context.Context, obj client.Object) error
+	MarkMilvusQueryNodeGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error
+	UpdateAndRequeue(ctx context.Context, obj client.Object) error
+	// read
+	ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus) (appsv1.ReplicaSetList, error)
+	ListOldPods(ctx context.Context, mc v1beta1.Milvus) ([]corev1.Pod, error)
+	ListDeployPods(ctx context.Context, deploy *appsv1.Deployment) ([]corev1.Pod, error)
+
+	// logic
+	// DeploymentIsStable returns whether deployment is stable
+	// if deployment is not stable, return reason string
+	DeploymentIsStable(deploy *appsv1.Deployment, allPods []corev1.Pod) (isStable bool, reason string)
 }
 
 var _ QueryNodeControllerBizUtil = &QueryNodeControllerBizUtilImpl{}

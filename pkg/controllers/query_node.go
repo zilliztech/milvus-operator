@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-//go:generate mockgen -destination=./query_node_mock.go -package=controllers github.com/milvus-io/milvus-operator/pkg/controllers QueryNodeController,QueryNodeControllerBiz
+//go:generate mockgen -package=controllers -source=query_node.go -destination=./query_node_mock.go QueryNodeController,QueryNodeControllerBiz,DeployModeChanger
 
 // QueryNodeController controls milvus cluster querynode deployments
 type QueryNodeController interface {
@@ -106,6 +106,12 @@ type QueryNodeControllerBiz interface {
 	HandleCreate(ctx context.Context, mc v1beta1.Milvus) error
 	HandleScaling(ctx context.Context, mc v1beta1.Milvus) error
 	HandleRolling(ctx context.Context, mc v1beta1.Milvus) error
+}
+
+// DeployModeChanger changes deploy mode
+type DeployModeChanger interface {
+	MarkDeployModeChanging(ctx context.Context, mc v1beta1.Milvus, changing bool) error
+	ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error
 }
 
 var _ QueryNodeControllerBiz = &QueryNodeControllerBizImpl{}

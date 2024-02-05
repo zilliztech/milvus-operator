@@ -13,14 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-//go:generate mockgen -destination=./query_node_mode_changer_mock.go -package=controllers github.com/milvus-io/milvus-operator/pkg/controllers DeployModeChanger
-
-// DeployModeChanger changes deploy mode
-type DeployModeChanger interface {
-	MarkDeployModeChanging(ctx context.Context, mc v1beta1.Milvus, changing bool) error
-	ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error
-}
-
 var _ DeployModeChanger = &DeployModeChangerImpl{}
 
 type DeployModeChangerImpl struct {
