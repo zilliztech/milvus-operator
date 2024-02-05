@@ -5,6 +5,7 @@ import (
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -219,15 +220,37 @@ func (c *QueryNodeControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta
 	return nil
 }
 
+func (c *QueryNodeControllerBizImpl) handleStop(ctx context.Context, currentDeploy, lastDeploy *appsv1.Deployment) error {
+	err := c.stopDeployIfNot(ctx, currentDeploy)
+	if err != nil {
+		return errors.Wrap(err, "stop current deployment")
+	}
+	err = c.stopDeployIfNot(ctx, lastDeploy)
+	return errors.Wrap(err, "stop last deployment")
+}
+
+func (c *QueryNodeControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy *appsv1.Deployment) error {
+	if deploy != nil {
+		if getDeployReplicas(deploy) != 0 {
+			deploy.Spec.Replicas = int32Ptr(0)
+			err := c.cli.Update(ctx, deploy)
+			if err != nil {
+				return errors.Wrap(err, "stop current deployment")
+			}
+		}
+	}
+	return nil
+}
+
 func (c *QueryNodeControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.Milvus) error {
 	expectedReplicasPtr := QueryNode.GetReplicas(mc.Spec)
-	var expectedReplicas int32 = 1
-	if expectedReplicasPtr != nil {
-		expectedReplicas = *expectedReplicasPtr
-	}
+	expectedReplicas := ReplicasValue(expectedReplicasPtr)
 	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "get querynode deploys")
+	}
+	if expectedReplicas == 0 {
+		return c.handleStop(ctx, currentDeploy, lastDeploy)
 	}
 	if currentDeploy == nil {
 		return errors.Errorf("querynode deployment not found")
@@ -257,19 +280,7 @@ func (c *QueryNodeControllerBizImpl) HandleScaling(ctx context.Context, mc v1bet
 	return c.cli.Update(ctx, currentDeploy)
 }
 
-func (c *QueryNodeControllerBizImpl) markRollingFinish(ctx context.Context, mc v1beta1.Milvus) error {
-	if v1beta1.Labels().IsQueryNodeRolling(mc) {
-		ctrl.LoggerFrom(ctx).Info("mark rolling finish because of milvus stopping")
-		v1beta1.Labels().SetQueryNodeRolling(&mc, false)
-		return c.util.UpdateAndRequeue(ctx, &mc)
-	}
-	return nil
-}
-
 func (c *QueryNodeControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.Milvus) error {
-	if IsQueryNodeStopping(&mc) {
-		return c.markRollingFinish(ctx, mc)
-	}
 	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "get querynode deploys")
