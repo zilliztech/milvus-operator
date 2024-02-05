@@ -5,8 +5,6 @@ kubectl apply -f test/milvus-2.1.yaml
 kubectl --timeout 10m wait --for=condition=MilvusReady mi my-release
 echo "Deploying milvus upgrade"
 kubectl apply -f test/mi-upgrade.yaml
-sleep 300
-kubectl -n milvus-operator logs deploy/milvus-operator
 kubectl --timeout 10m wait --for=condition=Upgraded milvusupgrade my-release-upgrade
 kubectl --timeout 10m wait --for=condition=MilvusReady mi my-release
 echo "Rollback"

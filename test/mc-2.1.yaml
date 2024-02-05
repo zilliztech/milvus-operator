@@ -39,5 +39,3 @@ spec:
           replicaCount: 1
           zookeeper:
             replicaCount: 1
-        deletionPolicy: Delete
-        pvcDeletion: true
