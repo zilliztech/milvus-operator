@@ -350,6 +350,42 @@ func TestQueryNodeControllerBizImpl_HandleScaling(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("stopping no deployments ok", func(t *testing.T) {
+		mc := mc.DeepCopy()
+		mc.Spec.Mode = v1beta1.MilvusModeCluster
+		mc.Default()
+		mc.Spec.Com.QueryNode.Replicas = int32Ptr(0)
+		mockUtil.EXPECT().GetQueryNodeDeploys(ctx, *mc).Return(nil, nil, nil)
+		err := bizImpl.HandleScaling(ctx, *mc)
+		assert.NoError(t, err)
+	})
+
+	t.Run("stopping has current deployments ok", func(t *testing.T) {
+		mc := mc.DeepCopy()
+		mc.Spec.Mode = v1beta1.MilvusModeCluster
+		mc.Default()
+		mc.Spec.Com.QueryNode.Replicas = int32Ptr(0)
+		deploy := appsv1.Deployment{}
+		mockUtil.EXPECT().GetQueryNodeDeploys(ctx, *mc).Return(&deploy, nil, nil)
+		mockCli.EXPECT().Update(ctx, &deploy).Return(nil)
+		err := bizImpl.HandleScaling(ctx, *mc)
+		assert.NoError(t, err)
+	})
+
+	t.Run("stopping 2 deployments ok", func(t *testing.T) {
+		mc := mc.DeepCopy()
+		mc.Spec.Mode = v1beta1.MilvusModeCluster
+		mc.Default()
+		mc.Spec.Com.QueryNode.Replicas = int32Ptr(0)
+		deploy := appsv1.Deployment{}
+		last := appsv1.Deployment{}
+		mockUtil.EXPECT().GetQueryNodeDeploys(ctx, *mc).Return(&deploy, &last, nil)
+		mockCli.EXPECT().Update(ctx, &deploy).Return(nil)
+		mockCli.EXPECT().Update(ctx, &last).Return(nil)
+		err := bizImpl.HandleScaling(ctx, *mc)
+		assert.NoError(t, err)
+	})
+
 	t.Run("deploy not found failed", func(t *testing.T) {
 		mockUtil.EXPECT().GetQueryNodeDeploys(ctx, mc).Return(nil, nil, nil)
 		err := bizImpl.HandleScaling(ctx, mc)
@@ -396,22 +432,6 @@ func TestQueryNodeControllerBizImpl_HandleRolling(t *testing.T) {
 	deploy2 := appsv1.Deployment{}
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
 	mc.Default()
-
-	t.Run("milvus stopping & no rolling, ignored", func(t *testing.T) {
-		mc := *mc.DeepCopy()
-		mc.Spec.Com.QueryNode.Replicas = int32Ptr(0)
-		err := bizImpl.HandleRolling(ctx, mc)
-		assert.NoError(t, err)
-	})
-
-	t.Run("milvus stopping & has rolling, cancel current rolling", func(t *testing.T) {
-		mc := *mc.DeepCopy()
-		v1beta1.Labels().SetQueryNodeRolling(&mc, true)
-		mc.Spec.Com.QueryNode.Replicas = int32Ptr(0)
-		mockUtil.EXPECT().UpdateAndRequeue(ctx, &mc).Return(ErrRequeue)
-		err := bizImpl.HandleRolling(ctx, mc)
-		assert.True(t, errors.Is(err, ErrRequeue))
-	})
 
 	t.Run("get querynode deploy failed", func(t *testing.T) {
 		mockUtil.EXPECT().GetQueryNodeDeploys(ctx, mc).Return(nil, nil, errMock)
