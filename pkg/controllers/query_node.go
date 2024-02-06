@@ -27,6 +27,8 @@ type QueryNodeControllerImpl struct {
 	oneDeployModeController QueryNodeController
 }
 
+var querynodeCtrlLogger = ctrl.Log.WithName("querynode-ctrl")
+
 // NewQueryNodeController returns a QueryNodeController
 func NewQueryNodeController(biz QueryNodeControllerBiz, oneDeployModeController QueryNodeController) *QueryNodeControllerImpl {
 	return &QueryNodeControllerImpl{
@@ -36,7 +38,8 @@ func NewQueryNodeController(biz QueryNodeControllerBiz, oneDeployModeController 
 }
 
 func (c *QueryNodeControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus, _ MilvusComponent) error {
-	logger := ctrl.LoggerFrom(ctx)
+	logger := querynodeCtrlLogger.WithValues("milvus", mc.Name)
+	ctx = ctrl.LoggerInto(ctx, logger)
 	rollingMode, err := c.biz.CheckAndUpdateRollingMode(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "check and update rolling mode")

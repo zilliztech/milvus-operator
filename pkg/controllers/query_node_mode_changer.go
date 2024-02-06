@@ -54,7 +54,9 @@ func newStep(name string, f func(context.Context, v1beta1.Milvus) error) step {
 }
 
 func (c *DeployModeChangerImpl) ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error {
+	logger := ctrl.LoggerFrom(ctx)
 	for i, step := range c.changeModeToV2Steps {
+		logger.Info("changeModeToV2Steps", "step no.", i, "name", step.Name)
 		err := step.Func(ctx, mc)
 		if err != nil {
 			return errors.Wrapf(err, "step[no.%d][%s]", i, step.Name)
@@ -101,13 +103,14 @@ func (c *DeployModeChangerImpl) SaveDeleteOldReplicaSet(ctx context.Context, mc 
 	if err != nil {
 		return errors.Wrap(err, "save old replicaset list")
 	}
+	var ret error
 	for _, rs := range replicasetList.Items {
 		err = c.util.OrphanDelete(ctx, &rs)
 		if err != nil {
-			return errors.Wrap(err, "delete old replica set")
+			ret = errors.Wrapf(err, "deleting old replica set[%s]", rs.Name)
 		}
 	}
-	return nil
+	return ret
 }
 
 func (c *DeployModeChangerImpl) UpdateOldPodLabels(ctx context.Context, mc v1beta1.Milvus) error {
@@ -136,7 +139,10 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 		return errors.Wrap(err, "list old replica sets")
 	}
 	labelHelper := v1beta1.Labels()
+	logger := ctrl.LoggerFrom(ctx)
+	logger.Info("recovering old replica sets", "count", len(replicasetList.Items))
 	for _, rs := range replicasetList.Items {
+		logger.Info("recovering old replica set", "old-name", rs.Name)
 		labelHelper.SetQueryNodeGroupID(rs.Labels, 0)
 		labelHelper.SetQueryNodeGroupID(rs.Spec.Selector.MatchLabels, 0)
 		labelHelper.SetQueryNodeGroupID(rs.Spec.Template.Labels, 0)
@@ -148,6 +154,7 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 		}
 		rsHash := splitedName[len(splitedName)-1]
 		rs.Name = fmt.Sprintf("%s-%s", formatQnDeployName(mc, 0), rsHash)
+		logger.Info("recovering old replica set", "new-name", rs.Name)
 		err = c.util.CreateObject(ctx, &rs)
 		if err != nil {
 			return errors.Wrap(err, "recover old replica set")
