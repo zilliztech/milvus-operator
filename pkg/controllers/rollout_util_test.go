@@ -55,10 +55,10 @@ func TestK8sUtilImpl_OrphanDelete(t *testing.T) {
 
 	obj := new(corev1.Pod)
 	obj.Name = "test-pod"
-	t.Run("delete ok", func(t *testing.T) {
+	t.Run("delete requeue", func(t *testing.T) {
 		mockK8sCli.EXPECT().Delete(gomock.Any(), obj, client.PropagationPolicy(metav1.DeletePropagationOrphan)).Return(nil)
 		err := k8sUtilImpl.OrphanDelete(ctx, obj)
-		assert.NoError(t, err)
+		assert.True(t, errors.Is(err, ErrRequeue))
 	})
 
 	t.Run("delete failed", func(t *testing.T) {

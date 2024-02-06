@@ -170,10 +170,11 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 	})
 
 	t.Run("delete one old replicaset failed", func(t *testing.T) {
-		replicasetList := appsv1.ReplicaSetList{Items: []appsv1.ReplicaSet{{}}}
+		replicasetList := appsv1.ReplicaSetList{Items: []appsv1.ReplicaSet{{}, {}}}
 		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc).Return(replicasetList, nil)
 		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList).Return(nil)
 		mockUtil.EXPECT().OrphanDelete(ctx, &replicasetList.Items[0]).Return(errMock)
+		mockUtil.EXPECT().OrphanDelete(ctx, &replicasetList.Items[1]).Return(nil)
 		err := changer.SaveDeleteOldReplicaSet(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
 	})

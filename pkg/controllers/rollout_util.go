@@ -41,7 +41,11 @@ func (c *K8sUtilImpl) OrphanDelete(ctx context.Context, obj client.Object) error
 	if err != nil && !kerrors.IsNotFound(err) {
 		return errors.Wrap(err, "delete old object")
 	}
-	return nil
+	if kerrors.IsNotFound(err) {
+		return nil
+	}
+	// terminating, requeue
+	return ErrRequeue
 }
 
 func (c *K8sUtilImpl) MarkMilvusQueryNodeGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error {
