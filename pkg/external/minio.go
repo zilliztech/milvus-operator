@@ -42,8 +42,9 @@ func CheckMinIO(args CheckMinIOArgs) error {
 			}
 			cli, err := minio.New(endpoint, &minio.Options{
 				// GetBucketLocation will succeed as long as the bucket exists
-				Creds:  credentials.NewStaticV4(args.AK, args.SK, ""),
-				Secure: args.UseSSL,
+				Creds:        credentials.NewStaticV4(args.AK, args.SK, ""),
+				Secure:       args.UseSSL,
+				BucketLookup: minio.BucketLookupDNS,
 			})
 			if err != nil {
 				return err

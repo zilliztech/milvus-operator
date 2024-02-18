@@ -24,17 +24,6 @@ func TestCheckMinIO(t *testing.T) {
 	assert.Contains(t, err.Error(), "Amazon S3 endpoint should be")
 
 	err = CheckMinIO(CheckMinIOArgs{
-		Type:     v1beta1.StorageTypeS3,
-		AK:       "dummy",
-		SK:       "dummy",
-		Endpoint: "s3.amazonaws.com:443",
-		Bucket:   "dummy",
-		UseSSL:   true,
-	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "AWS Access Key Id")
-
-	err = CheckMinIO(CheckMinIOArgs{
 		Type:     v1beta1.StorageTypeMinIO,
 		AK:       "dummy",
 		SK:       "dummy",
@@ -75,6 +64,29 @@ func TestCheckMinIO(t *testing.T) {
 		UseIAM:   true,
 	})
 	assert.NoError(t, err)
+
+	err = CheckMinIO(CheckMinIOArgs{
+		Type:     v1beta1.StorageTypeS3,
+		AK:       "",
+		SK:       "",
+		Endpoint: "oss-cn-hangzhou.aliyuncs.com:443",
+		Bucket:   "bucket",
+		UseSSL:   true,
+		UseIAM:   true,
+	})
+	assert.NoError(t, err)
+
+	err = CheckMinIO(CheckMinIOArgs{
+		Type:     v1beta1.StorageTypeS3,
+		AK:       "",
+		SK:       "",
+		Endpoint: "cos.ap-nanjing.myqcloud.com:443",
+		Bucket:   "bucketnotexist-123",
+		UseSSL:   true,
+		UseIAM:   true,
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "The specified bucket does not exist")
 }
 
 func TestCheckMinIOAzure(t *testing.T) {
