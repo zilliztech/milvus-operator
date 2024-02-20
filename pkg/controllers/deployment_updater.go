@@ -118,6 +118,7 @@ func updateInitContainers(template *corev1.PodTemplateSpec, updater deploymentUp
 	initContainers := updater.GetInitContainers()
 	if len(initContainers) > 0 {
 		for _, c := range initContainers {
+			fillContainerDefaultValues(&c)
 			if i := GetContainerIndex(template.Spec.InitContainers, c.Name); i >= 0 {
 				template.Spec.InitContainers[i] = c
 			} else {
@@ -148,6 +149,7 @@ func updateVolumes(template *corev1.PodTemplateSpec, updater deploymentUpdater) 
 	for _, volumeValues := range mergedComSpec.Volumes {
 		var volume corev1.Volume
 		volumeValues.MustAsObj(&volume)
+		fillConfigMapVolumeDefaultValues(&volume)
 		addVolume(volumes, volume)
 	}
 	if persistence := updater.GetPersistenceConfig(); persistence != nil && persistence.Enabled {
