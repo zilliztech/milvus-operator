@@ -323,9 +323,9 @@ func (c MilvusComponent) GetSideCars(spec v1beta1.MilvusSpec) []corev1.Container
 	sidecars := make([]corev1.Container, 0)
 	for _, v := range values {
 		var sidecar corev1.Container
-		if err := v.AsObject(&sidecar); err == nil {
-			sidecars = append(sidecars, sidecar)
-		}
+		v.MustAsObj(&sidecar)
+		fillContainerDefaultValues(&sidecar)
+		sidecars = append(sidecars, sidecar)
 	}
 
 	return sidecars

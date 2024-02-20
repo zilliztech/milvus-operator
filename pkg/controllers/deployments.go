@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/pkg/errors"
 	pkgerr "github.com/pkg/errors"
 )
@@ -35,8 +36,8 @@ const (
 )
 
 var (
-	MilvusConfigMapMode int32 = 420
-	ErrRequeue                = pkgerr.New("requeue")
+	DefaultConfigMapMode int32 = 420
+	ErrRequeue                 = pkgerr.New("requeue")
 )
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
@@ -122,11 +123,8 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 		return nil
 	}
 
-	diff, err := diffObject(old, cur)
-	if err == nil {
-		r.logger.Info("Deployment diff", "name", cur.Name, "namespace", cur.Namespace, "diff", string(diff))
-	}
-	r.logger.Info("Update Deployment", "name", cur.Name, "namespace", cur.Namespace)
+	diff := util.DiffStr(old, cur)
+	r.logger.Info("Update Deployment", "name", cur.Name, "namespace", cur.Namespace, "diff", string(diff))
 	return r.Update(ctx, cur)
 }
 
@@ -261,6 +259,7 @@ func renderInitContainer(container *corev1.Container, toolImage string) *corev1.
 	container.VolumeMounts = []corev1.VolumeMount{
 		toolVolumeMount,
 	}
+	fillContainerDefaultValues(container)
 	return container
 }
 
@@ -299,7 +298,7 @@ func configVolumeByName(name string) corev1.Volume {
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: name,
 				},
-				DefaultMode: &MilvusConfigMapMode,
+				DefaultMode: &DefaultConfigMapMode,
 			},
 		},
 	}
