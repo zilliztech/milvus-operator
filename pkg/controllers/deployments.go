@@ -255,9 +255,11 @@ func renderInitContainer(container *corev1.Container, toolImage string) *corev1.
 	container.Name = configContainerName
 	container.Image = toolImage
 	container.ImagePullPolicy = imageInfo.ImagePullPolicy
-	container.Command = []string{"/cp", "/run.sh,/merge", RunScriptPath + "," + MergeToolPath}
+	container.Command = []string{"/bin/sh"}
+	container.Args = []string{"/init.sh"}
 	container.VolumeMounts = []corev1.VolumeMount{
 		toolVolumeMount,
+		configVolumeMount,
 	}
 	fillContainerDefaultValues(container)
 	return container

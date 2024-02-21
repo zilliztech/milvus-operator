@@ -95,6 +95,7 @@ build-config-tool:
 	mkdir -p out
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o out/merge ./tool/merge
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o out/cp ./tool/cp
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o out/iam-verify ./tool/iam-verify
 
 build-release: build-config-tool
 	mkdir -p out
@@ -127,12 +128,14 @@ docker-prepare: build-release out/config/assets/templates
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/values.yaml -O ./out/config/assets/charts/values.yaml
 	cp ./scripts/run.sh ./out/run.sh
 	cp ./scripts/run-helm.sh ./out/run-helm.sh
+	cp ./scripts/init.sh ./out/init.sh
 
 docker-tool-prepare: build-config-tool
 	mkdir -p out/tool
 	cp ./scripts/run-helm.sh ./out/tool/run-helm.sh
 	cp ./out/merge ./out/tool/merge
 	cp ./out/cp ./out/tool/cp
+	cp ./out/iam-verify ./out/tool/iam-verify
 
 docker-tool-build:
 	docker build --platform=linux/amd64 -t ${TOOL_RELEASE_IMG}-amd64 -f tool.Dockerfile .

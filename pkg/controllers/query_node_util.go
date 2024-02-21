@@ -330,12 +330,13 @@ func (c *QueryNodeControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1
 
 	currentReplicas := int32(getDeployReplicas(currentDeployment) + getDeployReplicas(lastDeployment))
 	expectedReplicas := ReplicasValue(QueryNode.GetReplicas(mc.Spec))
-
+	logger := ctrl.LoggerFrom(ctx)
+	logger.Info("continueing rollout", "currentReplicas", currentReplicas, "expectedReplicas", expectedReplicas)
 	switch {
 	case currentReplicas > expectedReplicas:
 		if getDeployReplicas(lastDeployment) == 0 {
 			err = errors.Errorf("current deploy has more replicas[%d] than expected[%d]", currentReplicas, expectedReplicas)
-			ctrl.LoggerFrom(ctx).Error(err, errStringBrokenCase)
+			logger.Error(err, errStringBrokenCase)
 			// this case should be handled in HandleScaling()
 			return err
 		}
@@ -351,7 +352,7 @@ func (c *QueryNodeControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1
 	default:
 		// case currentReplicas < expectedReplicas:
 		err := errors.Errorf("currentReplicas %d < expectedReplicas %d", currentReplicas, expectedReplicas)
-		ctrl.LoggerFrom(ctx).Error(err, errStringBrokenCase)
+		logger.Error(err, errStringBrokenCase)
 
 		// try fix it:
 		currentDeployment.Spec.Replicas = int32Ptr(getDeployReplicas(currentDeployment) + 1)

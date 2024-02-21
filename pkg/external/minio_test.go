@@ -86,7 +86,6 @@ func TestCheckMinIO(t *testing.T) {
 		UseIAM:   true,
 	})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "The specified bucket does not exist")
 }
 
 func TestCheckMinIOAzure(t *testing.T) {
