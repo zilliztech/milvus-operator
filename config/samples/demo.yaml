@@ -14,7 +14,7 @@ spec:
   components:
     standalone:
       replicas: 1
-      serviceType: ClusterIP
+      serviceType: LoadBalancer
   dependencies:
     etcd:
       inCluster:

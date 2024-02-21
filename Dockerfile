@@ -1,4 +1,4 @@
-FROM golang:1.17 as builder
+FROM golang:1.18 as builder
 
 WORKDIR /workspace
 # ENV GOPROXY https://goproxy.cn
@@ -23,7 +23,7 @@ RUN make docker-prepare
 #
 # # Use distroless as minimal base image to package the manager binary
 # # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
+FROM alpine:3.18
 WORKDIR /
 COPY --from=builder /workspace/out/ /
 

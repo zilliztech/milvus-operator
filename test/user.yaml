@@ -1,0 +1,6 @@
+dummy: dummy
+minio:
+  accessKeyID: myakid
+  bucketName: test
+  useIAM: true
+  cloudProvider: gcp

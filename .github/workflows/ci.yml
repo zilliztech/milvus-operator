@@ -24,7 +24,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.17
+          go-version: 1.18
       - name: Cache Go Mod Pkg
         uses: actions/cache@v2
         with:
@@ -50,7 +50,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.17
+          go-version: 1.18
       - name: Cache Go Mod Pkg
         uses: actions/cache@v2
         with:
