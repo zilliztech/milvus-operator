@@ -7,6 +7,7 @@ import (
 	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 func TestMilvus_UpdateDeployment(t *testing.T) {
@@ -28,6 +29,75 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"/milvus/tools/run.sh", "milvus", "run", "mycomponent"}, deployment.Spec.Template.Spec.Containers[0].Args)
+	})
+
+	t.Run("with init container", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Com.Standalone.InitContainers = []v1beta1.Values{{}}
+		inst.Spec.GetServiceComponent().Commands = []string{"milvus", "run", "mycomponent"}
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		deployment := &appsv1.Deployment{}
+		deployment.Name = "deploy"
+		deployment.Namespace = "ns"
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Len(t, deployment.Spec.Template.Spec.InitContainers, 2)
+	})
+
+	globalCommonInfo.OperatorImageInfo = DefaultOperatorImageInfo
+	defer func() {
+		globalCommonInfo.OperatorImageInfo = ImageInfo{}
+	}()
+	t.Run("not update configContainer when podTemplate not updated", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.GetServiceComponent().Commands = []string{"milvus", "run", "mycomponent"}
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		deployment := &appsv1.Deployment{}
+		deployment.Name = "deploy"
+		deployment.Namespace = "ns"
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		deployment.Spec.Template.Spec.InitContainers = []corev1.Container{
+			{
+				Name: configContainerName,
+			},
+		}
+		err = updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Empty(t, deployment.Spec.Template.Spec.InitContainers[0].Image)
+	})
+
+	t.Run("update configContainer when UpdateToolImage is true", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Com.UpdateToolImage = true
+		inst.Spec.GetServiceComponent().Commands = []string{"milvus", "run", "mycomponent"}
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		deployment := &appsv1.Deployment{}
+		deployment.Name = "deploy"
+		deployment.Namespace = "ns"
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		deployment.Spec.Template.Spec.InitContainers[0].Image = ""
+		err = updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Equal(t, DefaultOperatorImageInfo.Image, deployment.Spec.Template.Spec.InitContainers[0].Image)
+	})
+
+	t.Run("update configContainer when podTemplate updated", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.GetServiceComponent().Commands = []string{"milvus", "run", "mycomponent"}
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		deployment := &appsv1.Deployment{}
+		deployment.Name = "deploy"
+		deployment.Namespace = "ns"
+		deployment.Spec.Template.Spec.InitContainers = []corev1.Container{
+			{
+				Name: configContainerName,
+			},
+		}
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Equal(t, DefaultOperatorImageInfo.Image, deployment.Spec.Template.Spec.InitContainers[0].Image)
 	})
 
 	t.Run("persistence disabled", func(t *testing.T) {
