@@ -134,6 +134,7 @@ type MilvusComponents struct {
 	ToolImage string `json:"toolImage,omitempty"`
 
 	// UpdateToolImage when milvus-operator upgraded, whether milvus should restart to update the tool image, too
+	// otherwise, the tool image will be updated when milvus deploy's podTemplate changed
 	// +kubebuilder:validation:Optional
 	UpdateToolImage bool `json:"updateToolImage,omitempty"`
 

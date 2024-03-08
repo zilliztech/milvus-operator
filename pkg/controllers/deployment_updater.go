@@ -105,14 +105,8 @@ func updatePodMeta(template *corev1.PodTemplateSpec, appLabels map[string]string
 func updateInitContainers(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
 	configContainerIdx := GetContainerIndex(template.Spec.InitContainers, configContainerName)
 	spec := updater.GetMilvus().Spec
-	if configContainerIdx < 0 {
-		var container = new(corev1.Container)
-		if len(template.Spec.InitContainers) < 1 {
-			template.Spec.InitContainers = []corev1.Container{}
-		}
-		template.Spec.InitContainers = append(template.Spec.InitContainers, *renderInitContainer(container, spec.Com.ToolImage))
-	} else if spec.Com.UpdateToolImage {
-		renderInitContainer(&template.Spec.InitContainers[configContainerIdx], spec.Com.ToolImage)
+	if configContainerIdx < 0 || spec.Com.UpdateToolImage {
+		updateConfigContainer(template, updater)
 	}
 
 	initContainers := updater.GetInitContainers()
@@ -125,6 +119,20 @@ func updateInitContainers(template *corev1.PodTemplateSpec, updater deploymentUp
 				template.Spec.InitContainers = append(template.Spec.InitContainers, c)
 			}
 		}
+	}
+}
+
+func updateConfigContainer(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
+	configContainerIdx := GetContainerIndex(template.Spec.InitContainers, configContainerName)
+	spec := updater.GetMilvus().Spec
+	if configContainerIdx < 0 {
+		var container = new(corev1.Container)
+		if len(template.Spec.InitContainers) < 1 {
+			template.Spec.InitContainers = []corev1.Container{}
+		}
+		template.Spec.InitContainers = append(template.Spec.InitContainers, *renderInitContainer(container, spec.Com.ToolImage))
+	} else {
+		renderInitContainer(&template.Spec.InitContainers[configContainerIdx], spec.Com.ToolImage)
 	}
 }
 
@@ -228,14 +236,15 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 }
 
 func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
+	// when perform rolling update
+	// we add some other perfered updates
+	updateConfigContainer(template, updater)
 	componentName := updater.GetComponentName()
 	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponentName())
 	container := &template.Spec.Containers[containerIdx]
 	if componentName == ProxyName || componentName == StandaloneName {
 		template.Labels[v1beta1.ServiceLabel] = v1beta1.TrueStr
 	}
-	// will perform rolling update
-	// we add some other perfered updates
 	container.StartupProbe = GetStartupProbe()
 	container.LivenessProbe = GetLivenessProbe()
 	container.ReadinessProbe = GetReadinessProbe()
@@ -256,11 +265,13 @@ func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater d
 			},
 		}
 	}
+	// oneMonthSeconds we set both podtemplate.spec.terminationGracePeriodSeconds &
+	// deployment.spec.progressDeadlineSeconds to one month, to avoid kill -9 on pod automatically.
+	// so that when pod stuck on rolling, the service will still be available.
+	// We'll have enough time to find the root cause and handle it gracefully.
 	template.Spec.TerminationGracePeriodSeconds = int64Ptr(int64(oneMonthSeconds))
 }
 
-// oneMonthSeconds we set both podtemplate.spec.terminationGracePeriodSeconds &
-// deployment.spec.progressDeadlineSeconds to one month, to avoid kill -9 on pod automatically
 const oneMonthSeconds = 24 * 30 * int(time.Hour/time.Second)
 
 func updateSidecars(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
