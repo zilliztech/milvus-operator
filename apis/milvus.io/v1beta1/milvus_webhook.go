@@ -287,9 +287,7 @@ func (r *Milvus) defaultComponentsReplicas() {
 				spec.Com.MixCoord.Replicas = &defaultReplicas
 			}
 		} else {
-			if spec.Com.Proxy.Replicas == nil {
-				spec.Com.Proxy.Replicas = &defaultReplicas
-			}
+			// allow spec.Com.Proxy.Replicas to be nil, when it's nil, it means that leave it to the HPA to decide
 			if spec.Com.RootCoord.Replicas == nil {
 				spec.Com.RootCoord.Replicas = &defaultReplicas
 			}
