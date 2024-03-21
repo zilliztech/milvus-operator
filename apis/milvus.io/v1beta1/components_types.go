@@ -171,7 +171,8 @@ type Component struct {
 	ComponentSpec `json:",inline"`
 
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Minimum=-1
+	// when replicas is -1, it means the replicas should be managed by HPA
 	Replicas *int32 `json:"replicas,omitempty"`
 
 	// +kubebuilder:validation:Optional
