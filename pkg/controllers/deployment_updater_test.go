@@ -31,6 +31,57 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		assert.Equal(t, []string{"/milvus/tools/run.sh", "milvus", "run", "mycomponent"}, deployment.Spec.Template.Spec.Containers[0].Args)
 	})
 
+	t.Run("test replicas", func(t *testing.T) {
+		int32Ptr := func(i int32) *int32 {
+			return &i
+		}
+
+		testcase := map[string]struct {
+			compReplicas           int32
+			originalDeployReplicas int32
+			expectedDeployReplicas int32
+		}{
+			"hpa mode": {
+				compReplicas:           -1,
+				originalDeployReplicas: 99,
+				expectedDeployReplicas: 99,
+			},
+			"when replica is 0": {
+				compReplicas:           0,
+				originalDeployReplicas: 99,
+				expectedDeployReplicas: 0,
+			},
+			"when replica is positive": {
+				compReplicas:           2,
+				originalDeployReplicas: 99,
+				expectedDeployReplicas: 2,
+			},
+		}
+
+		for name, tc := range testcase {
+			t.Run(name, func(t *testing.T) {
+
+				inst := env.Inst.DeepCopy()
+				inst.Spec.Com.Proxy = &v1beta1.MilvusProxy{}
+				inst.Spec.Com.Proxy.Replicas = int32Ptr(tc.compReplicas)
+				inst.Spec.Mode = v1beta1.MilvusModeCluster
+				updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, Proxy)
+				deployment := &appsv1.Deployment{}
+				deployment.Name = "deploy"
+				deployment.Namespace = "ns"
+				deployment.Spec.Replicas = int32Ptr(tc.originalDeployReplicas)
+
+				err := updateDeployment(deployment, updater)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				assert.Equal(t, tc.expectedDeployReplicas, *deployment.Spec.Replicas)
+			})
+		}
+
+	})
+
 	t.Run("with init container", func(t *testing.T) {
 		inst := env.Inst.DeepCopy()
 		inst.Spec.Com.Standalone.InitContainers = []v1beta1.Values{{}}
