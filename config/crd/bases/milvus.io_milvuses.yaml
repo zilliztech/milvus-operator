@@ -1788,7 +1788,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -2321,7 +2321,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -2936,7 +2936,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -3469,7 +3469,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -4004,7 +4004,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -4576,7 +4576,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -5127,7 +5127,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -5660,7 +5660,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -6212,7 +6212,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -6774,7 +6774,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
