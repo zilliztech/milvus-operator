@@ -157,12 +157,6 @@ func (c MilvusComponent) GetReplicas(spec v1beta1.MilvusSpec) *int32 {
 	replicas, _ := componentField.Elem().
 		FieldByName("Component").
 		FieldByName("Replicas").Interface().(*int32)
-
-	// if replicas is negative, it means replicas should be managed by hpa
-	if replicas != nil && *replicas < 0 {
-		return nil
-	}
-
 	return replicas
 }
 
