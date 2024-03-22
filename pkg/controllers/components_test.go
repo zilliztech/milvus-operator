@@ -273,16 +273,6 @@ func TestMilvusComponent_GetReplicas(t *testing.T) {
 	assert.Equal(t, &replica, com.GetReplicas(spec))
 }
 
-func TestMilvusComponent_Expect_Replicas_as_Nil_When_HPA(t *testing.T) {
-	milvus := v1beta1.Milvus{}
-	spec := milvus.Spec
-  spec.Com.Proxy = &v1beta1.MilvusProxy{}
-	com :=  Proxy
-	replica := int32(-1)
-	spec.Com.Proxy.Component.Replicas = &replica
-  assert.Nil(t, com.GetReplicas(spec))
-}
-
 func TestMilvusComponent_GetRunCommands(t *testing.T) {
 	com := QueryNode
 	assert.Equal(t, []string{com.Name}, com.GetRunCommands())

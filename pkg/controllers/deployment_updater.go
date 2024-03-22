@@ -30,12 +30,16 @@ type deploymentUpdater interface {
 	GetMilvus() *v1beta1.Milvus
 	RollingUpdateImageDependencyReady() bool
 	HasHookConfig() bool
+	IsHPAEnabled() bool
 }
 
 func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater deploymentUpdater) error {
 	mergedComSpec := updater.GetMergedComponentSpec()
 	deployment.Spec.Paused = mergedComSpec.Paused
-	deployment.Spec.Replicas = updater.GetReplicas()
+	//mutate replicas if HPA is not enabled
+	if !updater.IsHPAEnabled() {
+		deployment.Spec.Replicas = updater.GetReplicas()
+	}
 	deployment.Spec.Strategy = updater.GetDeploymentStrategy()
 	if updater.GetMilvus().IsRollingUpdateEnabled() {
 		deployment.Spec.MinReadySeconds = 30
@@ -331,6 +335,12 @@ func (m milvusDeploymentUpdater) GetScheme() *runtime.Scheme {
 
 func (m milvusDeploymentUpdater) GetReplicas() *int32 {
 	return m.component.GetReplicas(m.Spec)
+}
+
+// when replicas is -1, HPA is enabled
+func (m milvusDeploymentUpdater) IsHPAEnabled() bool {
+	replicas := m.component.GetReplicas(m.Spec)
+	return replicas != nil && *replicas < 0
 }
 
 func (m milvusDeploymentUpdater) GetSideCars() []corev1.Container {
