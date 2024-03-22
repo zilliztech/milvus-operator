@@ -11,10 +11,10 @@ metadata:
   name: "milvus-operator-checker"
   namespace: "milvus-operator"
   labels:
-    helm.sh/chart: milvus-operator-0.9.9
+    helm.sh/chart: milvus-operator-0.9.10
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "0.9.9"
+    app.kubernetes.io/version: "0.9.10"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: milvus-operator/templates/serviceaccount.yaml
@@ -24,10 +24,10 @@ metadata:
   name: "milvus-operator"
   namespace: "milvus-operator"
   labels:
-    helm.sh/chart: milvus-operator-0.9.9
+    helm.sh/chart: milvus-operator-0.9.10
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "0.9.9"
+    app.kubernetes.io/version: "0.9.10"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: milvus-operator/templates/crds.yaml
@@ -882,7 +882,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -1415,7 +1415,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -2030,7 +2030,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -2563,7 +2563,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -3098,7 +3098,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -3670,7 +3670,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -4221,7 +4221,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -4754,7 +4754,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -5306,7 +5306,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -5868,7 +5868,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -8147,7 +8147,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -8680,7 +8680,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -9295,7 +9295,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -9828,7 +9828,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -10363,7 +10363,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -10935,7 +10935,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -11486,7 +11486,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -12019,7 +12019,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -12571,7 +12571,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -13133,7 +13133,7 @@ spec:
                         type: string
                       replicas:
                         format: int32
-                        minimum: 0
+                        minimum: -1
                         type: integer
                       resources:
                         properties:
@@ -14462,10 +14462,10 @@ kind: Service
 metadata:
   labels:
     service-kind: metrics
-    helm.sh/chart: milvus-operator-0.9.9
+    helm.sh/chart: milvus-operator-0.9.10
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "0.9.9"
+    app.kubernetes.io/version: "0.9.10"
     app.kubernetes.io/managed-by: Helm
   name: 'milvus-operator-metrics-service'
   namespace: "milvus-operator"
@@ -14483,10 +14483,10 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    helm.sh/chart: milvus-operator-0.9.9
+    helm.sh/chart: milvus-operator-0.9.10
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "0.9.9"
+    app.kubernetes.io/version: "0.9.10"
     app.kubernetes.io/managed-by: Helm
   name: 'milvus-operator-webhook-service'
   namespace: "milvus-operator"
@@ -14505,10 +14505,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: milvus-operator-0.9.9
+    helm.sh/chart: milvus-operator-0.9.10
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "0.9.9"
+    app.kubernetes.io/version: "0.9.10"
     app.kubernetes.io/managed-by: Helm
   name: "milvus-operator"
   namespace: "milvus-operator"
@@ -14538,7 +14538,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: 'milvusdb/milvus-operator:v0.9.9'
+        image: 'milvusdb/milvus-operator:v0.9.10'
         imagePullPolicy: "IfNotPresent"
         livenessProbe:
           httpGet:
@@ -14595,10 +14595,10 @@ metadata:
   annotations:
     {}
   labels:
-    helm.sh/chart: milvus-operator-0.9.9
+    helm.sh/chart: milvus-operator-0.9.10
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "0.9.9"
+    app.kubernetes.io/version: "0.9.10"
     app.kubernetes.io/managed-by: Helm
   name: "milvus-operator-checker"
   namespace: "milvus-operator"
@@ -14612,7 +14612,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: checker
-        image: 'milvusdb/milvus-operator:v0.9.9'
+        image: 'milvusdb/milvus-operator:v0.9.10'
         imagePullPolicy: "IfNotPresent"
         command: ["/checker"]
         args:
