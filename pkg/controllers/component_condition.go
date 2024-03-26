@@ -159,12 +159,12 @@ func GetComponentConditionGetter() ComponentConditionGetter {
 
 var singletonComponentConditionGetter ComponentConditionGetter = ComponentConditionGetterImpl{}
 
-var CheckMilvusHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
+var ListMilvusTerminatingPods = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (*corev1.PodList, error) {
 	opts := &client.ListOptions{
 		Namespace: mc.Namespace,
 	}
 	opts.LabelSelector = labels.SelectorFromSet(NewAppLabels(mc.Name))
-	return HasTerminatingPodByListOpts(ctx, cli, mc, opts)
+	return listTerminatingPodByOpts(ctx, cli, opts)
 }
 
 var CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus, component MilvusComponent) (bool, error) {
@@ -172,43 +172,63 @@ var CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Clien
 		Namespace: mc.Namespace,
 	}
 	opts.LabelSelector = labels.SelectorFromSet(NewComponentAppLabels(mc.Name, component.Name))
-	return HasTerminatingPodByListOpts(ctx, cli, mc, opts)
-}
-
-var HasTerminatingPodByListOpts = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus, opts *client.ListOptions) (bool, error) {
-	podList := &corev1.PodList{}
-	if err := cli.List(ctx, podList, opts); err != nil {
+	list, err := listTerminatingPodByOpts(ctx, cli, opts)
+	if err != nil {
 		return false, err
 	}
-	for _, pod := range podList.Items {
-		if pod.DeletionTimestamp != nil {
-			return true, nil
-		}
-	}
-	return false, nil
+	return len(list.Items) > 0, nil
 }
 
-var CheckMilvusStopped = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
-	podList := &corev1.PodList{}
+func listMilvusPods(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (*corev1.PodList, error) {
 	opts := &client.ListOptions{
 		Namespace: mc.Namespace,
 	}
-	opts.LabelSelector = labels.SelectorFromSet(map[string]string{
-		AppLabelInstance: mc.GetName(),
-		AppLabelName:     "milvus",
-	})
+	opts.LabelSelector = labels.SelectorFromSet(NewAppLabels(mc.Name))
+	return listPodByOpts(ctx, cli, opts)
+}
+
+func listPodByOpts(ctx context.Context, cli client.Client, opts *client.ListOptions) (*corev1.PodList, error) {
+	podList := &corev1.PodList{}
 	if err := cli.List(ctx, podList, opts); err != nil {
+		return nil, err
+	}
+	return podList, nil
+}
+
+func filterTerminatingPod(podList *corev1.PodList) *corev1.PodList {
+	ret := &corev1.PodList{
+		Items: make([]corev1.Pod, 0),
+	}
+	for _, pod := range podList.Items {
+		if pod.DeletionTimestamp != nil {
+			ret.Items = append(ret.Items, pod)
+		}
+	}
+	return ret
+}
+
+func listTerminatingPodByOpts(ctx context.Context, cli client.Client, opts *client.ListOptions) (*corev1.PodList, error) {
+	podList, err := listPodByOpts(ctx, cli, opts)
+	if err != nil {
+		return nil, err
+	}
+	return filterTerminatingPod(podList), nil
+}
+
+var CheckMilvusStopped = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
+	podList, err := listMilvusPods(ctx, cli, mc)
+	if err != nil {
 		return false, err
 	}
 	if len(podList.Items) > 0 {
 		logger := ctrl.LoggerFrom(ctx)
 		logger.Info("milvus has pods not stopped", "pods count", len(podList.Items))
-		return false, ExecKillIfTerminatingTooLong(ctx, podList)
+		return false, ExecKillIfTerminating(ctx, podList)
 	}
 	return true, nil
 }
 
-func ExecKillIfTerminatingTooLong(ctx context.Context, podList *corev1.PodList) error {
+func ExecKillIfTerminating(ctx context.Context, podList *corev1.PodList) error {
 	// we use kubectl exec to kill milvus process, because tini ignore SIGKILL
 	cli := rest.GetRestClient()
 	var ret error

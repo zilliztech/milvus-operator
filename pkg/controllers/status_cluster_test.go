@@ -241,12 +241,12 @@ func TestStatusSyncer_UpdateStatusRoutine(t *testing.T) {
 	s := NewMilvusStatusSyncer(ctx, mockCli, logger)
 
 	// mock hasTerminatingPod
-	bak := CheckMilvusHasTerminatingPod
-	CheckMilvusHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
-		return false, nil
+	bak := ListMilvusTerminatingPods
+	ListMilvusTerminatingPods = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (*corev1.PodList, error) {
+		return &corev1.PodList{}, nil
 	}
 	defer func() {
-		CheckMilvusHasTerminatingPod = bak
+		ListMilvusTerminatingPods = bak
 	}()
 
 	// default status not set

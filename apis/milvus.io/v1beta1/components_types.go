@@ -105,13 +105,17 @@ const (
 	ImageUpdateModeRollingDowngrade ImageUpdateMode = "rollingDowngrade"
 	// ImageUpdateModeAll means all components' image will be updated immediately to spec.image
 	ImageUpdateModeAll ImageUpdateMode = "all"
+	// ImageUpdateModeForce means all components' image will be updated immediately to spec.image
+	// and kills the terminated pods to speed up the process
+	ImageUpdateModeForce ImageUpdateMode = "force"
 )
 
 type MilvusComponents struct {
 	ComponentSpec `json:",inline"`
 
 	// ImageUpdateMode is how the milvus components' image should be updated. works only when rolling update is enabled.
-	// +kubebuilder:validation:Enum=rollingUpgrade;rollingDowngrade;all
+	// forceUpgrade will update all pods' image immediately, and kills the terminated pods to speed up the process
+	// +kubebuilder:validation:Enum=rollingUpgrade;rollingDowngrade;all;force
 	// +kubebuilder:default:="rollingUpgrade"
 	// +kubebuilder:validation:Optional
 	ImageUpdateMode ImageUpdateMode `json:"imageUpdateMode,omitempty"`

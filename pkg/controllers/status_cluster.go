@@ -299,17 +299,10 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 		return err
 	}
 	UpdateCondition(&mc.Status, milvusCond)
-	updatedCond := GetMilvusUpdatedCondition(mc)
-	hasTerminatingPod, err := CheckMilvusHasTerminatingPod(ctx, r.Client, *mc)
+	err = r.handleTerminatingPods(ctx, mc)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "handle terminating pods failed")
 	}
-	if hasTerminatingPod {
-		updatedCond.Status = corev1.ConditionFalse
-		updatedCond.Reason = v1beta1.ReasonMilvusComponentsUpdating
-		updatedCond.Message = v1beta1.MsgMilvusHasTerminatingPods
-	}
-	UpdateCondition(&mc.Status, updatedCond)
 
 	statusInfo := MilvusHealthStatusInfo{
 		LastState:  mc.Status.Status,
@@ -323,6 +316,30 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 
 	r.logger.Info("update status", "diff", util.DiffStr(beginStatus, &mc.Status))
 	return r.Status().Update(ctx, mc)
+}
+
+func (r *MilvusStatusSyncer) handleTerminatingPods(ctx context.Context, mc *v1beta1.Milvus) error {
+	updatedCond := GetMilvusUpdatedCondition(mc)
+	terminatingPodList, err := ListMilvusTerminatingPods(ctx, r.Client, *mc)
+	if err != nil {
+		return err
+	}
+	hasTerminatingPod := len(terminatingPodList.Items) > 0
+	if hasTerminatingPod {
+		updatedCond.Status = corev1.ConditionFalse
+		updatedCond.Reason = v1beta1.ReasonMilvusComponentsUpdating
+		updatedCond.Message = v1beta1.MsgMilvusHasTerminatingPods
+
+		if mc.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce {
+			err := ExecKillIfTerminating(ctx, terminatingPodList)
+			if err != nil {
+				// not fatal, so we just print it
+				r.logger.Error(err, "kill terminating pod failed")
+			}
+		}
+	}
+	UpdateCondition(&mc.Status, updatedCond)
+	return nil
 }
 
 var replicaUpdater replicaUpdaterInterface = new(replicaUpdaterImpl)
