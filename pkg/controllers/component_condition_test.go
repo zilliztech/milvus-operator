@@ -277,7 +277,7 @@ func TestExecKillIfTerminatingTooLong(t *testing.T) {
 		Items: []corev1.Pod{{}, {}},
 	}
 	t.Run("delete not sent yet", func(t *testing.T) {
-		err := ExecKillIfTerminatingTooLong(ctx, pods)
+		err := ExecKillIfTerminating(ctx, pods)
 		assert.NoError(t, err)
 	})
 
@@ -285,7 +285,7 @@ func TestExecKillIfTerminatingTooLong(t *testing.T) {
 		pods.Items[0].DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Hour)}
 		pods.Items[1].DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Hour)}
 		mockRestClient.EXPECT().Exec(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", "", nil).Times(2)
-		err := ExecKillIfTerminatingTooLong(ctx, pods)
+		err := ExecKillIfTerminating(ctx, pods)
 		assert.NoError(t, err)
 	})
 
@@ -294,7 +294,7 @@ func TestExecKillIfTerminatingTooLong(t *testing.T) {
 		pods.Items[1].DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Hour)}
 		mockRestClient.EXPECT().Exec(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", "", errors.New("test")).Times(1)
 		mockRestClient.EXPECT().Exec(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", "", nil).Times(1)
-		err := ExecKillIfTerminatingTooLong(ctx, pods)
+		err := ExecKillIfTerminating(ctx, pods)
 		assert.Error(t, err)
 	})
 }

@@ -1538,6 +1538,7 @@ spec:
                     - rollingUpgrade
                     - rollingDowngrade
                     - all
+                    - force
                     type: string
                   indexCoord:
                     properties:

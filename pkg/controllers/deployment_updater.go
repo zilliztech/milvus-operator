@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 type deploymentUpdater interface {
@@ -232,6 +233,7 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	if isCreating ||
 		!updater.GetMilvus().IsRollingUpdateEnabled() || // rolling update is disabled
 		updater.GetMilvus().Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeAll || // image update mode is update all
+		updater.GetMilvus().Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce ||
 		updater.RollingUpdateImageDependencyReady() {
 		container.Image = mergedComSpec.Image
 	}
@@ -352,6 +354,16 @@ func (m milvusDeploymentUpdater) GetInitContainers() []corev1.Container {
 }
 
 func (m milvusDeploymentUpdater) GetDeploymentStrategy() appsv1.DeploymentStrategy {
+	if m.Milvus.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce {
+		all := intstr.FromString("100%")
+		return appsv1.DeploymentStrategy{
+			Type: appsv1.RollingUpdateDeploymentStrategyType,
+			RollingUpdate: &appsv1.RollingUpdateDeployment{
+				MaxSurge:       &all,
+				MaxUnavailable: &all,
+			},
+		}
+	}
 	return m.component.GetDeploymentStrategy(m.Milvus.Spec.Conf.Data)
 }
 
