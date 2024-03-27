@@ -18,6 +18,7 @@ spec:
     proxy:
       ingress:
         hosts: ["mc-sit.milvus.io"]
+      replicas: -1 
     mixCoord:
       replicas: 1
   dependencies:
@@ -48,17 +49,44 @@ spec:
           persistence:
             size: 20Gi
   config:
-    rootCoord:
-      enableActiveStandby: true
-    dataCoord:
-      enableActiveStandby: true
-    queryCoord:
-      enableActiveStandby: true
-    indexCoord:
-      enableActiveStandby: true
     milvus:
       log:
         level: info
-    component:
-      proxy:
-        timeTickInterval: 150
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: milvus-milvus-proxy-hpa
+  namespace: mc-sit
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: milvus-milvus-proxy
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 60
+  behavior:
+    scaleUp:
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
