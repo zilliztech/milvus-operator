@@ -72,7 +72,9 @@ jobs:
           make go-generate
           make test-only
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v4
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
           files: ./cover.out
           name: ubuntu-${{ matrix.ubuntu }}-unittests
