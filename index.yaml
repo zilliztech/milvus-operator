@@ -48,6 +48,7 @@ entries:
     type: application
     urls:
     - https://github.com/zilliztech/milvus-operator/releases/download/v0.9.11/milvus-operator-0.9.11.tgz
+    version: 0.9.11
   - apiVersion: v2
     appVersion: 0.9.10
     created: "2024-03-25T11:03:11.878473+08:00"
