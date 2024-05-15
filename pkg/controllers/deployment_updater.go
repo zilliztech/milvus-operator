@@ -78,7 +78,7 @@ func updatePodTemplate(
 
 	updatePodMeta(template, appLabels, updater)
 	updateInitContainers(template, updater)
-	updateVolumes(template, updater)
+	updateUserDefinedVolumes(template, updater)
 	updateScheduleSpec(template, updater)
 	updateMilvusContainer(template, updater, isCreating)
 	updateSidecars(template, updater)
@@ -154,23 +154,34 @@ func updateScheduleSpec(template *corev1.PodTemplateSpec, updater deploymentUpda
 	template.Spec.PriorityClassName = mergedComSpec.PriorityClassName
 }
 
-func updateVolumes(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
-	mergedComSpec := updater.GetMergedComponentSpec()
-	volumes := &template.Spec.Volumes
-	addVolume(volumes, configVolumeByName(updater.GetIntanceName()))
-	addVolume(volumes, toolVolume)
-	for _, volumeValues := range mergedComSpec.Volumes {
+func updateUserDefinedVolumes(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
+	userDefinedVolumes := []corev1.Volume{}
+	volumesInCRSpec := updater.GetMergedComponentSpec().Volumes
+	for _, volumeValues := range volumesInCRSpec {
 		var volume corev1.Volume
 		volumeValues.MustAsObj(&volume)
 		fillConfigMapVolumeDefaultValues(&volume)
-		addVolume(volumes, volume)
+		userDefinedVolumes = append(userDefinedVolumes, volume)
 	}
 	if persistence := updater.GetPersistenceConfig(); persistence != nil && persistence.Enabled {
+		rocketMqPvcName := getPVCNameByInstName(updater.GetIntanceName())
 		if len(persistence.PersistentVolumeClaim.ExistingClaim) > 0 {
-			addVolume(volumes, persisentVolumeByName(persistence.PersistentVolumeClaim.ExistingClaim))
-		} else {
-			addVolume(volumes, persisentVolumeByName(getPVCNameByInstName(updater.GetIntanceName())))
+			rocketMqPvcName = persistence.PersistentVolumeClaim.ExistingClaim
 		}
+		userDefinedVolumes = append(userDefinedVolumes, persisentVolumeByName(rocketMqPvcName))
+	}
+	for _, volume := range userDefinedVolumes {
+		addVolume(&template.Spec.Volumes, volume)
+	}
+}
+
+func updateBuiltInVolumes(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
+	builtInVolumes := []corev1.Volume{
+		configVolumeByName(updater.GetIntanceName()),
+		toolVolume,
+	}
+	for _, volume := range builtInVolumes {
+		addVolume(&template.Spec.Volumes, volume)
 	}
 }
 
@@ -217,15 +228,7 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 		container.Ports = []corev1.ContainerPort{metricPort}
 	}
 
-	addVolumeMount(&container.VolumeMounts, configVolumeMount)
-	addVolumeMount(&container.VolumeMounts, toolVolumeMount)
-	if updater.HasHookConfig() {
-		addVolumeMount(&container.VolumeMounts, hookConfigVolumeMount)
-	}
-	if persistence := updater.GetPersistenceConfig(); persistence != nil && persistence.Enabled {
-		addVolumeMount(&container.VolumeMounts, persistentVolumeMount(*persistence))
-	}
-	for _, volumeMount := range mergedComSpec.VolumeMounts {
+	for _, volumeMount := range getUserDefinedVolumeMounts(updater) {
 		addVolumeMount(&container.VolumeMounts, volumeMount)
 	}
 
@@ -241,9 +244,37 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	container.Resources = *mergedComSpec.Resources
 }
 
+func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
+	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponentName())
+	if containerIdx < 0 {
+		return
+	}
+	container := &template.Spec.Containers[containerIdx]
+	builtInVolumeMounts := []corev1.VolumeMount{
+		configVolumeMount,
+		toolVolumeMount,
+	}
+	for _, volumeMount := range builtInVolumeMounts {
+		addVolumeMount(&container.VolumeMounts, volumeMount)
+	}
+}
+
+func getUserDefinedVolumeMounts(updater deploymentUpdater) []corev1.VolumeMount {
+	ret := updater.GetMergedComponentSpec().VolumeMounts
+	if updater.HasHookConfig() {
+		ret = append(ret, hookConfigVolumeMount)
+	}
+	if persistence := updater.GetPersistenceConfig(); persistence != nil && persistence.Enabled {
+		ret = append(ret, persistentVolumeMount())
+	}
+	return ret
+}
+
 func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
 	// when perform rolling update
 	// we add some other perfered updates
+	updateBuiltInVolumes(template, updater)
+	updateBuiltInVolumeMounts(template, updater)
 	updateConfigContainer(template, updater)
 	componentName := updater.GetComponentName()
 	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponentName())

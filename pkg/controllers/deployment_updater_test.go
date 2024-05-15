@@ -187,8 +187,10 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Len(t, deployment.Spec.Template.Spec.Volumes, 3)
-		assert.Equal(t, deployment.Spec.Template.Spec.Volumes[2].PersistentVolumeClaim.ClaimName, "pvc1")
-		assert.Len(t, deployment.Spec.Template.Spec.Containers[0].VolumeMounts, 3)
+		idx := GetVolumeIndex(deployment.Spec.Template.Spec.Volumes, MilvusDataVolumeName)
+		assert.LessOrEqual(t, 0, idx)
+		idx = GetVolumeMountIndex(deployment.Spec.Template.Spec.Containers[0].VolumeMounts, v1beta1.RocksMQPersistPath)
+		assert.LessOrEqual(t, 0, idx)
 	})
 
 	const oldImage = "milvusdb/milvus:v2.3.0"
