@@ -36,7 +36,7 @@ const (
 )
 
 var (
-	DefaultConfigMapMode int32 = 420
+	DefaultConfigMapMode int32 = 0666
 	ErrRequeue                 = pkgerr.New("requeue")
 )
 
@@ -279,14 +279,14 @@ var (
 
 	configVolumeMount = corev1.VolumeMount{
 		Name:      MilvusConfigVolumeName,
-		ReadOnly:  true,
+		ReadOnly:  false,
 		MountPath: MilvusUserConfigMountPath,
 		SubPath:   MilvusUserConfigMountSubPath,
 	}
 
 	hookConfigVolumeMount = corev1.VolumeMount{
 		Name:      MilvusConfigVolumeName,
-		ReadOnly:  true,
+		ReadOnly:  false,
 		MountPath: MilvusHookConfigUpdatesMountPath,
 		SubPath:   MilvusHookConfigMountSubPath,
 	}
@@ -318,7 +318,7 @@ func persisentVolumeByName(name string) corev1.Volume {
 	}
 }
 
-func persistentVolumeMount(persist v1beta1.Persistence) corev1.VolumeMount {
+func persistentVolumeMount() corev1.VolumeMount {
 	return corev1.VolumeMount{
 		Name:      MilvusDataVolumeName,
 		ReadOnly:  false,
