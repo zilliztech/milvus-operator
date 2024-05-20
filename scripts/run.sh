@@ -1,11 +1,23 @@
 #!/bin/bash
 set -e
-MilvusUserConfigMountPath="/milvus/configs/user.yaml"
-MilvusOriginalConfigPath="/milvus/configs/milvus.yaml"
-MilvusHookConfigMountPath="/milvus/configs/hook.yaml"
-MilvusHookConfigUpdatesMountPath="/milvus/configs/hook_updates.yaml"
+MilvusConfigRootPath="/milvus/configs"
+OperatorConfigMountPath="${MilvusConfigRootPath}/operator"
+ConfigMapFiles=("user.yaml" "hook.yaml")
+LinkFiles=("user.yaml" "hook_updates.yaml")
+config_file_count=${#ConfigMapFiles[@]}
+# link operator config files to milvus config path
+for (( i=0; i<$config_file_count; i++ )); do
+    if [ -f "${OperatorConfigMountPath}/${ConfigMapFiles[i]}" ]; then
+        ln -sf "${OperatorConfigMountPath}/${ConfigMapFiles[i]}" "${MilvusConfigRootPath}/${LinkFiles[i]}"
+    fi
+done
+
 # merge config
-/milvus/tools/merge -s ${MilvusUserConfigMountPath} -d ${MilvusOriginalConfigPath}
-/milvus/tools/merge -s ${MilvusHookConfigUpdatesMountPath} -d ${MilvusHookConfigMountPath}
+MilvusConfigFiles=("milvus.yaml" "hook.yaml")
+for (( i=0; i<$config_file_count; i++ )); do
+    /milvus/tools/merge \
+    -s "${OperatorConfigMountPath}/${ConfigMapFiles[i]}" \
+    -d "${MilvusConfigRootPath}/${MilvusConfigFiles[i]}"
+done
 # run commands
 exec $@

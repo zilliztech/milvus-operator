@@ -9,7 +9,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type deploymentUpdater interface {
@@ -68,6 +70,8 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 	return nil
 }
 
+var podTemplateLogger = logf.Log.WithName("pod-template")
+
 func updatePodTemplate(
 	updater deploymentUpdater,
 	template *corev1.PodTemplateSpec,
@@ -86,6 +90,10 @@ func updatePodTemplate(
 	if IsEqual(currentTemplate, template) {
 		return
 	}
+	podTemplateLogger.WithValues(
+		"namespace", updater.GetMilvus().Namespace,
+		"milvus", updater.GetMilvus().Name).
+		Info("pod template changed", "diff", diff.ObjectDiff(currentTemplate, template))
 	// some defaults change will cause rolling update, so we only perform when rolling update
 	updateSomeFieldsOnlyWhenRolling(template, updater)
 }
@@ -261,9 +269,6 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 
 func getUserDefinedVolumeMounts(updater deploymentUpdater) []corev1.VolumeMount {
 	ret := updater.GetMergedComponentSpec().VolumeMounts
-	if updater.HasHookConfig() {
-		ret = append(ret, hookConfigVolumeMount)
-	}
 	if persistence := updater.GetPersistenceConfig(); persistence != nil && persistence.Enabled {
 		ret = append(ret, persistentVolumeMount())
 	}
