@@ -262,6 +262,7 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 		configVolumeMount,
 		toolVolumeMount,
 	}
+	removeVolumeMounts(&container.VolumeMounts, MilvusConfigVolumeName)
 	for _, volumeMount := range builtInVolumeMounts {
 		addVolumeMount(&container.VolumeMounts, volumeMount)
 	}
