@@ -1,0 +1,21 @@
+# This is a sample to use dynamic configurations for milvus
+# note milvus version has to be v2.3.0 or later
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  dependencies: {}
+  components: 
+    # make operator only update configMap when change spec.config field
+    updateConfigMapOnly: true
+  config:
+    # for allowed dynamic fields
+    # check https://milvus.io/docs/dynamic_config.md for latest version
+    # check https://milvus.io/docs/v2.3.x/dynamic_config.md for v2.3
+    # eg: change the max size of disk segment to 4096
+    dataCoord:
+      segment:
+        diskSegmentMaxSize: 4096 # default is 2048
