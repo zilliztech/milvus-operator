@@ -18,15 +18,17 @@ import (
 )
 
 const (
-	MilvusDataVolumeName         = "milvus-data" // for standalone persistence only
-	MilvusConfigVolumeName       = "milvus-config"
-	MilvusOriginalConfigPath     = "/milvus/configs/milvus.yaml"
-	MilvusConfigmapMountPath     = "/milvus/configs/operator"
-	MilvusUserConfigMountSubPath = "user.yaml"
-	MilvusHookConfigMountSubPath = "hook.yaml"
-	AccessKey                    = "accesskey"
-	SecretKey                    = "secretkey"
-	AnnotationCheckSum           = "checksum/config"
+	MilvusDataVolumeName     = "milvus-data" // for standalone persistence only
+	MilvusConfigVolumeName   = "milvus-config"
+	MilvusConfigRootPath     = "/milvus/configs"
+	MilvusOriginalConfigPath = MilvusConfigRootPath + "/milvus.yaml"
+	MilvusConfigmapMountPath = MilvusConfigRootPath + "/operator"
+
+	UserYaml           = "user.yaml"
+	HookYaml           = "hook.yaml"
+	AccessKey          = "accesskey"
+	SecretKey          = "secretkey"
+	AnnotationCheckSum = "checksum/config"
 
 	ToolsVolumeName = "tools"
 	ToolsMountPath  = "/milvus/tools"
@@ -233,6 +235,16 @@ func addVolume(volumes *[]corev1.Volume, volume corev1.Volume) {
 	} else {
 		(*volumes)[volumeIdx] = volume
 	}
+}
+
+func removeVolumeMounts(volumeMounts *[]corev1.VolumeMount, volumeName string) {
+	result := make([]corev1.VolumeMount, 0)
+	for i := range *volumeMounts {
+		if (*volumeMounts)[i].Name != volumeName {
+			result = append(result, (*volumeMounts)[i])
+		}
+	}
+	*volumeMounts = result
 }
 
 func addVolumeMount(volumeMounts *[]corev1.VolumeMount, volumeMount corev1.VolumeMount) {

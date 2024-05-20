@@ -99,7 +99,7 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 		configmap.Data = make(map[string]string)
 	}
 
-	configmap.Data[MilvusUserConfigMountSubPath] = string(milvusYaml)
+	configmap.Data[UserYaml] = string(milvusYaml)
 
 	if len(mc.Spec.HookConf.Data) > 0 {
 		hookYaml, err := yaml.Marshal(mc.Spec.HookConf.Data)
@@ -107,7 +107,7 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 			r.logger.Error(err, "yaml Unmarshal hook conf error")
 			return err
 		}
-		configmap.Data[MilvusHookConfigMountSubPath] = string(hookYaml)
+		configmap.Data[HookYaml] = string(hookYaml)
 	}
 
 	return nil

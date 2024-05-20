@@ -245,3 +245,28 @@ func TestReconciler_handleOldInstanceChangingMode(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func Test_removeVolumeMounts(t *testing.T) {
+	vms := []corev1.VolumeMount{
+		{
+			Name:      "v1",
+			MountPath: "p1",
+		},
+		{
+			Name:      "v1",
+			MountPath: "p2",
+		},
+		{
+			Name:      "v2",
+			MountPath: "p3",
+		},
+		{
+			Name:      "v3",
+			MountPath: "p4",
+		},
+	}
+	removeVolumeMounts(&vms, "v1")
+	assert.Len(t, vms, 2)
+	assert.Equal(t, "p3", vms[0].MountPath)
+	assert.Equal(t, "p4", vms[1].MountPath)
+}
