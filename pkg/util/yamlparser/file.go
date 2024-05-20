@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var UserYamlPath = "/milvus/configs/user.yaml"
+var UserYamlPath = "/milvus/configs/operator/user.yaml"
 
 type UserYaml struct {
 	Minio struct {

@@ -24,6 +24,6 @@ func fillConfigMapVolumeDefaultValues(v *corev1.Volume) {
 		return
 	}
 	if v.ConfigMap.DefaultMode == nil {
-		v.ConfigMap.DefaultMode = int32Ptr(int(corev1.ConfigMapVolumeSourceDefaultMode))
+		v.ConfigMap.DefaultMode = int32Ptr(int(DefaultConfigMapMode))
 	}
 }

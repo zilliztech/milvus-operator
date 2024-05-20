@@ -18,16 +18,15 @@ import (
 )
 
 const (
-	MilvusDataVolumeName             = "milvus-data" // for standalone persistence only
-	MilvusConfigVolumeName           = "milvus-config"
-	MilvusOriginalConfigPath         = "/milvus/configs/milvus.yaml"
-	MilvusUserConfigMountPath        = "/milvus/configs/user.yaml"
-	MilvusHookConfigUpdatesMountPath = "/milvus/configs/hook_updates.yaml"
-	MilvusUserConfigMountSubPath     = "user.yaml"
-	MilvusHookConfigMountSubPath     = "hook.yaml"
-	AccessKey                        = "accesskey"
-	SecretKey                        = "secretkey"
-	AnnotationCheckSum               = "checksum/config"
+	MilvusDataVolumeName         = "milvus-data" // for standalone persistence only
+	MilvusConfigVolumeName       = "milvus-config"
+	MilvusOriginalConfigPath     = "/milvus/configs/milvus.yaml"
+	MilvusConfigmapMountPath     = "/milvus/configs/operator"
+	MilvusUserConfigMountSubPath = "user.yaml"
+	MilvusHookConfigMountSubPath = "hook.yaml"
+	AccessKey                    = "accesskey"
+	SecretKey                    = "secretkey"
+	AnnotationCheckSum           = "checksum/config"
 
 	ToolsVolumeName = "tools"
 	ToolsMountPath  = "/milvus/tools"
@@ -36,8 +35,8 @@ const (
 )
 
 var (
-	DefaultConfigMapMode int32 = 0666
-	ErrRequeue                 = pkgerr.New("requeue")
+	DefaultConfigMapMode = corev1.ConfigMapVolumeSourceDefaultMode
+	ErrRequeue           = pkgerr.New("requeue")
 )
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
@@ -258,8 +257,8 @@ func renderInitContainer(container *corev1.Container, toolImage string) *corev1.
 	container.Command = []string{"/bin/sh"}
 	container.Args = []string{"/init.sh"}
 	container.VolumeMounts = []corev1.VolumeMount{
-		toolVolumeMount,
 		configVolumeMount,
+		toolVolumeMount,
 	}
 	fillContainerDefaultValues(container)
 	return container
@@ -279,16 +278,8 @@ var (
 
 	configVolumeMount = corev1.VolumeMount{
 		Name:      MilvusConfigVolumeName,
-		ReadOnly:  false,
-		MountPath: MilvusUserConfigMountPath,
-		SubPath:   MilvusUserConfigMountSubPath,
-	}
-
-	hookConfigVolumeMount = corev1.VolumeMount{
-		Name:      MilvusConfigVolumeName,
-		ReadOnly:  false,
-		MountPath: MilvusHookConfigUpdatesMountPath,
-		SubPath:   MilvusHookConfigMountSubPath,
+		ReadOnly:  true,
+		MountPath: MilvusConfigmapMountPath,
 	}
 )
 
