@@ -46,6 +46,11 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 				originalDeployReplicas: 99,
 				expectedDeployReplicas: 99,
 			},
+			"hpa start a stopped deploy": {
+				compReplicas:           -1,
+				originalDeployReplicas: 0,
+				expectedDeployReplicas: 1,
+			},
 			"when replica is 0": {
 				compReplicas:           0,
 				originalDeployReplicas: 99,

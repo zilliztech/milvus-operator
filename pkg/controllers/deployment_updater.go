@@ -42,6 +42,11 @@ func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater d
 	//mutate replicas if HPA is not enabled
 	if !updater.IsHPAEnabled() {
 		deployment.Spec.Replicas = updater.GetReplicas()
+	} else {
+		// hpa cannot scale from 0, so we set replicas to 1
+		if getDeployReplicas(deployment) == 0 {
+			deployment.Spec.Replicas = int32Ptr(1)
+		}
 	}
 	deployment.Spec.Strategy = updater.GetDeploymentStrategy()
 	if updater.GetMilvus().IsRollingUpdateEnabled() {
