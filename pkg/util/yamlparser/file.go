@@ -13,6 +13,9 @@ var UserYamlPath = "/milvus/configs/operator/user.yaml"
 
 type UserYaml struct {
 	Minio struct {
+		Address       string `yaml:"address"`
+		Port          int    `yaml:"port"`
+		UseSSL        bool   `yaml:"useSSL"`
 		UseIAM        bool   `yaml:"useIAM"`
 		CloudProvider string `yaml:"cloudProvider"`
 		AccessKeyID   string `yaml:"accessKeyID"`
