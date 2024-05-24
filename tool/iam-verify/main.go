@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -36,6 +37,11 @@ func main() {
 				StorageAccount: userYaml.Minio.AccessKeyID,
 				ContainerName:  userYaml.Minio.BucketName,
 			})
+		}
+	case "aws":
+		verifyFunc = func(ctx context.Context) error {
+			address := fmt.Sprintf("%s:%d", userYaml.Minio.Address, userYaml.Minio.Port)
+			return iam.VerifyAWS(ctx, userYaml.Minio.BucketName, address, userYaml.Minio.UseSSL)
 		}
 	default:
 		log.Printf("iam-verify for csp %s not implement, assume success\n", userYaml.Minio.CloudProvider)
