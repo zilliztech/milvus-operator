@@ -43,6 +43,11 @@ func main() {
 			address := fmt.Sprintf("%s:%d", userYaml.Minio.Address, userYaml.Minio.Port)
 			return iam.VerifyAWS(ctx, userYaml.Minio.BucketName, address, userYaml.Minio.UseSSL)
 		}
+	case "aliyun":
+		verifyFunc = func(ctx context.Context) error {
+			address := fmt.Sprintf("%s:%d", userYaml.Minio.Address, userYaml.Minio.Port)
+			return iam.VerifyAliyun(ctx, userYaml.Minio.BucketName, address, userYaml.Minio.UseSSL)
+		}
 	default:
 		log.Printf("iam-verify for csp %s not implement, assume success\n", userYaml.Minio.CloudProvider)
 		os.Exit(0)
