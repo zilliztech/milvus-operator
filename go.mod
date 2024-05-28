@@ -23,6 +23,7 @@ require (
 	github.com/prometheus/client_golang v1.11.1
 	github.com/segmentio/kafka-go v0.4.39
 	github.com/stretchr/testify v1.8.4
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.865
 	go.etcd.io/etcd/api/v3 v3.5.0
 	go.etcd.io/etcd/client/v3 v3.5.0
 	golang.org/x/mod v0.8.0
