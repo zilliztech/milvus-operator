@@ -12,33 +12,33 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-//go:generate mockgen -package=controllers -source=query_node.go -destination=./query_node_mock.go QueryNodeController,QueryNodeControllerBiz,DeployModeChanger
+//go:generate mockgen -package=controllers -source=deploy_ctrl.go -destination=./deploy_ctrl_mock.go DeployController,DeployControllerBiz,DeployModeChanger
 
-// QueryNodeController controls milvus cluster querynode deployments
-type QueryNodeController interface {
+// DeployController controls milvus deployments
+type DeployController interface {
 	Reconcile(context.Context, v1beta1.Milvus, MilvusComponent) error
 }
 
-var _ QueryNodeController = &QueryNodeControllerImpl{}
+var _ DeployController = &DeployControllerImpl{}
 
-// QueryNodeControllerImpl is the implementation of QueryNodeController
-type QueryNodeControllerImpl struct {
-	biz                     QueryNodeControllerBiz
-	oneDeployModeController QueryNodeController
+// DeployControllerImpl is the implementation of DeployController
+type DeployControllerImpl struct {
+	biz                     DeployControllerBiz
+	oneDeployModeController DeployController
 }
 
-var querynodeCtrlLogger = ctrl.Log.WithName("querynode-ctrl")
+var deployCtrlLogger = ctrl.Log.WithName("deploy-ctrl")
 
-// NewQueryNodeController returns a QueryNodeController
-func NewQueryNodeController(biz QueryNodeControllerBiz, oneDeployModeController QueryNodeController) *QueryNodeControllerImpl {
-	return &QueryNodeControllerImpl{
+// NewDeployController returns a DeployController
+func NewDeployController(biz DeployControllerBiz, oneDeployModeController DeployController) *DeployControllerImpl {
+	return &DeployControllerImpl{
 		biz:                     biz,
 		oneDeployModeController: oneDeployModeController,
 	}
 }
 
-func (c *QueryNodeControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus, _ MilvusComponent) error {
-	logger := querynodeCtrlLogger.WithValues("milvus", mc.Name)
+func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus, _ MilvusComponent) error {
+	logger := deployCtrlLogger.WithValues("milvus", mc.Name)
 	ctx = ctrl.LoggerInto(ctx, logger)
 	rollingMode, err := c.biz.CheckAndUpdateRollingMode(ctx, mc)
 	if err != nil {
@@ -98,8 +98,8 @@ func (c *QueryNodeControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milv
 	return nil
 }
 
-// QueryNodeControllerBiz are the business logics of QueryNodeController, abstracted for unit test
-type QueryNodeControllerBiz interface {
+// DeployControllerBiz are the business logics of DeployController, abstracted for unit test
+type DeployControllerBiz interface {
 	// backward compatible logic
 	CheckAndUpdateRollingMode(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error)
 	IsUpdating(ctx context.Context, mc v1beta1.Milvus) (bool, error)
@@ -118,18 +118,18 @@ type DeployModeChanger interface {
 	ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error
 }
 
-var _ QueryNodeControllerBiz = &QueryNodeControllerBizImpl{}
+var _ DeployControllerBiz = &DeployControllerBizImpl{}
 
-// QueryNodeControllerBizImpl implements QueryNodeControllerBiz
-type QueryNodeControllerBizImpl struct {
+// DeployControllerBizImpl implements DeployControllerBiz
+type DeployControllerBizImpl struct {
 	DeployModeChanger
 	statusSyncer MilvusStatusSyncerInterface
-	util         QueryNodeControllerBizUtil
+	util         DeployControllerBizUtil
 	cli          client.Client
 }
 
-func NewQueryNodeControllerBizImpl(statusSyncer MilvusStatusSyncerInterface, util QueryNodeControllerBizUtil, modeChanger DeployModeChanger, cli client.Client) *QueryNodeControllerBizImpl {
-	return &QueryNodeControllerBizImpl{
+func NewDeployControllerBizImpl(statusSyncer MilvusStatusSyncerInterface, util DeployControllerBizUtil, modeChanger DeployModeChanger, cli client.Client) *DeployControllerBizImpl {
+	return &DeployControllerBizImpl{
 		DeployModeChanger: modeChanger,
 		statusSyncer:      statusSyncer,
 		util:              util,
@@ -137,7 +137,7 @@ func NewQueryNodeControllerBizImpl(statusSyncer MilvusStatusSyncerInterface, uti
 	}
 }
 
-func (c *QueryNodeControllerBizImpl) CheckAndUpdateRollingMode(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error) {
+func (c *DeployControllerBizImpl) CheckAndUpdateRollingMode(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error) {
 	switch mc.Status.RollingMode {
 	case v1beta1.RollingModeV1:
 		return mc.Status.RollingMode, nil
@@ -160,7 +160,7 @@ func (c *QueryNodeControllerBizImpl) CheckAndUpdateRollingMode(ctx context.Conte
 	return mode, errors.Wrapf(ErrRequeue, "updating status rolling mode to %d", mode)
 }
 
-func (c *QueryNodeControllerBizImpl) checkRollingModeInCluster(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error) {
+func (c *DeployControllerBizImpl) checkRollingModeInCluster(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error) {
 	_, err := c.util.GetOldQueryNodeDeploy(ctx, mc)
 	if err == nil {
 		return v1beta1.RollingModeV1, nil
@@ -171,7 +171,7 @@ func (c *QueryNodeControllerBizImpl) checkRollingModeInCluster(ctx context.Conte
 	return v1beta1.RollingModeNotSet, errors.Wrap(err, "get querynode deployments")
 }
 
-func (c *QueryNodeControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Milvus) (bool, error) {
+func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Milvus) (bool, error) {
 	if v1beta1.Labels().IsChangeQueryNodeMode(mc) {
 		return false, nil
 	}
@@ -196,14 +196,14 @@ func (c *QueryNodeControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.
 
 }
 
-func (c *QueryNodeControllerBizImpl) IsPaused(ctx context.Context, mc v1beta1.Milvus) bool {
+func (c *DeployControllerBizImpl) IsPaused(ctx context.Context, mc v1beta1.Milvus) bool {
 	if mc.Spec.Com.Paused {
 		return true
 	}
 	return mc.Spec.Com.QueryNode.Paused
 }
 
-func (c *QueryNodeControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.Milvus) error {
+func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.Milvus) error {
 	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "get querynode deploys")
@@ -223,7 +223,7 @@ func (c *QueryNodeControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta
 	return nil
 }
 
-func (c *QueryNodeControllerBizImpl) handleStop(ctx context.Context, currentDeploy, lastDeploy *appsv1.Deployment) error {
+func (c *DeployControllerBizImpl) handleStop(ctx context.Context, currentDeploy, lastDeploy *appsv1.Deployment) error {
 	err := c.stopDeployIfNot(ctx, currentDeploy)
 	if err != nil {
 		return errors.Wrap(err, "stop current deployment")
@@ -232,7 +232,7 @@ func (c *QueryNodeControllerBizImpl) handleStop(ctx context.Context, currentDepl
 	return errors.Wrap(err, "stop last deployment")
 }
 
-func (c *QueryNodeControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy *appsv1.Deployment) error {
+func (c *DeployControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy *appsv1.Deployment) error {
 	if deploy != nil {
 		if getDeployReplicas(deploy) != 0 {
 			deploy.Spec.Replicas = int32Ptr(0)
@@ -245,7 +245,7 @@ func (c *QueryNodeControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy
 	return nil
 }
 
-func (c *QueryNodeControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.Milvus) error {
+func (c *DeployControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.Milvus) error {
 	expectedReplicasPtr := QueryNode.GetReplicas(mc.Spec)
 	expectedReplicas := ReplicasValue(expectedReplicasPtr)
 	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
@@ -283,7 +283,7 @@ func (c *QueryNodeControllerBizImpl) HandleScaling(ctx context.Context, mc v1bet
 	return c.cli.Update(ctx, currentDeploy)
 }
 
-func (c *QueryNodeControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.Milvus) error {
+func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.Milvus) error {
 	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "get querynode deploys")

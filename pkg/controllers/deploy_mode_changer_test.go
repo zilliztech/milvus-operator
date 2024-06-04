@@ -19,7 +19,7 @@ func TestDeployModeChangerImpl_MarkDeployModeChanging(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(ctrl)
+	mockUtil := NewMockDeployControllerBizUtil(ctrl)
 	changer := NewDeployModeChanger(mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
@@ -50,7 +50,7 @@ func TestDeployModeChangerImpl_ChangeRollingModeToV2(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(ctrl)
+	mockUtil := NewMockDeployControllerBizUtil(ctrl)
 	changer := NewDeployModeChanger(mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
@@ -100,7 +100,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldDeploy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(ctrl)
+	mockUtil := NewMockDeployControllerBizUtil(ctrl)
 	changer := NewDeployModeChanger(mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
@@ -149,7 +149,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(ctrl)
+	mockUtil := NewMockDeployControllerBizUtil(ctrl)
 	changer := NewDeployModeChanger(mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
@@ -201,7 +201,7 @@ func TestDeployModeChangerImpl_UpdateOldPodLabels(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(ctrl)
+	mockUtil := NewMockDeployControllerBizUtil(ctrl)
 	changer := NewDeployModeChanger(mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
@@ -236,7 +236,7 @@ func TestDeployModeChangerImpl_RecoverReplicaSets(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(ctrl)
+	mockUtil := NewMockDeployControllerBizUtil(ctrl)
 	changer := NewDeployModeChanger(mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Namespace = "ns"
@@ -296,7 +296,7 @@ func TestDeployModeChangerImpl_RecoverDeploy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(ctrl)
+	mockUtil := NewMockDeployControllerBizUtil(ctrl)
 	changer := NewDeployModeChanger(mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Namespace = "ns"
@@ -344,7 +344,7 @@ func TestDeployModeChangerImpl_UpdateStatusToV2(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(ctrl)
+	mockUtil := NewMockDeployControllerBizUtil(ctrl)
 	changer := NewDeployModeChanger(mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
