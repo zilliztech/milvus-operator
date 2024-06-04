@@ -17,11 +17,11 @@ var _ DeployModeChanger = &DeployModeChangerImpl{}
 
 type DeployModeChangerImpl struct {
 	cli                 client.Client
-	util                QueryNodeControllerBizUtil
+	util                DeployControllerBizUtil
 	changeModeToV2Steps []step
 }
 
-func NewDeployModeChanger(cli client.Client, util QueryNodeControllerBizUtil) *DeployModeChangerImpl {
+func NewDeployModeChanger(cli client.Client, util DeployControllerBizUtil) *DeployModeChangerImpl {
 	c := &DeployModeChangerImpl{
 		cli:  cli,
 		util: util,

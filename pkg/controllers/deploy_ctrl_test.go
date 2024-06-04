@@ -11,19 +11,19 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func TestQueryNodeControllerImpl_Reconcile(t *testing.T) {
+func TestDeployControllerImpl_Reconcile(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockBiz := NewMockQueryNodeControllerBiz(mockCtrl)
-	mockOneDeployModeController := NewMockQueryNodeController(mockCtrl)
+	mockBiz := NewMockDeployControllerBiz(mockCtrl)
+	mockOneDeployModeController := NewMockDeployController(mockCtrl)
 	mc := v1beta1.Milvus{}
-	queryNodeControllerImpl := NewQueryNodeController(mockBiz, mockOneDeployModeController)
+	DeployControllerImpl := NewDeployController(mockBiz, mockOneDeployModeController)
 	t.Cleanup(func() {
 		mockCtrl.Finish()
 	})
 	t.Run("check rolling mode failed", func(t *testing.T) {
 		mockBiz.EXPECT().CheckAndUpdateRollingMode(gomock.Any(), gomock.Any()).Return(v1beta1.RollingModeNotSet, errMock)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)
 	})
 
@@ -31,14 +31,14 @@ func TestQueryNodeControllerImpl_Reconcile(t *testing.T) {
 		mockBiz.EXPECT().CheckAndUpdateRollingMode(gomock.Any(), gomock.Any()).Return(v1beta1.RollingModeV1, nil)
 		mockBiz.EXPECT().IsUpdating(gomock.Any(), mc).Return(true, nil)
 		mockOneDeployModeController.EXPECT().Reconcile(gomock.Any(), mc, QueryNode).Return(nil)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.NoError(t, err)
 	})
 
 	t.Run("rolling mode v1 check updating failed", func(t *testing.T) {
 		mockBiz.EXPECT().CheckAndUpdateRollingMode(gomock.Any(), gomock.Any()).Return(v1beta1.RollingModeV1, nil)
 		mockBiz.EXPECT().IsUpdating(gomock.Any(), mc).Return(false, errMock)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)
 	})
 
@@ -46,7 +46,7 @@ func TestQueryNodeControllerImpl_Reconcile(t *testing.T) {
 		mockBiz.EXPECT().CheckAndUpdateRollingMode(gomock.Any(), gomock.Any()).Return(v1beta1.RollingModeV1, nil)
 		mockBiz.EXPECT().IsUpdating(gomock.Any(), mc).Return(false, nil)
 		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, true).Return(errMock)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)
 	})
 
@@ -55,7 +55,7 @@ func TestQueryNodeControllerImpl_Reconcile(t *testing.T) {
 		mockBiz.EXPECT().IsUpdating(gomock.Any(), mc).Return(false, nil)
 		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, true).Return(nil)
 		mockBiz.EXPECT().ChangeRollingModeToV2(gomock.Any(), mc).Return(errMock)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)
 	})
 
@@ -65,7 +65,7 @@ func TestQueryNodeControllerImpl_Reconcile(t *testing.T) {
 		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, true).Return(nil)
 		mockBiz.EXPECT().ChangeRollingModeToV2(gomock.Any(), mc).Return(nil)
 		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(ErrRequeue)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.True(t, errors.Is(err, ErrRequeue))
 	})
 
@@ -73,7 +73,7 @@ func TestQueryNodeControllerImpl_Reconcile(t *testing.T) {
 		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, false).Return(nil)
 		mockBiz.EXPECT().CheckAndUpdateRollingMode(gomock.Any(), gomock.Any()).Return(v1beta1.RollingModeV2, nil)
 		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(errMock)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)
 	})
 
@@ -82,7 +82,7 @@ func TestQueryNodeControllerImpl_Reconcile(t *testing.T) {
 		mockBiz.EXPECT().CheckAndUpdateRollingMode(gomock.Any(), gomock.Any()).Return(v1beta1.RollingModeV2, nil)
 		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(nil)
 		mockBiz.EXPECT().IsPaused(gomock.Any(), mc).Return(true)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.NoError(t, err)
 	})
 
@@ -92,7 +92,7 @@ func TestQueryNodeControllerImpl_Reconcile(t *testing.T) {
 		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(nil)
 		mockBiz.EXPECT().IsPaused(gomock.Any(), mc).Return(false)
 		mockBiz.EXPECT().HandleScaling(gomock.Any(), mc).Return(errMock)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)
 	})
 
@@ -103,7 +103,7 @@ func TestQueryNodeControllerImpl_Reconcile(t *testing.T) {
 		mockBiz.EXPECT().IsPaused(gomock.Any(), mc).Return(false)
 		mockBiz.EXPECT().HandleScaling(gomock.Any(), mc).Return(nil)
 		mockBiz.EXPECT().HandleRolling(gomock.Any(), mc).Return(errMock)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)
 	})
 
@@ -114,25 +114,25 @@ func TestQueryNodeControllerImpl_Reconcile(t *testing.T) {
 		mockBiz.EXPECT().IsPaused(gomock.Any(), mc).Return(false)
 		mockBiz.EXPECT().HandleScaling(gomock.Any(), mc).Return(nil)
 		mockBiz.EXPECT().HandleRolling(gomock.Any(), mc).Return(nil)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.NoError(t, err)
 	})
 
 	t.Run("unknown mode err", func(t *testing.T) {
 		mockBiz.EXPECT().CheckAndUpdateRollingMode(gomock.Any(), gomock.Any()).Return(v1beta1.RollingModeNotSet, nil)
-		err := queryNodeControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)
 	})
 }
 
-func TestQueryNodeControllerBizImpl_CheckAndUpdateRollingMode(t *testing.T) {
+func TestDeployControllerBizImpl_CheckAndUpdateRollingMode(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(mockCtrl)
+	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewQueryNodeControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	t.Run("status shows mode v1", func(t *testing.T) {
 		mc.Status.RollingMode = v1beta1.RollingModeV1
@@ -173,14 +173,14 @@ func TestQueryNodeControllerBizImpl_CheckAndUpdateRollingMode(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizImpl_IsUpdating(t *testing.T) {
+func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(mockCtrl)
+	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewQueryNodeControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	mc.Default()
 	t.Run("annotation shows already starts changing, so not updating", func(t *testing.T) {
@@ -265,10 +265,10 @@ func TestQueryNodeControllerBizImpl_IsUpdating(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizImpl_IsPaused(t *testing.T) {
+func TestDeployControllerBizImpl_IsPaused(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	bizImpl := NewQueryNodeControllerBizImpl(nil, nil, nil, nil)
+	bizImpl := NewDeployControllerBizImpl(nil, nil, nil, nil)
 	mc := v1beta1.Milvus{}
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
 	mc.Default()
@@ -288,14 +288,14 @@ func TestQueryNodeControllerBizImpl_IsPaused(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizImpl_HandleCreate(t *testing.T) {
+func TestDeployControllerBizImpl_HandleCreate(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(mockCtrl)
+	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewQueryNodeControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	deploy := appsv1.Deployment{}
 	t.Run("get querynode deploy failed", func(t *testing.T) {
@@ -335,14 +335,14 @@ func TestQueryNodeControllerBizImpl_HandleCreate(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizImpl_HandleScaling(t *testing.T) {
+func TestDeployControllerBizImpl_HandleScaling(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(mockCtrl)
+	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewQueryNodeControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	t.Run("get querynode deploy failed", func(t *testing.T) {
 		mockUtil.EXPECT().GetQueryNodeDeploys(ctx, mc).Return(nil, nil, errMock)
@@ -419,14 +419,14 @@ func TestQueryNodeControllerBizImpl_HandleScaling(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizImpl_HandleRolling(t *testing.T) {
+func TestDeployControllerBizImpl_HandleRolling(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
-	mockUtil := NewMockQueryNodeControllerBizUtil(mockCtrl)
+	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewQueryNodeControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	deploy := appsv1.Deployment{}
 	deploy2 := appsv1.Deployment{}

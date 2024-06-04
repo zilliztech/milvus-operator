@@ -52,7 +52,7 @@ type MilvusReconciler struct {
 	logger         logr.Logger
 	helmReconciler HelmReconciler
 	statusSyncer   MilvusStatusSyncerInterface
-	qnController   QueryNodeController
+	qnController   DeployController
 }
 
 //+kubebuilder:rbac:groups=milvus.io,resources=milvuses,verbs=get;list;watch;create;update;patch;delete
