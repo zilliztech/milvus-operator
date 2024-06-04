@@ -12,7 +12,7 @@ For quick start, install with one line command:
 ```shell
 helm install milvus-operator \
   -n milvus-operator --create-namespace \
-  https://github.com/zilliztech/milvus-operator/releases/download/v0.9.15/milvus-operator-0.9.15.tgz
+  https://github.com/zilliztech/milvus-operator/releases/download/v0.9.16/milvus-operator-0.9.16.tgz
 ```
 
 If you already have `cert-manager` v1.0+ installed which is not in its default configuration, you may encounter some error with the check of cert-manager installation. you can install with special options to disable the check:
@@ -20,7 +20,7 @@ If you already have `cert-manager` v1.0+ installed which is not in its default c
 ```
 helm install milvus-operator \
   -n milvus-operator --create-namespace \
-  https://github.com/zilliztech/milvus-operator/releases/download/v0.9.15/milvus-operator-0.9.15.tgz \
+  https://github.com/zilliztech/milvus-operator/releases/download/v0.9.16/milvus-operator-0.9.16.tgz \
   --set checker.disableCertManagerCheck=true
 ```
 
@@ -39,7 +39,7 @@ use helm commands to upgrade earlier milvus-operator to current version:
 
 ```shell
 helm upgrade -n milvus-operator milvus-operator --reuse-values \
-  https://github.com/zilliztech/milvus-operator/releases/download/v0.9.15/milvus-operator-0.9.15.tgz
+  https://github.com/zilliztech/milvus-operator/releases/download/v0.9.16/milvus-operator-0.9.16.tgz
 ```
 
 ## Delete operator
@@ -62,7 +62,7 @@ If you don't want to use helm you can also install with kubectl and raw manifest
 ## Installation
 It is recommended to install the milvus operator with a newest stable version
 ```shell
-kubectl apply -f https://github.com/zilliztech/milvus-operator/v0.9.15/deploy/manifests/deployment.yaml
+kubectl apply -f https://github.com/zilliztech/milvus-operator/v0.9.16/deploy/manifests/deployment.yaml
 ``` 
 
 Check the installed operators:
@@ -85,7 +85,7 @@ Same as installation, you can update the milvus operator with a newer version by
 Delete the milvus operator stack by the deployment manifest:
 
 ```shell
-kubectl delete -f https://github.com/zilliztech/milvus-operator/v0.9.15/deploy/manifests/deployment.yaml
+kubectl delete -f https://github.com/zilliztech/milvus-operator/v0.9.16/deploy/manifests/deployment.yaml
 ```
 
 Or delete the milvus operator stack by using makefile:
@@ -131,7 +131,7 @@ my-release-milvus  LoadBalancer  10.101.144.12  10.100.31.101  19530:31309/TCP,9
 
 The `EXTERNAL-IP` is the IP address of your Milvus instance. You can use this IP address to access your Milvus instance.
 
-Follow the [Hello Milvus Guide](https://milvus.io/docs/example_code.md)
+Follow the [Hello Milvus Guide](https://milvus.io/docs/quickstart.md)
 
 > Remember to change the `host` parameter to your `EXTERNAL-IP` of your Milvus instance. The `connect to server` code should be like`connections.connect("default", host="10.100.31.101", port="19530")` in my case.
 
