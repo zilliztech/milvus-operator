@@ -215,7 +215,7 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 	for _, component := range GetComponentsBySpec(mc.Spec) {
 		if mc.Spec.Mode != v1beta1.MilvusModeStandalone &&
 			component == QueryNode {
-			g.Go(WarppedReconcileComponentFunc(r.qnController.Reconcile, gtx, mc, component))
+			g.Go(WarppedReconcileComponentFunc(r.deployCtrl.Reconcile, gtx, mc, component))
 			continue
 		}
 		g.Go(WarppedReconcileComponentFunc(r.ReconcileComponentDeployment, gtx, mc, component))

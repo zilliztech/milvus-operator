@@ -188,6 +188,8 @@ const (
 	RollingModeV1
 	// this mode has 2 query node deployment, operator takes care of querynode rolling update
 	RollingModeV2
+	// this mode has 2 deployment for every component, operator takes care of their rolling update
+	RollingModeV3
 )
 
 type ComponentDeployStatus struct {

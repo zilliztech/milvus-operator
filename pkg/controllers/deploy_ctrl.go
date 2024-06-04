@@ -23,35 +23,36 @@ var _ DeployController = &DeployControllerImpl{}
 
 // DeployControllerImpl is the implementation of DeployController
 type DeployControllerImpl struct {
-	biz                     DeployControllerBiz
+	bizFactory              DeployControllerBizFactory
 	oneDeployModeController DeployController
 }
 
 var deployCtrlLogger = ctrl.Log.WithName("deploy-ctrl")
 
 // NewDeployController returns a DeployController
-func NewDeployController(biz DeployControllerBiz, oneDeployModeController DeployController) *DeployControllerImpl {
+func NewDeployController(bizFactory DeployControllerBizFactory, oneDeployModeController DeployController) *DeployControllerImpl {
 	return &DeployControllerImpl{
-		biz:                     biz,
+		bizFactory:              bizFactory,
 		oneDeployModeController: oneDeployModeController,
 	}
 }
 
-func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus, _ MilvusComponent) error {
+func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
 	logger := deployCtrlLogger.WithValues("milvus", mc.Name)
+	biz := c.bizFactory.GetBiz(component)
 	ctx = ctrl.LoggerInto(ctx, logger)
-	rollingMode, err := c.biz.CheckAndUpdateRollingMode(ctx, mc)
+	rollingMode, err := biz.CheckAndUpdateRollingMode(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "check and update rolling mode")
 	}
 	switch rollingMode {
 	case v1beta1.RollingModeV2:
-		err = c.biz.MarkDeployModeChanging(ctx, mc, false)
+		err = biz.MarkDeployModeChanging(ctx, mc, false)
 		if err != nil {
 			return err
 		}
 	case v1beta1.RollingModeV1:
-		isUpdating, err := c.biz.IsUpdating(ctx, mc)
+		isUpdating, err := biz.IsUpdating(ctx, mc)
 		if err != nil {
 			return errors.Wrap(err, "check if updating")
 		}
@@ -61,11 +62,11 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 			return c.oneDeployModeController.Reconcile(ctx, mc, QueryNode)
 		}
 
-		err = c.biz.MarkDeployModeChanging(ctx, mc, true)
+		err = biz.MarkDeployModeChanging(ctx, mc, true)
 		if err != nil {
 			return err
 		}
-		err = c.biz.ChangeRollingModeToV2(ctx, mc)
+		err = biz.ChangeRollingModeToV2(ctx, mc)
 		if err != nil {
 			return errors.Wrap(err, "change to two deployment mode")
 		}
@@ -76,21 +77,21 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 	}
 
 	// is already in two deployment mode
-	err = c.biz.HandleCreate(ctx, mc)
+	err = biz.HandleCreate(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "handle create")
 	}
 
-	if c.biz.IsPaused(ctx, mc) {
+	if biz.IsPaused(ctx, mc) {
 		return nil
 	}
 
-	err = c.biz.HandleScaling(ctx, mc)
+	err = biz.HandleScaling(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "handle scaling")
 	}
 
-	err = c.biz.HandleRolling(ctx, mc)
+	err = biz.HandleRolling(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "handle rolling")
 	}
@@ -122,14 +123,16 @@ var _ DeployControllerBiz = &DeployControllerBizImpl{}
 
 // DeployControllerBizImpl implements DeployControllerBiz
 type DeployControllerBizImpl struct {
+	component MilvusComponent
 	DeployModeChanger
 	statusSyncer MilvusStatusSyncerInterface
 	util         DeployControllerBizUtil
 	cli          client.Client
 }
 
-func NewDeployControllerBizImpl(statusSyncer MilvusStatusSyncerInterface, util DeployControllerBizUtil, modeChanger DeployModeChanger, cli client.Client) *DeployControllerBizImpl {
+func NewDeployControllerBizImpl(component MilvusComponent, statusSyncer MilvusStatusSyncerInterface, util DeployControllerBizUtil, modeChanger DeployModeChanger, cli client.Client) *DeployControllerBizImpl {
 	return &DeployControllerBizImpl{
+		component:         component,
 		DeployModeChanger: modeChanger,
 		statusSyncer:      statusSyncer,
 		util:              util,
@@ -139,9 +142,7 @@ func NewDeployControllerBizImpl(statusSyncer MilvusStatusSyncerInterface, util D
 
 func (c *DeployControllerBizImpl) CheckAndUpdateRollingMode(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error) {
 	switch mc.Status.RollingMode {
-	case v1beta1.RollingModeV1:
-		return mc.Status.RollingMode, nil
-	case v1beta1.RollingModeV2:
+	case v1beta1.RollingModeV1, v1beta1.RollingModeV2, v1beta1.RollingModeV3:
 		return mc.Status.RollingMode, nil
 	default:
 		// check it in the cluster

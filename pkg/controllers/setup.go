@@ -72,9 +72,9 @@ func SetupControllers(ctx context.Context, mgr manager.Manager, stopReconcilers 
 		k8sUtil := NewK8sUtil(mgr.GetClient())
 		bizUtil := NewDeployControllerBizUtil(mgr.GetClient(), k8sUtil)
 		modeChanger := NewDeployModeChanger(mgr.GetClient(), bizUtil)
-		qnBiz := NewDeployControllerBizImpl(statusSyncer, bizUtil, modeChanger, mgr.GetClient())
-		qnController := NewDeployController(qnBiz, NewCommonComponentReconciler(reconciler))
-		reconciler.qnController = qnController
+		deployCtrlBizFactory := NewDeployControllerBizFactory(modeChanger, statusSyncer, bizUtil, mgr.GetClient())
+		deployCtrl := NewDeployController(deployCtrlBizFactory, NewCommonComponentReconciler(reconciler))
+		reconciler.deployCtrl = deployCtrl
 		reconcilers["milvus"] = reconciler
 
 		reconcilers["milvusupgrade"] = NewMilvusUpgradeReconciler(mgr.GetClient(), mgr.GetScheme())

@@ -14,13 +14,15 @@ import (
 func TestDeployControllerImpl_Reconcile(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
+	mockFactory := NewMockDeployControllerBizFactory(mockCtrl)
 	mockBiz := NewMockDeployControllerBiz(mockCtrl)
 	mockOneDeployModeController := NewMockDeployController(mockCtrl)
 	mc := v1beta1.Milvus{}
-	DeployControllerImpl := NewDeployController(mockBiz, mockOneDeployModeController)
+	DeployControllerImpl := NewDeployController(mockFactory, mockOneDeployModeController)
 	t.Cleanup(func() {
 		mockCtrl.Finish()
 	})
+	mockFactory.EXPECT().GetBiz(QueryNode).Return(mockBiz).AnyTimes()
 	t.Run("check rolling mode failed", func(t *testing.T) {
 		mockBiz.EXPECT().CheckAndUpdateRollingMode(gomock.Any(), gomock.Any()).Return(v1beta1.RollingModeNotSet, errMock)
 		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
@@ -132,7 +134,7 @@ func TestDeployControllerBizImpl_CheckAndUpdateRollingMode(t *testing.T) {
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	t.Run("status shows mode v1", func(t *testing.T) {
 		mc.Status.RollingMode = v1beta1.RollingModeV1
@@ -180,7 +182,7 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	mc.Default()
 	t.Run("annotation shows already starts changing, so not updating", func(t *testing.T) {
@@ -268,7 +270,7 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 func TestDeployControllerBizImpl_IsPaused(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	bizImpl := NewDeployControllerBizImpl(nil, nil, nil, nil)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, nil, nil, nil, nil)
 	mc := v1beta1.Milvus{}
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
 	mc.Default()
@@ -295,7 +297,7 @@ func TestDeployControllerBizImpl_HandleCreate(t *testing.T) {
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	deploy := appsv1.Deployment{}
 	t.Run("get querynode deploy failed", func(t *testing.T) {
@@ -342,7 +344,7 @@ func TestDeployControllerBizImpl_HandleScaling(t *testing.T) {
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	t.Run("get querynode deploy failed", func(t *testing.T) {
 		mockUtil.EXPECT().GetQueryNodeDeploys(ctx, mc).Return(nil, nil, errMock)
@@ -426,7 +428,7 @@ func TestDeployControllerBizImpl_HandleRolling(t *testing.T) {
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	deploy := appsv1.Deployment{}
 	deploy2 := appsv1.Deployment{}
