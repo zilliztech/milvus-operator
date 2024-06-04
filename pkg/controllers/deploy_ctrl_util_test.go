@@ -24,12 +24,12 @@ func init() {
 	v1beta1.AddToScheme(scheme)
 }
 
-func TestQueryNodeControllerBizUtilImpl_RenderPodTemplateWithoutGroupID(t *testing.T) {
+func TestDeployControllerBizUtilImpl_RenderPodTemplateWithoutGroupID(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	mc := v1beta1.Milvus{}
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
@@ -43,12 +43,12 @@ func TestQueryNodeControllerBizUtilImpl_RenderPodTemplateWithoutGroupID(t *testi
 	assert.Equal(t, template.Labels[v1beta1.MilvusIOLabelQueryNodeGroupId], "")
 }
 
-func TestQueryNodeControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
+func TestDeployControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -115,12 +115,12 @@ func TestQueryNodeControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_SaveObject(t *testing.T) {
+func TestDeployControllerBizUtilImpl_SaveObject(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -149,12 +149,12 @@ func TestQueryNodeControllerBizUtilImpl_SaveObject(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_GetSavedObject(t *testing.T) {
+func TestDeployControllerBizUtilImpl_GetSavedObject(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -216,12 +216,12 @@ func TestQueryNodeControllerBizUtilImpl_GetSavedObject(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
+func TestDeployControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -315,12 +315,12 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 
 }
 
-func TestQueryNodeControllerBizUtilImpl_CreateQueryNodeDeploy(t *testing.T) {
+func TestDeployControllerBizUtilImpl_CreateQueryNodeDeploy(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -354,12 +354,12 @@ func TestQueryNodeControllerBizUtilImpl_CreateQueryNodeDeploy(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_ShouldRollback(t *testing.T) {
+func TestDeployControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -412,12 +412,12 @@ func TestQueryNodeControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
+func TestDeployControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -532,12 +532,12 @@ func TestQueryNodeControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
 
 }
 
-func TestQueryNodeControllerBizUtilImpl_IsNewRollout(t *testing.T) {
+func TestDeployControllerBizUtilImpl_IsNewRollout(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -572,12 +572,12 @@ func TestQueryNodeControllerBizUtilImpl_IsNewRollout(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
+func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	ctx := context.Background()
 	milvus := v1beta1.Milvus{}
@@ -764,12 +764,12 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_PrepareNewRollout(t *testing.T) {
+func TestDeployControllerBizUtilImpl_PrepareNewRollout(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
