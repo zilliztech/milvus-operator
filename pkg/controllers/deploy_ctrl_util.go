@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
@@ -10,13 +9,10 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 )
 
 //go:generate mockgen -package=controllers -source=deploy_ctrl_util.go -destination=./deploy_ctrl_util_mock.go DeployControllerBizUtil,K8sUtil
@@ -24,12 +20,6 @@ import (
 // DeployControllerBizUtil are the business logics of DeployControllerBizImpl, abstracted for unit test
 type DeployControllerBizUtil interface {
 	RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent) *corev1.PodTemplateSpec
-
-	GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (*appsv1.Deployment, error)
-	// SaveObject in controllerrevision
-	SaveObject(ctx context.Context, mc v1beta1.Milvus, name string, obj runtime.Object) error
-	// GetObject from controllerrevision
-	GetSavedObject(ctx context.Context, key client.ObjectKey, obj interface{}) error
 
 	GetQueryNodeDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error)
 	// CreateQueryNodeDeploy with replica = 0
@@ -51,9 +41,18 @@ type K8sUtil interface {
 	// CreateObject if not exist
 	CreateObject(ctx context.Context, obj client.Object) error
 	OrphanDelete(ctx context.Context, obj client.Object) error
-	MarkMilvusQueryNodeGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error
+	MarkMilvusComponentGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error
 	UpdateAndRequeue(ctx context.Context, obj client.Object) error
+
+	// save object
+
+	// SaveObject in controllerrevision
+	SaveObject(ctx context.Context, mc v1beta1.Milvus, name string, obj runtime.Object) error
+	// GetObject from controllerrevision
+	GetSavedObject(ctx context.Context, key client.ObjectKey, obj interface{}) error
+
 	// read
+	GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (*appsv1.Deployment, error)
 	ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus) (appsv1.ReplicaSetList, error)
 	ListOldPods(ctx context.Context, mc v1beta1.Milvus) ([]corev1.Pod, error)
 	ListDeployPods(ctx context.Context, deploy *appsv1.Deployment) ([]corev1.Pod, error)
@@ -68,13 +67,15 @@ var _ DeployControllerBizUtil = &DeployControllerBizUtilImpl{}
 
 type DeployControllerBizUtilImpl struct {
 	K8sUtil
-	cli client.Client
+	component MilvusComponent
+	cli       client.Client
 }
 
-func NewDeployControllerBizUtil(cli client.Client, k8sUtil K8sUtil) *DeployControllerBizUtilImpl {
+func NewDeployControllerBizUtil(component MilvusComponent, cli client.Client, k8sUtil K8sUtil) *DeployControllerBizUtilImpl {
 	return &DeployControllerBizUtilImpl{
-		K8sUtil: k8sUtil,
-		cli:     cli,
+		component: component,
+		K8sUtil:   k8sUtil,
+		cli:       cli,
 	}
 }
 
@@ -87,62 +88,6 @@ func (c *DeployControllerBizUtilImpl) RenderPodTemplateWithoutGroupID(mc v1beta1
 	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponentName())
 	updatePodTemplate(updater, ret, appLabels, currentTemplate == nil)
 	return ret
-}
-
-func (c *DeployControllerBizUtilImpl) GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (*appsv1.Deployment, error) {
-	deployList := appsv1.DeploymentList{}
-	labels := NewComponentAppLabels(mc.Name, component.Name)
-	err := c.cli.List(ctx, &deployList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
-	if err != nil {
-		return nil, errors.Wrapf(err, "list %s deployments", component.Name)
-	}
-	var deploys = []appsv1.Deployment{}
-	for _, deploy := range deployList.Items {
-		if v1beta1.Labels().GetLabelQueryNodeGroupID(&deploy) == "" {
-			deploys = append(deploys, deploy)
-		}
-	}
-	if len(deploys) > 1 {
-		return nil, errors.Errorf("unexpected: more than 1 old %s deployment found %d, admin please fix this, leave only 1 deployment", component.Name, len(deploys))
-	}
-	if len(deploys) < 1 {
-		return nil, kerrors.NewNotFound(schema.GroupResource{
-			Group:    appsv1.SchemeGroupVersion.Group,
-			Resource: "deployments",
-		}, fmt.Sprintf("component=%s,instance=%s", component.Name, mc.Name))
-	}
-	return &deploys[0], nil
-}
-
-// SaveObject in controllerrevision
-func (c *DeployControllerBizUtilImpl) SaveObject(ctx context.Context, mc v1beta1.Milvus, name string, obj runtime.Object) error {
-	controllerRevision := &appsv1.ControllerRevision{}
-	controllerRevision.Namespace = mc.Namespace
-	controllerRevision.Name = name
-	controllerRevision.Revision = 1
-	data, err := json.Marshal(obj)
-	if err != nil {
-		return errors.Wrap(err, "marshal to-save object")
-	}
-	controllerRevision.Data.Raw = data
-	err = ctrl.SetControllerReference(&mc, controllerRevision, c.cli.Scheme())
-	if err != nil {
-		return errors.Wrap(err, "set controller reference")
-	}
-	return c.CreateObject(ctx, controllerRevision)
-}
-
-func (c *DeployControllerBizUtilImpl) GetSavedObject(ctx context.Context, key client.ObjectKey, obj interface{}) error {
-	controllerRevision := &appsv1.ControllerRevision{}
-	err := c.cli.Get(ctx, key, controllerRevision)
-	if err != nil {
-		return errors.Wrap(err, "get saved object")
-	}
-	err = yaml.Unmarshal(controllerRevision.Data.Raw, obj)
-	if err != nil {
-		return errors.Wrap(err, "unmarshal saved object")
-	}
-	return nil
 }
 
 func (c *DeployControllerBizUtilImpl) GetQueryNodeDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error) {
@@ -305,7 +250,7 @@ func (c *DeployControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1.Mi
 	if err != nil {
 		return errors.Wrap(err, "get deployment group id")
 	}
-	err = c.MarkMilvusQueryNodeGroupId(ctx, mc, groupId)
+	err = c.MarkMilvusComponentGroupId(ctx, mc, groupId)
 	if err != nil {
 		return errors.Wrap(err, "mark milvus querynode group id to ")
 	}

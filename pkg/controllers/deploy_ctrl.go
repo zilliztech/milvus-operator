@@ -215,7 +215,7 @@ func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.M
 		if lastDeploy != nil {
 			groupId = 1
 		}
-		err := c.util.MarkMilvusQueryNodeGroupId(ctx, mc, groupId)
+		err := c.util.MarkMilvusComponentGroupId(ctx, mc, groupId)
 		if err != nil {
 			return errors.Wrapf(err, "mark milvus querynode group id to %d", groupId)
 		}

@@ -87,14 +87,14 @@ func TestK8sUtilImpl_MarkMilvusQueryNodeGroupId(t *testing.T) {
 	mc.Annotations = map[string]string{}
 	t.Run("no need to update", func(t *testing.T) {
 		v1beta1.Labels().SetCurrentQueryNodeGroupID(&mc, 1)
-		err := k8sUtilImpl.MarkMilvusQueryNodeGroupId(ctx, mc, 1)
+		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, 1)
 		assert.NoError(t, err)
 	})
 
 	t.Run("update ok", func(t *testing.T) {
 		v1beta1.Labels().SetCurrentQueryNodeGroupID(&mc, 1)
 		mockK8sCli.EXPECT().Update(gomock.Any(), &mc).Return(nil)
-		err := k8sUtilImpl.MarkMilvusQueryNodeGroupId(ctx, mc, 2)
+		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, 2)
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, ErrRequeue))
 	})
@@ -102,7 +102,7 @@ func TestK8sUtilImpl_MarkMilvusQueryNodeGroupId(t *testing.T) {
 	t.Run("update failed", func(t *testing.T) {
 		v1beta1.Labels().SetCurrentQueryNodeGroupID(&mc, 1)
 		mockK8sCli.EXPECT().Update(gomock.Any(), &mc).Return(errMock)
-		err := k8sUtilImpl.MarkMilvusQueryNodeGroupId(ctx, mc, 2)
+		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, 2)
 		assert.Error(t, err)
 	})
 }

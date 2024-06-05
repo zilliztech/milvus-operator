@@ -15,23 +15,23 @@ var _ DeployControllerBizFactory = &DeployControllerBizFactoryImpl{}
 type DeployControllerBizFactoryImpl struct {
 	modeChangerFactory DeployModeChangerFactory
 	statusSyncer       MilvusStatusSyncerInterface
-	util               DeployControllerBizUtil
+	utilFactory        DeployControllerBizUtilFactory
 	cli                client.Client
 }
 
 // NewDeployControllerBizFactory creates a new DeployControllerBizFactory
-func NewDeployControllerBizFactory(modeChangerFactory DeployModeChangerFactory, statusSyncer MilvusStatusSyncerInterface, util DeployControllerBizUtil, cli client.Client) *DeployControllerBizFactoryImpl {
+func NewDeployControllerBizFactory(modeChangerFactory DeployModeChangerFactory, statusSyncer MilvusStatusSyncerInterface, utilFactory DeployControllerBizUtilFactory, cli client.Client) *DeployControllerBizFactoryImpl {
 	return &DeployControllerBizFactoryImpl{
 		modeChangerFactory: modeChangerFactory,
 		statusSyncer:       statusSyncer,
-		util:               util,
+		utilFactory:        utilFactory,
 		cli:                cli,
 	}
 }
 
 // GetBiz get DeployControllerBiz for the given component
 func (f *DeployControllerBizFactoryImpl) GetBiz(component MilvusComponent) DeployControllerBiz {
-	return NewDeployControllerBizImpl(component, f.statusSyncer, f.util, f.modeChangerFactory.GetDeployModeChanger(component), f.cli)
+	return NewDeployControllerBizImpl(component, f.statusSyncer, f.utilFactory.GetBizUtil(component), f.modeChangerFactory.GetDeployModeChanger(component), f.cli)
 }
 
 type DeployModeChangerFactory interface {
@@ -42,10 +42,10 @@ var _ DeployModeChangerFactory = &DeployModeChangerFactoryImpl{}
 
 type DeployModeChangerFactoryImpl struct {
 	cli  client.Client
-	util DeployControllerBizUtil
+	util K8sUtil
 }
 
-func NewDeployModeChangerFactory(cli client.Client, util DeployControllerBizUtil) *DeployModeChangerFactoryImpl {
+func NewDeployModeChangerFactory(cli client.Client, util K8sUtil) *DeployModeChangerFactoryImpl {
 	return &DeployModeChangerFactoryImpl{
 		cli:  cli,
 		util: util,
@@ -54,4 +54,26 @@ func NewDeployModeChangerFactory(cli client.Client, util DeployControllerBizUtil
 
 func (f *DeployModeChangerFactoryImpl) GetDeployModeChanger(component MilvusComponent) DeployModeChanger {
 	return NewDeployModeChanger(component, f.cli, f.util)
+}
+
+type DeployControllerBizUtilFactory interface {
+	GetBizUtil(component MilvusComponent) DeployControllerBizUtil
+}
+
+var _ DeployControllerBizUtilFactory = &DeployControllerBizUtilFactoryImpl{}
+
+type DeployControllerBizUtilFactoryImpl struct {
+	cli     client.Client
+	k8sUtil K8sUtil
+}
+
+func NewDeployControllerBizUtilFactory(cli client.Client, k8sUtil K8sUtil) *DeployControllerBizUtilFactoryImpl {
+	return &DeployControllerBizUtilFactoryImpl{
+		cli:     cli,
+		k8sUtil: k8sUtil,
+	}
+}
+
+func (f *DeployControllerBizUtilFactoryImpl) GetBizUtil(component MilvusComponent) DeployControllerBizUtil {
+	return NewDeployControllerBizUtil(component, f.cli, f.k8sUtil)
 }

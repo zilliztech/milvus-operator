@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
@@ -10,7 +12,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 var _ K8sUtil = &K8sUtilImpl{}
@@ -23,6 +29,62 @@ func NewK8sUtil(cli client.Client) *K8sUtilImpl {
 	return &K8sUtilImpl{
 		cli: cli,
 	}
+}
+
+func (c *K8sUtilImpl) GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (*appsv1.Deployment, error) {
+	deployList := appsv1.DeploymentList{}
+	labels := NewComponentAppLabels(mc.Name, component.Name)
+	err := c.cli.List(ctx, &deployList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
+	if err != nil {
+		return nil, errors.Wrapf(err, "list %s deployments", component.Name)
+	}
+	var deploys = []appsv1.Deployment{}
+	for _, deploy := range deployList.Items {
+		if v1beta1.Labels().GetLabelQueryNodeGroupID(&deploy) == "" {
+			deploys = append(deploys, deploy)
+		}
+	}
+	if len(deploys) > 1 {
+		return nil, errors.Errorf("unexpected: more than 1 old %s deployment found %d, admin please fix this, leave only 1 deployment", component.Name, len(deploys))
+	}
+	if len(deploys) < 1 {
+		return nil, kerrors.NewNotFound(schema.GroupResource{
+			Group:    appsv1.SchemeGroupVersion.Group,
+			Resource: "deployments",
+		}, fmt.Sprintf("component=%s,instance=%s", component.Name, mc.Name))
+	}
+	return &deploys[0], nil
+}
+
+// SaveObject in controllerrevision
+func (c *K8sUtilImpl) SaveObject(ctx context.Context, mc v1beta1.Milvus, name string, obj runtime.Object) error {
+	controllerRevision := &appsv1.ControllerRevision{}
+	controllerRevision.Namespace = mc.Namespace
+	controllerRevision.Name = name
+	controllerRevision.Revision = 1
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return errors.Wrap(err, "marshal to-save object")
+	}
+	controllerRevision.Data.Raw = data
+	err = ctrl.SetControllerReference(&mc, controllerRevision, c.cli.Scheme())
+	if err != nil {
+		return errors.Wrap(err, "set controller reference")
+	}
+	return c.CreateObject(ctx, controllerRevision)
+}
+
+func (c *K8sUtilImpl) GetSavedObject(ctx context.Context, key client.ObjectKey, obj interface{}) error {
+	controllerRevision := &appsv1.ControllerRevision{}
+	err := c.cli.Get(ctx, key, controllerRevision)
+	if err != nil {
+		return errors.Wrap(err, "get saved object")
+	}
+	err = yaml.Unmarshal(controllerRevision.Data.Raw, obj)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal saved object")
+	}
+	return nil
 }
 
 func (c *K8sUtilImpl) CreateObject(ctx context.Context, obj client.Object) error {
@@ -48,7 +110,7 @@ func (c *K8sUtilImpl) OrphanDelete(ctx context.Context, obj client.Object) error
 	return ErrRequeue
 }
 
-func (c *K8sUtilImpl) MarkMilvusQueryNodeGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error {
+func (c *K8sUtilImpl) MarkMilvusComponentGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error {
 	groupIdStr := strconv.Itoa(groupId)
 	if v1beta1.Labels().GetCurrentQueryNodeGroupId(&mc) == groupIdStr {
 		return nil

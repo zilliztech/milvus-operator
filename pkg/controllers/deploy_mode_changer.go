@@ -18,11 +18,11 @@ var _ DeployModeChanger = &DeployModeChangerImpl{}
 type DeployModeChangerImpl struct {
 	component           MilvusComponent
 	cli                 client.Client
-	util                DeployControllerBizUtil
+	util                K8sUtil
 	changeModeToV2Steps []step
 }
 
-func NewDeployModeChanger(component MilvusComponent, cli client.Client, util DeployControllerBizUtil) *DeployModeChangerImpl {
+func NewDeployModeChanger(component MilvusComponent, cli client.Client, util K8sUtil) *DeployModeChangerImpl {
 	c := &DeployModeChangerImpl{
 		component: component,
 		cli:       cli,
