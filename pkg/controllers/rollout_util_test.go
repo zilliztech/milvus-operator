@@ -13,6 +13,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 var errMockNotFound = kerrors.NewNotFound(corev1.Resource("pod"), "test-pod")
@@ -297,5 +298,110 @@ func TestGetDeploymentGroupId(t *testing.T) {
 		groupId, err := GetDeploymentGroupId(deploy)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, groupId)
+	})
+}
+
+func TestK8sUtilImpl_SaveObject(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockK8sCli := NewMockK8sClient(mockCtrl)
+	k8sUtilImpl := NewK8sUtil(mockK8sCli)
+
+	ctx := context.Background()
+	mc := v1beta1.Milvus{}
+	mc.Namespace = "ns1"
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	obj := appsv1.ReplicaSet{}
+	obj.Namespace = mc.Namespace
+
+	t.Cleanup(func() {
+		mockCtrl.Finish()
+	})
+	t.Run("save failed", func(t *testing.T) {
+		mockK8sCli.EXPECT().Scheme().Return(scheme)
+		mockK8sCli.EXPECT().Get(
+			gomock.Any(), gomock.Any(),
+			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision)),
+		).Return(errMock)
+		err := k8sUtilImpl.SaveObject(ctx, mc, "name", &obj)
+		assert.Error(t, err)
+	})
+
+	t.Run("save ok", func(t *testing.T) {
+		mockK8sCli.EXPECT().Scheme().Return(scheme)
+		mockK8sCli.EXPECT().Get(
+			gomock.Any(), gomock.Any(),
+			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision)),
+		).Return(nil)
+		err := k8sUtilImpl.SaveObject(ctx, mc, "name", &obj)
+		assert.NoError(t, err)
+	})
+}
+
+func TestK8sUtilImpl_GetSavedObject(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockK8sCli := NewMockK8sClient(mockCtrl)
+	k8sUtilImpl := NewK8sUtil(mockK8sCli)
+
+	ctx := context.Background()
+	mc := v1beta1.Milvus{}
+	mc.Namespace = "ns1"
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	obj := appsv1.ReplicaSet{}
+	obj.Name = mc.Name
+	obj.Generation = 1
+
+	controllerrevision := appsv1.ControllerRevision{}
+	controllerrevision.Name = "name"
+	controllerrevision.Namespace = mc.Namespace
+	var err error
+	controllerrevision.Data.Raw, err = yaml.Marshal(&obj)
+	assert.NoError(t, err)
+
+	t.Cleanup(func() {
+		mockCtrl.Finish()
+	})
+	t.Run("get failed", func(t *testing.T) {
+		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
+		mockK8sCli.EXPECT().Get(ctx, key,
+			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
+			Return(errMock)
+		ret := &appsv1.ReplicaSet{}
+		err = k8sUtilImpl.GetSavedObject(ctx, key, ret)
+		assert.Error(t, err)
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
+		mockK8sCli.EXPECT().Get(ctx, key,
+			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+				*obj.(*appsv1.ControllerRevision) = controllerrevision
+				return nil
+			})
+		ret := &appsv1.ReplicaSet{}
+		err = k8sUtilImpl.GetSavedObject(ctx, key, ret)
+		assert.NoError(t, err)
+		assert.Equal(t, obj.Name, ret.Name)
+		assert.Equal(t, obj.Generation, ret.Generation)
+	})
+
+	t.Run("deserialize failed", func(t *testing.T) {
+		controllerrevision.Data.Raw = []byte("invalid yaml")
+		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
+		mockK8sCli.EXPECT().Get(ctx, key,
+			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+				*obj.(*appsv1.ControllerRevision) = controllerrevision
+				return nil
+			})
+		ret := &corev1.Pod{}
+		err = k8sUtilImpl.GetSavedObject(ctx, key, ret)
+		assert.Error(t, err)
 	})
 }

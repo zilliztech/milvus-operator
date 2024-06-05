@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 )
 
 var scheme *runtime.Scheme
@@ -113,107 +112,6 @@ func TestDeployControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 			})
 		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.NoError(t, err)
-	})
-}
-
-func TestDeployControllerBizUtilImpl_SaveObject(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	mockcli := NewMockK8sClient(mockCtrl)
-	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewDeployControllerBizUtil(QueryNode, mockcli, mockutil)
-
-	ctx := context.Background()
-	mc := v1beta1.Milvus{}
-	mc.Namespace = "ns1"
-	mc.Spec.Mode = v1beta1.MilvusModeCluster
-	mc.Default()
-
-	obj := appsv1.ReplicaSet{}
-	obj.Namespace = mc.Namespace
-
-	t.Cleanup(func() {
-		mockCtrl.Finish()
-	})
-	t.Run("save failed", func(t *testing.T) {
-		mockcli.EXPECT().Scheme().Return(scheme)
-		mockutil.EXPECT().CreateObject(ctx, gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).Return(errMock)
-		err := bizUtil.SaveObject(ctx, mc, "name", &obj)
-		assert.Error(t, err)
-	})
-
-	t.Run("save ok", func(t *testing.T) {
-		mockcli.EXPECT().Scheme().Return(scheme)
-		mockutil.EXPECT().CreateObject(ctx, gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).Return(nil)
-		err := bizUtil.SaveObject(ctx, mc, "name", &obj)
-		assert.NoError(t, err)
-	})
-}
-
-func TestDeployControllerBizUtilImpl_GetSavedObject(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	mockcli := NewMockK8sClient(mockCtrl)
-	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewDeployControllerBizUtil(QueryNode, mockcli, mockutil)
-
-	ctx := context.Background()
-	mc := v1beta1.Milvus{}
-	mc.Namespace = "ns1"
-	mc.Spec.Mode = v1beta1.MilvusModeCluster
-	mc.Default()
-
-	obj := appsv1.ReplicaSet{}
-	obj.Name = mc.Name
-	obj.Generation = 1
-
-	controllerrevision := appsv1.ControllerRevision{}
-	controllerrevision.Name = "name"
-	controllerrevision.Namespace = mc.Namespace
-	var err error
-	controllerrevision.Data.Raw, err = yaml.Marshal(&obj)
-	assert.NoError(t, err)
-
-	t.Cleanup(func() {
-		mockCtrl.Finish()
-	})
-	t.Run("get failed", func(t *testing.T) {
-		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
-		mockcli.EXPECT().Get(ctx, key,
-			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
-			Return(errMock)
-		ret := &appsv1.ReplicaSet{}
-		err = bizUtil.GetSavedObject(ctx, key, ret)
-		assert.Error(t, err)
-	})
-
-	t.Run("ok", func(t *testing.T) {
-		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
-		mockcli.EXPECT().Get(ctx, key,
-			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
-			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-				*obj.(*appsv1.ControllerRevision) = controllerrevision
-				return nil
-			})
-		ret := &appsv1.ReplicaSet{}
-		err = bizUtil.GetSavedObject(ctx, key, ret)
-		assert.NoError(t, err)
-		assert.Equal(t, obj.Name, ret.Name)
-		assert.Equal(t, obj.Generation, ret.Generation)
-	})
-
-	t.Run("deserialize failed", func(t *testing.T) {
-		controllerrevision.Data.Raw = []byte("invalid yaml")
-		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
-		mockcli.EXPECT().Get(ctx, key,
-			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
-			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-				*obj.(*appsv1.ControllerRevision) = controllerrevision
-				return nil
-			})
-		ret := &corev1.Pod{}
-		err = bizUtil.GetSavedObject(ctx, key, ret)
-		assert.Error(t, err)
 	})
 }
 
