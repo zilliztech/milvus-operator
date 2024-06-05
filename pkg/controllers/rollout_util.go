@@ -40,7 +40,7 @@ func (c *K8sUtilImpl) GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, compo
 	}
 	var deploys = []appsv1.Deployment{}
 	for _, deploy := range deployList.Items {
-		if v1beta1.Labels().GetLabelQueryNodeGroupID(&deploy) == "" {
+		if v1beta1.Labels().GetLabelGroupID(&deploy) == "" {
 			deploys = append(deploys, deploy)
 		}
 	}
@@ -112,10 +112,10 @@ func (c *K8sUtilImpl) OrphanDelete(ctx context.Context, obj client.Object) error
 
 func (c *K8sUtilImpl) MarkMilvusComponentGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error {
 	groupIdStr := strconv.Itoa(groupId)
-	if v1beta1.Labels().GetCurrentQueryNodeGroupId(&mc) == groupIdStr {
+	if v1beta1.Labels().GetCurrentGroupId(&mc) == groupIdStr {
 		return nil
 	}
-	v1beta1.Labels().SetCurrentQueryNodeGroupID(&mc, groupId)
+	v1beta1.Labels().SetCurrentGroupID(&mc, groupId)
 	return c.UpdateAndRequeue(ctx, &mc)
 }
 
@@ -138,7 +138,7 @@ func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus)
 	ret.Items = []appsv1.ReplicaSet{}
 	labelhelper := v1beta1.Labels()
 	for _, rs := range replicasetList.Items {
-		if labelhelper.GetLabelQueryNodeGroupID(&rs) == "" {
+		if labelhelper.GetLabelGroupID(&rs) == "" {
 			ret.Items = append(ret.Items, rs)
 		}
 	}
@@ -155,7 +155,7 @@ func (c *K8sUtilImpl) ListOldPods(ctx context.Context, mc v1beta1.Milvus) ([]cor
 	ret := []corev1.Pod{}
 	labelhelper := v1beta1.Labels()
 	for _, pod := range podList.Items {
-		if labelhelper.GetLabelQueryNodeGroupID(&pod) == "" {
+		if labelhelper.GetLabelGroupID(&pod) == "" {
 			ret = append(ret, pod)
 		}
 	}
@@ -217,7 +217,7 @@ func logicAnd(b ...bool) (result bool, falseIndex int) {
 }
 
 func GetDeploymentGroupId(deploy *appsv1.Deployment) (int, error) {
-	groupId, err := strconv.Atoi(v1beta1.Labels().GetLabelQueryNodeGroupID(deploy))
+	groupId, err := strconv.Atoi(v1beta1.Labels().GetLabelGroupID(deploy))
 	if err != nil {
 		return 0, errors.Wrap(err, "parse querynode group id")
 	}

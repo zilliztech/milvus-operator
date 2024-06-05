@@ -99,7 +99,7 @@ func (c *DeployControllerBizUtilImpl) GetQueryNodeDeploys(ctx context.Context, m
 	}
 	var items = []*appsv1.Deployment{}
 	for i := range deploys.Items {
-		if v1beta1.Labels().GetLabelQueryNodeGroupID(&deploys.Items[i]) != "" {
+		if v1beta1.Labels().GetLabelGroupID(&deploys.Items[i]) != "" {
 			items = append(items, &deploys.Items[i])
 		}
 	}
@@ -114,7 +114,7 @@ func (c *DeployControllerBizUtilImpl) GetQueryNodeDeploys(ctx context.Context, m
 	}
 	var current, last *appsv1.Deployment
 	labelHelper := v1beta1.Labels()
-	if labelHelper.GetLabelQueryNodeGroupID(items[0]) == labelHelper.GetCurrentQueryNodeGroupId(&mc) {
+	if labelHelper.GetLabelGroupID(items[0]) == labelHelper.GetCurrentGroupId(&mc) {
 		current = items[0]
 		last = items[1]
 	} else {
@@ -141,7 +141,7 @@ func (c *DeployControllerBizUtilImpl) CreateQueryNodeDeploy(ctx context.Context,
 		return errors.Wrap(err, "set controller reference")
 	}
 	labels := NewComponentAppLabels(mc.Name, QueryNode.Name)
-	v1beta1.Labels().SetQueryNodeGroupID(labels, groupId)
+	v1beta1.Labels().SetGroupID(labels, groupId)
 	deploy.Labels = labels
 	deploy.Spec.Selector = &metav1.LabelSelector{
 		MatchLabels: labels,
@@ -169,18 +169,18 @@ func (c *DeployControllerBizUtilImpl) ShouldRollback(ctx context.Context, curren
 	}
 	labelHelper := v1beta1.Labels()
 	podTemplateCopy := podTemplate.DeepCopy()
-	groupIdStr := labelHelper.GetLabelQueryNodeGroupID(currentDeploy)
-	labelHelper.SetQueryNodeGroupIDStr(podTemplateCopy.Labels, groupIdStr)
+	groupIdStr := labelHelper.GetLabelGroupID(currentDeploy)
+	labelHelper.SetGroupIDStr(podTemplateCopy.Labels, groupIdStr)
 	if IsEqual(currentDeploy.Spec.Template, *podTemplateCopy) {
 		return false
 	}
-	groupIdStr = labelHelper.GetLabelQueryNodeGroupID(lastDeploy)
-	labelHelper.SetQueryNodeGroupIDStr(podTemplateCopy.Labels, groupIdStr)
+	groupIdStr = labelHelper.GetLabelGroupID(lastDeploy)
+	labelHelper.SetGroupIDStr(podTemplateCopy.Labels, groupIdStr)
 	return IsEqual(lastDeploy.Spec.Template, *podTemplateCopy)
 }
 
 func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) (bool, error) {
-	if !v1beta1.Labels().IsQueryNodeRolling(mc) {
+	if !v1beta1.Labels().IsComponentRolling(mc) {
 		return true, nil
 	}
 	// assume currentDeployment & lastDeployment not nil
@@ -211,7 +211,7 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	)
 	if !deploymentShowsRolloutFinished {
 		logger := ctrl.LoggerFrom(ctx)
-		logger.Info("rollout not finished", "id", v1beta1.Labels().GetQueryNodeRollingId(mc), "reason", reasons[failedIndex])
+		logger.Info("rollout not finished", "id", v1beta1.Labels().GetComponentRollingId(mc), "reason", reasons[failedIndex])
 		return false, nil
 	}
 	// make sure all old pods are down
@@ -223,8 +223,8 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 		return false, nil
 	}
 	logger := ctrl.LoggerFrom(ctx)
-	logger.Info("rollout finished", "id", v1beta1.Labels().GetQueryNodeRollingId(mc))
-	v1beta1.Labels().SetQueryNodeRolling(&mc, false)
+	logger.Info("rollout finished", "id", v1beta1.Labels().GetComponentRollingId(mc))
+	v1beta1.Labels().SetComponentRolling(&mc, false)
 	return false, c.UpdateAndRequeue(ctx, &mc)
 }
 
@@ -232,8 +232,8 @@ func (c *DeployControllerBizUtilImpl) IsNewRollout(ctx context.Context, currentD
 	labelHelper := v1beta1.Labels()
 	currentTemplateCopy := currentDeployment.Spec.Template.DeepCopy()
 	podTemplateCopy := podTemplate.DeepCopy()
-	labelHelper.SetQueryNodeGroupIDStr(currentTemplateCopy.Labels, "")
-	labelHelper.SetQueryNodeGroupIDStr(podTemplateCopy.Labels, "")
+	labelHelper.SetGroupIDStr(currentTemplateCopy.Labels, "")
+	labelHelper.SetGroupIDStr(podTemplateCopy.Labels, "")
 	isNewRollout := !IsEqual(currentTemplateCopy, podTemplateCopy)
 	if isNewRollout {
 		diff := util.DiffStr(currentTemplateCopy, podTemplateCopy)
@@ -316,17 +316,17 @@ func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc 
 			return errors.Wrap(err, "create new deploy for rolling failed")
 		}
 	} else {
-		currentGroupIdStr = labelHelper.GetLabelQueryNodeGroupID(currentDeployment)
+		currentGroupIdStr = labelHelper.GetLabelGroupID(currentDeployment)
 		logger.Info("prepare new rollout stage 2", "deployGroupId", currentGroupIdStr, "podTemplateDiff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
 		currentDeployment.Spec.Template = *podTemplate
-		labelHelper.SetQueryNodeGroupIDStr(currentDeployment.Spec.Template.Labels, currentGroupIdStr)
+		labelHelper.SetGroupIDStr(currentDeployment.Spec.Template.Labels, currentGroupIdStr)
 		err := c.cli.Update(ctx, currentDeployment)
 		if err != nil {
 			return errors.Wrap(err, "update current deploy for rolling failed")
 		}
 	}
 	logger.Info("prepare new rollout stage 3: set milvus current querynode group id, set rolling to true", "currentGroupId", currentGroupIdStr)
-	labelHelper.SetCurrentQueryNodeGroupIDStr(&mc, currentGroupIdStr)
-	labelHelper.SetQueryNodeRolling(&mc, true)
+	labelHelper.SetCurrentGroupIDStr(&mc, currentGroupIdStr)
+	labelHelper.SetComponentRolling(&mc, true)
 	return c.UpdateAndRequeue(ctx, &mc)
 }

@@ -274,7 +274,7 @@ func (c *DeployControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.
 		currentDeploy.Spec.Replicas = int32Ptr(currentDeployReplicas + diffReplicas)
 		return c.cli.Update(ctx, currentDeploy)
 	}
-	if v1beta1.Labels().IsQueryNodeRolling(mc) {
+	if v1beta1.Labels().IsComponentRolling(mc) {
 		// scale down is not allowed in rolling mode
 		return nil
 	}

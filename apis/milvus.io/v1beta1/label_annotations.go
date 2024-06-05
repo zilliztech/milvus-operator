@@ -63,7 +63,7 @@ func (LabelsImpl) SetChangingMode(m *Milvus, component string, changing bool) {
 	delete(m.Annotations, getChangingModeLabel(component))
 }
 
-func (LabelsImpl) GetLabelQueryNodeGroupID(obj client.Object) string {
+func (LabelsImpl) GetLabelGroupID(obj client.Object) string {
 	labels := obj.GetLabels()
 	if len(labels) < 1 {
 		return ""
@@ -71,15 +71,15 @@ func (LabelsImpl) GetLabelQueryNodeGroupID(obj client.Object) string {
 	return labels[MilvusIOLabelQueryNodeGroupId]
 }
 
-func (l LabelsImpl) SetQueryNodeGroupID(labels map[string]string, groupId int) {
-	l.SetQueryNodeGroupIDStr(labels, strconv.Itoa(groupId))
+func (l LabelsImpl) SetGroupID(labels map[string]string, groupId int) {
+	l.SetGroupIDStr(labels, strconv.Itoa(groupId))
 }
 
-func (l LabelsImpl) SetQueryNodeGroupIDStr(labels map[string]string, groupIdStr string) {
+func (l LabelsImpl) SetGroupIDStr(labels map[string]string, groupIdStr string) {
 	labels[MilvusIOLabelQueryNodeGroupId] = groupIdStr
 }
 
-func (LabelsImpl) GetCurrentQueryNodeGroupId(m *Milvus) string {
+func (LabelsImpl) GetCurrentGroupId(m *Milvus) string {
 	annot := m.GetAnnotations()
 	if len(annot) < 1 {
 		return ""
@@ -87,24 +87,24 @@ func (LabelsImpl) GetCurrentQueryNodeGroupId(m *Milvus) string {
 	return annot[MilvusIOAnnotationCurrentQueryNodeGroupId]
 }
 
-func (l LabelsImpl) SetCurrentQueryNodeGroupID(m *Milvus, groupId int) {
-	l.SetCurrentQueryNodeGroupIDStr(m, strconv.Itoa(groupId))
+func (l LabelsImpl) SetCurrentGroupID(m *Milvus, groupId int) {
+	l.SetCurrentGroupIDStr(m, strconv.Itoa(groupId))
 }
 
-func (LabelsImpl) SetCurrentQueryNodeGroupIDStr(m *Milvus, groupId string) {
+func (LabelsImpl) SetCurrentGroupIDStr(m *Milvus, groupId string) {
 	m.Annotations[MilvusIOAnnotationCurrentQueryNodeGroupId] = groupId
 }
 
-// IsQueryNodeRolling: if not empty, it means the query node has no rolling in progress
-func (LabelsImpl) IsQueryNodeRolling(m Milvus) bool {
+// IsComponentRolling: if not empty, it means the component has no rolling in progress
+func (LabelsImpl) IsComponentRolling(m Milvus) bool {
 	return len(m.Labels[MilvusIOLabelQueryNodeRolling]) > 0
 }
 
-func (LabelsImpl) GetQueryNodeRollingId(m Milvus) string {
+func (LabelsImpl) GetComponentRollingId(m Milvus) string {
 	return m.Labels[MilvusIOLabelQueryNodeRolling]
 }
 
-func (LabelsImpl) SetQueryNodeRolling(m *Milvus, rolling bool) {
+func (LabelsImpl) SetComponentRolling(m *Milvus, rolling bool) {
 	if rolling {
 		if len(m.Labels[MilvusIOLabelQueryNodeRolling]) == 0 {
 			m.Labels[MilvusIOLabelQueryNodeRolling] = strconv.Itoa(int(m.GetGeneration()))
