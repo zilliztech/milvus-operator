@@ -9,11 +9,11 @@ import (
 func TestLabelsImpl_IsChangeQueryNodeMode_SetChangingQueryNodeMode(t *testing.T) {
 	mc := Milvus{}
 	mc.Default()
-	assert.False(t, Labels().IsChangeQueryNodeMode(mc))
-	Labels().SetChangingQueryNodeMode(&mc, true)
-	assert.True(t, Labels().IsChangeQueryNodeMode(mc))
-	Labels().SetChangingQueryNodeMode(&mc, false)
-	assert.False(t, Labels().IsChangeQueryNodeMode(mc))
+	assert.False(t, Labels().IsChangingMode(mc, QueryNodeName))
+	Labels().SetChangingMode(&mc, QueryNodeName, true)
+	assert.True(t, Labels().IsChangingMode(mc, QueryNodeName))
+	Labels().SetChangingMode(&mc, QueryNodeName, false)
+	assert.False(t, Labels().IsChangingMode(mc, QueryNodeName))
 }
 
 func TestLabelsImpl_GetLabelQueryNodeGroupID_SetQueryNodeGroupID(t *testing.T) {

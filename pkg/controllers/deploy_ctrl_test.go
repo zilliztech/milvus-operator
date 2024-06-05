@@ -188,11 +188,11 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	mc.Default()
 	component := QueryNode
 	t.Run("annotation shows already starts changing, so not updating", func(t *testing.T) {
-		v1beta1.Labels().SetChangingQueryNodeMode(&mc, true)
+		v1beta1.Labels().SetChangingMode(&mc, QueryNodeName, true)
 		ret, err := bizImpl.IsUpdating(ctx, mc)
 		assert.NoError(t, err)
 		assert.False(t, ret)
-		v1beta1.Labels().SetChangingQueryNodeMode(&mc, false)
+		v1beta1.Labels().SetChangingMode(&mc, QueryNodeName, false)
 	})
 	t.Run("stopping not updating", func(t *testing.T) {
 		mc.Spec.Com.Standalone.Replicas = int32Ptr(0)

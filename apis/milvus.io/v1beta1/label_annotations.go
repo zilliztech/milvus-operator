@@ -1,6 +1,7 @@
 package v1beta1
 
 import (
+	"fmt"
 	"strconv"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +36,6 @@ const (
 	MilvusIOLabelQueryNodeRolling = MilvusIO + "querynode-rolling-id"
 	// query node rolling related annotations
 	MilvusIOAnnotationCurrentQueryNodeGroupId = MilvusIO + "current-querynode-group-id"
-	MilvusIOAnnotationChangingQueryNodeMode   = MilvusIO + "changing-querynode-mode"
 )
 
 // +kubebuilder:object:generate=false
@@ -47,16 +47,20 @@ func Labels() *LabelsImpl {
 	return singletonLabels
 }
 
-func (LabelsImpl) IsChangeQueryNodeMode(m Milvus) bool {
-	return m.Annotations[MilvusIOAnnotationChangingQueryNodeMode] == TrueStr
+func getChangingModeLabel(component string) string {
+	return fmt.Sprintf("%schanging-%s-mode", MilvusIO, component)
 }
 
-func (LabelsImpl) SetChangingQueryNodeMode(m *Milvus, changing bool) {
+func (LabelsImpl) IsChangingMode(m Milvus, component string) bool {
+	return m.Annotations[getChangingModeLabel(component)] == TrueStr
+}
+
+func (LabelsImpl) SetChangingMode(m *Milvus, component string, changing bool) {
 	if changing {
-		m.Annotations[MilvusIOAnnotationChangingQueryNodeMode] = TrueStr
+		m.Annotations[getChangingModeLabel(component)] = TrueStr
 		return
 	}
-	delete(m.Annotations, MilvusIOAnnotationChangingQueryNodeMode)
+	delete(m.Annotations, getChangingModeLabel(component))
 }
 
 func (LabelsImpl) GetLabelQueryNodeGroupID(obj client.Object) string {

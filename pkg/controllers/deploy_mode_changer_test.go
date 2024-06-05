@@ -23,7 +23,7 @@ func TestDeployModeChangerImpl_MarkDeployModeChanging(t *testing.T) {
 	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
-	v1beta1.Labels().SetChangingQueryNodeMode(&mc, true)
+	v1beta1.Labels().SetChangingMode(&mc, QueryNodeName, true)
 	ctx := context.Background()
 	changing := true
 	t.Run("already set ok", func(t *testing.T) {
@@ -32,14 +32,14 @@ func TestDeployModeChangerImpl_MarkDeployModeChanging(t *testing.T) {
 	})
 
 	t.Run("update failed", func(t *testing.T) {
-		v1beta1.Labels().SetChangingQueryNodeMode(&mc, false)
+		v1beta1.Labels().SetChangingMode(&mc, QueryNodeName, false)
 		mockUtil.EXPECT().UpdateAndRequeue(gomock.Any(), &mc).Return(errMock)
 		err := changer.MarkDeployModeChanging(ctx, mc, changing)
 		assert.True(t, errors.Is(err, errMock))
 	})
 
 	t.Run("update requeue ok", func(t *testing.T) {
-		v1beta1.Labels().SetChangingQueryNodeMode(&mc, false)
+		v1beta1.Labels().SetChangingMode(&mc, QueryNodeName, false)
 		mockUtil.EXPECT().UpdateAndRequeue(gomock.Any(), &mc).Return(ErrRequeue)
 		err := changer.MarkDeployModeChanging(ctx, mc, changing)
 		assert.True(t, errors.Is(err, ErrRequeue))

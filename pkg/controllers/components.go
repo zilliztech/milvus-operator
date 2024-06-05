@@ -22,16 +22,16 @@ const (
 
 	RestfulPortName = "restful"
 
-	MixCoordName   = "mixcoord"
-	RootCoordName  = "rootcoord"
-	DataCoordName  = "datacoord"
-	QueryCoordName = "querycoord"
-	IndexCoordName = "indexcoord"
-	DataNodeName   = "datanode"
-	QueryNodeName  = "querynode"
-	IndexNodeName  = "indexnode"
-	ProxyName      = "proxy"
-	StandaloneName = "standalone"
+	MixCoordName   = v1beta1.MixCoordName
+	RootCoordName  = v1beta1.RootCoordName
+	DataCoordName  = v1beta1.DataCoordName
+	QueryCoordName = v1beta1.QueryCoordName
+	IndexCoordName = v1beta1.IndexCoordName
+	DataNodeName   = v1beta1.DataNodeName
+	QueryNodeName  = v1beta1.QueryNodeName
+	IndexNodeName  = v1beta1.IndexNodeName
+	ProxyName      = v1beta1.ProxyName
+	StandaloneName = v1beta1.StandaloneName
 	MilvusName     = "milvus"
 
 	MixCoordFieldName   = "MixCoord"

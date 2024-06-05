@@ -173,7 +173,7 @@ func (c *DeployControllerBizImpl) checkRollingModeInCluster(ctx context.Context,
 }
 
 func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Milvus) (bool, error) {
-	if v1beta1.Labels().IsChangeQueryNodeMode(mc) {
+	if v1beta1.Labels().IsChangingMode(mc, c.component.Name) {
 		return false, nil
 	}
 	if mc.Spec.IsStopping() {

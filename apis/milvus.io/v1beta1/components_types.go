@@ -15,6 +15,17 @@ const (
 	QueryNode  ComponentType = "queryNode"
 	IndexNode  ComponentType = "indexNode"
 	Proxy      ComponentType = "proxy"
+
+	MixCoordName   = "mixcoord"
+	RootCoordName  = "rootcoord"
+	DataCoordName  = "datacoord"
+	QueryCoordName = "querycoord"
+	IndexCoordName = "indexcoord"
+	DataNodeName   = "datanode"
+	QueryNodeName  = "querynode"
+	IndexNodeName  = "indexnode"
+	ProxyName      = "proxy"
+	StandaloneName = "standalone"
 )
 
 var (

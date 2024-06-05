@@ -68,12 +68,12 @@ func (c *DeployModeChangerImpl) ChangeRollingModeToV2(ctx context.Context, mc v1
 }
 
 func (c *DeployModeChangerImpl) markChangingDeployMode(ctx context.Context, mc v1beta1.Milvus, changing bool) error {
-	if v1beta1.Labels().IsChangeQueryNodeMode(mc) == changing {
+	if v1beta1.Labels().IsChangingMode(mc, c.component.Name) == changing {
 		return nil
 	}
 	logger := ctrl.LoggerFrom(ctx)
 	logger.Info("marking changing deploy mode", "changing", changing)
-	v1beta1.Labels().SetChangingQueryNodeMode(&mc, changing)
+	v1beta1.Labels().SetChangingMode(&mc, c.component.Name, changing)
 	err := c.util.UpdateAndRequeue(ctx, &mc)
 	return errors.Wrap(err, "marking changing deploy mode")
 }
