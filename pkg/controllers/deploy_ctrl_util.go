@@ -41,7 +41,7 @@ type K8sUtil interface {
 	// CreateObject if not exist
 	CreateObject(ctx context.Context, obj client.Object) error
 	OrphanDelete(ctx context.Context, obj client.Object) error
-	MarkMilvusComponentGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error
+	MarkMilvusComponentGroupId(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent, groupId int) error
 	UpdateAndRequeue(ctx context.Context, obj client.Object) error
 
 	// save object
@@ -53,9 +53,9 @@ type K8sUtil interface {
 
 	// read
 	GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (*appsv1.Deployment, error)
-	ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus) (appsv1.ReplicaSetList, error)
-	ListOldPods(ctx context.Context, mc v1beta1.Milvus) ([]corev1.Pod, error)
-	ListDeployPods(ctx context.Context, deploy *appsv1.Deployment) ([]corev1.Pod, error)
+	ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (appsv1.ReplicaSetList, error)
+	ListOldPods(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) ([]corev1.Pod, error)
+	ListDeployPods(ctx context.Context, deploy *appsv1.Deployment, component MilvusComponent) ([]corev1.Pod, error)
 
 	// logic
 	// DeploymentIsStable returns whether deployment is stable
@@ -215,7 +215,7 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 		return false, nil
 	}
 	// make sure all old pods are down
-	pods, err := c.K8sUtil.ListDeployPods(ctx, lastDeployment)
+	pods, err := c.K8sUtil.ListDeployPods(ctx, lastDeployment, c.component)
 	if err != nil {
 		return false, err
 	}
@@ -250,12 +250,12 @@ func (c *DeployControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1.Mi
 	if err != nil {
 		return errors.Wrap(err, "get deployment group id")
 	}
-	err = c.MarkMilvusComponentGroupId(ctx, mc, groupId)
+	err = c.MarkMilvusComponentGroupId(ctx, mc, c.component, groupId)
 	if err != nil {
 		return errors.Wrap(err, "mark milvus querynode group id to ")
 	}
 
-	lastDeployPods, err := c.K8sUtil.ListDeployPods(ctx, lastDeployment)
+	lastDeployPods, err := c.K8sUtil.ListDeployPods(ctx, lastDeployment, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list last deploy pods")
 	}
@@ -264,7 +264,7 @@ func (c *DeployControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1.Mi
 		return errors.Wrapf(ErrRequeue, "last deploy is not stable[%s]", reason)
 	}
 
-	currentDeployPods, err := c.K8sUtil.ListDeployPods(ctx, currentDeployment)
+	currentDeployPods, err := c.K8sUtil.ListDeployPods(ctx, currentDeployment, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list current deploy pods")
 	}

@@ -156,14 +156,14 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 
 	ctx := context.Background()
 	t.Run("get list old replicasets failed", func(t *testing.T) {
-		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc).Return(appsv1.ReplicaSetList{}, errMock)
+		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc, QueryNode).Return(appsv1.ReplicaSetList{}, errMock)
 		err := changer.SaveDeleteOldReplicaSet(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
 	})
 
 	t.Run("save old replicasets failed", func(t *testing.T) {
 		replicasetList := appsv1.ReplicaSetList{}
-		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc).Return(replicasetList, nil)
+		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc, QueryNode).Return(replicasetList, nil)
 		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList).Return(errMock)
 		err := changer.SaveDeleteOldReplicaSet(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
@@ -171,7 +171,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 
 	t.Run("delete one old replicaset failed", func(t *testing.T) {
 		replicasetList := appsv1.ReplicaSetList{Items: []appsv1.ReplicaSet{{}, {}}}
-		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc).Return(replicasetList, nil)
+		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc, QueryNode).Return(replicasetList, nil)
 		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList).Return(nil)
 		mockUtil.EXPECT().OrphanDelete(ctx, &replicasetList.Items[0]).Return(errMock)
 		mockUtil.EXPECT().OrphanDelete(ctx, &replicasetList.Items[1]).Return(nil)
@@ -181,7 +181,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 
 	t.Run("delete one old replicaset ok", func(t *testing.T) {
 		replicasetList := appsv1.ReplicaSetList{Items: []appsv1.ReplicaSet{{}}}
-		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc).Return(replicasetList, nil)
+		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc, QueryNode).Return(replicasetList, nil)
 		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList).Return(nil)
 		mockUtil.EXPECT().OrphanDelete(ctx, &replicasetList.Items[0]).Return(nil)
 		err := changer.SaveDeleteOldReplicaSet(ctx, mc)
@@ -190,7 +190,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 
 	t.Run("no old replicaset ok", func(t *testing.T) {
 		replicasetList := appsv1.ReplicaSetList{}
-		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc).Return(replicasetList, nil)
+		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc, QueryNode).Return(replicasetList, nil)
 		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList).Return(nil)
 		err := changer.SaveDeleteOldReplicaSet(ctx, mc)
 		assert.NoError(t, err)
@@ -208,7 +208,7 @@ func TestDeployModeChangerImpl_UpdateOldPodLabels(t *testing.T) {
 
 	ctx := context.Background()
 	t.Run("list old pods failed", func(t *testing.T) {
-		mockUtil.EXPECT().ListOldPods(ctx, mc).Return(nil, errMock)
+		mockUtil.EXPECT().ListOldPods(ctx, mc, QueryNode).Return(nil, errMock)
 		err := changer.UpdateOldPodLabels(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
 	})
@@ -216,7 +216,7 @@ func TestDeployModeChangerImpl_UpdateOldPodLabels(t *testing.T) {
 	t.Run("update old pod labels failed", func(t *testing.T) {
 		pods := []corev1.Pod{{}}
 		pods[0].Labels = map[string]string{}
-		mockUtil.EXPECT().ListOldPods(ctx, mc).Return(pods, nil)
+		mockUtil.EXPECT().ListOldPods(ctx, mc, QueryNode).Return(pods, nil)
 		mockCli.EXPECT().Update(ctx, &pods[0]).Return(errMock)
 		err := changer.UpdateOldPodLabels(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
@@ -225,7 +225,7 @@ func TestDeployModeChangerImpl_UpdateOldPodLabels(t *testing.T) {
 	t.Run("update old pod labels ok", func(t *testing.T) {
 		pods := []corev1.Pod{{}}
 		pods[0].Labels = map[string]string{}
-		mockUtil.EXPECT().ListOldPods(ctx, mc).Return(pods, nil)
+		mockUtil.EXPECT().ListOldPods(ctx, mc, QueryNode).Return(pods, nil)
 		mockCli.EXPECT().Update(ctx, &pods[0]).Return(nil)
 		err := changer.UpdateOldPodLabels(ctx, mc)
 		assert.NoError(t, err)

@@ -110,7 +110,7 @@ func (c *K8sUtilImpl) OrphanDelete(ctx context.Context, obj client.Object) error
 	return ErrRequeue
 }
 
-func (c *K8sUtilImpl) MarkMilvusComponentGroupId(ctx context.Context, mc v1beta1.Milvus, groupId int) error {
+func (c *K8sUtilImpl) MarkMilvusComponentGroupId(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent, groupId int) error {
 	groupIdStr := strconv.Itoa(groupId)
 	if v1beta1.Labels().GetCurrentGroupId(&mc) == groupIdStr {
 		return nil
@@ -127,7 +127,7 @@ func (c *K8sUtilImpl) UpdateAndRequeue(ctx context.Context, obj client.Object) e
 	return errors.Wrap(ErrRequeue, "update and requeue")
 }
 
-func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus) (appsv1.ReplicaSetList, error) {
+func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (appsv1.ReplicaSetList, error) {
 	replicasetList := appsv1.ReplicaSetList{}
 	labels := NewComponentAppLabels(mc.Name, QueryNode.Name)
 	err := c.cli.List(ctx, &replicasetList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
@@ -145,7 +145,7 @@ func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus)
 	return ret, nil
 }
 
-func (c *K8sUtilImpl) ListOldPods(ctx context.Context, mc v1beta1.Milvus) ([]corev1.Pod, error) {
+func (c *K8sUtilImpl) ListOldPods(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) ([]corev1.Pod, error) {
 	podList := corev1.PodList{}
 	labels := NewComponentAppLabels(mc.Name, QueryNode.Name)
 	err := c.cli.List(ctx, &podList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
@@ -162,7 +162,7 @@ func (c *K8sUtilImpl) ListOldPods(ctx context.Context, mc v1beta1.Milvus) ([]cor
 	return ret, nil
 }
 
-func (c *K8sUtilImpl) ListDeployPods(ctx context.Context, deploy *appsv1.Deployment) ([]corev1.Pod, error) {
+func (c *K8sUtilImpl) ListDeployPods(ctx context.Context, deploy *appsv1.Deployment, component MilvusComponent) ([]corev1.Pod, error) {
 	pods := corev1.PodList{}
 	labels := deploy.Spec.Selector.MatchLabels
 	err := c.cli.List(ctx, &pods, client.InNamespace(deploy.Namespace), client.MatchingLabels(labels))

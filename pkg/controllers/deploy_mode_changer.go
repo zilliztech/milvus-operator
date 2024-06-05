@@ -97,7 +97,7 @@ func (c *DeployModeChangerImpl) SaveDeleteOldDeploy(ctx context.Context, mc v1be
 }
 
 func (c *DeployModeChangerImpl) SaveDeleteOldReplicaSet(ctx context.Context, mc v1beta1.Milvus) error {
-	replicasetList, err := c.util.ListOldReplicaSets(ctx, mc)
+	replicasetList, err := c.util.ListOldReplicaSets(ctx, mc, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list old replica sets")
 	}
@@ -116,7 +116,7 @@ func (c *DeployModeChangerImpl) SaveDeleteOldReplicaSet(ctx context.Context, mc 
 }
 
 func (c *DeployModeChangerImpl) UpdateOldPodLabels(ctx context.Context, mc v1beta1.Milvus) error {
-	pods, err := c.util.ListOldPods(ctx, mc)
+	pods, err := c.util.ListOldPods(ctx, mc, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list old pods")
 	}

@@ -87,14 +87,14 @@ func TestK8sUtilImpl_MarkMilvusQueryNodeGroupId(t *testing.T) {
 	mc.Annotations = map[string]string{}
 	t.Run("no need to update", func(t *testing.T) {
 		v1beta1.Labels().SetCurrentGroupID(&mc, 1)
-		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, 1)
+		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, QueryNode, 1)
 		assert.NoError(t, err)
 	})
 
 	t.Run("update ok", func(t *testing.T) {
 		v1beta1.Labels().SetCurrentGroupID(&mc, 1)
 		mockK8sCli.EXPECT().Update(gomock.Any(), &mc).Return(nil)
-		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, 2)
+		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, QueryNode, 2)
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, ErrRequeue))
 	})
@@ -102,7 +102,7 @@ func TestK8sUtilImpl_MarkMilvusQueryNodeGroupId(t *testing.T) {
 	t.Run("update failed", func(t *testing.T) {
 		v1beta1.Labels().SetCurrentGroupID(&mc, 1)
 		mockK8sCli.EXPECT().Update(gomock.Any(), &mc).Return(errMock)
-		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, 2)
+		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, QueryNode, 2)
 		assert.Error(t, err)
 	})
 }
@@ -133,7 +133,7 @@ func TestK8sUtilImpl_ListOldReplicaSets(t *testing.T) {
 				*(list.(*appsv1.ReplicaSetList)) = rsList
 				return nil
 			})
-		ret, err := k8sUtilImpl.ListOldReplicaSets(ctx, mc)
+		ret, err := k8sUtilImpl.ListOldReplicaSets(ctx, mc, QueryNode)
 		assert.NoError(t, err)
 		assert.Len(t, ret.Items, 1)
 		assert.Equal(t, "old", ret.Items[0].Name)
@@ -141,7 +141,7 @@ func TestK8sUtilImpl_ListOldReplicaSets(t *testing.T) {
 
 	t.Run("list failed", func(t *testing.T) {
 		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errMock)
-		_, err := k8sUtilImpl.ListOldReplicaSets(ctx, mc)
+		_, err := k8sUtilImpl.ListOldReplicaSets(ctx, mc, QueryNode)
 		assert.Error(t, err)
 	})
 }
@@ -172,7 +172,7 @@ func TestK8sUtilImpl_ListOldPods(t *testing.T) {
 				*(list.(*corev1.PodList)) = podList
 				return nil
 			})
-		ret, err := k8sUtilImpl.ListOldPods(ctx, mc)
+		ret, err := k8sUtilImpl.ListOldPods(ctx, mc, QueryNode)
 		assert.NoError(t, err)
 		assert.Len(t, ret, 1)
 		assert.Equal(t, "old", ret[0].Name)
@@ -180,7 +180,7 @@ func TestK8sUtilImpl_ListOldPods(t *testing.T) {
 
 	t.Run("list failed", func(t *testing.T) {
 		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errMock)
-		_, err := k8sUtilImpl.ListOldPods(ctx, mc)
+		_, err := k8sUtilImpl.ListOldPods(ctx, mc, QueryNode)
 		assert.Error(t, err)
 	})
 }
@@ -214,14 +214,14 @@ func TestK8sUtilImpl_ListDeployPods(t *testing.T) {
 				*(list.(*corev1.PodList)) = podList
 				return nil
 			})
-		ret, err := k8sUtilImpl.ListDeployPods(ctx, deploy)
+		ret, err := k8sUtilImpl.ListDeployPods(ctx, deploy, QueryNode)
 		assert.NoError(t, err)
 		assert.Len(t, ret, 2)
 	})
 
 	t.Run("list failed", func(t *testing.T) {
 		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errMock)
-		_, err := k8sUtilImpl.ListDeployPods(ctx, deploy)
+		_, err := k8sUtilImpl.ListDeployPods(ctx, deploy, QueryNode)
 		assert.Error(t, err)
 	})
 }
