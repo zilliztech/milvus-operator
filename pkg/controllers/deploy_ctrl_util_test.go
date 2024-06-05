@@ -54,6 +54,7 @@ func TestDeployControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 	mc := v1beta1.Milvus{}
 	mc.Namespace = "ns1"
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	component := QueryNode
 	mc.Default()
 
 	t.Cleanup(func() {
@@ -61,13 +62,13 @@ func TestDeployControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 	})
 	t.Run("list failed", func(t *testing.T) {
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).Return(errMock)
-		_, err := bizUtil.GetOldQueryNodeDeploy(ctx, mc)
+		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.Error(t, err)
 	})
 
 	t.Run("no deploy: not found", func(t *testing.T) {
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).Return(nil)
-		_, err := bizUtil.GetOldQueryNodeDeploy(ctx, mc)
+		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.Error(t, err)
 		assert.True(t, kerrors.IsNotFound(err))
 	})
@@ -81,7 +82,7 @@ func TestDeployControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
 			})
-		_, err := bizUtil.GetOldQueryNodeDeploy(ctx, mc)
+		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.Error(t, err)
 	})
 
@@ -96,7 +97,7 @@ func TestDeployControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
 			})
-		_, err := bizUtil.GetOldQueryNodeDeploy(ctx, mc)
+		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.Error(t, err)
 		assert.True(t, kerrors.IsNotFound(err))
 	})
@@ -110,7 +111,7 @@ func TestDeployControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
 			})
-		_, err := bizUtil.GetOldQueryNodeDeploy(ctx, mc)
+		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.NoError(t, err)
 	})
 }

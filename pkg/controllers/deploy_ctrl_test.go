@@ -136,6 +136,7 @@ func TestDeployControllerBizImpl_CheckAndUpdateRollingMode(t *testing.T) {
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
 	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
+	component := QueryNode
 	t.Run("status shows mode v1", func(t *testing.T) {
 		mc.Status.RollingMode = v1beta1.RollingModeV1
 		rollingMode, err := bizImpl.CheckAndUpdateRollingMode(ctx, mc)
@@ -151,14 +152,14 @@ func TestDeployControllerBizImpl_CheckAndUpdateRollingMode(t *testing.T) {
 		mc.Status.RollingMode = v1beta1.RollingModeNotSet
 	})
 	t.Run("check mode in cluster failed", func(t *testing.T) {
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(nil, errMock)
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(nil, errMock)
 		rollingMode, err := bizImpl.CheckAndUpdateRollingMode(ctx, mc)
 		assert.Error(t, err)
 		assert.Equal(t, v1beta1.RollingModeNotSet, rollingMode)
 	})
 
 	t.Run("update status failed", func(t *testing.T) {
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(nil, nil)
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(nil, nil)
 		mockCli.EXPECT().Status().Return(mockCli)
 		mockCli.EXPECT().Update(ctx, gomock.Any()).Return(errMock)
 		_, err := bizImpl.CheckAndUpdateRollingMode(ctx, mc)
@@ -166,7 +167,7 @@ func TestDeployControllerBizImpl_CheckAndUpdateRollingMode(t *testing.T) {
 	})
 
 	t.Run("update status ok", func(t *testing.T) {
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(nil, nil)
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(nil, nil)
 		mockCli.EXPECT().Status().Return(mockCli)
 		mockCli.EXPECT().Update(ctx, gomock.Any()).Return(nil)
 		_, err := bizImpl.CheckAndUpdateRollingMode(ctx, mc)
@@ -185,6 +186,7 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	mc.Default()
+	component := QueryNode
 	t.Run("annotation shows already starts changing, so not updating", func(t *testing.T) {
 		v1beta1.Labels().SetChangingQueryNodeMode(&mc, true)
 		ret, err := bizImpl.IsUpdating(ctx, mc)
@@ -235,7 +237,7 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 
 	t.Run("get old deploy failed", func(t *testing.T) {
 		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc).Return(nil)
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(nil, errMock)
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(nil, errMock)
 		_, err := bizImpl.IsUpdating(ctx, mc)
 		assert.Error(t, err)
 	})
@@ -244,7 +246,7 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc).Return(nil)
 		deploy := appsv1.Deployment{}
 
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(&deploy, nil)
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(&deploy, nil)
 		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(mc, gomock.Any(), QueryNode).Return(nil)
 		mockUtil.EXPECT().IsNewRollout(ctx, &deploy, gomock.Any()).Return(true)
 		ret, err := bizImpl.IsUpdating(ctx, mc)
@@ -257,7 +259,7 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc).Return(nil)
 		deploy := appsv1.Deployment{}
 
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(&deploy, nil)
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(&deploy, nil)
 		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(mc, gomock.Any(), QueryNode).Return(nil)
 		mockUtil.EXPECT().IsNewRollout(ctx, &deploy, gomock.Any()).Return(false)
 		ret, err := bizImpl.IsUpdating(ctx, mc)

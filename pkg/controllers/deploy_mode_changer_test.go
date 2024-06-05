@@ -20,7 +20,7 @@ func TestDeployModeChangerImpl_MarkDeployModeChanging(t *testing.T) {
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
 	mockUtil := NewMockDeployControllerBizUtil(ctrl)
-	changer := NewDeployModeChanger(mockCli, mockUtil)
+	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
 	v1beta1.Labels().SetChangingQueryNodeMode(&mc, true)
@@ -51,7 +51,7 @@ func TestDeployModeChangerImpl_ChangeRollingModeToV2(t *testing.T) {
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
 	mockUtil := NewMockDeployControllerBizUtil(ctrl)
-	changer := NewDeployModeChanger(mockCli, mockUtil)
+	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
 
@@ -101,20 +101,20 @@ func TestDeployModeChangerImpl_SaveDeleteOldDeploy(t *testing.T) {
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
 	mockUtil := NewMockDeployControllerBizUtil(ctrl)
-	changer := NewDeployModeChanger(mockCli, mockUtil)
+	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
 
 	ctx := context.Background()
 	t.Run("get old deploy failed", func(t *testing.T) {
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(nil, errMock)
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(nil, errMock)
 		err := changer.SaveDeleteOldDeploy(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
 	})
 
 	t.Run("save old deploy failed", func(t *testing.T) {
 		oldDeploy := &appsv1.Deployment{}
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(oldDeploy, nil)
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(oldDeploy, nil)
 		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldDeployName(mc), oldDeploy).Return(errMock)
 		err := changer.SaveDeleteOldDeploy(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
@@ -122,7 +122,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldDeploy(t *testing.T) {
 
 	t.Run("orphan delete old deploy failed", func(t *testing.T) {
 		oldDeploy := &appsv1.Deployment{}
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(oldDeploy, nil)
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(oldDeploy, nil)
 		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldDeployName(mc), oldDeploy).Return(nil)
 		mockUtil.EXPECT().OrphanDelete(ctx, oldDeploy).Return(errMock)
 		err := changer.SaveDeleteOldDeploy(ctx, mc)
@@ -131,7 +131,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldDeploy(t *testing.T) {
 
 	t.Run("orphan delete old deploy ok", func(t *testing.T) {
 		oldDeploy := &appsv1.Deployment{}
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(oldDeploy, nil)
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(oldDeploy, nil)
 		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldDeployName(mc), oldDeploy).Return(nil)
 		mockUtil.EXPECT().OrphanDelete(ctx, oldDeploy).Return(nil)
 		err := changer.SaveDeleteOldDeploy(ctx, mc)
@@ -139,7 +139,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldDeploy(t *testing.T) {
 	})
 
 	t.Run("old deploy not found, ok", func(t *testing.T) {
-		mockUtil.EXPECT().GetOldQueryNodeDeploy(ctx, mc).Return(nil, kerrors.NewNotFound(appsv1.Resource("deployments"), "old"))
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(nil, kerrors.NewNotFound(appsv1.Resource("deployments"), "old"))
 		err := changer.SaveDeleteOldDeploy(ctx, mc)
 		assert.NoError(t, err)
 	})
@@ -150,7 +150,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
 	mockUtil := NewMockDeployControllerBizUtil(ctrl)
-	changer := NewDeployModeChanger(mockCli, mockUtil)
+	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
 
@@ -202,7 +202,7 @@ func TestDeployModeChangerImpl_UpdateOldPodLabels(t *testing.T) {
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
 	mockUtil := NewMockDeployControllerBizUtil(ctrl)
-	changer := NewDeployModeChanger(mockCli, mockUtil)
+	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
 
@@ -237,7 +237,7 @@ func TestDeployModeChangerImpl_RecoverReplicaSets(t *testing.T) {
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
 	mockUtil := NewMockDeployControllerBizUtil(ctrl)
-	changer := NewDeployModeChanger(mockCli, mockUtil)
+	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Namespace = "ns"
 	mc.Default()
@@ -297,7 +297,7 @@ func TestDeployModeChangerImpl_RecoverDeploy(t *testing.T) {
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
 	mockUtil := NewMockDeployControllerBizUtil(ctrl)
-	changer := NewDeployModeChanger(mockCli, mockUtil)
+	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Namespace = "ns"
 	mc.Default()
@@ -345,7 +345,7 @@ func TestDeployModeChangerImpl_UpdateStatusToV2(t *testing.T) {
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
 	mockUtil := NewMockDeployControllerBizUtil(ctrl)
-	changer := NewDeployModeChanger(mockCli, mockUtil)
+	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
 	mc := v1beta1.Milvus{}
 	mc.Default()
 

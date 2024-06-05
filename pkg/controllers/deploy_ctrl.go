@@ -41,12 +41,12 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 	logger := deployCtrlLogger.WithValues("milvus", mc.Name)
 	biz := c.bizFactory.GetBiz(component)
 	ctx = ctrl.LoggerInto(ctx, logger)
-	rollingMode, err := biz.CheckAndUpdateRollingMode(ctx, mc)
+	componentRollingMode, err := biz.CheckAndUpdateRollingMode(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "check and update rolling mode")
 	}
-	switch rollingMode {
-	case v1beta1.RollingModeV2:
+	switch componentRollingMode {
+	case v1beta1.RollingModeV3, v1beta1.RollingModeV2:
 		err = biz.MarkDeployModeChanging(ctx, mc, false)
 		if err != nil {
 			return err
@@ -59,7 +59,7 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		if isUpdating {
 			logger.Info("one deployment mode, still updating")
 			//  fallback to one deployment mode controller
-			return c.oneDeployModeController.Reconcile(ctx, mc, QueryNode)
+			return c.oneDeployModeController.Reconcile(ctx, mc, component)
 		}
 
 		err = biz.MarkDeployModeChanging(ctx, mc, true)
@@ -71,7 +71,7 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 			return errors.Wrap(err, "change to two deployment mode")
 		}
 	default:
-		err = errors.Errorf("unknown rolling mode: %d", rollingMode)
+		err = errors.Errorf("unknown rolling mode: %d", componentRollingMode)
 		logger.Error(err, "check and update rolling mode")
 		return err
 	}
@@ -162,7 +162,7 @@ func (c *DeployControllerBizImpl) CheckAndUpdateRollingMode(ctx context.Context,
 }
 
 func (c *DeployControllerBizImpl) checkRollingModeInCluster(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error) {
-	_, err := c.util.GetOldQueryNodeDeploy(ctx, mc)
+	_, err := c.util.GetOldDeploy(ctx, mc, c.component)
 	if err == nil {
 		return v1beta1.RollingModeV1, nil
 	}
@@ -188,7 +188,7 @@ func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Mil
 		return true, nil
 	}
 
-	deploy, err := c.util.GetOldQueryNodeDeploy(ctx, mc)
+	deploy, err := c.util.GetOldDeploy(ctx, mc, c.component)
 	if err != nil {
 		return false, errors.Wrap(err, "get querynode deployments")
 	}

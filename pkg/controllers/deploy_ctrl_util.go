@@ -25,7 +25,7 @@ import (
 type DeployControllerBizUtil interface {
 	RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent) *corev1.PodTemplateSpec
 
-	GetOldQueryNodeDeploy(ctx context.Context, mc v1beta1.Milvus) (*appsv1.Deployment, error)
+	GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (*appsv1.Deployment, error)
 	// SaveObject in controllerrevision
 	SaveObject(ctx context.Context, mc v1beta1.Milvus, name string, obj runtime.Object) error
 	// GetObject from controllerrevision
@@ -89,12 +89,12 @@ func (c *DeployControllerBizUtilImpl) RenderPodTemplateWithoutGroupID(mc v1beta1
 	return ret
 }
 
-func (c *DeployControllerBizUtilImpl) GetOldQueryNodeDeploy(ctx context.Context, mc v1beta1.Milvus) (*appsv1.Deployment, error) {
+func (c *DeployControllerBizUtilImpl) GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (*appsv1.Deployment, error) {
 	deployList := appsv1.DeploymentList{}
-	labels := NewComponentAppLabels(mc.Name, QueryNode.Name)
+	labels := NewComponentAppLabels(mc.Name, component.Name)
 	err := c.cli.List(ctx, &deployList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
 	if err != nil {
-		return nil, errors.Wrap(err, "list querynode deployments")
+		return nil, errors.Wrapf(err, "list %s deployments", component.Name)
 	}
 	var deploys = []appsv1.Deployment{}
 	for _, deploy := range deployList.Items {
@@ -103,13 +103,13 @@ func (c *DeployControllerBizUtilImpl) GetOldQueryNodeDeploy(ctx context.Context,
 		}
 	}
 	if len(deploys) > 1 {
-		return nil, errors.Errorf("unexpected: more than 1 old querynode deployment found %d, admin please fix this, leave only 1 deployment", len(deploys))
+		return nil, errors.Errorf("unexpected: more than 1 old %s deployment found %d, admin please fix this, leave only 1 deployment", component.Name, len(deploys))
 	}
 	if len(deploys) < 1 {
 		return nil, kerrors.NewNotFound(schema.GroupResource{
 			Group:    appsv1.SchemeGroupVersion.Group,
 			Resource: "deployments",
-		}, fmt.Sprintf("component=querynode,instance=%s", mc.Name))
+		}, fmt.Sprintf("component=%s,instance=%s", component.Name, mc.Name))
 	}
 	return &deploys[0], nil
 }

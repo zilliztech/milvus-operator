@@ -16,15 +16,17 @@ import (
 var _ DeployModeChanger = &DeployModeChangerImpl{}
 
 type DeployModeChangerImpl struct {
+	component           MilvusComponent
 	cli                 client.Client
 	util                DeployControllerBizUtil
 	changeModeToV2Steps []step
 }
 
-func NewDeployModeChanger(cli client.Client, util DeployControllerBizUtil) *DeployModeChangerImpl {
+func NewDeployModeChanger(component MilvusComponent, cli client.Client, util DeployControllerBizUtil) *DeployModeChangerImpl {
 	c := &DeployModeChangerImpl{
-		cli:  cli,
-		util: util,
+		component: component,
+		cli:       cli,
+		util:      util,
 	}
 	c.changeModeToV2Steps = []step{
 		newStep("save and delete old deploy", c.SaveDeleteOldDeploy),
@@ -77,7 +79,7 @@ func (c *DeployModeChangerImpl) markChangingDeployMode(ctx context.Context, mc v
 }
 
 func (c *DeployModeChangerImpl) SaveDeleteOldDeploy(ctx context.Context, mc v1beta1.Milvus) error {
-	oldDeploy, err := c.util.GetOldQueryNodeDeploy(ctx, mc)
+	oldDeploy, err := c.util.GetOldDeploy(ctx, mc, c.component)
 	if err == nil {
 		err := c.util.SaveObject(ctx, mc, formatSaveOldDeployName(mc), oldDeploy)
 		if err != nil {
