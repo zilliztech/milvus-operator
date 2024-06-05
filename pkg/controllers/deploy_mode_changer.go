@@ -121,7 +121,7 @@ func (c *DeployModeChangerImpl) UpdateOldPodLabels(ctx context.Context, mc v1bet
 		return errors.Wrap(err, "list old pods")
 	}
 	for _, pod := range pods {
-		v1beta1.Labels().SetGroupID(pod.Labels, 0)
+		v1beta1.Labels().SetGroupID(c.component.Name, pod.Labels, 0)
 		err = c.cli.Update(ctx, &pod)
 		if err != nil {
 			return errors.Wrap(err, "update old pod labels")
@@ -145,9 +145,9 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 	logger.Info("recovering old replica sets", "count", len(replicasetList.Items))
 	for _, rs := range replicasetList.Items {
 		logger.Info("recovering old replica set", "old-name", rs.Name)
-		labelHelper.SetGroupID(rs.Labels, 0)
-		labelHelper.SetGroupID(rs.Spec.Selector.MatchLabels, 0)
-		labelHelper.SetGroupID(rs.Spec.Template.Labels, 0)
+		labelHelper.SetGroupID(c.component.Name, rs.Labels, 0)
+		labelHelper.SetGroupID(c.component.Name, rs.Spec.Selector.MatchLabels, 0)
+		labelHelper.SetGroupID(c.component.Name, rs.Spec.Template.Labels, 0)
 		rs.UID = ""
 		rs.ResourceVersion = ""
 		splitedName := strings.Split(rs.Name, "-")
@@ -176,9 +176,9 @@ func (c *DeployModeChangerImpl) RecoverDeploy(ctx context.Context, mc v1beta1.Mi
 		return errors.Wrap(err, "get old deploy")
 	}
 	labelHelper := v1beta1.Labels()
-	labelHelper.SetGroupID(oldDeploy.Labels, 0)
-	labelHelper.SetGroupID(oldDeploy.Spec.Selector.MatchLabels, 0)
-	labelHelper.SetGroupID(oldDeploy.Spec.Template.Labels, 0)
+	labelHelper.SetGroupID(c.component.Name, oldDeploy.Labels, 0)
+	labelHelper.SetGroupID(c.component.Name, oldDeploy.Spec.Selector.MatchLabels, 0)
+	labelHelper.SetGroupID(c.component.Name, oldDeploy.Spec.Template.Labels, 0)
 	oldDeploy.UID = ""
 	oldDeploy.ResourceVersion = ""
 	oldDeploy.Name = formatQnDeployName(mc, 0)

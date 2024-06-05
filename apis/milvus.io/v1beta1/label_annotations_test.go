@@ -19,11 +19,11 @@ func TestLabelsImpl_IsChangeQueryNodeMode_SetChangingQueryNodeMode(t *testing.T)
 func TestLabelsImpl_GetLabelQueryNodeGroupID_SetQueryNodeGroupID(t *testing.T) {
 	mc := Milvus{}
 	mc.Default()
-	assert.Equal(t, "", Labels().GetLabelGroupID(&mc))
-	Labels().SetGroupID(mc.Labels, 1)
-	assert.Equal(t, "1", Labels().GetLabelGroupID(&mc))
-	Labels().SetGroupID(mc.Labels, 0)
-	assert.Equal(t, "0", Labels().GetLabelGroupID(&mc))
+	assert.Equal(t, "", Labels().GetLabelGroupID(QueryNodeName, &mc))
+	Labels().SetGroupID(QueryNodeName, mc.Labels, 1)
+	assert.Equal(t, "1", Labels().GetLabelGroupID(QueryNodeName, &mc))
+	Labels().SetGroupID(QueryNodeName, mc.Labels, 0)
+	assert.Equal(t, "0", Labels().GetLabelGroupID(QueryNodeName, &mc))
 
 }
 

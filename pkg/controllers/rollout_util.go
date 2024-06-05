@@ -40,7 +40,7 @@ func (c *K8sUtilImpl) GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, compo
 	}
 	var deploys = []appsv1.Deployment{}
 	for _, deploy := range deployList.Items {
-		if v1beta1.Labels().GetLabelGroupID(&deploy) == "" {
+		if v1beta1.Labels().GetLabelGroupID(component.Name, &deploy) == "" {
 			deploys = append(deploys, deploy)
 		}
 	}
@@ -138,7 +138,7 @@ func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus,
 	ret.Items = []appsv1.ReplicaSet{}
 	labelhelper := v1beta1.Labels()
 	for _, rs := range replicasetList.Items {
-		if labelhelper.GetLabelGroupID(&rs) == "" {
+		if labelhelper.GetLabelGroupID(component.Name, &rs) == "" {
 			ret.Items = append(ret.Items, rs)
 		}
 	}
@@ -155,7 +155,7 @@ func (c *K8sUtilImpl) ListOldPods(ctx context.Context, mc v1beta1.Milvus, compon
 	ret := []corev1.Pod{}
 	labelhelper := v1beta1.Labels()
 	for _, pod := range podList.Items {
-		if labelhelper.GetLabelGroupID(&pod) == "" {
+		if labelhelper.GetLabelGroupID(component.Name, &pod) == "" {
 			ret = append(ret, pod)
 		}
 	}
@@ -217,7 +217,8 @@ func logicAnd(b ...bool) (result bool, falseIndex int) {
 }
 
 func GetDeploymentGroupId(deploy *appsv1.Deployment) (int, error) {
-	groupId, err := strconv.Atoi(v1beta1.Labels().GetLabelGroupID(deploy))
+	componentName := deploy.Labels[AppLabelComponent]
+	groupId, err := strconv.Atoi(v1beta1.Labels().GetLabelGroupID(componentName, deploy))
 	if err != nil {
 		return 0, errors.Wrap(err, "parse querynode group id")
 	}

@@ -323,7 +323,7 @@ func makeComponentDeploymentMap(mc v1beta1.Milvus, deploys []appsv1.Deployment) 
 		}
 		if deploy.Labels[AppLabelComponent] == QueryNodeName {
 			if currentQnGroup != "" &&
-				labelHelper.GetLabelGroupID(&deploy) != currentQnGroup {
+				labelHelper.GetLabelGroupID(QueryNodeName, &deploy) != currentQnGroup {
 				continue
 			}
 			if labelHelper.IsComponentRolling(mc) {

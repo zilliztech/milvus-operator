@@ -128,7 +128,7 @@ func TestK8sUtilImpl_ListOldReplicaSets(t *testing.T) {
 		rsList.Items[0].Name = "new"
 		rsList.Items[1].Name = "old"
 		rsList.Items[0].Labels = map[string]string{}
-		v1beta1.Labels().SetGroupID(rsList.Items[0].Labels, 1)
+		v1beta1.Labels().SetGroupID(QueryNodeName, rsList.Items[0].Labels, 1)
 		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(mc.Namespace), client.MatchingLabels(NewComponentAppLabels(mc.Name, QueryNode.Name))).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				*(list.(*appsv1.ReplicaSetList)) = rsList
@@ -167,7 +167,7 @@ func TestK8sUtilImpl_ListOldPods(t *testing.T) {
 		podList.Items[0].Name = "new"
 		podList.Items[1].Name = "old"
 		podList.Items[0].Labels = map[string]string{}
-		v1beta1.Labels().SetGroupID(podList.Items[0].Labels, 1)
+		v1beta1.Labels().SetGroupID(QueryNodeName, podList.Items[0].Labels, 1)
 		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(mc.Namespace), client.MatchingLabels(NewComponentAppLabels(mc.Name, QueryNode.Name))).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				*(list.(*corev1.PodList)) = podList
@@ -209,7 +209,7 @@ func TestK8sUtilImpl_ListDeployPods(t *testing.T) {
 		podList.Items[0].Name = "new"
 		podList.Items[1].Name = "old"
 		podList.Items[0].Labels = map[string]string{}
-		v1beta1.Labels().SetGroupID(podList.Items[0].Labels, 1)
+		v1beta1.Labels().SetGroupID(QueryNodeName, podList.Items[0].Labels, 1)
 		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(deploy.Namespace), client.MatchingLabels(deploy.Spec.Selector.MatchLabels)).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				*(list.(*corev1.PodList)) = podList
@@ -294,7 +294,7 @@ func TestGetDeploymentGroupId(t *testing.T) {
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		v1beta1.Labels().SetGroupID(deploy.Labels, 1)
+		v1beta1.Labels().SetGroupID(QueryNodeName, deploy.Labels, 1)
 		groupId, err := GetDeploymentGroupId(deploy)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, groupId)

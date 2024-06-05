@@ -32,7 +32,6 @@ const (
 	ServiceLabel = MilvusIO + "service"
 
 	// query node rolling related labels
-	MilvusIOLabelQueryNodeGroupId = MilvusIO + "querynode-group-id"
 	MilvusIOLabelQueryNodeRolling = MilvusIO + "querynode-rolling-id"
 	// query node rolling related annotations
 	MilvusIOAnnotationCurrentQueryNodeGroupId = MilvusIO + "current-querynode-group-id"
@@ -51,6 +50,10 @@ func getChangingModeLabel(component string) string {
 	return fmt.Sprintf("%schanging-%s-mode", MilvusIO, component)
 }
 
+func GetComponentGroupIdLabel(component string) string {
+	return fmt.Sprintf("%s%s-group-id", MilvusIO, component)
+}
+
 func (LabelsImpl) IsChangingMode(m Milvus, component string) bool {
 	return m.Annotations[getChangingModeLabel(component)] == TrueStr
 }
@@ -63,20 +66,20 @@ func (LabelsImpl) SetChangingMode(m *Milvus, component string, changing bool) {
 	delete(m.Annotations, getChangingModeLabel(component))
 }
 
-func (LabelsImpl) GetLabelGroupID(obj client.Object) string {
+func (LabelsImpl) GetLabelGroupID(component string, obj client.Object) string {
 	labels := obj.GetLabels()
 	if len(labels) < 1 {
 		return ""
 	}
-	return labels[MilvusIOLabelQueryNodeGroupId]
+	return labels[GetComponentGroupIdLabel(component)]
 }
 
-func (l LabelsImpl) SetGroupID(labels map[string]string, groupId int) {
-	l.SetGroupIDStr(labels, strconv.Itoa(groupId))
+func (l LabelsImpl) SetGroupID(component string, labels map[string]string, groupId int) {
+	l.SetGroupIDStr(component, labels, strconv.Itoa(groupId))
 }
 
-func (l LabelsImpl) SetGroupIDStr(labels map[string]string, groupIdStr string) {
-	labels[MilvusIOLabelQueryNodeGroupId] = groupIdStr
+func (l LabelsImpl) SetGroupIDStr(component string, labels map[string]string, groupIdStr string) {
+	labels[GetComponentGroupIdLabel(component)] = groupIdStr
 }
 
 func (LabelsImpl) GetCurrentGroupId(m *Milvus) string {

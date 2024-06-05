@@ -99,7 +99,7 @@ func (c *DeployControllerBizUtilImpl) GetQueryNodeDeploys(ctx context.Context, m
 	}
 	var items = []*appsv1.Deployment{}
 	for i := range deploys.Items {
-		if v1beta1.Labels().GetLabelGroupID(&deploys.Items[i]) != "" {
+		if v1beta1.Labels().GetLabelGroupID(c.component.Name, &deploys.Items[i]) != "" {
 			items = append(items, &deploys.Items[i])
 		}
 	}
@@ -114,7 +114,7 @@ func (c *DeployControllerBizUtilImpl) GetQueryNodeDeploys(ctx context.Context, m
 	}
 	var current, last *appsv1.Deployment
 	labelHelper := v1beta1.Labels()
-	if labelHelper.GetLabelGroupID(items[0]) == labelHelper.GetCurrentGroupId(&mc) {
+	if labelHelper.GetLabelGroupID(c.component.Name, items[0]) == labelHelper.GetCurrentGroupId(&mc) {
 		current = items[0]
 		last = items[1]
 	} else {
@@ -140,8 +140,8 @@ func (c *DeployControllerBizUtilImpl) CreateQueryNodeDeploy(ctx context.Context,
 	if err != nil {
 		return errors.Wrap(err, "set controller reference")
 	}
-	labels := NewComponentAppLabels(mc.Name, QueryNode.Name)
-	v1beta1.Labels().SetGroupID(labels, groupId)
+	labels := NewComponentAppLabels(mc.Name, c.component.Name)
+	v1beta1.Labels().SetGroupID(c.component.Name, labels, groupId)
 	deploy.Labels = labels
 	deploy.Spec.Selector = &metav1.LabelSelector{
 		MatchLabels: labels,
@@ -149,7 +149,7 @@ func (c *DeployControllerBizUtilImpl) CreateQueryNodeDeploy(ctx context.Context,
 	podTemplate.Labels = MergeLabels(podTemplate.Labels, labels)
 	deploy.Spec.Template = *podTemplate
 
-	updater := newMilvusDeploymentUpdater(mc, c.cli.Scheme(), QueryNode)
+	updater := newMilvusDeploymentUpdater(mc, c.cli.Scheme(), c.component)
 	// new deploy group for rolling, should be created without replica
 	deploy.Spec.Replicas = int32Ptr(0)
 	deploy.Spec.Strategy = updater.GetDeploymentStrategy()
@@ -169,13 +169,13 @@ func (c *DeployControllerBizUtilImpl) ShouldRollback(ctx context.Context, curren
 	}
 	labelHelper := v1beta1.Labels()
 	podTemplateCopy := podTemplate.DeepCopy()
-	groupIdStr := labelHelper.GetLabelGroupID(currentDeploy)
-	labelHelper.SetGroupIDStr(podTemplateCopy.Labels, groupIdStr)
+	groupIdStr := labelHelper.GetLabelGroupID(c.component.Name, currentDeploy)
+	labelHelper.SetGroupIDStr(c.component.Name, podTemplateCopy.Labels, groupIdStr)
 	if IsEqual(currentDeploy.Spec.Template, *podTemplateCopy) {
 		return false
 	}
-	groupIdStr = labelHelper.GetLabelGroupID(lastDeploy)
-	labelHelper.SetGroupIDStr(podTemplateCopy.Labels, groupIdStr)
+	groupIdStr = labelHelper.GetLabelGroupID(c.component.Name, lastDeploy)
+	labelHelper.SetGroupIDStr(c.component.Name, podTemplateCopy.Labels, groupIdStr)
 	return IsEqual(lastDeploy.Spec.Template, *podTemplateCopy)
 }
 
@@ -232,8 +232,8 @@ func (c *DeployControllerBizUtilImpl) IsNewRollout(ctx context.Context, currentD
 	labelHelper := v1beta1.Labels()
 	currentTemplateCopy := currentDeployment.Spec.Template.DeepCopy()
 	podTemplateCopy := podTemplate.DeepCopy()
-	labelHelper.SetGroupIDStr(currentTemplateCopy.Labels, "")
-	labelHelper.SetGroupIDStr(podTemplateCopy.Labels, "")
+	labelHelper.SetGroupIDStr(c.component.Name, currentTemplateCopy.Labels, "")
+	labelHelper.SetGroupIDStr(c.component.Name, podTemplateCopy.Labels, "")
 	isNewRollout := !IsEqual(currentTemplateCopy, podTemplateCopy)
 	if isNewRollout {
 		diff := util.DiffStr(currentTemplateCopy, podTemplateCopy)
@@ -316,10 +316,10 @@ func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc 
 			return errors.Wrap(err, "create new deploy for rolling failed")
 		}
 	} else {
-		currentGroupIdStr = labelHelper.GetLabelGroupID(currentDeployment)
+		currentGroupIdStr = labelHelper.GetLabelGroupID(c.component.Name, currentDeployment)
 		logger.Info("prepare new rollout stage 2", "deployGroupId", currentGroupIdStr, "podTemplateDiff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
 		currentDeployment.Spec.Template = *podTemplate
-		labelHelper.SetGroupIDStr(currentDeployment.Spec.Template.Labels, currentGroupIdStr)
+		labelHelper.SetGroupIDStr(c.component.Name, currentDeployment.Spec.Template.Labels, currentGroupIdStr)
 		err := c.cli.Update(ctx, currentDeployment)
 		if err != nil {
 			return errors.Wrap(err, "update current deploy for rolling failed")

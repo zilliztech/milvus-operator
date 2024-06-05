@@ -39,7 +39,7 @@ func TestDeployControllerBizUtilImpl_RenderPodTemplateWithoutGroupID(t *testing.
 	mockcli.EXPECT().Scheme().Return(scheme)
 	template := bizUtil.RenderPodTemplateWithoutGroupID(mc, currentTemplate, component)
 	assert.NotNil(t, template)
-	assert.Equal(t, template.Labels[v1beta1.MilvusIOLabelQueryNodeGroupId], "")
+	assert.Equal(t, template.Labels[v1beta1.GetComponentGroupIdLabel(component.Name)], "")
 }
 
 func TestDeployControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
@@ -90,7 +90,7 @@ func TestDeployControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 			{},
 		}
 		deploys[0].Labels = map[string]string{}
-		v1beta1.Labels().SetGroupID(deploys[0].Labels, 0)
+		v1beta1.Labels().SetGroupID(QueryNodeName, deploys[0].Labels, 0)
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				list.(*appsv1.DeploymentList).Items = deploys
@@ -139,7 +139,7 @@ func TestDeployControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 
 	deploy := appsv1.Deployment{}
 	deploy.Labels = map[string]string{}
-	v1beta1.Labels().SetGroupID(deploy.Labels, 0)
+	v1beta1.Labels().SetGroupID(QueryNodeName, deploy.Labels, 0)
 	t.Run("more than 2 deploy", func(t *testing.T) {
 		deploys := []appsv1.Deployment{
 			deploy, deploy, deploy,
@@ -199,8 +199,8 @@ func TestDeployControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 		}
 		deploys[0].Labels = map[string]string{}
 		deploys[1].Labels = map[string]string{}
-		v1beta1.Labels().SetGroupID(deploys[0].Labels, 0)
-		v1beta1.Labels().SetGroupID(deploys[1].Labels, 1)
+		v1beta1.Labels().SetGroupID(QueryNodeName, deploys[0].Labels, 0)
+		v1beta1.Labels().SetGroupID(QueryNodeName, deploys[1].Labels, 1)
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				list.(*appsv1.DeploymentList).Items = deploys
@@ -289,7 +289,7 @@ func TestDeployControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 		currentDeploy.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: currentDeploy.Spec.Template.Labels,
 		}
-		labelHelper.SetGroupIDStr(currentDeploy.Labels, "1")
+		labelHelper.SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		assert.NotEqual(t, currentDeploy.Spec.Template, *podTemplate)
 		ret := bizUtil.ShouldRollback(ctx, currentDeploy, lastDeploy, podTemplate)
 		assert.NotEqual(t, currentDeploy.Spec.Template, *podTemplate)
@@ -303,7 +303,7 @@ func TestDeployControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 		lastDeploy.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: lastDeploy.Spec.Template.Labels,
 		}
-		labelHelper.SetGroupIDStr(lastDeploy.Labels, "1")
+		labelHelper.SetGroupIDStr(QueryNodeName, lastDeploy.Labels, "1")
 		assert.NotEqual(t, lastDeploy.Spec.Template, *podTemplate)
 		ret := bizUtil.ShouldRollback(ctx, currentDeploy, lastDeploy, podTemplate)
 		assert.NotEqual(t, lastDeploy.Spec.Template, *podTemplate)
@@ -450,7 +450,7 @@ func TestDeployControllerBizUtilImpl_IsNewRollout(t *testing.T) {
 
 	t.Run("only label diff, not rollout", func(t *testing.T) {
 		currentDeploy := deploy.DeepCopy()
-		labelHelper.SetGroupIDStr(currentDeploy.Labels, "1")
+		labelHelper.SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{{}, {}}
 		currentDeploy.Spec.Template.Labels = map[string]string{}
 		newPodTemplate := currentDeploy.Spec.Template.DeepCopy()
@@ -461,7 +461,7 @@ func TestDeployControllerBizUtilImpl_IsNewRollout(t *testing.T) {
 
 	t.Run("is new rollout", func(t *testing.T) {
 		currentDeploy := deploy.DeepCopy()
-		labelHelper.SetGroupIDStr(currentDeploy.Labels, "1")
+		labelHelper.SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		currentDeploy.Spec.Template.Labels = map[string]string{}
 		newPodTemplate := currentDeploy.Spec.Template.DeepCopy()
 		currentDeploy.Spec.Template.Labels = currentDeploy.Labels
@@ -495,7 +495,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
 		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetGroupIDStr(currentDeploy.Labels, "1")
+		v1beta1.Labels().SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, QueryNode, 1).Return(errMock)
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
@@ -506,7 +506,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
 		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetGroupIDStr(currentDeploy.Labels, "1")
+		v1beta1.Labels().SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, QueryNode, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, QueryNode).Return(nil, errMock)
@@ -518,7 +518,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
 		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetGroupIDStr(currentDeploy.Labels, "1")
+		v1beta1.Labels().SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		pods := []corev1.Pod{
 			{}, {},
@@ -534,7 +534,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
 		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetGroupIDStr(currentDeploy.Labels, "1")
+		v1beta1.Labels().SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		pods := []corev1.Pod{
 			{}, {},
@@ -551,7 +551,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
 		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetGroupIDStr(currentDeploy.Labels, "1")
+		v1beta1.Labels().SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		pods := []corev1.Pod{
 			{}, {},
@@ -574,7 +574,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
 		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetGroupIDStr(currentDeploy.Labels, "1")
+		v1beta1.Labels().SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		currentDeploy.Spec.Replicas = int32Ptr(4)
@@ -592,7 +592,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
 		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetGroupIDStr(currentDeploy.Labels, "1")
+		v1beta1.Labels().SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		lastDeploy.Spec.Replicas = int32Ptr(1)
 		currentDeploy.Spec.Replicas = int32Ptr(1)
@@ -611,7 +611,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
 		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetGroupIDStr(currentDeploy.Labels, "1")
+		v1beta1.Labels().SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		lastDeploy.Spec.Replicas = int32Ptr(1)
 		currentDeploy.Spec.Replicas = int32Ptr(0)
@@ -630,7 +630,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
 		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetGroupIDStr(currentDeploy.Labels, "1")
+		v1beta1.Labels().SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		currentDeploy.Spec.Replicas = int32Ptr(1)
@@ -647,7 +647,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
 		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetGroupIDStr(currentDeploy.Labels, "1")
+		v1beta1.Labels().SetGroupIDStr(QueryNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		currentDeploy.Spec.Replicas = int32Ptr(0)
