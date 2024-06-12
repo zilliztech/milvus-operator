@@ -46,9 +46,10 @@ imagePullSecrets: []
 # priorityClassName -- priority class to be used for the milvus-operator pods
 priorityClassName: ""
 
-leaderElection:
-  # leaderElection.namespace -- The namespace used to store the ConfigMap for leader election
-  namespace: "kube-system"
+# # not supported yet
+# leaderElection:
+#   # leaderElection.namespace -- The namespace used to store the ConfigMap for leader election
+#   namespace: "kube-system"
 
 rbac:
   # rbac.create -- Whether to install Role Based Access Control
@@ -67,7 +68,11 @@ replicaCount: 1
 #     "maxUnavailable": 1
 #   }
 # }`
-strategy: {}
+strategy:
+  type: "RollingUpdate"
+  rollingUpdate:
+    maxSurge: 25%
+    maxUnavailable: 25%
 
 serviceAccount:
   # serviceAccount.create -- Specifies whether a service account should be created

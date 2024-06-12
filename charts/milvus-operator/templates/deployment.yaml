@@ -3,9 +3,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels: {{- include "chart.labels" . | nindent 4 }}
+  annotations: {{- toYaml .Values.deploymentAnnotations | nindent 4 }}
   name: {{ include "chart.fullname" . | quote }}
   namespace: {{ .Release.Namespace | quote }}
 spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.strategy.type }}
+    {{- if eq .Values.strategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxSurge: {{ .Values.strategy.maxSurge }}
+      maxUnavailable: {{ .Values.strategy.maxUnavailable }}
+    {{- end}}
   selector:
     matchLabels: {{- include "chart.selectorLabels" . | nindent 6 }}
   template:
@@ -13,6 +22,10 @@ spec:
       annotations: {{- toYaml .Values.podAnnotations | nindent 8 }}
       labels: {{- include "chart.selectorLabels" . | nindent 8 }}
     spec:
+      {{- if .Values.priorityClassName }}
+      priorityClassName: "{{ .Values.priorityClassName }}"
+      {{- end }}
+      imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       affinity: {{- toYaml .Values.affinity | nindent 8 }}
       containers:
       - args:
@@ -48,8 +61,7 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources: {{- toYaml .Values.resources | nindent 10 }}
-        securityContext:
-          allowPrivilegeEscalation: {{ .Values.allowPrivilegeEscalation }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
         volumeMounts:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: cert
