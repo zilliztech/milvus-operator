@@ -315,25 +315,24 @@ func GetMilvusEndpoint(ctx context.Context, logger logr.Logger, client client.Cl
 func makeComponentDeploymentMap(mc v1beta1.Milvus, deploys []appsv1.Deployment) map[string]*appsv1.Deployment {
 	m := make(map[string]*appsv1.Deployment)
 	labelHelper := v1beta1.Labels()
-	currentQnGroup := labelHelper.GetCurrentGroupId(&mc)
 	for i := range deploys {
 		deploy := deploys[i]
 		if !metav1.IsControlledBy(&deploy, &mc) {
 			continue
 		}
-		if deploy.Labels[AppLabelComponent] == QueryNodeName {
-			if currentQnGroup != "" &&
-				labelHelper.GetLabelGroupID(QueryNodeName, &deploy) != currentQnGroup {
-				continue
-			}
-			if labelHelper.IsComponentRolling(mc) {
-				deploy.Status.Conditions = UpdateDeploymentCondition(deploy.Status.Conditions, appsv1.DeploymentCondition{
-					Type:    appsv1.DeploymentProgressing,
-					Status:  corev1.ConditionFalse,
-					Reason:  "Rolling",
-					Message: fmt.Sprintf("rolling id %s", labelHelper.GetComponentRollingId(mc)),
-				})
-			}
+		component := deploy.Labels[AppLabelComponent]
+		componentCurrentGroup := labelHelper.GetCurrentGroupId(&mc, component)
+		if componentCurrentGroup != "" &&
+			labelHelper.GetLabelGroupID(component, &deploy) != componentCurrentGroup {
+			continue
+		}
+		if labelHelper.IsComponentRolling(mc, component) {
+			deploy.Status.Conditions = UpdateDeploymentCondition(deploy.Status.Conditions, appsv1.DeploymentCondition{
+				Type:    appsv1.DeploymentProgressing,
+				Status:  corev1.ConditionFalse,
+				Reason:  "Rolling",
+				Message: fmt.Sprintf("rolling id %s", labelHelper.GetComponentRollingId(mc, component)),
+			})
 		}
 		m[deploy.Labels[AppLabelComponent]] = &deploy
 

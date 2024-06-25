@@ -14,6 +14,7 @@ metadata:
 spec:
   mode: "cluster"
   components:
+    rollingMode: 3
     runWithSubProcess: true
     proxy:
       ingress:

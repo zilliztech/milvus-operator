@@ -112,10 +112,10 @@ func (c *K8sUtilImpl) OrphanDelete(ctx context.Context, obj client.Object) error
 
 func (c *K8sUtilImpl) MarkMilvusComponentGroupId(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent, groupId int) error {
 	groupIdStr := strconv.Itoa(groupId)
-	if v1beta1.Labels().GetCurrentGroupId(&mc) == groupIdStr {
+	if v1beta1.Labels().GetCurrentGroupId(&mc, component.Name) == groupIdStr {
 		return nil
 	}
-	v1beta1.Labels().SetCurrentGroupID(&mc, groupId)
+	v1beta1.Labels().SetCurrentGroupID(&mc, component.Name, groupId)
 	return c.UpdateAndRequeue(ctx, &mc)
 }
 
@@ -129,10 +129,10 @@ func (c *K8sUtilImpl) UpdateAndRequeue(ctx context.Context, obj client.Object) e
 
 func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (appsv1.ReplicaSetList, error) {
 	replicasetList := appsv1.ReplicaSetList{}
-	labels := NewComponentAppLabels(mc.Name, QueryNode.Name)
+	labels := NewComponentAppLabels(mc.Name, component.Name)
 	err := c.cli.List(ctx, &replicasetList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
 	if err != nil {
-		return replicasetList, errors.Wrap(err, "list querynode replica sets")
+		return replicasetList, errors.Wrap(err, "list component replica sets")
 	}
 	ret := replicasetList
 	ret.Items = []appsv1.ReplicaSet{}
@@ -147,10 +147,10 @@ func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus,
 
 func (c *K8sUtilImpl) ListOldPods(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) ([]corev1.Pod, error) {
 	podList := corev1.PodList{}
-	labels := NewComponentAppLabels(mc.Name, QueryNode.Name)
+	labels := NewComponentAppLabels(mc.Name, component.Name)
 	err := c.cli.List(ctx, &podList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
 	if err != nil {
-		return nil, errors.Wrap(err, "list querynode pods")
+		return nil, errors.Wrap(err, "list component pods")
 	}
 	ret := []corev1.Pod{}
 	labelhelper := v1beta1.Labels()
@@ -220,7 +220,7 @@ func GetDeploymentGroupId(deploy *appsv1.Deployment) (int, error) {
 	componentName := deploy.Labels[AppLabelComponent]
 	groupId, err := strconv.Atoi(v1beta1.Labels().GetLabelGroupID(componentName, deploy))
 	if err != nil {
-		return 0, errors.Wrap(err, "parse querynode group id")
+		return 0, errors.Wrap(err, "parse component group id")
 	}
 	return groupId, nil
 }

@@ -30,11 +30,6 @@ const (
 	PodServiceLabelAddedAnnotation = MilvusIO + "pod-service-label-added"
 	// ServiceLabel is the label to indicate whether the pod is a service pod
 	ServiceLabel = MilvusIO + "service"
-
-	// query node rolling related labels
-	MilvusIOLabelQueryNodeRolling = MilvusIO + "querynode-rolling-id"
-	// query node rolling related annotations
-	MilvusIOAnnotationCurrentQueryNodeGroupId = MilvusIO + "current-querynode-group-id"
 )
 
 // +kubebuilder:object:generate=false
@@ -82,37 +77,45 @@ func (l LabelsImpl) SetGroupIDStr(component string, labels map[string]string, gr
 	labels[GetComponentGroupIdLabel(component)] = groupIdStr
 }
 
-func (LabelsImpl) GetCurrentGroupId(m *Milvus) string {
+func GetComponentCurrentGroupIDLabel(component string) string {
+	return fmt.Sprintf("%s%s-current-group-id", MilvusIO, component)
+}
+
+func (LabelsImpl) GetCurrentGroupId(m *Milvus, component string) string {
 	annot := m.GetAnnotations()
 	if len(annot) < 1 {
 		return ""
 	}
-	return annot[MilvusIOAnnotationCurrentQueryNodeGroupId]
+	return annot[GetComponentCurrentGroupIDLabel(component)]
 }
 
-func (l LabelsImpl) SetCurrentGroupID(m *Milvus, groupId int) {
-	l.SetCurrentGroupIDStr(m, strconv.Itoa(groupId))
+func (l LabelsImpl) SetCurrentGroupID(m *Milvus, component string, groupId int) {
+	l.SetCurrentGroupIDStr(m, component, strconv.Itoa(groupId))
 }
 
-func (LabelsImpl) SetCurrentGroupIDStr(m *Milvus, groupId string) {
-	m.Annotations[MilvusIOAnnotationCurrentQueryNodeGroupId] = groupId
+func (LabelsImpl) SetCurrentGroupIDStr(m *Milvus, component string, groupId string) {
+	m.Annotations[GetComponentCurrentGroupIDLabel(component)] = groupId
+}
+
+func GetRollingIdLabelByComponent(component string) string {
+	return fmt.Sprintf("%s%s-rolling-id", MilvusIO, component)
 }
 
 // IsComponentRolling: if not empty, it means the component has no rolling in progress
-func (LabelsImpl) IsComponentRolling(m Milvus) bool {
-	return len(m.Labels[MilvusIOLabelQueryNodeRolling]) > 0
+func (LabelsImpl) IsComponentRolling(m Milvus, component string) bool {
+	return len(m.Labels[GetRollingIdLabelByComponent(component)]) > 0
 }
 
-func (LabelsImpl) GetComponentRollingId(m Milvus) string {
-	return m.Labels[MilvusIOLabelQueryNodeRolling]
+func (LabelsImpl) GetComponentRollingId(m Milvus, component string) string {
+	return m.Labels[GetRollingIdLabelByComponent(component)]
 }
 
-func (LabelsImpl) SetComponentRolling(m *Milvus, rolling bool) {
+func (LabelsImpl) SetComponentRolling(m *Milvus, component string, rolling bool) {
 	if rolling {
-		if len(m.Labels[MilvusIOLabelQueryNodeRolling]) == 0 {
-			m.Labels[MilvusIOLabelQueryNodeRolling] = strconv.Itoa(int(m.GetGeneration()))
+		if len(m.Labels[GetRollingIdLabelByComponent(component)]) == 0 {
+			m.Labels[GetRollingIdLabelByComponent(component)] = strconv.Itoa(int(m.GetGeneration()))
 		}
 		return
 	}
-	delete(m.Labels, MilvusIOLabelQueryNodeRolling)
+	delete(m.Labels, GetRollingIdLabelByComponent(component))
 }

@@ -46,7 +46,7 @@ func TestDeployModeChangerImpl_MarkDeployModeChanging(t *testing.T) {
 	})
 }
 
-func TestDeployModeChangerImpl_ChangeRollingModeToV2(t *testing.T) {
+func TestDeployModeChangerImpl_ChangeToTwoDeployMode(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
@@ -62,7 +62,7 @@ func TestDeployModeChangerImpl_ChangeRollingModeToV2(t *testing.T) {
 				return errMock
 			}),
 		}
-		err := changer.ChangeRollingModeToV2(ctx, mc)
+		err := changer.ChangeToTwoDeployMode(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
 	})
 
@@ -75,7 +75,7 @@ func TestDeployModeChangerImpl_ChangeRollingModeToV2(t *testing.T) {
 				return errMock
 			}),
 		}
-		err := changer.ChangeRollingModeToV2(ctx, mc)
+		err := changer.ChangeToTwoDeployMode(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
 	})
 
@@ -91,7 +91,7 @@ func TestDeployModeChangerImpl_ChangeRollingModeToV2(t *testing.T) {
 				return nil
 			}),
 		}
-		err := changer.ChangeRollingModeToV2(ctx, mc)
+		err := changer.ChangeToTwoDeployMode(ctx, mc)
 		assert.NoError(t, err)
 	})
 }
@@ -115,7 +115,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldDeploy(t *testing.T) {
 	t.Run("save old deploy failed", func(t *testing.T) {
 		oldDeploy := &appsv1.Deployment{}
 		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(oldDeploy, nil)
-		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldDeployName(mc), oldDeploy).Return(errMock)
+		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldDeployName(mc, QueryNode), oldDeploy).Return(errMock)
 		err := changer.SaveDeleteOldDeploy(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
 	})
@@ -123,7 +123,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldDeploy(t *testing.T) {
 	t.Run("orphan delete old deploy failed", func(t *testing.T) {
 		oldDeploy := &appsv1.Deployment{}
 		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(oldDeploy, nil)
-		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldDeployName(mc), oldDeploy).Return(nil)
+		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldDeployName(mc, QueryNode), oldDeploy).Return(nil)
 		mockUtil.EXPECT().OrphanDelete(ctx, oldDeploy).Return(errMock)
 		err := changer.SaveDeleteOldDeploy(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
@@ -132,7 +132,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldDeploy(t *testing.T) {
 	t.Run("orphan delete old deploy ok", func(t *testing.T) {
 		oldDeploy := &appsv1.Deployment{}
 		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(oldDeploy, nil)
-		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldDeployName(mc), oldDeploy).Return(nil)
+		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldDeployName(mc, QueryNode), oldDeploy).Return(nil)
 		mockUtil.EXPECT().OrphanDelete(ctx, oldDeploy).Return(nil)
 		err := changer.SaveDeleteOldDeploy(ctx, mc)
 		assert.NoError(t, err)
@@ -164,7 +164,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 	t.Run("save old replicasets failed", func(t *testing.T) {
 		replicasetList := appsv1.ReplicaSetList{}
 		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc, QueryNode).Return(replicasetList, nil)
-		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList).Return(errMock)
+		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc, QueryNode), &replicasetList).Return(errMock)
 		err := changer.SaveDeleteOldReplicaSet(ctx, mc)
 		assert.True(t, errors.Is(err, errMock))
 	})
@@ -172,7 +172,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 	t.Run("delete one old replicaset failed", func(t *testing.T) {
 		replicasetList := appsv1.ReplicaSetList{Items: []appsv1.ReplicaSet{{}, {}}}
 		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc, QueryNode).Return(replicasetList, nil)
-		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList).Return(nil)
+		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc, QueryNode), &replicasetList).Return(nil)
 		mockUtil.EXPECT().OrphanDelete(ctx, &replicasetList.Items[0]).Return(errMock)
 		mockUtil.EXPECT().OrphanDelete(ctx, &replicasetList.Items[1]).Return(nil)
 		err := changer.SaveDeleteOldReplicaSet(ctx, mc)
@@ -182,7 +182,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 	t.Run("delete one old replicaset ok", func(t *testing.T) {
 		replicasetList := appsv1.ReplicaSetList{Items: []appsv1.ReplicaSet{{}}}
 		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc, QueryNode).Return(replicasetList, nil)
-		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList).Return(nil)
+		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc, QueryNode), &replicasetList).Return(nil)
 		mockUtil.EXPECT().OrphanDelete(ctx, &replicasetList.Items[0]).Return(nil)
 		err := changer.SaveDeleteOldReplicaSet(ctx, mc)
 		assert.NoError(t, err)
@@ -191,7 +191,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldReplicaSet(t *testing.T) {
 	t.Run("no old replicaset ok", func(t *testing.T) {
 		replicasetList := appsv1.ReplicaSetList{}
 		mockUtil.EXPECT().ListOldReplicaSets(ctx, mc, QueryNode).Return(replicasetList, nil)
-		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList).Return(nil)
+		mockUtil.EXPECT().SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc, QueryNode), &replicasetList).Return(nil)
 		err := changer.SaveDeleteOldReplicaSet(ctx, mc)
 		assert.NoError(t, err)
 	})
@@ -245,7 +245,7 @@ func TestDeployModeChangerImpl_RecoverReplicaSets(t *testing.T) {
 	ctx := context.Background()
 	key := client.ObjectKey{
 		Namespace: mc.Namespace,
-		Name:      formatSaveOldReplicaSetListName(mc),
+		Name:      formatSaveOldReplicaSetListName(mc, QueryNode),
 	}
 	t.Run("get saved old replicaset list failed", func(t *testing.T) {
 		mockUtil.EXPECT().GetSavedObject(ctx, key, &appsv1.ReplicaSetList{}).Return(errMock)
@@ -305,7 +305,7 @@ func TestDeployModeChangerImpl_RecoverDeploy(t *testing.T) {
 	ctx := context.Background()
 	key := client.ObjectKey{
 		Namespace: mc.Namespace,
-		Name:      formatSaveOldDeployName(mc),
+		Name:      formatSaveOldDeployName(mc, QueryNode),
 	}
 	t.Run("get saved old deploy failed", func(t *testing.T) {
 		mockUtil.EXPECT().GetSavedObject(ctx, key, &appsv1.Deployment{}).Return(errMock)
@@ -337,31 +337,5 @@ func TestDeployModeChangerImpl_RecoverDeploy(t *testing.T) {
 		mockUtil.EXPECT().CreateObject(ctx, gomock.AssignableToTypeOf(&appsv1.Deployment{})).Return(nil)
 		err := changer.RecoverDeploy(ctx, mc)
 		assert.NoError(t, err)
-	})
-}
-
-func TestDeployModeChangerImpl_UpdateStatusToV2(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockCli := NewMockK8sClient(ctrl)
-	mockUtil := NewMockDeployControllerBizUtil(ctrl)
-	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
-	mc := v1beta1.Milvus{}
-	mc.Default()
-
-	ctx := context.Background()
-
-	t.Run("update failed", func(t *testing.T) {
-		mockCli.EXPECT().Status().Return(mockCli)
-		mockCli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(&mc)).Return(errMock)
-		err := changer.UpdateStatusToV2(ctx, mc)
-		assert.True(t, errors.Is(err, errMock))
-	})
-
-	t.Run("update ok, requeue", func(t *testing.T) {
-		mockCli.EXPECT().Status().Return(mockCli)
-		mockCli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(&mc)).Return(nil)
-		err := changer.UpdateStatusToV2(ctx, mc)
-		assert.True(t, errors.Is(err, ErrRequeue))
 	})
 }

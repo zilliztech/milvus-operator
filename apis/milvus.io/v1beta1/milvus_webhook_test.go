@@ -339,6 +339,15 @@ func Test_DefaultConf_EnableRollingUpdate(t *testing.T) {
 
 func TestMilvus_validateCommon(t *testing.T) {
 	mc := Milvus{}
+	t.Run("rolling mode <2 or >3 not support", func(t *testing.T) {
+		mc.Spec.Com.RollingMode = RollingModeV1
+		err := mc.validateCommon()
+		assert.Error(t, err)
+		mc.Spec.Com.RollingMode = 4
+		err = mc.validateCommon()
+		assert.Error(t, err)
+	})
+	mc.Spec.Com.RollingMode = RollingModeV2
 	t.Run("validate rollingupdate", func(t *testing.T) {
 		mc.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
 		err := mc.validateCommon()

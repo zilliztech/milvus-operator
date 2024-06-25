@@ -23,35 +23,44 @@ var _ DeployController = &DeployControllerImpl{}
 
 // DeployControllerImpl is the implementation of DeployController
 type DeployControllerImpl struct {
-	bizFactory              DeployControllerBizFactory
-	oneDeployModeController DeployController
+	bizFactory               DeployControllerBizFactory
+	oneDeployModeController  DeployController
+	rollingModeStatusUpdater RollingModeStatusUpdater
 }
 
 var deployCtrlLogger = ctrl.Log.WithName("deploy-ctrl")
 
 // NewDeployController returns a DeployController
-func NewDeployController(bizFactory DeployControllerBizFactory, oneDeployModeController DeployController) *DeployControllerImpl {
+func NewDeployController(
+	bizFactory DeployControllerBizFactory,
+	oneDeployModeController DeployController,
+	rollingModeStatusUpdater RollingModeStatusUpdater) *DeployControllerImpl {
 	return &DeployControllerImpl{
-		bizFactory:              bizFactory,
-		oneDeployModeController: oneDeployModeController,
+		bizFactory:               bizFactory,
+		oneDeployModeController:  oneDeployModeController,
+		rollingModeStatusUpdater: rollingModeStatusUpdater,
 	}
 }
 
 func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
-	logger := deployCtrlLogger.WithValues("milvus", mc.Name)
-	biz := c.bizFactory.GetBiz(component)
+	logger := deployCtrlLogger.WithValues("milvus", mc.Name, "component", component.Name)
 	ctx = ctrl.LoggerInto(ctx, logger)
-	componentRollingMode, err := biz.CheckAndUpdateRollingMode(ctx, mc)
+	err := c.rollingModeStatusUpdater.Update(ctx, &mc)
 	if err != nil {
-		return errors.Wrap(err, "check and update rolling mode")
+		return errors.Wrap(err, "update milvus rolling mode status")
 	}
-	switch componentRollingMode {
-	case v1beta1.RollingModeV3, v1beta1.RollingModeV2:
+	biz := c.bizFactory.GetBiz(component)
+	deployMode, err := biz.CheckDeployMode(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "check deploy mode")
+	}
+	switch deployMode {
+	case v1beta1.TwoDeployMode:
 		err = biz.MarkDeployModeChanging(ctx, mc, false)
 		if err != nil {
 			return err
 		}
-	case v1beta1.RollingModeV1:
+	case v1beta1.OneDeployMode:
 		isUpdating, err := biz.IsUpdating(ctx, mc)
 		if err != nil {
 			return errors.Wrap(err, "check if updating")
@@ -66,13 +75,13 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		if err != nil {
 			return err
 		}
-		err = biz.ChangeRollingModeToV2(ctx, mc)
+		err = biz.ChangeToTwoDeployMode(ctx, mc)
 		if err != nil {
 			return errors.Wrap(err, "change to two deployment mode")
 		}
 	default:
-		err = errors.Errorf("unknown rolling mode: %d", componentRollingMode)
-		logger.Error(err, "check and update rolling mode")
+		err = errors.Errorf("unknown deploy mode: %d", deployMode)
+		logger.Error(err, "switch case by deployMode")
 		return err
 	}
 
@@ -102,7 +111,7 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 // DeployControllerBiz are the business logics of DeployController, abstracted for unit test
 type DeployControllerBiz interface {
 	// backward compatible logic
-	CheckAndUpdateRollingMode(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error)
+	CheckDeployMode(ctx context.Context, mc v1beta1.Milvus) (v1beta1.ComponentDeployMode, error)
 	IsUpdating(ctx context.Context, mc v1beta1.Milvus) (bool, error)
 	DeployModeChanger
 
@@ -116,7 +125,7 @@ type DeployControllerBiz interface {
 // DeployModeChanger changes deploy mode
 type DeployModeChanger interface {
 	MarkDeployModeChanging(ctx context.Context, mc v1beta1.Milvus, changing bool) error
-	ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error
+	ChangeToTwoDeployMode(ctx context.Context, mc v1beta1.Milvus) error
 }
 
 var _ DeployControllerBiz = &DeployControllerBizImpl{}
@@ -140,36 +149,33 @@ func NewDeployControllerBizImpl(component MilvusComponent, statusSyncer MilvusSt
 	}
 }
 
-func (c *DeployControllerBizImpl) CheckAndUpdateRollingMode(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error) {
+func (c *DeployControllerBizImpl) CheckDeployMode(ctx context.Context, mc v1beta1.Milvus) (v1beta1.ComponentDeployMode, error) {
 	switch mc.Status.RollingMode {
-	case v1beta1.RollingModeV1, v1beta1.RollingModeV2, v1beta1.RollingModeV3:
-		return mc.Status.RollingMode, nil
+	case v1beta1.RollingModeV3:
+		return v1beta1.TwoDeployMode, nil
+	case v1beta1.RollingModeV2:
+		if c.component == QueryNode {
+			return v1beta1.TwoDeployMode, nil
+		}
 	default:
-		// check it in the cluster
+		// check in cluster
 	}
-	mode, err := c.checkRollingModeInCluster(ctx, mc)
+	mode, err := c.checkDeployModeInCluster(ctx, mc)
 	if err != nil {
 		return mode, errors.Wrap(err, "check rolling mode in cluster")
 	}
-
-	mc.Status.RollingMode = mode
-	err = c.cli.Status().Update(ctx, &mc)
-	if err != nil {
-		return mode, errors.Wrap(err, "update status rolling mode")
-	}
-
-	return mode, errors.Wrapf(ErrRequeue, "updating status rolling mode to %d", mode)
+	return mode, nil
 }
 
-func (c *DeployControllerBizImpl) checkRollingModeInCluster(ctx context.Context, mc v1beta1.Milvus) (v1beta1.RollingMode, error) {
+func (c *DeployControllerBizImpl) checkDeployModeInCluster(ctx context.Context, mc v1beta1.Milvus) (v1beta1.ComponentDeployMode, error) {
 	_, err := c.util.GetOldDeploy(ctx, mc, c.component)
 	if err == nil {
-		return v1beta1.RollingModeV1, nil
+		return v1beta1.OneDeployMode, nil
 	}
 	if kerrors.IsNotFound(err) {
-		return v1beta1.RollingModeV2, nil
+		return v1beta1.TwoDeployMode, nil
 	}
-	return v1beta1.RollingModeNotSet, errors.Wrap(err, "get querynode deployments")
+	return v1beta1.DeployModeUnknown, errors.Wrap(err, "get deployments")
 }
 
 func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Milvus) (bool, error) {
@@ -192,7 +198,7 @@ func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Mil
 	if err != nil {
 		return false, errors.Wrap(err, "get querynode deployments")
 	}
-	newPodtemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &deploy.Spec.Template, QueryNode)
+	newPodtemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &deploy.Spec.Template, c.component)
 	return c.util.IsNewRollout(ctx, deploy, newPodtemplate), nil
 
 }
@@ -201,11 +207,11 @@ func (c *DeployControllerBizImpl) IsPaused(ctx context.Context, mc v1beta1.Milvu
 	if mc.Spec.Com.Paused {
 		return true
 	}
-	return mc.Spec.Com.QueryNode.Paused
+	return c.component.GetComponentSpec(mc.Spec).Paused
 }
 
 func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.Milvus) error {
-	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
+	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "get querynode deploys")
 	}
@@ -219,7 +225,7 @@ func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.M
 		if err != nil {
 			return errors.Wrapf(err, "mark milvus querynode group id to %d", groupId)
 		}
-		return c.util.CreateQueryNodeDeploy(ctx, mc, nil, groupId)
+		return c.util.CreateDeploy(ctx, mc, nil, groupId)
 	}
 	return nil
 }
@@ -247,9 +253,9 @@ func (c *DeployControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy *a
 }
 
 func (c *DeployControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.Milvus) error {
-	expectedReplicasPtr := QueryNode.GetReplicas(mc.Spec)
+	expectedReplicasPtr := c.component.GetReplicas(mc.Spec)
 	expectedReplicas := ReplicasValue(expectedReplicasPtr)
-	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
+	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "get querynode deploys")
 	}
@@ -274,7 +280,7 @@ func (c *DeployControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.
 		currentDeploy.Spec.Replicas = int32Ptr(currentDeployReplicas + diffReplicas)
 		return c.cli.Update(ctx, currentDeploy)
 	}
-	if v1beta1.Labels().IsComponentRolling(mc) {
+	if v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
 		// scale down is not allowed in rolling mode
 		return nil
 	}
@@ -285,14 +291,14 @@ func (c *DeployControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.
 }
 
 func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.Milvus) error {
-	currentDeploy, lastDeploy, err := c.util.GetQueryNodeDeploys(ctx, mc)
+	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "get querynode deploys")
 	}
 	if currentDeploy == nil {
 		return errors.Errorf("querynode deployment not found")
 	}
-	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, QueryNode)
+	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component)
 
 	if c.util.ShouldRollback(ctx, currentDeploy, lastDeploy, podTemplate) {
 		currentDeploy = lastDeploy

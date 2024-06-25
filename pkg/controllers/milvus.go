@@ -22,7 +22,7 @@ func IsSetDefaultDone(mc *v1beta1.Milvus) bool {
 func (r *MilvusReconciler) SetDefaultStatus(ctx context.Context, mc *v1beta1.Milvus) error {
 	if mc.Status.Status == "" {
 		mc.Status.Status = v1beta1.StatusPending
-		mc.Status.RollingMode = v1beta1.RollingModeV2
+		mc.Status.RollingMode = mc.Spec.Com.RollingMode
 		// metrics
 		milvusStatusCollector.WithLabelValues(mc.Namespace, mc.Name).
 			Set(MilvusStatusToCode(mc.Status.Status, mc.GetAnnotations()[MaintainingAnnotation] == "true"))

@@ -183,6 +183,7 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			r.logger.Info("requeue", "err", err.Error())
 			return ctrl.Result{RequeueAfter: unhealthySyncInterval / 2}, nil
 		}
+		r.logger.Info("reconcileAll", "err", err.Error())
 		return ctrl.Result{}, err
 	}
 

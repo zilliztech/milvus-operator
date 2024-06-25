@@ -82,6 +82,12 @@ func (r *Milvus) ValidateCreate() error {
 }
 
 func (r *Milvus) validateCommon() *field.Error {
+	switch r.Spec.Com.RollingMode {
+	case RollingModeV2, RollingModeV3:
+	default:
+		fp := field.NewPath("spec").Child("components").Child("rollingMode")
+		return field.Invalid(fp, r.Spec.Com.RollingMode, "rollingMode should be 2 or 3")
+	}
 	if err := r.validateEnableRolingUpdate(); err != nil {
 		return err
 	}
@@ -239,6 +245,9 @@ func (r *Milvus) DefaultComponents() {
 	setDefaultStr(&spec.Com.Image, config.DefaultMilvusImage)
 	if spec.Com.ImageUpdateMode == "" {
 		spec.Com.ImageUpdateMode = ImageUpdateModeRollingUpgrade
+	}
+	if spec.Com.RollingMode == RollingModeNotSet {
+		spec.Com.RollingMode = RollingModeV2
 	}
 	if spec.Com.Standalone == nil {
 		spec.Com.Standalone = &MilvusStandalone{}

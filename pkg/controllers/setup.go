@@ -73,7 +73,8 @@ func SetupControllers(ctx context.Context, mgr manager.Manager, stopReconcilers 
 		bizUtilFactory := NewDeployControllerBizUtilFactory(mgr.GetClient(), k8sUtil)
 		modeChangerFactory := NewDeployModeChangerFactory(mgr.GetClient(), k8sUtil)
 		deployCtrlBizFactory := NewDeployControllerBizFactory(modeChangerFactory, statusSyncer, bizUtilFactory, mgr.GetClient())
-		deployCtrl := NewDeployController(deployCtrlBizFactory, NewCommonComponentReconciler(reconciler))
+		rollingModeStatusUpdater := NewRollingModeStatusUpdater(mgr.GetClient(), deployCtrlBizFactory)
+		deployCtrl := NewDeployController(deployCtrlBizFactory, NewCommonComponentReconciler(reconciler), rollingModeStatusUpdater)
 		reconciler.deployCtrl = deployCtrl
 		reconcilers["milvus"] = reconciler
 

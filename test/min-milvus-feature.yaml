@@ -14,6 +14,7 @@ metadata:
 spec:
   mode: "standalone"
   components:
+    rollingMode: 3
     runWithSubProcess: true
     standalone:
       ingress:

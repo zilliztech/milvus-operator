@@ -165,6 +165,10 @@ type MilvusComponents struct {
 	// +kubebuilder:validation:Optional
 	UpdateConfigMapOnly bool `json:"updateConfigMapOnly,omitempty"`
 
+	// RollingMode is the rolling mode for milvus components, default to 2
+	// +kubebuilder:validation:Optional
+	RollingMode RollingMode `json:"rollingMode,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	Proxy *MilvusProxy `json:"proxy,omitempty"`
 
