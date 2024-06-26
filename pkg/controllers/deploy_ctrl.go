@@ -266,6 +266,15 @@ func (c *DeployControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.
 		return errors.Errorf("querynode deployment not found")
 	}
 	currentDeployReplicas := getDeployReplicas(currentDeploy)
+	isHpa := expectedReplicas < 0
+	if isHpa {
+		if currentDeployReplicas == 0 {
+			currentDeploy.Spec.Replicas = int32Ptr(1)
+			return c.cli.Update(ctx, currentDeploy)
+		}
+		return nil
+	}
+
 	lastDeployReplicas := 0
 	if lastDeploy != nil {
 		lastDeployReplicas = getDeployReplicas(lastDeploy)

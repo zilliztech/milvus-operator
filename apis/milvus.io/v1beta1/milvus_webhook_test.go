@@ -60,6 +60,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 					Component: defaultComponent,
 				},
 			},
+			RollingMode: RollingModeV2,
 		},
 		Conf: Values{
 			Data: map[string]interface{}{},
@@ -98,6 +99,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		ComponentSpec: ComponentSpec{
 			Image: config.DefaultMilvusImage,
 		},
+		RollingMode: RollingModeV2,
 		Proxy: &MilvusProxy{
 			ServiceComponent: ServiceComponent{
 				Component: defaultComponent,
@@ -219,11 +221,8 @@ func TestMilvus_Default_DeleteUnSetableOK(t *testing.T) {
 
 func TestMilvus_ValidateCreate_NoError(t *testing.T) {
 	mc := Milvus{}
-	err := mc.ValidateCreate()
-	assert.NoError(t, err)
-
 	mc.Default()
-	err = mc.ValidateCreate()
+	err := mc.ValidateCreate()
 	assert.NoError(t, err)
 }
 
@@ -257,6 +256,7 @@ func TestMilvus_ValidateCreate_Invalid3(t *testing.T) {
 			},
 		},
 	}
+	mc.Default()
 	err := mc.ValidateCreate()
 	assert.Error(t, err)
 }

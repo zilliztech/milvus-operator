@@ -83,7 +83,7 @@ func (r *Milvus) ValidateCreate() error {
 
 func (r *Milvus) validateCommon() *field.Error {
 	switch r.Spec.Com.RollingMode {
-	case RollingModeV2, RollingModeV3:
+	case RollingModeNotSet, RollingModeV2, RollingModeV3:
 	default:
 		fp := field.NewPath("spec").Child("components").Child("rollingMode")
 		return field.Invalid(fp, r.Spec.Com.RollingMode, "rollingMode should be 2 or 3")

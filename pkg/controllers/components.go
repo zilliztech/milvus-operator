@@ -147,6 +147,16 @@ func (c MilvusComponent) IsNode() bool {
 	return strings.HasSuffix(c.Name, "node")
 }
 
+// GetLeastReplicasRegardingHPA returns the least replicas for the component regarding HPA
+func (c MilvusComponent) GetLeastReplicasRegardingHPA(spec v1beta1.MilvusSpec) int32 {
+	replicas := ReplicasValue(c.GetReplicas(spec))
+	isHPA := replicas < 0
+	if isHPA {
+		return 1
+	}
+	return replicas
+}
+
 // GetReplicas returns the replicas for the component
 func (c MilvusComponent) GetReplicas(spec v1beta1.MilvusSpec) *int32 {
 	componentField := reflect.ValueOf(spec.Com).FieldByName(c.FieldName)

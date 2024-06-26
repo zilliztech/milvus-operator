@@ -338,7 +338,7 @@ func TestDeployControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
 	})
 
 	v1beta1.Labels().SetComponentRolling(&mc, DataNodeName, true)
-	t.Run("current deploy not scaled as specified", func(t *testing.T) {
+	t.Run("current deploy scaled less than specified", func(t *testing.T) {
 		currentDeploy.Spec.Replicas = int32Ptr(2)
 		ret, err := bizUtil.LastRolloutFinished(ctx, mc, currentDeploy, lastDeploy)
 		assert.NoError(t, err)
@@ -569,8 +569,9 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 
 	pods := []corev1.Pod{}
 	currentPods := []corev1.Pod{}
-	t.Run("current deploy has more spec.replicas than expected", func(t *testing.T) {
+	t.Run("hpa current deploy has more spec.replicas than expected, ok", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
+		milvus.Spec.Com.DataNode.Replicas = int32Ptr(-1)
 		currentDeploy := deployTemplate.DeepCopy()
 		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := deployTemplate.DeepCopy()
@@ -582,8 +583,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
 		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "current deploy has more replicas")
+		assert.NoError(t, err)
 	})
 
 	t.Run("last deploy scale in", func(t *testing.T) {
@@ -604,8 +604,9 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		assert.Equal(t, int32(0), *lastDeploy.Spec.Replicas)
 	})
 
-	t.Run("current scale out", func(t *testing.T) {
+	t.Run("hpa, current scale out", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
+		milvus.Spec.Com.DataNode.Replicas = int32Ptr(-1)
 		currentDeploy := deployTemplate.DeepCopy()
 		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := deployTemplate.DeepCopy()
@@ -616,7 +617,7 @@ func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
 		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
 		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
-		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(ErrRequeue)
+		mockutil.EXPECT().UpdateAndRequeue(ctx, gomock.Any()).Return(ErrRequeue)
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
 		assert.Equal(t, int32(1), *currentDeploy.Spec.Replicas)

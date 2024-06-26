@@ -183,11 +183,12 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	if !v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
 		return true, nil
 	}
+
 	// assume currentDeployment & lastDeployment not nil
-	expectReplicas := int32(getDeployReplicas(currentDeployment))
+	deployExpectReplicas := int32(getDeployReplicas(currentDeployment))
 
 	reasons := []string{
-		"current deploy replicas not up to date",
+		"current deploy replicas smaller than expected",
 		"current deploy observed generation not up to date",
 		"last deploy observed generation not up to date",
 		"updated replicas not as expected",
@@ -198,19 +199,21 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	}
 	deploymentShowsRolloutFinished, failedIndex := logicAnd(
 		// spec & status up to date:
-		ReplicasValue(c.component.GetReplicas(mc.Spec)) == ReplicasValue(currentDeployment.Spec.Replicas),
+		c.component.GetLeastReplicasRegardingHPA(mc.Spec) <= ReplicasValue(currentDeployment.Spec.Replicas),
 		currentDeployment.Status.ObservedGeneration == currentDeployment.Generation,
 		lastDeployment.Status.ObservedGeneration == lastDeployment.Generation,
 		// check current all up:
-		expectReplicas == currentDeployment.Status.UpdatedReplicas,
+		deployExpectReplicas == currentDeployment.Status.UpdatedReplicas,
 		currentDeployment.Status.UpdatedReplicas == currentDeployment.Status.Replicas,
 		currentDeployment.Status.UpdatedReplicas == currentDeployment.Status.AvailableReplicas,
 		// check last all down:
 		getDeployReplicas(lastDeployment) == 0,
 		lastDeployment.Status.Replicas == 0,
 	)
+	logger := ctrl.LoggerFrom(ctx)
 	if !deploymentShowsRolloutFinished {
 		logger := ctrl.LoggerFrom(ctx)
+		println(failedIndex)
 		logger.Info("rollout not finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.Name), "reason", reasons[failedIndex])
 		return false, nil
 	}
@@ -222,7 +225,6 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	if len(pods) != 0 {
 		return false, nil
 	}
-	logger := ctrl.LoggerFrom(ctx)
 	logger.Info("rollout finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.Name))
 	v1beta1.Labels().SetComponentRolling(&mc, c.component.Name, false)
 	return false, c.UpdateAndRequeue(ctx, &mc)
@@ -246,15 +248,75 @@ var errStringBrokenCase = "broken case"
 
 // Rollout to current deploymement, we assume both current & last deploy is not nil
 func (c *DeployControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
+	err := c.markDeployAsCurrent(ctx, mc, currentDeployment)
+	if err != nil {
+		return errors.Wrapf(err, "mark group id to ")
+	}
+	err = c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
+	if err != nil {
+		return err
+	}
+	action := c.planNextAction(ctx, mc, currentDeployment, lastDeployment)
+	return c.doScaleAction(ctx, action)
+}
+
+type scaleAction struct {
+	// deploy shall not be nil
+	deploy *appsv1.Deployment
+	// 0: no change, 1: scale up, -1: scale down
+	replicaChange int
+}
+
+var noScaleAction = scaleAction{}
+
+func (c *DeployControllerBizUtilImpl) planNextAction(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
+	currentDeployReplicas := getDeployReplicas(currentDeployment)
+	lastDeployReplicas := getDeployReplicas(lastDeployment)
+
+	currentReplicas := currentDeployReplicas + lastDeployReplicas
+	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
+	isHpa := expectedReplicas < 0
+	if isHpa {
+		expectedReplicas = 1
+	}
+	switch {
+	case currentReplicas > expectedReplicas:
+		if lastDeployReplicas > 0 {
+			return scaleAction{deploy: lastDeployment, replicaChange: -1}
+		}
+		return noScaleAction
+	case currentReplicas == expectedReplicas:
+		if lastDeployReplicas == 0 {
+			return noScaleAction
+		}
+		return scaleAction{deploy: currentDeployment, replicaChange: 1}
+	default:
+		// unexpected: case currentReplicas < expectedReplicas
+		err := errors.Errorf("currentReplicas %d < expectedReplicas %d", currentReplicas, expectedReplicas)
+		ctrl.LoggerFrom(ctx).Error(err, errStringBrokenCase)
+		// try fix it:
+		return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentReplicas}
+	}
+}
+
+func (c *DeployControllerBizUtilImpl) doScaleAction(ctx context.Context, action scaleAction) error {
+	if action.replicaChange == 0 {
+		return nil
+	}
+	action.deploy.Spec.Replicas = int32Ptr(getDeployReplicas(action.deploy) + action.replicaChange)
+	return c.K8sUtil.UpdateAndRequeue(ctx, action.deploy)
+}
+
+func (c *DeployControllerBizUtilImpl) markDeployAsCurrent(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment) error {
 	groupId, err := GetDeploymentGroupId(currentDeployment)
 	if err != nil {
 		return errors.Wrap(err, "get deployment group id")
 	}
 	err = c.MarkMilvusComponentGroupId(ctx, mc, c.component, groupId)
-	if err != nil {
-		return errors.Wrapf(err, "mark group id to ")
-	}
+	return errors.Wrapf(err, "mark group id to ")
+}
 
+func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment) error {
 	lastDeployPods, err := c.K8sUtil.ListDeployPods(ctx, lastDeployment, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list last deploy pods")
@@ -272,37 +334,7 @@ func (c *DeployControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1.Mi
 	if !isStable {
 		return errors.Wrapf(ErrRequeue, "current deploy is not stable[%s]", reason)
 	}
-
-	currentReplicas := int32(getDeployReplicas(currentDeployment) + getDeployReplicas(lastDeployment))
-	expectedReplicas := ReplicasValue(c.component.GetReplicas(mc.Spec))
-	logger := ctrl.LoggerFrom(ctx)
-	logger.Info("continueing rollout", "currentReplicas", currentReplicas, "expectedReplicas", expectedReplicas)
-	switch {
-	case currentReplicas > expectedReplicas:
-		if getDeployReplicas(lastDeployment) == 0 {
-			err = errors.Errorf("current deploy has more replicas[%d] than expected[%d]", currentReplicas, expectedReplicas)
-			logger.Error(err, errStringBrokenCase)
-			// this case should be handled in HandleScaling()
-			return err
-		}
-		lastDeployment.Spec.Replicas = int32Ptr(getDeployReplicas(lastDeployment) - 1)
-		return c.K8sUtil.UpdateAndRequeue(ctx, lastDeployment)
-	case currentReplicas == expectedReplicas:
-		if int32(getDeployReplicas(currentDeployment)) == expectedReplicas {
-			// rollout finished
-			return nil
-		}
-		currentDeployment.Spec.Replicas = int32Ptr(getDeployReplicas(currentDeployment) + 1)
-		return c.K8sUtil.UpdateAndRequeue(ctx, currentDeployment)
-	default:
-		// case currentReplicas < expectedReplicas:
-		err := errors.Errorf("currentReplicas %d < expectedReplicas %d", currentReplicas, expectedReplicas)
-		logger.Error(err, errStringBrokenCase)
-
-		// try fix it:
-		currentDeployment.Spec.Replicas = int32Ptr(getDeployReplicas(currentDeployment) + 1)
-		return c.K8sUtil.UpdateAndRequeue(ctx, currentDeployment)
-	}
+	return nil
 }
 
 func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) error {

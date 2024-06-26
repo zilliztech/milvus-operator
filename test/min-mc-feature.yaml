@@ -19,9 +19,7 @@ spec:
     proxy:
       ingress:
         hosts: ["mc-sit.milvus.io"]
-      replicas: -1 
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+      replicas: 1
     mixCoord:
       replicas: 1
   dependencies:
@@ -37,6 +35,11 @@ spec:
         deletionPolicy: Delete
         pvcDeletion: true
         values:
+          persistence:
+            enabled: true
+            storageClass:
+            accessMode: ReadWriteOnce
+            size: 20Gi
           heapOpts: -Xmx512m -Xms320m
           defaultReplicationFactor: 1
           offsetsTopicReplicationFactor: 1
@@ -55,41 +58,3 @@ spec:
     milvus:
       log:
         level: info
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: milvus-milvus-proxy-hpa
-  namespace: mc-sit
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: milvus-milvus-proxy
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 60
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 60
-  behavior:
-    scaleUp:
-      policies:
-      - type: Pods
-        value: 1
-        periodSeconds: 30
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-      - type: Pods
-        value: 1
-        periodSeconds: 60

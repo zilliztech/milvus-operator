@@ -340,9 +340,12 @@ func TestDeployControllerBizImpl_HandleScaling(t *testing.T) {
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
 	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
 	t.Run("get querynode deploy failed", func(t *testing.T) {
-		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, nil, errMock)
-		err := bizImpl.HandleScaling(ctx, mc)
+		mc := mc.DeepCopy()
+		mockUtil.EXPECT().GetDeploys(ctx, *mc).Return(nil, nil, errMock)
+		err := bizImpl.HandleScaling(ctx, *mc)
 		assert.Error(t, err)
 	})
 
@@ -382,6 +385,15 @@ func TestDeployControllerBizImpl_HandleScaling(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("hpa ok", func(t *testing.T) {
+		mc := mc.DeepCopy()
+		mc.Spec.Com.QueryNode.Replicas = int32Ptr(-1)
+		deploy := appsv1.Deployment{}
+		mockUtil.EXPECT().GetDeploys(ctx, *mc).Return(&deploy, nil, nil)
+		err := bizImpl.HandleScaling(ctx, *mc)
+		assert.NoError(t, err)
+	})
+
 	t.Run("deploy not found failed", func(t *testing.T) {
 		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, nil, nil)
 		err := bizImpl.HandleScaling(ctx, mc)
@@ -411,6 +423,17 @@ func TestDeployControllerBizImpl_HandleScaling(t *testing.T) {
 		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(&deploy, nil, nil)
 		mockCli.EXPECT().Update(ctx, &deploy).Return(nil)
 		err := bizImpl.HandleScaling(ctx, mc)
+		assert.NoError(t, err)
+	})
+
+	t.Run("hpa 0->1 ok", func(t *testing.T) {
+		mc := mc.DeepCopy()
+		mc.Spec.Com.QueryNode.Replicas = int32Ptr(-1)
+		deploy := appsv1.Deployment{}
+		deploy.Spec.Replicas = int32Ptr(0)
+		mockCli.EXPECT().Update(ctx, &deploy).Return(nil)
+		mockUtil.EXPECT().GetDeploys(ctx, *mc).Return(&deploy, nil, nil)
+		err := bizImpl.HandleScaling(ctx, *mc)
 		assert.NoError(t, err)
 	})
 }
