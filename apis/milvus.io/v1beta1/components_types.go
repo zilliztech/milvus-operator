@@ -93,6 +93,14 @@ type ComponentSpec struct {
 	// PriorityClassName indicates the pod's priority.
 	// +kubebuilder:validation:Optional
 	PriorityClassName string `json:"priorityClassName,omitempty"`
+
+	// HostNetwork indicates whether to use host network
+	// +kubebuilder:validation:Optional
+	HostNetwork bool `json:"hostNetwork,omitempty"`
+
+	// DNSPolicy indicates the pod's DNS policy
+	// +kubebuilder:validation:Optional
+	DNSPolicy corev1.DNSPolicy `json:"dnsPolicy,omitempty"`
 }
 
 // ImageUpdateMode is how the milvus components' image should be updated. works only when rolling update is enabled.

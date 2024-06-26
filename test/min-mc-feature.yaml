@@ -19,6 +19,8 @@ spec:
       ingress:
         hosts: ["mc-sit.milvus.io"]
       replicas: -1 
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
     mixCoord:
       replicas: 1
   dependencies:
