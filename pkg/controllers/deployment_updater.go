@@ -91,6 +91,8 @@ func updatePodTemplate(
 	updateScheduleSpec(template, updater)
 	updateMilvusContainer(template, updater, isCreating)
 	updateSidecars(template, updater)
+	updateNetworkSettings(template, updater)
+
 	// no rolling update
 	if IsEqual(currentTemplate, template) {
 		return
@@ -101,6 +103,12 @@ func updatePodTemplate(
 		Info("pod template changed", "diff", diff.ObjectDiff(currentTemplate, template))
 	// some defaults change will cause rolling update, so we only perform when rolling update
 	updateSomeFieldsOnlyWhenRolling(template, updater)
+}
+
+func updateNetworkSettings(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
+	mergedComSpec := updater.GetMergedComponentSpec()
+	template.Spec.HostNetwork = mergedComSpec.HostNetwork
+	template.Spec.DNSPolicy = mergedComSpec.DNSPolicy
 }
 
 func updatePodMeta(template *corev1.PodTemplateSpec, appLabels map[string]string, updater deploymentUpdater) {

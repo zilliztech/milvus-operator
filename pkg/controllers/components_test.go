@@ -260,6 +260,22 @@ func TestMergeComponentSpec(t *testing.T) {
 		merged = MergeComponentSpec(src, dst).RunWithSubProcess
 		assert.Equal(t, false, *merged)
 	})
+
+	t.Run("merge HostNetwork", func(t *testing.T) {
+		src.HostNetwork = true
+		dst.HostNetwork = false
+		merged := MergeComponentSpec(src, dst).HostNetwork
+		assert.Equal(t, true, merged)
+	})
+
+	t.Run("merge DNSPolicy", func(t *testing.T) {
+		dst.DNSPolicy = corev1.DNSPolicy("Default")
+		merged := MergeComponentSpec(src, dst).DNSPolicy
+		assert.Equal(t, corev1.DNSPolicy("Default"), merged)
+		src.DNSPolicy = corev1.DNSPolicy("ClusterFirst")
+		merged = MergeComponentSpec(src, dst).DNSPolicy
+		assert.Equal(t, corev1.DNSPolicy("ClusterFirst"), merged)
+	})
 }
 
 func TestMilvusComponent_GetReplicas(t *testing.T) {
