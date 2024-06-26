@@ -611,5 +611,13 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 		dst.RunWithSubProcess = &(*src.RunWithSubProcess)
 	}
 
+	if src.HostNetwork {
+		dst.HostNetwork = src.HostNetwork
+	}
+
+	if len(src.DNSPolicy) > 0 {
+		dst.DNSPolicy = src.DNSPolicy
+	}
+
 	return dst
 }

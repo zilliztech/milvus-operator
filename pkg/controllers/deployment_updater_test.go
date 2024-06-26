@@ -292,6 +292,27 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		updater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, DataNode)
 		updateDeployment(deployment, updater)
 		assert.Equal(t, newImage, deployment.Spec.Template.Spec.Containers[0].Image)
+	})
 
+	t.Run("update network settings with different values", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Com.HostNetwork = false
+		inst.Spec.Com.DNSPolicy = corev1.DNSPolicy("ClusterFirst") // 设置 DNSPolicy 的值
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		deployment := &appsv1.Deployment{}
+		deployment.Name = "deploy"
+		deployment.Namespace = "ns"
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Equal(t, false, deployment.Spec.Template.Spec.HostNetwork)
+		assert.Equal(t, corev1.DNSPolicy("ClusterFirst"), deployment.Spec.Template.Spec.DNSPolicy)
+
+		inst.Spec.Com.HostNetwork = true
+		inst.Spec.Com.DNSPolicy = corev1.DNSPolicy("Default")
+		updater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		err = updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Equal(t, true, deployment.Spec.Template.Spec.HostNetwork)
+		assert.Equal(t, corev1.DNSPolicy("Default"), deployment.Spec.Template.Spec.DNSPolicy)
 	})
 }

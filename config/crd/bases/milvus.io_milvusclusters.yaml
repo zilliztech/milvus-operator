@@ -751,6 +751,8 @@ spec:
                         items:
                           type: string
                         type: array
+                      dnsPolicy:
+                        type: string
                       env:
                         items:
                           properties:
@@ -811,6 +813,8 @@ spec:
                           - name
                           type: object
                         type: array
+                      hostNetwork:
+                        type: boolean
                       image:
                         type: string
                       imagePullPolicy:
@@ -1284,6 +1288,8 @@ spec:
                         items:
                           type: string
                         type: array
+                      dnsPolicy:
+                        type: string
                       env:
                         items:
                           properties:
@@ -1344,6 +1350,8 @@ spec:
                           - name
                           type: object
                         type: array
+                      hostNetwork:
+                        type: boolean
                       image:
                         type: string
                       imagePullPolicy:
@@ -1459,6 +1467,8 @@ spec:
                     type: object
                   disableMetric:
                     type: boolean
+                  dnsPolicy:
+                    type: string
                   enableRollingUpdate:
                     type: boolean
                   env:
@@ -1521,6 +1531,8 @@ spec:
                       - name
                       type: object
                     type: array
+                  hostNetwork:
+                    type: boolean
                   image:
                     type: string
                   imagePullPolicy:
@@ -1900,6 +1912,8 @@ spec:
                         items:
                           type: string
                         type: array
+                      dnsPolicy:
+                        type: string
                       env:
                         items:
                           properties:
@@ -1960,6 +1974,8 @@ spec:
                           - name
                           type: object
                         type: array
+                      hostNetwork:
+                        type: boolean
                       image:
                         type: string
                       imagePullPolicy:
@@ -2433,6 +2449,8 @@ spec:
                         items:
                           type: string
                         type: array
+                      dnsPolicy:
+                        type: string
                       env:
                         items:
                           properties:
@@ -2493,6 +2511,8 @@ spec:
                           - name
                           type: object
                         type: array
+                      hostNetwork:
+                        type: boolean
                       image:
                         type: string
                       imagePullPolicy:
@@ -2968,6 +2988,8 @@ spec:
                         items:
                           type: string
                         type: array
+                      dnsPolicy:
+                        type: string
                       env:
                         items:
                           properties:
@@ -3028,6 +3050,8 @@ spec:
                           - name
                           type: object
                         type: array
+                      hostNetwork:
+                        type: boolean
                       image:
                         type: string
                       imagePullPolicy:
@@ -3517,6 +3541,8 @@ spec:
                         items:
                           type: string
                         type: array
+                      dnsPolicy:
+                        type: string
                       env:
                         items:
                           properties:
@@ -3577,6 +3603,8 @@ spec:
                           - name
                           type: object
                         type: array
+                      hostNetwork:
+                        type: boolean
                       image:
                         type: string
                       imagePullPolicy:
@@ -4091,6 +4119,8 @@ spec:
                         items:
                           type: string
                         type: array
+                      dnsPolicy:
+                        type: string
                       env:
                         items:
                           properties:
@@ -4151,6 +4181,8 @@ spec:
                           - name
                           type: object
                         type: array
+                      hostNetwork:
+                        type: boolean
                       image:
                         type: string
                       imagePullPolicy:
@@ -4624,6 +4656,8 @@ spec:
                         items:
                           type: string
                         type: array
+                      dnsPolicy:
+                        type: string
                       env:
                         items:
                           properties:
@@ -4684,6 +4718,8 @@ spec:
                           - name
                           type: object
                         type: array
+                      hostNetwork:
+                        type: boolean
                       image:
                         type: string
                       imagePullPolicy:
@@ -5176,6 +5212,8 @@ spec:
                         items:
                           type: string
                         type: array
+                      dnsPolicy:
+                        type: string
                       env:
                         items:
                           properties:
@@ -5236,6 +5274,8 @@ spec:
                           - name
                           type: object
                         type: array
+                      hostNetwork:
+                        type: boolean
                       image:
                         type: string
                       imagePullPolicy:
@@ -5715,6 +5755,8 @@ spec:
                         items:
                           type: string
                         type: array
+                      dnsPolicy:
+                        type: string
                       env:
                         items:
                           properties:
@@ -5775,6 +5817,8 @@ spec:
                           - name
                           type: object
                         type: array
+                      hostNetwork:
+                        type: boolean
                       image:
                         type: string
                       imagePullPolicy:

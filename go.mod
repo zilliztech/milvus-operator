@@ -104,6 +104,7 @@ require (
 	github.com/go-openapi/jsonreference v0.19.3 // indirect
 	github.com/go-openapi/spec v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.5 // indirect
+	github.com/gobuffalo/flect v0.2.2 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -220,6 +221,7 @@ require (
 	k8s.io/kubectl v0.21.0 // indirect
 	k8s.io/utils v0.0.0-20210722164352-7f3ee0f31471 // indirect
 	rsc.io/letsencrypt v0.0.3 // indirect
+	sigs.k8s.io/controller-tools v0.6.0 // indirect
 	sigs.k8s.io/kustomize/api v0.8.8 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.10.17 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
