@@ -22,16 +22,16 @@ const (
 
 	RestfulPortName = "restful"
 
-	MixCoordName   = "mixcoord"
-	RootCoordName  = "rootcoord"
-	DataCoordName  = "datacoord"
-	QueryCoordName = "querycoord"
-	IndexCoordName = "indexcoord"
-	DataNodeName   = "datanode"
-	QueryNodeName  = "querynode"
-	IndexNodeName  = "indexnode"
-	ProxyName      = "proxy"
-	StandaloneName = "standalone"
+	MixCoordName   = v1beta1.MixCoordName
+	RootCoordName  = v1beta1.RootCoordName
+	DataCoordName  = v1beta1.DataCoordName
+	QueryCoordName = v1beta1.QueryCoordName
+	IndexCoordName = v1beta1.IndexCoordName
+	DataNodeName   = v1beta1.DataNodeName
+	QueryNodeName  = v1beta1.QueryNodeName
+	IndexNodeName  = v1beta1.IndexNodeName
+	ProxyName      = v1beta1.ProxyName
+	StandaloneName = v1beta1.StandaloneName
 	MilvusName     = "milvus"
 
 	MixCoordFieldName   = "MixCoord"
@@ -145,6 +145,16 @@ func (c MilvusComponent) IsStandalone() bool {
 // IsCoord return if it's a node by its name
 func (c MilvusComponent) IsNode() bool {
 	return strings.HasSuffix(c.Name, "node")
+}
+
+// GetLeastReplicasRegardingHPA returns the least replicas for the component regarding HPA
+func (c MilvusComponent) GetLeastReplicasRegardingHPA(spec v1beta1.MilvusSpec) int32 {
+	replicas := ReplicasValue(c.GetReplicas(spec))
+	isHPA := replicas < 0
+	if isHPA {
+		return 1
+	}
+	return replicas
 }
 
 // GetReplicas returns the replicas for the component

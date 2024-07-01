@@ -73,12 +73,12 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 	var errDetail *ComponentErrorDetail
 	var err error
 	componentDeploy := makeComponentDeploymentMap(mc, deployList.Items)
-	hasReadyReplica := false
+	hasEntryReplicas := false
 	for _, component := range allComponents {
 		deployment := componentDeploy[component.Name]
 		if deployment != nil && DeploymentReady(deployment.Status) {
-			if deployment.Status.ReadyReplicas > 0 {
-				hasReadyReplica = true
+			if component.IsService() && deployment.Status.ReadyReplicas > 0 {
+				hasEntryReplicas = true
 			}
 			continue
 		}
@@ -96,7 +96,7 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 	}
 
 	if len(notReadyComponents) == 0 {
-		if !hasReadyReplica {
+		if !hasEntryReplicas {
 			return v1beta1.MilvusCondition{}, nil
 		}
 		cond.Status = corev1.ConditionTrue

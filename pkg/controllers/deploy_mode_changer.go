@@ -16,15 +16,17 @@ import (
 var _ DeployModeChanger = &DeployModeChangerImpl{}
 
 type DeployModeChangerImpl struct {
+	component           MilvusComponent
 	cli                 client.Client
-	util                QueryNodeControllerBizUtil
+	util                K8sUtil
 	changeModeToV2Steps []step
 }
 
-func NewDeployModeChanger(cli client.Client, util QueryNodeControllerBizUtil) *DeployModeChangerImpl {
+func NewDeployModeChanger(component MilvusComponent, cli client.Client, util K8sUtil) *DeployModeChangerImpl {
 	c := &DeployModeChangerImpl{
-		cli:  cli,
-		util: util,
+		component: component,
+		cli:       cli,
+		util:      util,
 	}
 	c.changeModeToV2Steps = []step{
 		newStep("save and delete old deploy", c.SaveDeleteOldDeploy),
@@ -32,7 +34,6 @@ func NewDeployModeChanger(cli client.Client, util QueryNodeControllerBizUtil) *D
 		newStep("update old pod labels", c.UpdateOldPodLabels),
 		newStep("recover replica sets", c.RecoverReplicaSets),
 		newStep("recover deploy", c.RecoverDeploy),
-		newStep("update status mode to v2", c.UpdateStatusToV2),
 	}
 	return c
 }
@@ -53,7 +54,7 @@ func newStep(name string, f func(context.Context, v1beta1.Milvus) error) step {
 	}
 }
 
-func (c *DeployModeChangerImpl) ChangeRollingModeToV2(ctx context.Context, mc v1beta1.Milvus) error {
+func (c *DeployModeChangerImpl) ChangeToTwoDeployMode(ctx context.Context, mc v1beta1.Milvus) error {
 	logger := ctrl.LoggerFrom(ctx)
 	for i, step := range c.changeModeToV2Steps {
 		logger.Info("changeModeToV2Steps", "step no.", i, "name", step.Name)
@@ -66,20 +67,20 @@ func (c *DeployModeChangerImpl) ChangeRollingModeToV2(ctx context.Context, mc v1
 }
 
 func (c *DeployModeChangerImpl) markChangingDeployMode(ctx context.Context, mc v1beta1.Milvus, changing bool) error {
-	if v1beta1.Labels().IsChangeQueryNodeMode(mc) == changing {
+	if v1beta1.Labels().IsChangingMode(mc, c.component.Name) == changing {
 		return nil
 	}
 	logger := ctrl.LoggerFrom(ctx)
 	logger.Info("marking changing deploy mode", "changing", changing)
-	v1beta1.Labels().SetChangingQueryNodeMode(&mc, changing)
+	v1beta1.Labels().SetChangingMode(&mc, c.component.Name, changing)
 	err := c.util.UpdateAndRequeue(ctx, &mc)
 	return errors.Wrap(err, "marking changing deploy mode")
 }
 
 func (c *DeployModeChangerImpl) SaveDeleteOldDeploy(ctx context.Context, mc v1beta1.Milvus) error {
-	oldDeploy, err := c.util.GetOldQueryNodeDeploy(ctx, mc)
+	oldDeploy, err := c.util.GetOldDeploy(ctx, mc, c.component)
 	if err == nil {
-		err := c.util.SaveObject(ctx, mc, formatSaveOldDeployName(mc), oldDeploy)
+		err := c.util.SaveObject(ctx, mc, formatSaveOldDeployName(mc, c.component), oldDeploy)
 		if err != nil {
 			return errors.Wrap(err, "save old deploy")
 		}
@@ -89,17 +90,17 @@ func (c *DeployModeChangerImpl) SaveDeleteOldDeploy(ctx context.Context, mc v1be
 		}
 	}
 	if err != nil && !kerrors.IsNotFound(err) {
-		return errors.Wrap(err, "get querynode deployments")
+		return errors.Wrapf(err, "get old deployments")
 	}
 	return nil
 }
 
 func (c *DeployModeChangerImpl) SaveDeleteOldReplicaSet(ctx context.Context, mc v1beta1.Milvus) error {
-	replicasetList, err := c.util.ListOldReplicaSets(ctx, mc)
+	replicasetList, err := c.util.ListOldReplicaSets(ctx, mc, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list old replica sets")
 	}
-	err = c.util.SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc), &replicasetList)
+	err = c.util.SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc, c.component), &replicasetList)
 	if err != nil {
 		return errors.Wrap(err, "save old replicaset list")
 	}
@@ -114,12 +115,12 @@ func (c *DeployModeChangerImpl) SaveDeleteOldReplicaSet(ctx context.Context, mc 
 }
 
 func (c *DeployModeChangerImpl) UpdateOldPodLabels(ctx context.Context, mc v1beta1.Milvus) error {
-	pods, err := c.util.ListOldPods(ctx, mc)
+	pods, err := c.util.ListOldPods(ctx, mc, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list old pods")
 	}
 	for _, pod := range pods {
-		v1beta1.Labels().SetQueryNodeGroupID(pod.Labels, 0)
+		v1beta1.Labels().SetGroupID(c.component.Name, pod.Labels, 0)
 		err = c.cli.Update(ctx, &pod)
 		if err != nil {
 			return errors.Wrap(err, "update old pod labels")
@@ -132,7 +133,7 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 	replicasetList := &appsv1.ReplicaSetList{}
 	key := client.ObjectKey{
 		Namespace: mc.Namespace,
-		Name:      formatSaveOldReplicaSetListName(mc),
+		Name:      formatSaveOldReplicaSetListName(mc, c.component),
 	}
 	err := c.util.GetSavedObject(ctx, key, replicasetList)
 	if err != nil {
@@ -143,9 +144,9 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 	logger.Info("recovering old replica sets", "count", len(replicasetList.Items))
 	for _, rs := range replicasetList.Items {
 		logger.Info("recovering old replica set", "old-name", rs.Name)
-		labelHelper.SetQueryNodeGroupID(rs.Labels, 0)
-		labelHelper.SetQueryNodeGroupID(rs.Spec.Selector.MatchLabels, 0)
-		labelHelper.SetQueryNodeGroupID(rs.Spec.Template.Labels, 0)
+		labelHelper.SetGroupID(c.component.Name, rs.Labels, 0)
+		labelHelper.SetGroupID(c.component.Name, rs.Spec.Selector.MatchLabels, 0)
+		labelHelper.SetGroupID(c.component.Name, rs.Spec.Template.Labels, 0)
 		rs.UID = ""
 		rs.ResourceVersion = ""
 		splitedName := strings.Split(rs.Name, "-")
@@ -153,7 +154,7 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 			return errors.Errorf("invalid old replica set name: %s", rs.Name)
 		}
 		rsHash := splitedName[len(splitedName)-1]
-		rs.Name = fmt.Sprintf("%s-%s", formatQnDeployName(mc, 0), rsHash)
+		rs.Name = fmt.Sprintf("%s-0-%s", rs.Name, rsHash)
 		logger.Info("recovering old replica set", "new-name", rs.Name)
 		err = c.util.CreateObject(ctx, &rs)
 		if err != nil {
@@ -167,19 +168,19 @@ func (c *DeployModeChangerImpl) RecoverDeploy(ctx context.Context, mc v1beta1.Mi
 	oldDeploy := &appsv1.Deployment{}
 	key := client.ObjectKey{
 		Namespace: mc.Namespace,
-		Name:      formatSaveOldDeployName(mc),
+		Name:      formatSaveOldDeployName(mc, c.component),
 	}
 	err := c.util.GetSavedObject(ctx, key, oldDeploy)
 	if err != nil {
 		return errors.Wrap(err, "get old deploy")
 	}
 	labelHelper := v1beta1.Labels()
-	labelHelper.SetQueryNodeGroupID(oldDeploy.Labels, 0)
-	labelHelper.SetQueryNodeGroupID(oldDeploy.Spec.Selector.MatchLabels, 0)
-	labelHelper.SetQueryNodeGroupID(oldDeploy.Spec.Template.Labels, 0)
+	labelHelper.SetGroupID(c.component.Name, oldDeploy.Labels, 0)
+	labelHelper.SetGroupID(c.component.Name, oldDeploy.Spec.Selector.MatchLabels, 0)
+	labelHelper.SetGroupID(c.component.Name, oldDeploy.Spec.Template.Labels, 0)
 	oldDeploy.UID = ""
 	oldDeploy.ResourceVersion = ""
-	oldDeploy.Name = formatQnDeployName(mc, 0)
+	oldDeploy.Name = fmt.Sprintf("%s-0", oldDeploy.Name)
 	err = c.util.CreateObject(ctx, oldDeploy)
 	if err != nil {
 		return errors.Wrap(err, "recover old deploy")
@@ -187,19 +188,10 @@ func (c *DeployModeChangerImpl) RecoverDeploy(ctx context.Context, mc v1beta1.Mi
 	return nil
 }
 
-func (c *DeployModeChangerImpl) UpdateStatusToV2(ctx context.Context, mc v1beta1.Milvus) error {
-	mc.Status.RollingMode = v1beta1.RollingModeV2
-	err := c.cli.Status().Update(ctx, &mc)
-	if err != nil {
-		return errors.Wrap(err, "update status rolling mode")
-	}
-	return errors.Wrap(ErrRequeue, "update status rolling mode")
+func formatSaveOldDeployName(mc v1beta1.Milvus, component MilvusComponent) string {
+	return fmt.Sprintf("%s-%s-old-deploy", component.Name, mc.Name)
 }
 
-func formatSaveOldDeployName(mc v1beta1.Milvus) string {
-	return fmt.Sprintf("%s-old-deploy", mc.Name)
-}
-
-func formatSaveOldReplicaSetListName(mc v1beta1.Milvus) string {
-	return fmt.Sprintf("%s-old-replicas", mc.Name)
+func formatSaveOldReplicaSetListName(mc v1beta1.Milvus, component MilvusComponent) string {
+	return fmt.Sprintf("%s-%s-old-replicas", component.Name, mc.Name)
 }

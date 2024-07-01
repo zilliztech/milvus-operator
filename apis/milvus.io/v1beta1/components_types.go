@@ -15,6 +15,17 @@ const (
 	QueryNode  ComponentType = "queryNode"
 	IndexNode  ComponentType = "indexNode"
 	Proxy      ComponentType = "proxy"
+
+	MixCoordName   = "mixcoord"
+	RootCoordName  = "rootcoord"
+	DataCoordName  = "datacoord"
+	QueryCoordName = "querycoord"
+	IndexCoordName = "indexcoord"
+	DataNodeName   = "datanode"
+	QueryNodeName  = "querynode"
+	IndexNodeName  = "indexnode"
+	ProxyName      = "proxy"
+	StandaloneName = "standalone"
 )
 
 var (
@@ -153,6 +164,10 @@ type MilvusComponents struct {
 	// UpdateConfigMapOnly when enabled, will not rollout pods. By default pods will be restarted when configmap changed
 	// +kubebuilder:validation:Optional
 	UpdateConfigMapOnly bool `json:"updateConfigMapOnly,omitempty"`
+
+	// RollingMode is the rolling mode for milvus components, default to 2
+	// +kubebuilder:validation:Optional
+	RollingMode RollingMode `json:"rollingMode,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	Proxy *MilvusProxy `json:"proxy,omitempty"`

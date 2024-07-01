@@ -13,6 +13,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 var errMockNotFound = kerrors.NewNotFound(corev1.Resource("pod"), "test-pod")
@@ -74,7 +75,7 @@ func TestK8sUtilImpl_OrphanDelete(t *testing.T) {
 	})
 }
 
-func TestK8sUtilImpl_MarkMilvusQueryNodeGroupId(t *testing.T) {
+func TestK8sUtilImpl_MarkMilvusComponentGroupId(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockK8sCli := NewMockK8sClient(mockCtrl)
@@ -86,23 +87,23 @@ func TestK8sUtilImpl_MarkMilvusQueryNodeGroupId(t *testing.T) {
 	mc.Namespace = "test-namespace"
 	mc.Annotations = map[string]string{}
 	t.Run("no need to update", func(t *testing.T) {
-		v1beta1.Labels().SetCurrentQueryNodeGroupID(&mc, 1)
-		err := k8sUtilImpl.MarkMilvusQueryNodeGroupId(ctx, mc, 1)
+		v1beta1.Labels().SetCurrentGroupID(&mc, DataNodeName, 1)
+		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, DataNode, 1)
 		assert.NoError(t, err)
 	})
 
 	t.Run("update ok", func(t *testing.T) {
-		v1beta1.Labels().SetCurrentQueryNodeGroupID(&mc, 1)
+		v1beta1.Labels().SetCurrentGroupID(&mc, DataNodeName, 1)
 		mockK8sCli.EXPECT().Update(gomock.Any(), &mc).Return(nil)
-		err := k8sUtilImpl.MarkMilvusQueryNodeGroupId(ctx, mc, 2)
+		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, DataNode, 2)
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, ErrRequeue))
 	})
 
 	t.Run("update failed", func(t *testing.T) {
-		v1beta1.Labels().SetCurrentQueryNodeGroupID(&mc, 1)
+		v1beta1.Labels().SetCurrentGroupID(&mc, DataNodeName, 1)
 		mockK8sCli.EXPECT().Update(gomock.Any(), &mc).Return(errMock)
-		err := k8sUtilImpl.MarkMilvusQueryNodeGroupId(ctx, mc, 2)
+		err := k8sUtilImpl.MarkMilvusComponentGroupId(ctx, mc, DataNode, 2)
 		assert.Error(t, err)
 	})
 }
@@ -127,13 +128,13 @@ func TestK8sUtilImpl_ListOldReplicaSets(t *testing.T) {
 		rsList.Items[0].Name = "new"
 		rsList.Items[1].Name = "old"
 		rsList.Items[0].Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupID(rsList.Items[0].Labels, 1)
-		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(mc.Namespace), client.MatchingLabels(NewComponentAppLabels(mc.Name, QueryNode.Name))).
+		v1beta1.Labels().SetGroupID(DataNodeName, rsList.Items[0].Labels, 1)
+		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(mc.Namespace), client.MatchingLabels(NewComponentAppLabels(mc.Name, DataNode.Name))).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				*(list.(*appsv1.ReplicaSetList)) = rsList
 				return nil
 			})
-		ret, err := k8sUtilImpl.ListOldReplicaSets(ctx, mc)
+		ret, err := k8sUtilImpl.ListOldReplicaSets(ctx, mc, DataNode)
 		assert.NoError(t, err)
 		assert.Len(t, ret.Items, 1)
 		assert.Equal(t, "old", ret.Items[0].Name)
@@ -141,7 +142,7 @@ func TestK8sUtilImpl_ListOldReplicaSets(t *testing.T) {
 
 	t.Run("list failed", func(t *testing.T) {
 		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errMock)
-		_, err := k8sUtilImpl.ListOldReplicaSets(ctx, mc)
+		_, err := k8sUtilImpl.ListOldReplicaSets(ctx, mc, DataNode)
 		assert.Error(t, err)
 	})
 }
@@ -166,13 +167,13 @@ func TestK8sUtilImpl_ListOldPods(t *testing.T) {
 		podList.Items[0].Name = "new"
 		podList.Items[1].Name = "old"
 		podList.Items[0].Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupID(podList.Items[0].Labels, 1)
-		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(mc.Namespace), client.MatchingLabels(NewComponentAppLabels(mc.Name, QueryNode.Name))).
+		v1beta1.Labels().SetGroupID(DataNodeName, podList.Items[0].Labels, 1)
+		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(mc.Namespace), client.MatchingLabels(NewComponentAppLabels(mc.Name, DataNode.Name))).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				*(list.(*corev1.PodList)) = podList
 				return nil
 			})
-		ret, err := k8sUtilImpl.ListOldPods(ctx, mc)
+		ret, err := k8sUtilImpl.ListOldPods(ctx, mc, DataNode)
 		assert.NoError(t, err)
 		assert.Len(t, ret, 1)
 		assert.Equal(t, "old", ret[0].Name)
@@ -180,7 +181,7 @@ func TestK8sUtilImpl_ListOldPods(t *testing.T) {
 
 	t.Run("list failed", func(t *testing.T) {
 		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errMock)
-		_, err := k8sUtilImpl.ListOldPods(ctx, mc)
+		_, err := k8sUtilImpl.ListOldPods(ctx, mc, DataNode)
 		assert.Error(t, err)
 	})
 }
@@ -208,20 +209,20 @@ func TestK8sUtilImpl_ListDeployPods(t *testing.T) {
 		podList.Items[0].Name = "new"
 		podList.Items[1].Name = "old"
 		podList.Items[0].Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupID(podList.Items[0].Labels, 1)
+		v1beta1.Labels().SetGroupID(DataNodeName, podList.Items[0].Labels, 1)
 		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(deploy.Namespace), client.MatchingLabels(deploy.Spec.Selector.MatchLabels)).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				*(list.(*corev1.PodList)) = podList
 				return nil
 			})
-		ret, err := k8sUtilImpl.ListDeployPods(ctx, deploy)
+		ret, err := k8sUtilImpl.ListDeployPods(ctx, deploy, DataNode)
 		assert.NoError(t, err)
 		assert.Len(t, ret, 2)
 	})
 
 	t.Run("list failed", func(t *testing.T) {
 		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errMock)
-		_, err := k8sUtilImpl.ListDeployPods(ctx, deploy)
+		_, err := k8sUtilImpl.ListDeployPods(ctx, deploy, DataNode)
 		assert.Error(t, err)
 	})
 }
@@ -285,7 +286,9 @@ func TestK8sUtilImpl_DeploymentIsStable(t *testing.T) {
 
 func TestGetDeploymentGroupId(t *testing.T) {
 	deploy := &appsv1.Deployment{}
-	deploy.Labels = map[string]string{}
+	deploy.Labels = map[string]string{
+		AppLabelComponent: DataNodeName,
+	}
 
 	t.Run("no group id", func(t *testing.T) {
 		_, err := GetDeploymentGroupId(deploy)
@@ -293,9 +296,114 @@ func TestGetDeploymentGroupId(t *testing.T) {
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		v1beta1.Labels().SetQueryNodeGroupID(deploy.Labels, 1)
+		v1beta1.Labels().SetGroupID(DataNodeName, deploy.Labels, 1)
 		groupId, err := GetDeploymentGroupId(deploy)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, groupId)
+	})
+}
+
+func TestK8sUtilImpl_SaveObject(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockK8sCli := NewMockK8sClient(mockCtrl)
+	k8sUtilImpl := NewK8sUtil(mockK8sCli)
+
+	ctx := context.Background()
+	mc := v1beta1.Milvus{}
+	mc.Namespace = "ns1"
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	obj := appsv1.ReplicaSet{}
+	obj.Namespace = mc.Namespace
+
+	t.Cleanup(func() {
+		mockCtrl.Finish()
+	})
+	t.Run("save failed", func(t *testing.T) {
+		mockK8sCli.EXPECT().Scheme().Return(scheme)
+		mockK8sCli.EXPECT().Get(
+			gomock.Any(), gomock.Any(),
+			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision)),
+		).Return(errMock)
+		err := k8sUtilImpl.SaveObject(ctx, mc, "name", &obj)
+		assert.Error(t, err)
+	})
+
+	t.Run("save ok", func(t *testing.T) {
+		mockK8sCli.EXPECT().Scheme().Return(scheme)
+		mockK8sCli.EXPECT().Get(
+			gomock.Any(), gomock.Any(),
+			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision)),
+		).Return(nil)
+		err := k8sUtilImpl.SaveObject(ctx, mc, "name", &obj)
+		assert.NoError(t, err)
+	})
+}
+
+func TestK8sUtilImpl_GetSavedObject(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockK8sCli := NewMockK8sClient(mockCtrl)
+	k8sUtilImpl := NewK8sUtil(mockK8sCli)
+
+	ctx := context.Background()
+	mc := v1beta1.Milvus{}
+	mc.Namespace = "ns1"
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	obj := appsv1.ReplicaSet{}
+	obj.Name = mc.Name
+	obj.Generation = 1
+
+	controllerrevision := appsv1.ControllerRevision{}
+	controllerrevision.Name = "name"
+	controllerrevision.Namespace = mc.Namespace
+	var err error
+	controllerrevision.Data.Raw, err = yaml.Marshal(&obj)
+	assert.NoError(t, err)
+
+	t.Cleanup(func() {
+		mockCtrl.Finish()
+	})
+	t.Run("get failed", func(t *testing.T) {
+		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
+		mockK8sCli.EXPECT().Get(ctx, key,
+			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
+			Return(errMock)
+		ret := &appsv1.ReplicaSet{}
+		err = k8sUtilImpl.GetSavedObject(ctx, key, ret)
+		assert.Error(t, err)
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
+		mockK8sCli.EXPECT().Get(ctx, key,
+			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+				*obj.(*appsv1.ControllerRevision) = controllerrevision
+				return nil
+			})
+		ret := &appsv1.ReplicaSet{}
+		err = k8sUtilImpl.GetSavedObject(ctx, key, ret)
+		assert.NoError(t, err)
+		assert.Equal(t, obj.Name, ret.Name)
+		assert.Equal(t, obj.Generation, ret.Generation)
+	})
+
+	t.Run("deserialize failed", func(t *testing.T) {
+		controllerrevision.Data.Raw = []byte("invalid yaml")
+		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
+		mockK8sCli.EXPECT().Get(ctx, key,
+			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+				*obj.(*appsv1.ControllerRevision) = controllerrevision
+				return nil
+			})
+		ret := &corev1.Pod{}
+		err = k8sUtilImpl.GetSavedObject(ctx, key, ret)
+		assert.Error(t, err)
 	})
 }

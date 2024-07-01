@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 )
 
 var scheme *runtime.Scheme
@@ -24,36 +23,37 @@ func init() {
 	v1beta1.AddToScheme(scheme)
 }
 
-func TestQueryNodeControllerBizUtilImpl_RenderPodTemplateWithoutGroupID(t *testing.T) {
+func TestDeployControllerBizUtilImpl_RenderPodTemplateWithoutGroupID(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(DataNode, mockcli, mockutil)
 
 	mc := v1beta1.Milvus{}
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
 	mc.Default()
 	currentTemplate := new(corev1.PodTemplateSpec)
-	component := QueryNode
+	component := DataNode
 
 	mockcli.EXPECT().Scheme().Return(scheme)
 	template := bizUtil.RenderPodTemplateWithoutGroupID(mc, currentTemplate, component)
 	assert.NotNil(t, template)
-	assert.Equal(t, template.Labels[v1beta1.MilvusIOLabelQueryNodeGroupId], "")
+	assert.Equal(t, template.Labels[v1beta1.GetComponentGroupIdLabel(component.Name)], "")
 }
 
-func TestQueryNodeControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
+func TestDeployControllerBizUtilImpl_GetOldDeploy(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
-	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	util := NewK8sUtil(mockcli)
+	bizUtil := NewDeployControllerBizUtil(DataNode, mockcli, util)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
 	mc.Namespace = "ns1"
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	component := DataNode
 	mc.Default()
 
 	t.Cleanup(func() {
@@ -61,13 +61,13 @@ func TestQueryNodeControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 	})
 	t.Run("list failed", func(t *testing.T) {
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).Return(errMock)
-		_, err := bizUtil.GetOldQueryNodeDeploy(ctx, mc)
+		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.Error(t, err)
 	})
 
 	t.Run("no deploy: not found", func(t *testing.T) {
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).Return(nil)
-		_, err := bizUtil.GetOldQueryNodeDeploy(ctx, mc)
+		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.Error(t, err)
 		assert.True(t, kerrors.IsNotFound(err))
 	})
@@ -81,7 +81,7 @@ func TestQueryNodeControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
 			})
-		_, err := bizUtil.GetOldQueryNodeDeploy(ctx, mc)
+		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.Error(t, err)
 	})
 
@@ -90,13 +90,13 @@ func TestQueryNodeControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 			{},
 		}
 		deploys[0].Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupID(deploys[0].Labels, 0)
+		v1beta1.Labels().SetGroupID(DataNodeName, deploys[0].Labels, 0)
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
 			})
-		_, err := bizUtil.GetOldQueryNodeDeploy(ctx, mc)
+		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.Error(t, err)
 		assert.True(t, kerrors.IsNotFound(err))
 	})
@@ -110,118 +110,17 @@ func TestQueryNodeControllerBizUtilImpl_GetOldQueryNodeDeploy(t *testing.T) {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
 			})
-		_, err := bizUtil.GetOldQueryNodeDeploy(ctx, mc)
+		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.NoError(t, err)
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_SaveObject(t *testing.T) {
+func TestDeployControllerBizUtilImpl_GetDeploys(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
-
-	ctx := context.Background()
-	mc := v1beta1.Milvus{}
-	mc.Namespace = "ns1"
-	mc.Spec.Mode = v1beta1.MilvusModeCluster
-	mc.Default()
-
-	obj := appsv1.ReplicaSet{}
-	obj.Namespace = mc.Namespace
-
-	t.Cleanup(func() {
-		mockCtrl.Finish()
-	})
-	t.Run("save failed", func(t *testing.T) {
-		mockcli.EXPECT().Scheme().Return(scheme)
-		mockutil.EXPECT().CreateObject(ctx, gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).Return(errMock)
-		err := bizUtil.SaveObject(ctx, mc, "name", &obj)
-		assert.Error(t, err)
-	})
-
-	t.Run("save ok", func(t *testing.T) {
-		mockcli.EXPECT().Scheme().Return(scheme)
-		mockutil.EXPECT().CreateObject(ctx, gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).Return(nil)
-		err := bizUtil.SaveObject(ctx, mc, "name", &obj)
-		assert.NoError(t, err)
-	})
-}
-
-func TestQueryNodeControllerBizUtilImpl_GetSavedObject(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	mockcli := NewMockK8sClient(mockCtrl)
-	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
-
-	ctx := context.Background()
-	mc := v1beta1.Milvus{}
-	mc.Namespace = "ns1"
-	mc.Spec.Mode = v1beta1.MilvusModeCluster
-	mc.Default()
-
-	obj := appsv1.ReplicaSet{}
-	obj.Name = mc.Name
-	obj.Generation = 1
-
-	controllerrevision := appsv1.ControllerRevision{}
-	controllerrevision.Name = "name"
-	controllerrevision.Namespace = mc.Namespace
-	var err error
-	controllerrevision.Data.Raw, err = yaml.Marshal(&obj)
-	assert.NoError(t, err)
-
-	t.Cleanup(func() {
-		mockCtrl.Finish()
-	})
-	t.Run("get failed", func(t *testing.T) {
-		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
-		mockcli.EXPECT().Get(ctx, key,
-			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
-			Return(errMock)
-		ret := &appsv1.ReplicaSet{}
-		err = bizUtil.GetSavedObject(ctx, key, ret)
-		assert.Error(t, err)
-	})
-
-	t.Run("ok", func(t *testing.T) {
-		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
-		mockcli.EXPECT().Get(ctx, key,
-			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
-			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-				*obj.(*appsv1.ControllerRevision) = controllerrevision
-				return nil
-			})
-		ret := &appsv1.ReplicaSet{}
-		err = bizUtil.GetSavedObject(ctx, key, ret)
-		assert.NoError(t, err)
-		assert.Equal(t, obj.Name, ret.Name)
-		assert.Equal(t, obj.Generation, ret.Generation)
-	})
-
-	t.Run("deserialize failed", func(t *testing.T) {
-		controllerrevision.Data.Raw = []byte("invalid yaml")
-		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
-		mockcli.EXPECT().Get(ctx, key,
-			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
-			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-				*obj.(*appsv1.ControllerRevision) = controllerrevision
-				return nil
-			})
-		ret := &corev1.Pod{}
-		err = bizUtil.GetSavedObject(ctx, key, ret)
-		assert.Error(t, err)
-	})
-}
-
-func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	mockcli := NewMockK8sClient(mockCtrl)
-	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(DataNode, mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -234,13 +133,13 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 	})
 	t.Run("list failed", func(t *testing.T) {
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).Return(errMock)
-		_, _, err := bizUtil.GetQueryNodeDeploys(ctx, mc)
+		_, _, err := bizUtil.GetDeploys(ctx, mc)
 		assert.Error(t, err)
 	})
 
 	deploy := appsv1.Deployment{}
 	deploy.Labels = map[string]string{}
-	v1beta1.Labels().SetQueryNodeGroupID(deploy.Labels, 0)
+	v1beta1.Labels().SetGroupID(DataNodeName, deploy.Labels, 0)
 	t.Run("more than 2 deploy", func(t *testing.T) {
 		deploys := []appsv1.Deployment{
 			deploy, deploy, deploy,
@@ -250,7 +149,7 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
 			})
-		_, _, err := bizUtil.GetQueryNodeDeploys(ctx, mc)
+		_, _, err := bizUtil.GetDeploys(ctx, mc)
 		assert.Error(t, err)
 	})
 
@@ -263,7 +162,7 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
 			})
-		ret1, ret2, err := bizUtil.GetQueryNodeDeploys(ctx, mc)
+		ret1, ret2, err := bizUtil.GetDeploys(ctx, mc)
 		assert.NoError(t, err)
 		assert.Nil(t, ret1)
 		assert.Nil(t, ret2)
@@ -271,7 +170,7 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 
 	t.Run("no deploy", func(t *testing.T) {
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).Return(nil)
-		ret1, ret2, err := bizUtil.GetQueryNodeDeploys(ctx, mc)
+		ret1, ret2, err := bizUtil.GetDeploys(ctx, mc)
 		assert.NoError(t, err)
 		assert.Nil(t, ret1)
 		assert.Nil(t, ret2)
@@ -286,7 +185,7 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
 			})
-		ret1, ret2, err := bizUtil.GetQueryNodeDeploys(ctx, mc)
+		ret1, ret2, err := bizUtil.GetDeploys(ctx, mc)
 		assert.NoError(t, err)
 		assert.Equal(t, &deploys[0], ret1)
 		assert.Nil(t, ret2)
@@ -294,20 +193,20 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 
 	t.Run("2 deploy saperate by group id", func(t *testing.T) {
 		mc.Default()
-		v1beta1.Labels().SetCurrentQueryNodeGroupID(&mc, 0)
+		v1beta1.Labels().SetCurrentGroupID(&mc, DataNodeName, 0)
 		deploys := []appsv1.Deployment{
 			{}, {},
 		}
 		deploys[0].Labels = map[string]string{}
 		deploys[1].Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupID(deploys[0].Labels, 0)
-		v1beta1.Labels().SetQueryNodeGroupID(deploys[1].Labels, 1)
+		v1beta1.Labels().SetGroupID(DataNodeName, deploys[0].Labels, 0)
+		v1beta1.Labels().SetGroupID(DataNodeName, deploys[1].Labels, 1)
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				list.(*appsv1.DeploymentList).Items = deploys
 				return nil
 			})
-		ret1, ret2, err := bizUtil.GetQueryNodeDeploys(ctx, mc)
+		ret1, ret2, err := bizUtil.GetDeploys(ctx, mc)
 		assert.NoError(t, err)
 		assert.Equal(t, &deploys[0], ret1)
 		assert.Equal(t, &deploys[1], ret2)
@@ -315,12 +214,12 @@ func TestQueryNodeControllerBizUtilImpl_GetQueryNodeDeploys(t *testing.T) {
 
 }
 
-func TestQueryNodeControllerBizUtilImpl_CreateQueryNodeDeploy(t *testing.T) {
+func TestDeployControllerBizUtilImpl_CreateDataNodeDeploy(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(DataNode, mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -335,31 +234,31 @@ func TestQueryNodeControllerBizUtilImpl_CreateQueryNodeDeploy(t *testing.T) {
 	t.Run("create failed", func(t *testing.T) {
 		mockcli.EXPECT().Scheme().Return(scheme).Times(2)
 		mockcli.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).Return(errMock)
-		err := bizUtil.CreateQueryNodeDeploy(ctx, mc, podTemplate, 0)
+		err := bizUtil.CreateDeploy(ctx, mc, podTemplate, 0)
 		assert.Error(t, err)
 	})
 
 	t.Run("create ok", func(t *testing.T) {
 		mockcli.EXPECT().Scheme().Return(scheme).Times(2)
 		mockcli.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).Return(nil)
-		err := bizUtil.CreateQueryNodeDeploy(ctx, mc, podTemplate, 0)
+		err := bizUtil.CreateDeploy(ctx, mc, podTemplate, 0)
 		assert.NoError(t, err)
 	})
 
 	t.Run("podtemplate nil, call render", func(t *testing.T) {
 		mockcli.EXPECT().Scheme().Return(scheme).Times(3)
 		mockcli.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).Return(nil)
-		err := bizUtil.CreateQueryNodeDeploy(ctx, mc, nil, 0)
+		err := bizUtil.CreateDeploy(ctx, mc, nil, 0)
 		assert.NoError(t, err)
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_ShouldRollback(t *testing.T) {
+func TestDeployControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(DataNode, mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -369,13 +268,13 @@ func TestQueryNodeControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 	currentDeploy := new(appsv1.Deployment)
 	lastDeploy := new(appsv1.Deployment)
 	mockcli.EXPECT().Scheme().Return(scheme).AnyTimes()
-	podTemplate := bizUtil.RenderPodTemplateWithoutGroupID(mc, nil, QueryNode)
+	podTemplate := bizUtil.RenderPodTemplateWithoutGroupID(mc, nil, DataNode)
 	labelHelper := v1beta1.Labels()
 
 	t.Cleanup(func() {
 		currentDeploy = new(appsv1.Deployment)
 		lastDeploy = new(appsv1.Deployment)
-		podTemplate = bizUtil.RenderPodTemplateWithoutGroupID(mc, nil, QueryNode)
+		podTemplate = bizUtil.RenderPodTemplateWithoutGroupID(mc, nil, DataNode)
 		mockCtrl.Finish()
 	})
 
@@ -390,7 +289,7 @@ func TestQueryNodeControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 		currentDeploy.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: currentDeploy.Spec.Template.Labels,
 		}
-		labelHelper.SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		labelHelper.SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		assert.NotEqual(t, currentDeploy.Spec.Template, *podTemplate)
 		ret := bizUtil.ShouldRollback(ctx, currentDeploy, lastDeploy, podTemplate)
 		assert.NotEqual(t, currentDeploy.Spec.Template, *podTemplate)
@@ -404,7 +303,7 @@ func TestQueryNodeControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 		lastDeploy.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: lastDeploy.Spec.Template.Labels,
 		}
-		labelHelper.SetQueryNodeGroupIDStr(lastDeploy.Labels, "1")
+		labelHelper.SetGroupIDStr(DataNodeName, lastDeploy.Labels, "1")
 		assert.NotEqual(t, lastDeploy.Spec.Template, *podTemplate)
 		ret := bizUtil.ShouldRollback(ctx, currentDeploy, lastDeploy, podTemplate)
 		assert.NotEqual(t, lastDeploy.Spec.Template, *podTemplate)
@@ -412,19 +311,19 @@ func TestQueryNodeControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
+func TestDeployControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(DataNode, mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
 	mc.Namespace = "ns1"
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
 	mc.Default()
-	mc.Spec.Com.QueryNode.Replicas = int32Ptr(3)
+	mc.Spec.Com.DataNode.Replicas = int32Ptr(3)
 	currentDeploy := new(appsv1.Deployment)
 	lastDeploy := new(appsv1.Deployment)
 
@@ -438,8 +337,8 @@ func TestQueryNodeControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
 		assert.True(t, ret)
 	})
 
-	v1beta1.Labels().SetQueryNodeRolling(&mc, true)
-	t.Run("current deploy not scaled as specified", func(t *testing.T) {
+	v1beta1.Labels().SetComponentRolling(&mc, DataNodeName, true)
+	t.Run("current deploy scaled less than specified", func(t *testing.T) {
 		currentDeploy.Spec.Replicas = int32Ptr(2)
 		ret, err := bizUtil.LastRolloutFinished(ctx, mc, currentDeploy, lastDeploy)
 		assert.NoError(t, err)
@@ -505,7 +404,7 @@ func TestQueryNodeControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
 	lastDeploy.Status.Replicas = 0
 
 	t.Run("list last deploy pods failed", func(t *testing.T) {
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(nil, errMock)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(nil, errMock)
 		ret, err := bizUtil.LastRolloutFinished(ctx, mc, currentDeploy, lastDeploy)
 		assert.Error(t, err)
 		assert.False(t, ret)
@@ -515,7 +414,7 @@ func TestQueryNodeControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
 		pods := []corev1.Pod{
 			{}, {},
 		}
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
 		ret, err := bizUtil.LastRolloutFinished(ctx, mc, currentDeploy, lastDeploy)
 		assert.NoError(t, err)
 		assert.False(t, ret)
@@ -523,7 +422,7 @@ func TestQueryNodeControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
 
 	t.Run("rollout finished, mark & requeue", func(t *testing.T) {
 		pods := []corev1.Pod{}
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
 		mockutil.EXPECT().UpdateAndRequeue(ctx, &mc).Return(ErrRequeue)
 		_, err := bizUtil.LastRolloutFinished(ctx, mc, currentDeploy, lastDeploy)
 		assert.Error(t, err)
@@ -532,12 +431,12 @@ func TestQueryNodeControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
 
 }
 
-func TestQueryNodeControllerBizUtilImpl_IsNewRollout(t *testing.T) {
+func TestDeployControllerBizUtilImpl_IsNewRollout(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(DataNode, mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}
@@ -551,7 +450,7 @@ func TestQueryNodeControllerBizUtilImpl_IsNewRollout(t *testing.T) {
 
 	t.Run("only label diff, not rollout", func(t *testing.T) {
 		currentDeploy := deploy.DeepCopy()
-		labelHelper.SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		labelHelper.SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{{}, {}}
 		currentDeploy.Spec.Template.Labels = map[string]string{}
 		newPodTemplate := currentDeploy.Spec.Template.DeepCopy()
@@ -562,7 +461,7 @@ func TestQueryNodeControllerBizUtilImpl_IsNewRollout(t *testing.T) {
 
 	t.Run("is new rollout", func(t *testing.T) {
 		currentDeploy := deploy.DeepCopy()
-		labelHelper.SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		labelHelper.SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		currentDeploy.Spec.Template.Labels = map[string]string{}
 		newPodTemplate := currentDeploy.Spec.Template.DeepCopy()
 		currentDeploy.Spec.Template.Labels = currentDeploy.Labels
@@ -572,18 +471,22 @@ func TestQueryNodeControllerBizUtilImpl_IsNewRollout(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
+func TestDeployControllerBizUtilImpl_Rollout(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(DataNode, mockcli, mockutil)
 
 	ctx := context.Background()
 	milvus := v1beta1.Milvus{}
 	milvus.Namespace = "ns1"
 	milvus.Spec.Mode = v1beta1.MilvusModeCluster
 	milvus.Default()
+	deployTemplate := new(appsv1.Deployment)
+	deployTemplate.Labels = map[string]string{
+		AppLabelComponent: DataNodeName,
+	}
 	t.Run("get deployment groupId failed", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := new(appsv1.Deployment)
@@ -592,40 +495,37 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("MarkMilvusQueryNodeGroupId failed", func(t *testing.T) {
+	t.Run("MarkMilvusDataNodeGroupId failed", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
-		currentDeploy := new(appsv1.Deployment)
-		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
-		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(errMock)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(errMock)
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
-		assert.True(t, errors.Is(err, errMock))
+		assert.True(t, errors.Is(err, errMock), currentDeploy.Labels)
 	})
 
 	t.Run("list lastDeployPods failed", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
-		currentDeploy := new(appsv1.Deployment)
-		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
-		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(nil, errMock)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(nil, errMock)
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, errMock))
 	})
 
 	t.Run("last deploy not stable", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
-		currentDeploy := new(appsv1.Deployment)
-		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		pods := []corev1.Pod{
 			{}, {},
 		}
-		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
 		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(false, "")
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
@@ -633,26 +533,24 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 
 	t.Run("list current deploy failed", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
-		currentDeploy := new(appsv1.Deployment)
-		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		pods := []corev1.Pod{
 			{}, {},
 		}
-		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
 		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
-		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(nil, errMock)
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(nil, errMock)
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, errMock))
 	})
 
 	t.Run("current deploy not stable", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
-		currentDeploy := new(appsv1.Deployment)
-		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		pods := []corev1.Pod{
 			{}, {},
@@ -660,10 +558,10 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 		currentPods := []corev1.Pod{
 			{}, {}, {},
 		}
-		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
 		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
-		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
 		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(false, "")
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
@@ -671,36 +569,34 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 
 	pods := []corev1.Pod{}
 	currentPods := []corev1.Pod{}
-	t.Run("current deploy has more spec.replicas than expected", func(t *testing.T) {
+	t.Run("hpa current deploy has more spec.replicas than expected, ok", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
-		currentDeploy := new(appsv1.Deployment)
-		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
-		lastDeploy := new(appsv1.Deployment)
+		milvus.Spec.Com.DataNode.Replicas = int32Ptr(-1)
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		currentDeploy.Spec.Replicas = int32Ptr(4)
-		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
 		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
-		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
 		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "current deploy has more replicas")
+		assert.NoError(t, err)
 	})
 
 	t.Run("last deploy scale in", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
-		currentDeploy := new(appsv1.Deployment)
-		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := new(appsv1.Deployment)
 		lastDeploy.Spec.Replicas = int32Ptr(1)
 		currentDeploy.Spec.Replicas = int32Ptr(1)
-		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
 		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
-		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
 		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
 		mockutil.EXPECT().UpdateAndRequeue(ctx, lastDeploy).Return(ErrRequeue)
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
@@ -708,20 +604,20 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 		assert.Equal(t, int32(0), *lastDeploy.Spec.Replicas)
 	})
 
-	t.Run("current scale out", func(t *testing.T) {
+	t.Run("hpa, current scale out", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
-		currentDeploy := new(appsv1.Deployment)
-		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
-		lastDeploy := new(appsv1.Deployment)
+		milvus.Spec.Com.DataNode.Replicas = int32Ptr(-1)
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
 		lastDeploy.Spec.Replicas = int32Ptr(1)
 		currentDeploy.Spec.Replicas = int32Ptr(0)
-		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
 		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
-		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
 		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
-		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(ErrRequeue)
+		mockutil.EXPECT().UpdateAndRequeue(ctx, gomock.Any()).Return(ErrRequeue)
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
 		assert.Equal(t, int32(1), *currentDeploy.Spec.Replicas)
@@ -729,16 +625,15 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 
 	t.Run("rollout finished", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
-		currentDeploy := new(appsv1.Deployment)
-		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
-		lastDeploy := new(appsv1.Deployment)
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		currentDeploy.Spec.Replicas = int32Ptr(1)
-		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
 		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
-		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
 		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
 		assert.NoError(t, err)
@@ -746,16 +641,15 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 
 	t.Run("not enough spec.replicas, current deploy scale out", func(t *testing.T) {
 		mc := *milvus.DeepCopy()
-		currentDeploy := new(appsv1.Deployment)
-		currentDeploy.Labels = map[string]string{}
-		v1beta1.Labels().SetQueryNodeGroupIDStr(currentDeploy.Labels, "1")
-		lastDeploy := new(appsv1.Deployment)
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		currentDeploy.Spec.Replicas = int32Ptr(0)
-		mockutil.EXPECT().MarkMilvusQueryNodeGroupId(ctx, mc, 1).Return(nil)
-		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy).Return(pods, nil)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
 		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
-		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy).Return(currentPods, nil)
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
 		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
 		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(ErrRequeue)
 		err := bizUtil.Rollout(ctx, mc, currentDeploy, lastDeploy)
@@ -764,12 +658,12 @@ func TestQueryNodeControllerBizUtilImpl_Rollout(t *testing.T) {
 	})
 }
 
-func TestQueryNodeControllerBizUtilImpl_PrepareNewRollout(t *testing.T) {
+func TestDeployControllerBizUtilImpl_PrepareNewRollout(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
 	mockutil := NewMockK8sUtil(mockCtrl)
-	bizUtil := NewQueryNodeControllerBizUtil(mockcli, mockutil)
+	bizUtil := NewDeployControllerBizUtil(DataNode, mockcli, mockutil)
 
 	ctx := context.Background()
 	mc := v1beta1.Milvus{}

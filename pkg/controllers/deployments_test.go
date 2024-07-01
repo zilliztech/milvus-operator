@@ -20,8 +20,8 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.checkMocks()
 	r := env.Reconciler
-	mockQnController := NewMockQueryNodeController(env.Ctrl)
-	r.qnController = mockQnController
+	mockQnController := NewMockDeployController(env.Ctrl)
+	r.deployCtrl = mockQnController
 	mockClient := env.MockClient
 	ctx := env.ctx
 	mcDefault := env.Inst
@@ -113,8 +113,8 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.checkMocks()
 	r := env.Reconciler
-	mockQnController := NewMockQueryNodeController(env.Ctrl)
-	r.qnController = mockQnController
+	mockQnController := NewMockDeployController(env.Ctrl)
+	r.deployCtrl = mockQnController
 	mockClient := env.MockClient
 	ctx := env.ctx
 	m := env.Inst

@@ -183,11 +183,25 @@ type RollingMode int
 
 // RollingMode definitions
 const (
+	// RollingModeNotSet is only used before init
 	RollingModeNotSet RollingMode = iota
-	// this mode has 1 query node deployment, uses k8s deployment's default rolling update strategy
+	// deprecated, shall not be used spec: in this mode all components are in OneDeployMode
 	RollingModeV1
-	// this mode has 2 query node deployment, operator takes care of querynode rolling update
+	// in this mode only querynode is in TwoDeployMode, other components are in OneDeployMode
 	RollingModeV2
+	// in this mode all components are in TwoDeployMode
+	RollingModeV3
+)
+
+type ComponentDeployMode int
+
+const (
+	// DeployModeUnknown is used when the component's deploy mode is unknown
+	DeployModeUnknown ComponentDeployMode = iota
+	// component in this mode has 1 deployment, uses k8s deployment's default rolling update strategy
+	OneDeployMode
+	// component in this mode has 2 deployment, operator takes care of querynode rolling update
+	TwoDeployMode
 )
 
 type ComponentDeployStatus struct {
