@@ -95,6 +95,10 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return nil
 	}
 
+	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 {
+		return biz.HandleStop(ctx, mc)
+	}
+
 	err = biz.HandleRolling(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "handle rolling")
@@ -118,6 +122,7 @@ type DeployControllerBiz interface {
 	// 2 deployment mode logic
 	IsPaused(ctx context.Context, mc v1beta1.Milvus) bool
 	HandleCreate(ctx context.Context, mc v1beta1.Milvus) error
+	HandleStop(ctx context.Context, mc v1beta1.Milvus) error
 	HandleScaling(ctx context.Context, mc v1beta1.Milvus) error
 	HandleRolling(ctx context.Context, mc v1beta1.Milvus) error
 }
@@ -233,8 +238,12 @@ func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.M
 	return nil
 }
 
-func (c *DeployControllerBizImpl) handleStop(ctx context.Context, currentDeploy, lastDeploy *appsv1.Deployment) error {
-	err := c.stopDeployIfNot(ctx, currentDeploy)
+func (c *DeployControllerBizImpl) HandleStop(ctx context.Context, mc v1beta1.Milvus) error {
+	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "get querynode deploys")
+	}
+	err = c.stopDeployIfNot(ctx, currentDeploy)
 	if err != nil {
 		return errors.Wrap(err, "stop current deployment")
 	}
@@ -256,50 +265,11 @@ func (c *DeployControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy *a
 }
 
 func (c *DeployControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.Milvus) error {
-	expectedReplicasPtr := c.component.GetReplicas(mc.Spec)
-	expectedReplicas := ReplicasValue(expectedReplicasPtr)
 	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "get querynode deploys")
 	}
-	if expectedReplicas == 0 {
-		return c.handleStop(ctx, currentDeploy, lastDeploy)
-	}
-	if currentDeploy == nil {
-		return errors.Errorf("querynode deployment not found")
-	}
-	currentDeployReplicas := getDeployReplicas(currentDeploy)
-	isHpa := expectedReplicas < 0
-	if isHpa {
-		if currentDeployReplicas == 0 {
-			currentDeploy.Spec.Replicas = int32Ptr(1)
-			return c.cli.Update(ctx, currentDeploy)
-		}
-		return nil
-	}
-
-	lastDeployReplicas := 0
-	if lastDeploy != nil {
-		lastDeployReplicas = getDeployReplicas(lastDeploy)
-	}
-	specReplicas := currentDeployReplicas + lastDeployReplicas
-	if int(expectedReplicas) == specReplicas {
-		return nil
-	}
-
-	diffReplicas := int(expectedReplicas) - specReplicas
-	if diffReplicas > 0 {
-		currentDeploy.Spec.Replicas = int32Ptr(currentDeployReplicas + diffReplicas)
-		return c.cli.Update(ctx, currentDeploy)
-	}
-	if v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
-		// scale down is not allowed in rolling mode
-		return nil
-	}
-	// scale down
-	// TODO: optimize it. if not stop, better scale down one by one
-	currentDeploy.Spec.Replicas = expectedReplicasPtr
-	return c.cli.Update(ctx, currentDeploy)
+	return c.util.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
 }
 
 func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.Milvus) error {
@@ -322,11 +292,15 @@ func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.
 		return errors.Wrap(err, "check last rollout")
 	}
 	if !lastRolloutFinished {
-		return c.util.Rollout(ctx, mc, currentDeploy, lastDeploy)
+		return nil
 	}
 
 	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
-		currentDeploy = lastDeploy
+		if getDeployReplicas(currentDeploy) > 0 {
+			// if current deployment already has replicas, we need to update the other deployment
+			// lastRolloutFinished promises that the last deployment has 0 replicas
+			currentDeploy = lastDeploy
+		}
 		return c.util.PrepareNewRollout(ctx, mc, currentDeploy, podTemplate)
 	}
 

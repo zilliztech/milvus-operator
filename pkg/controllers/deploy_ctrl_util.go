@@ -276,7 +276,7 @@ func (c *DeployControllerBizUtilImpl) IsNewRollout(ctx context.Context, currentD
 func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
 	err := c.markDeployAsCurrent(ctx, mc, currentDeployment)
 	if err != nil {
-		return errors.Wrapf(err, "mark group id to ")
+		return err
 	}
 	if v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
 		err = c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
@@ -397,7 +397,7 @@ func (c *DeployControllerBizUtilImpl) markDeployAsCurrent(ctx context.Context, m
 		return errors.Wrap(err, "get deployment group id")
 	}
 	err = c.MarkMilvusComponentGroupId(ctx, mc, c.component, groupId)
-	return errors.Wrapf(err, "mark group id to ")
+	return errors.Wrapf(err, "mark group id to %d", groupId)
 }
 
 func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment) error {
