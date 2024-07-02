@@ -95,14 +95,14 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return nil
 	}
 
-	err = biz.HandleScaling(ctx, mc)
-	if err != nil {
-		return errors.Wrap(err, "handle scaling")
-	}
-
 	err = biz.HandleRolling(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "handle rolling")
+	}
+
+	err = biz.HandleScaling(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "handle scaling")
 	}
 
 	return nil
