@@ -301,14 +301,14 @@ func TestDeployControllerBizImpl_HandleCreate(t *testing.T) {
 	})
 
 	t.Run("deploy is nil, mark failed", func(t *testing.T) {
-		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, nil, nil)
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, nil, ErrNotFound)
 		mockUtil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, QueryNode, 0).Return(errMock)
 		err := bizImpl.HandleCreate(ctx, mc)
 		assert.Error(t, err)
 	})
 
 	t.Run("create deploy 0 failed", func(t *testing.T) {
-		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, nil, nil)
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, nil, ErrNotFound)
 		mockUtil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, QueryNode, 0).Return(nil)
 		mockUtil.EXPECT().CreateDeploy(ctx, mc, nil, 0).Return(errMock)
 		err := bizImpl.HandleCreate(ctx, mc)
@@ -316,16 +316,14 @@ func TestDeployControllerBizImpl_HandleCreate(t *testing.T) {
 	})
 
 	t.Run("create deploy 1 failed", func(t *testing.T) {
-		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, &deploy, nil)
-		mockUtil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, QueryNode, 1).Return(nil)
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, nil, ErrNoLastDeployment)
 		mockUtil.EXPECT().CreateDeploy(ctx, mc, nil, 1).Return(errMock)
 		err := bizImpl.HandleCreate(ctx, mc)
 		assert.Error(t, err)
 	})
 
 	t.Run("deploy created ok", func(t *testing.T) {
-		deploy := appsv1.Deployment{}
-		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(&deploy, nil, nil)
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(&deploy, &deploy, nil)
 		err := bizImpl.HandleCreate(ctx, mc)
 		assert.NoError(t, err)
 	})

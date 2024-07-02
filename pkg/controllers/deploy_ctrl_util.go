@@ -21,6 +21,11 @@ import (
 type DeployControllerBizUtil interface {
 	RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent) *corev1.PodTemplateSpec
 
+	// GetDeploys returns currentDeployment, lastDeployment when there is exactly one currentDeployment, one lastDeployment
+	// otherwise return err. in particular:
+	// - return ErrNotFound when no deployment found
+	// - return ErrNoCurrentDeployment when no current deployment found
+	// - return ErrNoLastDeployment when no last deployment found
 	GetDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error)
 	// CreateDeploy with replica = 0
 	CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error
@@ -90,6 +95,11 @@ func (c *DeployControllerBizUtilImpl) RenderPodTemplateWithoutGroupID(mc v1beta1
 	return ret
 }
 
+var (
+	ErrNotFound         = errors.New("not found")
+	ErrNoLastDeployment = errors.New("no last deployment found")
+)
+
 func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error) {
 	deploys := appsv1.DeploymentList{}
 	commonlabels := NewComponentAppLabels(mc.Name, c.component.Name)
@@ -107,21 +117,38 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 		return nil, nil, errors.Errorf("unexpected: more than 2 querynode deployments found %d, admin please fix this, leave only 2 deployments", len(deploys.Items))
 	}
 	if len(items) < 1 {
-		return nil, nil, nil
+		return nil, nil, ErrNotFound
 	}
-	if len(items) == 1 {
-		return items[0], nil, nil
-	}
+	// len(items) == 2
 	var current, last *appsv1.Deployment
-	labelHelper := v1beta1.Labels()
-	if labelHelper.GetLabelGroupID(c.component.Name, items[0]) == labelHelper.GetCurrentGroupId(&mc, c.component.Name) {
-		current = items[0]
-		last = items[1]
-	} else {
-		last = items[0]
-		current = items[1]
+	for i := range items {
+		if componentDeployIsCurrentGroup(mc, c.component, items[i]) {
+			if current != nil {
+				return nil, nil, errors.Errorf("unexpected: more than 1 deployment is for current group id, admin please fix this by setting a current deployment")
+			}
+			current = items[i]
+		} else {
+			last = items[i]
+		}
 	}
-	return current, last, nil
+	if current == nil {
+		return nil, nil, errors.Errorf("unexpected: no deployment is for current group id, admin please fix this by setting a current deployment")
+	}
+	// current != nil
+
+	if last != nil {
+		return current, last, nil
+	}
+	// last == nil
+
+	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.Name) != "0" {
+		return nil, nil, errors.Errorf("unexpected: first deployment is not for group 0, admin please fix this by setting a last deployment for group 0")
+	}
+	return nil, nil, ErrNoLastDeployment
+}
+
+func componentDeployIsCurrentGroup(mc v1beta1.Milvus, component MilvusComponent, deploy *appsv1.Deployment) bool {
+	return v1beta1.Labels().GetLabelGroupID(component.Name, deploy) == v1beta1.Labels().GetCurrentGroupId(&mc, component.Name)
 }
 
 func formatComponentDeployName(mc v1beta1.Milvus, component MilvusComponent, groupId int) string {

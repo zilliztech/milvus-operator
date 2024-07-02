@@ -211,21 +211,24 @@ func (c *DeployControllerBizImpl) IsPaused(ctx context.Context, mc v1beta1.Milvu
 }
 
 func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.Milvus) error {
-	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
-	if err != nil {
-		return errors.Wrap(err, "get querynode deploys")
+	_, _, err := c.util.GetDeploys(ctx, mc)
+	if err == nil {
+		return nil
 	}
-
-	if currentDeploy == nil {
-		groupId := 0
-		if lastDeploy != nil {
-			groupId = 1
-		}
-		err := c.util.MarkMilvusComponentGroupId(ctx, mc, c.component, groupId)
+	switch {
+	case err == ErrNotFound:
+		err := c.util.MarkMilvusComponentGroupId(ctx, mc, c.component, 0)
 		if err != nil {
-			return errors.Wrapf(err, "mark milvus querynode group id to %d", groupId)
+			return errors.Wrapf(err, "mark milvus querynode group id to %d", 0)
 		}
-		return c.util.CreateDeploy(ctx, mc, nil, groupId)
+		err = c.util.CreateDeploy(ctx, mc, nil, 0)
+		if err != nil {
+			return errors.Wrap(err, "create querynode deployment 0")
+		}
+	case err == ErrNoLastDeployment:
+		return c.util.CreateDeploy(ctx, mc, nil, 1)
+	default:
+		return errors.Wrap(err, "get querynode deploys")
 	}
 	return nil
 }
