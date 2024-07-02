@@ -33,8 +33,9 @@ type DeployControllerBizUtil interface {
 	ShouldRollback(ctx context.Context, currentDeploy, lastDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
 	LastRolloutFinished(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) (bool, error)
 	IsNewRollout(ctx context.Context, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
-	Rollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error
-	// PrepareNewRollout prepare a new rollout, currentDeployment can be nil, it will create a new deployment with replica = 0
+	// ScaleDeployments scales 2 deployments to proper replicas, it assumes currentDeployment & lastDeployment not nil
+	ScaleDeployments(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error
+	// PrepareNewRollout prepare a new rollout, it assumes currentDeployment not nil
 	PrepareNewRollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) error
 
 	K8sUtil
@@ -271,19 +272,19 @@ func (c *DeployControllerBizUtilImpl) IsNewRollout(ctx context.Context, currentD
 	return isNewRollout
 }
 
-var errStringBrokenCase = "broken case"
-
-// Rollout to current deploymement, we assume both current & last deploy is not nil
-func (c *DeployControllerBizUtilImpl) Rollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
+// ScaleDeployments to current deploymement, we assume both current & last deploy is not nil
+func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
 	err := c.markDeployAsCurrent(ctx, mc, currentDeployment)
 	if err != nil {
 		return errors.Wrapf(err, "mark group id to ")
 	}
-	err = c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
-	if err != nil {
-		return err
+	if v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
+		err = c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
+		if err != nil {
+			return err
+		}
 	}
-	action := c.planNextAction(ctx, mc, currentDeployment, lastDeployment)
+	action := c.planNextScaleAction(mc, currentDeployment, lastDeployment)
 	return c.doScaleAction(ctx, action)
 }
 
@@ -296,32 +297,88 @@ type scaleAction struct {
 
 var noScaleAction = scaleAction{}
 
-func (c *DeployControllerBizUtilImpl) planNextAction(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
+func (c *DeployControllerBizUtilImpl) planNextScaleAction(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
+	scaleKind := c.checkScaleKind(mc)
+	switch scaleKind {
+	case scaleKindHPA:
+		return c.planScaleForHPA(currentDeployment)
+	case scaleKindRollout:
+		return c.planScaleForRollout(mc, currentDeployment, lastDeployment)
+	default:
+		return c.planScaleForNormalState(mc, currentDeployment)
+	}
+}
+
+type scaleKind int
+
+const (
+	scaleKindNormal scaleKind = iota
+	scaleKindRollout
+	scaleKindHPA
+)
+
+func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus) scaleKind {
+	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
+	isHpa := expectedReplicas < 0
+	if isHpa {
+		return scaleKindHPA
+	}
+	if v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
+		return scaleKindRollout
+	}
+	return scaleKindNormal
+}
+
+// planScaleForHPA assumes epectedReplicas < 0
+func (c *DeployControllerBizUtilImpl) planScaleForHPA(currentDeployment *appsv1.Deployment) scaleAction {
+	currentDeployReplicas := getDeployReplicas(currentDeployment)
+	if currentDeployReplicas == 0 {
+		return scaleAction{deploy: currentDeployment, replicaChange: 1}
+	}
+	return noScaleAction
+}
+
+// planScaleForRollout, if not hpa ,return nil
+func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
 	currentDeployReplicas := getDeployReplicas(currentDeployment)
 	lastDeployReplicas := getDeployReplicas(lastDeployment)
 
 	currentReplicas := currentDeployReplicas + lastDeployReplicas
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
-	isHpa := expectedReplicas < 0
-	if isHpa {
-		expectedReplicas = 1
-	}
 	switch {
 	case currentReplicas > expectedReplicas:
 		if lastDeployReplicas > 0 {
+			// continue rollout by scale in last deployment
 			return scaleAction{deploy: lastDeployment, replicaChange: -1}
 		}
+		// scale in is not allowed during a rollout
 		return noScaleAction
 	case currentReplicas == expectedReplicas:
 		if lastDeployReplicas == 0 {
+			// stable state
 			return noScaleAction
 		}
+		// continue rollout by scale out last deployment
 		return scaleAction{deploy: currentDeployment, replicaChange: 1}
 	default:
-		// unexpected: case currentReplicas < expectedReplicas
-		err := errors.Errorf("currentReplicas %d < expectedReplicas %d", currentReplicas, expectedReplicas)
-		ctrl.LoggerFrom(ctx).Error(err, errStringBrokenCase)
-		// try fix it:
+		// case currentReplicas < expectedReplicas
+		// scale out
+		return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentReplicas}
+	}
+}
+
+func (c *DeployControllerBizUtilImpl) planScaleForNormalState(mc v1beta1.Milvus, currentDeployment *appsv1.Deployment) scaleAction {
+	currentDeployReplicas := getDeployReplicas(currentDeployment)
+	currentReplicas := currentDeployReplicas
+	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
+	switch {
+	case currentReplicas > expectedReplicas:
+		// scale in one by one
+		return scaleAction{deploy: currentDeployment, replicaChange: -1}
+	case currentReplicas == expectedReplicas:
+		return noScaleAction
+	default:
+		// scale out at biggest step
 		return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentReplicas}
 	}
 }
@@ -367,24 +424,15 @@ func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context
 func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) error {
 	logger := ctrl.LoggerFrom(ctx)
 	labelHelper := v1beta1.Labels()
-	currentGroupIdStr := "1"
-	if currentDeployment == nil {
-		logger.Info("prepare new rollout stage 1: create deployment group[1] for rolling")
-		err := c.CreateDeploy(ctx, mc, podTemplate, 1)
-		if err != nil {
-			return errors.Wrap(err, "create new deploy for rolling failed")
-		}
-	} else {
-		currentGroupIdStr = labelHelper.GetLabelGroupID(c.component.Name, currentDeployment)
-		logger.Info("prepare new rollout stage 2", "deployGroupId", currentGroupIdStr, "podTemplateDiff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
-		currentDeployment.Spec.Template = *podTemplate
-		labelHelper.SetGroupIDStr(c.component.Name, currentDeployment.Spec.Template.Labels, currentGroupIdStr)
-		err := c.cli.Update(ctx, currentDeployment)
-		if err != nil {
-			return errors.Wrap(err, "update current deploy for rolling failed")
-		}
+	currentGroupIdStr := labelHelper.GetLabelGroupID(c.component.Name, currentDeployment)
+	logger.Info("prepare new rollout stage 1 update podTemplate", "deployGroupId", currentGroupIdStr, "podTemplateDiff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
+	currentDeployment.Spec.Template = *podTemplate
+	labelHelper.SetGroupIDStr(c.component.Name, currentDeployment.Spec.Template.Labels, currentGroupIdStr)
+	err := c.cli.Update(ctx, currentDeployment)
+	if err != nil {
+		return errors.Wrap(err, "update current deploy for rolling failed")
 	}
-	logger.Info("prepare new rollout stage 3: set current group id, set rolling to true", "currentGroupId", currentGroupIdStr)
+	logger.Info("prepare new rollout stage 2: set current group id, set component to rolling", "currentGroupId", currentGroupIdStr)
 	labelHelper.SetCurrentGroupIDStr(&mc, c.component.Name, currentGroupIdStr)
 	labelHelper.SetComponentRolling(&mc, c.component.Name, true)
 	return c.UpdateAndRequeue(ctx, &mc)
