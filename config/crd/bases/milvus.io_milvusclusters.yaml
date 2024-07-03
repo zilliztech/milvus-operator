@@ -1469,6 +1469,8 @@ spec:
                     type: boolean
                   dnsPolicy:
                     type: string
+                  enableManualMode:
+                    type: boolean
                   enableRollingUpdate:
                     type: boolean
                   env:

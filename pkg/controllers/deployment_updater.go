@@ -39,6 +39,18 @@ type deploymentUpdater interface {
 func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater deploymentUpdater) error {
 	mergedComSpec := updater.GetMergedComponentSpec()
 	deployment.Spec.Paused = mergedComSpec.Paused
+	deployment.Spec.Strategy = updater.GetDeploymentStrategy()
+	if updater.GetMilvus().IsRollingUpdateEnabled() {
+		deployment.Spec.MinReadySeconds = 30
+	}
+	deployment.Spec.ProgressDeadlineSeconds = int32Ptr(oneMonthSeconds)
+	if !updater.GetMilvus().Spec.Com.EnableManualMode {
+		updateDeploymentReplicas(deployment, updater)
+	}
+	return nil
+}
+
+func updateDeploymentReplicas(deployment *appsv1.Deployment, updater deploymentUpdater) {
 	//mutate replicas if HPA is not enabled
 	if !updater.IsHPAEnabled() {
 		deployment.Spec.Replicas = updater.GetReplicas()
@@ -48,12 +60,6 @@ func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater d
 			deployment.Spec.Replicas = int32Ptr(1)
 		}
 	}
-	deployment.Spec.Strategy = updater.GetDeploymentStrategy()
-	if updater.GetMilvus().IsRollingUpdateEnabled() {
-		deployment.Spec.MinReadySeconds = 30
-	}
-	deployment.Spec.ProgressDeadlineSeconds = int32Ptr(oneMonthSeconds)
-	return nil
 }
 
 func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) error {

@@ -121,14 +121,27 @@ func TestDeployControllerImpl_Reconcile(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("TwoDeploy mode, manual mode skip scaling", func(t *testing.T) {
+		mc := *mc.DeepCopy()
+		mc.Spec.Com.EnableManualMode = true
+		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil)
+		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, false).Return(nil)
+		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(nil)
+		mockBiz.EXPECT().IsPaused(gomock.Any(), mc).Return(false)
+		mockBiz.EXPECT().HandleRolling(gomock.Any(), mc).Return(nil)
+		err := DeployControllerImpl.Reconcile(ctx, mc, QueryNode)
+		assert.NoError(t, err)
+	})
+
 	t.Run("TwoDeploy mode scaling err", func(t *testing.T) {
+		mc = *mc.DeepCopy()
 		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, false).Return(nil)
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil)
 		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(nil)
 		mockBiz.EXPECT().IsPaused(gomock.Any(), mc).Return(false)
 		mockBiz.EXPECT().HandleRolling(gomock.Any(), mc).Return(nil)
 		mockBiz.EXPECT().HandleScaling(gomock.Any(), mc).Return(errMock)
-		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		err := DeployControllerImpl.Reconcile(ctx, mc, QueryNode)
 		assert.Error(t, err)
 	})
 

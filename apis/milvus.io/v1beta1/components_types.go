@@ -169,6 +169,9 @@ type MilvusComponents struct {
 	// +kubebuilder:validation:Optional
 	RollingMode RollingMode `json:"rollingMode,omitempty"`
 
+	// EnableManualMode when enabled milvus-operator will no longer track the replicas of each deployment
+	EnableManualMode bool `json:"enableManualMode,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	Proxy *MilvusProxy `json:"proxy,omitempty"`
 

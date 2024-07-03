@@ -104,6 +104,10 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return errors.Wrap(err, "handle rolling")
 	}
 
+	if mc.Spec.Com.EnableManualMode {
+		return nil
+	}
+
 	err = biz.HandleScaling(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "handle scaling")
