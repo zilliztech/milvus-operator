@@ -299,7 +299,7 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 		return err
 	}
 	UpdateCondition(&mc.Status, milvusCond)
-	err = r.handleTerminatingPods(ctx, mc)
+	err = r.syncUpdatedCondition(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "handle terminating pods failed")
 	}
@@ -318,8 +318,17 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 	return r.Status().Update(ctx, mc)
 }
 
-func (r *MilvusStatusSyncer) handleTerminatingPods(ctx context.Context, mc *v1beta1.Milvus) error {
+func (r *MilvusStatusSyncer) syncUpdatedCondition(ctx context.Context, mc *v1beta1.Milvus) error {
 	updatedCond := GetMilvusUpdatedCondition(mc)
+	err := r.handleTerminatingPods(ctx, mc, &updatedCond)
+	if err != nil {
+		return err
+	}
+	UpdateCondition(&mc.Status, updatedCond)
+	return nil
+}
+
+func (r *MilvusStatusSyncer) handleTerminatingPods(ctx context.Context, mc *v1beta1.Milvus, updatedCond *v1beta1.MilvusCondition) error {
 	terminatingPodList, err := ListMilvusTerminatingPods(ctx, r.Client, *mc)
 	if err != nil {
 		return err
@@ -338,7 +347,6 @@ func (r *MilvusStatusSyncer) handleTerminatingPods(ctx context.Context, mc *v1be
 			}
 		}
 	}
-	UpdateCondition(&mc.Status, updatedCond)
 	return nil
 }
 
