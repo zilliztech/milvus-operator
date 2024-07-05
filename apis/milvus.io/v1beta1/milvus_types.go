@@ -456,6 +456,17 @@ func (m *Milvus) IsPodServiceLabelAdded() bool {
 	return m.Annotations[PodServiceLabelAddedAnnotation] == TrueStr
 }
 
+func (m Milvus) GetActiveConfigMap() string {
+	if m.Spec.Com.ActiveConfigMap != "" {
+		return m.Spec.Com.ActiveConfigMap
+	}
+	return m.Name
+}
+
+func (m *Milvus) SetActiveConfigMap(configmapName string) {
+	m.Spec.Com.ActiveConfigMap = configmapName
+}
+
 // Hub marks this type as a conversion hub.
 func (*Milvus) Hub() {}
 

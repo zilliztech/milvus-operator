@@ -229,3 +229,11 @@ func TestGetPersistenceConfig(t *testing.T) {
 	m.Spec.Dep.MsgStreamType = MsgStreamTypeNatsMQ
 	assert.Same(t, &m.Spec.Dep.NatsMQ.Persistence, m.Spec.GetPersistenceConfig())
 }
+
+func TestGetActiveConfigMap_SetActiveConfigMap(t *testing.T) {
+	mc := Milvus{}
+	mc.Default()
+	assert.Equal(t, mc.Name, mc.GetActiveConfigMap())
+	mc.SetActiveConfigMap(mc.Name + "-1")
+	assert.Equal(t, mc.Name+"-1", mc.GetActiveConfigMap())
+}

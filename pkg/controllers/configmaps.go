@@ -114,13 +114,13 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 }
 
 func (r *MilvusReconciler) ReconcileConfigMaps(ctx context.Context, mc v1beta1.Milvus) error {
-	namespacedName := NamespacedName(mc.Namespace, mc.Name)
+	namespacedName := NamespacedName(mc.Namespace, mc.GetActiveConfigMap())
 	old := &corev1.ConfigMap{}
 	err := r.Get(ctx, namespacedName, old)
 	if kerrors.IsNotFound(err) {
 		new := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      mc.Name,
+				Name:      mc.GetActiveConfigMap(),
 				Namespace: mc.Namespace,
 			},
 		}

@@ -172,6 +172,17 @@ type MilvusComponents struct {
 	// EnableManualMode when enabled milvus-operator will no longer track the replicas of each deployment
 	EnableManualMode bool `json:"enableManualMode,omitempty"`
 
+	// ActiveConfigMap default to the name of the Milvus CR.
+	// It's useful when rollingMode set to v3, i.e. every component have 2 deployments.
+	// When set, all new rollout deployment will change to use this configmap.
+	// Since Milvus now supports dynamic config reload, configmap changing may affect the running pods.
+	// Ideally there should be one configmap for the old running deployment, one for upcoming rollout.
+	// So that changing for the active configmap won't affect the running pods,
+	// note: the active configmap won't switch automatically
+	// because we may want to change configmap for existing pods
+	// so it's hard to determine when to switch. you need to switch it manually.
+	ActiveConfigMap string `json:"activeConfigMap,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	Proxy *MilvusProxy `json:"proxy,omitempty"`
 

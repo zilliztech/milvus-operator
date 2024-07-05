@@ -22,6 +22,7 @@ const (
 	AnnotationUpgrading                    = "upgrading"
 	AnnotationUpgraded                     = "upgraded"
 	StoppedAtAnnotation                    = MilvusIO + "stopped-at"
+	PodAnnotationUsingConfigMap            = MilvusIO + "using-configmap"
 
 	// PodServiceLabelAddedAnnotation is to indicate whether the milvus.io/service=true label is added to proxy & standalone pods
 	// previously, we use milvus.io/component: proxy / standalone; to select the service pods
