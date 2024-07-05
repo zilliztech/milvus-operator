@@ -23,38 +23,10 @@ type ComponentConditionGetterImpl struct{}
 
 func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (v1beta1.MilvusCondition, error) {
 	if mc.Spec.IsStopping() {
-		reason := v1beta1.ReasonMilvusStopping
-		msg := MessageMilvusStopped
-		stopped, err := CheckMilvusStopped(ctx, cli, mc)
-		if err != nil {
-			return v1beta1.MilvusCondition{}, err
-		}
-		if stopped {
-			reason = v1beta1.ReasonMilvusStopped
-			msg = MessageMilvusStopping
-		}
-
-		return v1beta1.MilvusCondition{
-			Type:    v1beta1.MilvusReady,
-			Status:  corev1.ConditionFalse,
-			Reason:  reason,
-			Message: msg,
-		}, nil
+		return c.getStoppingCondition(ctx, cli, mc)
 	}
 
-	if !IsDependencyReady(mc.Status.Conditions) {
-		notReadyConditions := GetNotReadyDependencyConditions(mc.Status.Conditions)
-		reason := v1beta1.ReasonDependencyNotReady
-		var msg string
-		for depType, notReadyCondition := range notReadyConditions {
-			if notReadyCondition != nil {
-				msg += fmt.Sprintf("dep[%s]: %s;", depType, notReadyCondition.Message)
-			} else {
-				msg = "condition not probed yet"
-			}
-		}
-		ctrl.LoggerFrom(ctx).Info("milvus dependency unhealty", "reason", reason, "msg", msg)
-	}
+	c.logReasonMsgIfDependencyNotReady(ctx, mc)
 
 	deployList := &appsv1.DeploymentList{}
 	opts := &client.ListOptions{
@@ -110,6 +82,41 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 	}
 
 	return cond, nil
+}
+func (c ComponentConditionGetterImpl) logReasonMsgIfDependencyNotReady(ctx context.Context, mc v1beta1.Milvus) {
+	if !IsDependencyReady(mc.Status.Conditions) {
+		notReadyConditions := GetNotReadyDependencyConditions(mc.Status.Conditions)
+		reason := v1beta1.ReasonDependencyNotReady
+		var msg string
+		for depType, notReadyCondition := range notReadyConditions {
+			if notReadyCondition != nil {
+				msg += fmt.Sprintf("dep[%s]: %s;", depType, notReadyCondition.Message)
+			} else {
+				msg = "condition not probed yet"
+			}
+		}
+		ctrl.LoggerFrom(ctx).Info("milvus dependency unhealty", "reason", reason, "msg", msg)
+	}
+}
+
+func (c ComponentConditionGetterImpl) getStoppingCondition(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (v1beta1.MilvusCondition, error) {
+	reason := v1beta1.ReasonMilvusStopping
+	msg := MessageMilvusStopped
+	stopped, err := CheckMilvusStopped(ctx, cli, mc)
+	if err != nil {
+		return v1beta1.MilvusCondition{}, err
+	}
+	if stopped {
+		reason = v1beta1.ReasonMilvusStopped
+		msg = MessageMilvusStopping
+	}
+
+	return v1beta1.MilvusCondition{
+		Type:    v1beta1.MilvusReady,
+		Status:  corev1.ConditionFalse,
+		Reason:  reason,
+		Message: msg,
+	}, nil
 }
 
 var getComponentErrorDetail = func(ctx context.Context, cli client.Client, component string, deploy *appsv1.Deployment) (*ComponentErrorDetail, error) {
