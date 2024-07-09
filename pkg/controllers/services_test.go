@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/config"
 	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -78,7 +78,7 @@ func TestReconciler_ReconcileServices_UpdateIfExisted(t *testing.T) {
 	m.Default()
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-		Do(func(ctx, key, obj interface{}) error {
+		Do(func(ctx, key, obj interface{}, opts ...any) error {
 			s := obj.(*corev1.Service)
 			s.Namespace = "ns"
 			s.Name = "cm1"
@@ -101,7 +101,7 @@ func TestReconciler_ReconcileServices_UpdateIfExisted(t *testing.T) {
 		m.Default()
 
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-			Do(func(ctx, key, obj interface{}) error {
+			Do(func(ctx, key, obj interface{}, opts ...any) error {
 				s := obj.(*corev1.Service)
 				s.Namespace = "ns"
 				s.Name = "cm1"

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/external"
 	"github.com/prashantv/gostub"
@@ -14,11 +13,13 @@ import (
 	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
+	fake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -199,8 +200,8 @@ func TestGetMinioCondition(t *testing.T) {
 		defer ctrl.Finish()
 		stubs := gostub.Stub(&checkMinIO, getMockCheckMinIOFunc(errTest))
 		defer stubs.Reset()
-		mockK8sCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-			Do(func(ctx interface{}, key interface{}, secret *corev1.Secret) {
+		mockK8sCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx interface{}, key interface{}, secret *corev1.Secret, opt ...any) {
 				secret.Data = map[string][]byte{
 					AccessKey: []byte("accessKeyID"),
 					SecretKey: []byte("secretAccessKey"),
@@ -216,7 +217,7 @@ func TestGetMinioCondition(t *testing.T) {
 		stubs := gostub.Stub(&checkMinIO, getMockCheckMinIOFunc(nil))
 		defer stubs.Reset()
 		mockK8sCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-			Do(func(ctx interface{}, key interface{}, secret *corev1.Secret) {
+			Do(func(ctx interface{}, key interface{}, secret *corev1.Secret, opt ...any) {
 				secret.Data = map[string][]byte{
 					AccessKey: []byte("accessKeyID"),
 					SecretKey: []byte("secretAccessKey"),
@@ -231,7 +232,7 @@ func TestGetMinioCondition(t *testing.T) {
 		stubs := gostub.Stub(&checkMinIO, getMockCheckMinIOFunc(nil))
 		defer stubs.Reset()
 		mockK8sCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-			Do(func(ctx interface{}, key interface{}, secret *corev1.Secret) {
+			Do(func(ctx interface{}, key interface{}, secret *corev1.Secret, opt ...any) {
 				secret.Data = map[string][]byte{
 					AccessKey: []byte("accessKeyID"),
 					SecretKey: []byte("secretAccessKey"),
@@ -305,7 +306,7 @@ func TestGetEtcdCondition(t *testing.T) {
 func TestGetMilvusEndpoint(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockClient := NewMockK8sClient(ctrl)
+	fakeClient := fake.NewClientBuilder().Build()
 	ctx := context.TODO()
 	logger := logf.Log.WithName("test")
 
@@ -316,31 +317,33 @@ func TestGetMilvusEndpoint(t *testing.T) {
 		ServiceType: corev1.ServiceTypeNodePort,
 		Port:        10086,
 	}
-	assert.Empty(t, GetMilvusEndpoint(ctx, logger, mockClient, info))
+	assert.Empty(t, GetMilvusEndpoint(ctx, logger, fakeClient, info))
 
 	// clusterIP
 	info.ServiceType = corev1.ServiceTypeClusterIP
-	assert.Equal(t, "name-milvus.ns:10086", GetMilvusEndpoint(ctx, logger, mockClient, info))
+	assert.Equal(t, "name-milvus.ns:10086", GetMilvusEndpoint(ctx, logger, fakeClient, info))
 
-	// loadbalancer failed
+	// query loadbalancer failed
 	info.ServiceType = corev1.ServiceTypeLoadBalancer
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("test"))
-	assert.Empty(t, GetMilvusEndpoint(ctx, logger, mockClient, info))
+	assert.Empty(t, GetMilvusEndpoint(ctx, logger, fakeClient, info))
 
-	// loadbalancer not created, empty
+	// svc loadbalancer not created, empty
 	info.ServiceType = corev1.ServiceTypeLoadBalancer
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-	assert.Empty(t, GetMilvusEndpoint(ctx, logger, mockClient, info))
+	svc := &corev1.Service{}
+	svc.Name = "name-milvus"
+	svc.Namespace = "ns"
+	fakeClient = fake.NewClientBuilder().
+		WithObjects(svc).Build()
+	assert.Empty(t, GetMilvusEndpoint(ctx, logger, fakeClient, info))
 
 	// loadbalancer
 	info.ServiceType = corev1.ServiceTypeLoadBalancer
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx, k interface{}, v *corev1.Service) {
-			v.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
-				{IP: "1.1.1.1"},
-			}
-		})
-	assert.Equal(t, "1.1.1.1:10086", GetMilvusEndpoint(ctx, logger, mockClient, info))
+	svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
+		{IP: "1.1.1.1"},
+	}
+	fakeClient = fake.NewClientBuilder().
+		WithObjects(svc).Build()
+	assert.Equal(t, "1.1.1.1:10086", GetMilvusEndpoint(ctx, logger, fakeClient, info))
 
 }
 

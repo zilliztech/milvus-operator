@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
@@ -133,7 +133,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
-			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opt ...any) error {
 				cm := obj.(*appsv1.Deployment)
 				cm.Namespace = "ns"
 				cm.Name = "mc"
@@ -152,7 +152,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
-			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opt ...any) error {
 				cm := obj.(*appsv1.Deployment)
 				cm.Namespace = "ns"
 				cm.Name = "mc-xxx"

@@ -439,7 +439,7 @@ func GetMilvusConfCheckSum(spec v1beta1.MilvusSpec) string {
 
 func GetStartupProbe() *corev1.Probe {
 	return &corev1.Probe{
-		Handler: corev1.Handler{
+		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Path:   "/healthz",
 				Port:   intstr.FromInt(9091),
@@ -455,7 +455,7 @@ func GetStartupProbe() *corev1.Probe {
 
 func GetLivenessProbe() *corev1.Probe {
 	return &corev1.Probe{
-		Handler: corev1.Handler{
+		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Path:   "/healthz",
 				Port:   intstr.FromInt(9091),
@@ -471,7 +471,7 @@ func GetLivenessProbe() *corev1.Probe {
 
 func GetReadinessProbe() *corev1.Probe {
 	return &corev1.Probe{
-		Handler: corev1.Handler{
+		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Path:   "/healthz",
 				Port:   intstr.FromInt(9091),

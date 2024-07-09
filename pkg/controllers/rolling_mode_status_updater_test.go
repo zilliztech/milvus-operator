@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 func Test_GetExpectedTwoDeployComponents(t *testing.T) {
@@ -50,7 +50,8 @@ func TestRollingModeStatusUpdaterImpl_Update(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)
-	mockCli.EXPECT().Status().Return(mockCli).AnyTimes()
+	mockStatusCli := NewMockK8sStatusClient(ctrl)
+	mockCli.EXPECT().Status().Return(mockStatusCli).AnyTimes()
 	mockBizFactory := NewMockDeployControllerBizFactory(ctrl)
 	mockBiz := NewMockDeployControllerBiz(ctrl)
 	updater := NewRollingModeStatusUpdater(mockCli, mockBizFactory)
@@ -72,7 +73,7 @@ func TestRollingModeStatusUpdaterImpl_Update(t *testing.T) {
 				},
 			},
 		}
-		mockCli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(mc)).Return(nil)
+		mockStatusCli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(mc)).Return(nil)
 		err := updater.Update(ctx, mc)
 		assert.NoError(t, err)
 		assert.Equal(t, v1beta1.RollingModeV2, mc.Status.RollingMode)
@@ -90,7 +91,6 @@ func TestRollingModeStatusUpdaterImpl_Update(t *testing.T) {
 		mc.Status.RollingMode = v1beta1.RollingModeV1
 		mockBizFactory.EXPECT().GetBiz(QueryNode).Return(mockBiz).Times(1)
 		mockBiz.EXPECT().CheckDeployMode(ctx, *mc).Return(v1beta1.OneDeployMode, nil)
-		// mockCli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(mc)).Return(nil)
 		err := updater.Update(ctx, mc)
 		assert.NoError(t, err)
 		assert.Equal(t, v1beta1.RollingModeV1, mc.Status.RollingMode)
@@ -108,7 +108,7 @@ func TestRollingModeStatusUpdaterImpl_Update(t *testing.T) {
 		mc.Status.RollingMode = v1beta1.RollingModeV1
 		mockBizFactory.EXPECT().GetBiz(QueryNode).Return(mockBiz).Times(1)
 		mockBiz.EXPECT().CheckDeployMode(ctx, *mc).Return(v1beta1.TwoDeployMode, nil)
-		mockCli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(mc)).Return(nil)
+		mockStatusCli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(mc)).Return(nil)
 		err := updater.Update(ctx, mc)
 		assert.NoError(t, err)
 		assert.Equal(t, v1beta1.RollingModeV2, mc.Status.RollingMode)
@@ -140,7 +140,7 @@ func TestRollingModeStatusUpdaterImpl_Update(t *testing.T) {
 		}
 		mockBizFactory.EXPECT().GetBiz(MilvusStandalone).Return(mockBiz).Times(1)
 		mockBiz.EXPECT().CheckDeployMode(ctx, *mc).Return(v1beta1.TwoDeployMode, nil)
-		mockCli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(mc)).Return(nil)
+		mockStatusCli.EXPECT().Update(ctx, gomock.AssignableToTypeOf(mc)).Return(nil)
 		err := updater.Update(ctx, mc)
 		assert.NoError(t, err)
 		assert.Equal(t, v1beta1.RollingModeV3, mc.Status.RollingMode)

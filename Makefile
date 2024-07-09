@@ -10,8 +10,8 @@ RELEASE_IMG ?= milvusdb/milvus-operator:v$(VERSION)
 TOOL_RELEASE_IMG ?= milvusdb/milvus-config-tool:v$(TOOL_VERSION)
 KIND_CLUSTER ?= kind
 
-# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:preserveUnknownFields=false,maxDescLen=0"
+# Produce remove descriptions, it's too long
+CRD_OPTIONS ?= "crd:maxDescLen=0"
 # cert-manager 
 CERT_MANAGER_MANIFEST ?= "https://github.com/jetstack/cert-manager/releases/download/v1.5.3/cert-manager.yaml"
 
@@ -61,7 +61,7 @@ generate: controller-gen go-generate ## Generate code containing DeepCopy, DeepC
 generate-all: generate deploy-manifests
 
 go-generate:
-	go install github.com/golang/mock/mockgen@v1.6.0
+	go install go.uber.org/mock/mockgen@v0.4.0
 	go generate ./...
 
 generate-client-groups:
@@ -212,7 +212,7 @@ dev-cert-apply: dev-cert
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.0)
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0)
 
 KUSTOMIZE = $(shell pwd)/bin/kustomize
 kustomize: ## Download kustomize locally if necessary.

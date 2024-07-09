@@ -321,7 +321,7 @@ func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater d
 		// We add sleep 30s to hold the SIGTERM so that
 		// the load balancer controller has enough time to remove it.
 		container.Lifecycle = &corev1.Lifecycle{
-			PreStop: &corev1.Handler{
+			PreStop: &corev1.LifecycleHandler{
 				Exec: &corev1.ExecAction{
 					Command: []string{
 						"sleep",

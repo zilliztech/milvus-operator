@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -54,6 +54,7 @@ func TestClusterReconciler(t *testing.T) {
 	globalCommonInfo.once.Do(func() {})
 
 	mockClient := r.Client.(*MockK8sClient)
+	mockStatusCli := NewMockK8sStatusClient(ctrl)
 
 	m := v1beta1.Milvus{
 		ObjectMeta: metav1.ObjectMeta{
@@ -68,7 +69,7 @@ func TestClusterReconciler(t *testing.T) {
 		defer ctrl.Finish()
 
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-			Do(func(ctx, key, obj interface{}) {
+			Do(func(ctx, key, obj interface{}, opt ...any) {
 				o := obj.(*v1beta1.Milvus)
 				*o = m
 			}).
@@ -94,14 +95,14 @@ func TestClusterReconciler(t *testing.T) {
 		m.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-			Do(func(ctx, key, obj interface{}) {
+			Do(func(ctx, key, obj interface{}, opts ...any) {
 				o := obj.(*v1beta1.Milvus)
 				*o = m
 			}).
 			Return(nil)
 
-		mockClient.EXPECT().Status().Return(mockClient)
-		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Times(1)
+		mockClient.EXPECT().Status().Return(mockStatusCli)
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any()).Times(1)
 
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any(), client.PropagationPolicy(metav1.DeletePropagationForeground)).Times(1).Return(errMock)
 
@@ -115,14 +116,14 @@ func TestClusterReconciler(t *testing.T) {
 		m.Finalizers = []string{ForegroundDeletionFinalizer, MilvusFinalizerName}
 		m.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-			Do(func(ctx, key, obj interface{}) {
+			Do(func(ctx, key, obj interface{}, opts ...any) {
 				o := obj.(*v1beta1.Milvus)
 				*o = m
 			}).
 			Return(nil)
 
-		mockClient.EXPECT().Status().Return(mockClient)
-		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Times(1)
+		mockClient.EXPECT().Status().Return(mockStatusCli)
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any()).Times(1)
 
 		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Do(
 			func(ctx, obj interface{}, opts ...interface{}) {
@@ -140,7 +141,7 @@ func TestClusterReconciler(t *testing.T) {
 		defer ctrl.Finish()
 		m.Finalizers = []string{ForegroundDeletionFinalizer, MilvusFinalizerName}
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-			Do(func(ctx, key, obj interface{}) {
+			Do(func(ctx, key, obj interface{}, opts ...any) {
 				o := obj.(*v1beta1.Milvus)
 				*o = m
 			}).

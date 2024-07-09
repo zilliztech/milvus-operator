@@ -10,8 +10,8 @@ import (
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
@@ -69,7 +69,7 @@ func TestReconcileConfigMaps_Existed(t *testing.T) {
 		gomock.InOrder(
 			mockClient.EXPECT().
 				Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{})).
-				DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+				DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
 					cm := obj.(*corev1.ConfigMap)
 					cm.Namespace = "ns"
 					cm.Name = "cm1"
@@ -88,7 +88,7 @@ func TestReconcileConfigMaps_Existed(t *testing.T) {
 	assert.NoError(t, err)
 	mockClient.EXPECT().
 		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{})).
-		DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
 			cm := obj.(*corev1.ConfigMap)
 			cm.Name = "cm1"
 			cm.Namespace = "ns"
@@ -118,7 +118,7 @@ func TestReconcileConfigMaps_Existed(t *testing.T) {
 		gomock.InOrder(
 			mockClient.EXPECT().
 				Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{})).
-				DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+				DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
 					cm := obj.(*corev1.ConfigMap)
 					cm.Namespace = "ns"
 					cm.Name = "cm1"
@@ -138,7 +138,7 @@ func TestReconcileConfigMaps_Existed(t *testing.T) {
 		gomock.InOrder(
 			mockClient.EXPECT().
 				Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{})).
-				DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+				DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
 					cm := obj.(*corev1.ConfigMap)
 					cm.Namespace = "ns"
 					cm.Name = "cm1"

@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1alpha1"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/config"
 	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -684,7 +684,7 @@ func Test_annotateAlphaCR(t *testing.T) {
 	err := controllerutil.SetControllerReference(mc, milvus, r.Scheme)
 	assert.NoError(t, err)
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, name types.NamespacedName, obj client.Object) error {
+		DoAndReturn(func(ctx context.Context, name types.NamespacedName, obj client.Object, opts ...any) error {
 			mcObj := obj.(*v1alpha1.MilvusCluster)
 			*mcObj = *mc
 			return nil

@@ -5,11 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"github.com/go-logr/logr"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
@@ -52,8 +53,8 @@ func TestMilvusStatusSyncer_UpdateIngressStatus(t *testing.T) {
 	t.Run("get ingress found, status copied", func(t *testing.T) {
 		milvus.Spec.Com.Standalone.Ingress = &v1beta1.MilvusIngress{}
 		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-			Do(func(_, _ interface{}, obj *networkv1.Ingress) {
-				obj.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
+			Do(func(_, _ interface{}, obj *networkv1.Ingress, opts ...any) {
+				obj.Status.LoadBalancer.Ingress = []networkv1.IngressLoadBalancerIngress{
 					{
 						Hostname: "host1",
 					},
@@ -235,6 +236,7 @@ func TestStatusSyncer_UpdateStatusRoutine(t *testing.T) {
 	defer stubs.Reset()
 
 	mockCli := NewMockK8sClient(ctrl)
+	mockStatusCli := NewMockK8sStatusClient(ctrl)
 	ctx := context.Background()
 	logger := logf.Log.WithName("test")
 	m := &v1beta1.Milvus{}
@@ -326,8 +328,8 @@ func TestStatusSyncer_UpdateStatusRoutine(t *testing.T) {
 			Type:   v1beta1.MilvusReady,
 			Status: corev1.ConditionFalse,
 		}, nil)
-		mockCli.EXPECT().Status().Return(mockCli)
-		mockCli.EXPECT().Update(gomock.Any(), gomock.Any())
+		mockCli.EXPECT().Status().Return(mockStatusCli)
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any())
 		m.Status.Status = v1beta1.StatusHealthy
 		m.Status.ComponentsDeployStatus = map[string]v1beta1.ComponentDeployStatus{
 			StandaloneName: {
@@ -361,9 +363,9 @@ func TestStatusSyncer_UpdateStatusRoutine(t *testing.T) {
 			Type:   v1beta1.MilvusReady,
 			Status: corev1.ConditionFalse,
 		}, nil)
-		mockCli.EXPECT().Status().Return(mockCli)
+		mockCli.EXPECT().Status().Return(mockStatusCli)
 		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mockCli.EXPECT().Update(gomock.Any(), gomock.Any())
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any())
 		m.Status.Status = v1beta1.StatusPending
 		err = s.UpdateStatusRoutine(ctx, m)
 		assert.NoError(t, err)
@@ -383,7 +385,7 @@ func TestStatusSyncer_UpdateReplicas(t *testing.T) {
 	s := new(replicaUpdaterImpl)
 
 	t.Run("all ok", func(t *testing.T) {
-		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Do(func(_, _, deploy interface{}) {
+		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Do(func(_, _, deploy interface{}, opts ...any) {
 			deploy.(*appsv1.Deployment).Status.UpdatedReplicas = 2
 		}).Return(nil).Times(len(MilvusComponents))
 		err := s.UpdateReplicas(ctx, m, mockCli)
@@ -433,11 +435,11 @@ func mockConditionGetter() v1beta1.MilvusCondition {
 
 func TestWrapGetter(t *testing.T) {
 	var getter func() v1beta1.MilvusCondition
-	getter = wrapPulsarConditonGetter(nil, nil, v1beta1.MilvusPulsar{})
+	getter = wrapPulsarConditonGetter(nil, logr.Logger{}, v1beta1.MilvusPulsar{})
 	assert.NotNil(t, getter)
 	getter = wrapEtcdConditionGetter(nil, []string{})
 	assert.NotNil(t, getter)
-	getter = wrapMinioConditionGetter(nil, nil, nil, StorageConditionInfo{})
+	getter = wrapMinioConditionGetter(nil, logr.Logger{}, nil, StorageConditionInfo{})
 	assert.NotNil(t, getter)
 }
 
