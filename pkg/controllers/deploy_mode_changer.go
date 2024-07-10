@@ -34,6 +34,7 @@ func NewDeployModeChanger(component MilvusComponent, cli client.Client, util K8s
 		newStep("update old pod labels", c.UpdateOldPodLabels),
 		newStep("recover replica sets", c.RecoverReplicaSets),
 		newStep("recover deploy", c.RecoverDeploy),
+		newStep("mark current deploy", c.MarkCurrentDeploy),
 	}
 	return c
 }
@@ -154,7 +155,8 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 			return errors.Errorf("invalid old replica set name: %s", rs.Name)
 		}
 		rsHash := splitedName[len(splitedName)-1]
-		rs.Name = fmt.Sprintf("%s-0-%s", rs.Name, rsHash)
+		deployName := strings.Join(splitedName[:len(splitedName)-2], "-")
+		rs.Name = fmt.Sprintf("%s-0-%s", deployName, rsHash)
 		logger.Info("recovering old replica set", "new-name", rs.Name)
 		err = c.util.CreateObject(ctx, &rs)
 		if err != nil {
@@ -186,6 +188,15 @@ func (c *DeployModeChangerImpl) RecoverDeploy(ctx context.Context, mc v1beta1.Mi
 		return errors.Wrap(err, "recover old deploy")
 	}
 	return nil
+}
+
+func (c *DeployModeChangerImpl) MarkCurrentDeploy(ctx context.Context, mc v1beta1.Milvus) error {
+	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.Name) == "0" {
+		return nil
+	}
+	v1beta1.Labels().SetCurrentGroupID(&mc, c.component.Name, 0)
+	err := c.util.UpdateAndRequeue(ctx, &mc)
+	return errors.Wrap(err, "mark current deploy")
 }
 
 func formatSaveOldDeployName(mc v1beta1.Milvus, component MilvusComponent) string {

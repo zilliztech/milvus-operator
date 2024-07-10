@@ -55,11 +55,6 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return errors.Wrap(err, "check deploy mode")
 	}
 	switch deployMode {
-	case v1beta1.TwoDeployMode:
-		err = biz.MarkDeployModeChanging(ctx, mc, false)
-		if err != nil {
-			return err
-		}
 	case v1beta1.OneDeployMode:
 		isUpdating, err := biz.IsUpdating(ctx, mc)
 		if err != nil {
@@ -79,6 +74,12 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		if err != nil {
 			return errors.Wrap(err, "change to two deployment mode")
 		}
+		fallthrough
+	case v1beta1.TwoDeployMode:
+		err = biz.MarkDeployModeChanging(ctx, mc, false)
+		if err != nil {
+			return err
+		}
 	default:
 		err = errors.Errorf("unknown deploy mode: %d", deployMode)
 		logger.Error(err, "switch case by deployMode")
@@ -95,10 +96,6 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return nil
 	}
 
-	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 {
-		return biz.HandleStop(ctx, mc)
-	}
-
 	err = biz.HandleRolling(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "handle rolling")
@@ -106,6 +103,10 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 
 	if mc.Spec.Com.EnableManualMode {
 		return nil
+	}
+
+	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 {
+		return biz.HandleStop(ctx, mc)
 	}
 
 	err = biz.HandleScaling(ctx, mc)
@@ -166,8 +167,12 @@ func (c *DeployControllerBizImpl) CheckDeployMode(ctx context.Context, mc v1beta
 		if c.component == QueryNode {
 			return v1beta1.TwoDeployMode, nil
 		}
+		fallthrough
 	default:
 		// check in cluster
+	}
+	if v1beta1.Labels().IsChangingMode(mc, c.component.Name) {
+		return v1beta1.OneDeployMode, nil
 	}
 	mode, err := c.checkDeployModeInCluster(ctx, mc)
 	if err != nil {
@@ -228,16 +233,16 @@ func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.M
 	case err == ErrNotFound:
 		err := c.util.MarkMilvusComponentGroupId(ctx, mc, c.component, 0)
 		if err != nil {
-			return errors.Wrapf(err, "mark milvus querynode group id to %d", 0)
+			return errors.Wrapf(err, "mark milvus %s group id to %d", c.component.Name, 0)
 		}
 		err = c.util.CreateDeploy(ctx, mc, nil, 0)
 		if err != nil {
-			return errors.Wrap(err, "create querynode deployment 0")
+			return errors.Wrapf(err, "create %s deployment 0", c.component.Name)
 		}
 	case err == ErrNoLastDeployment:
 		return c.util.CreateDeploy(ctx, mc, nil, 1)
 	default:
-		return errors.Wrap(err, "get querynode deploys")
+		return errors.Wrapf(err, "get %s deploys", c.component.Name)
 	}
 	return nil
 }

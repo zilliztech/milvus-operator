@@ -114,7 +114,7 @@ func (ParallelGroupRunner) RunDiffArgs(f MilvusReconcileFunc, ctx context.Contex
 	}
 
 	err := g.Wait()
-	return errors.Wrap(err, "run group failed")
+	return errors.Wrap(err, "run group")
 }
 
 func getDummyErr(err error) func() error {

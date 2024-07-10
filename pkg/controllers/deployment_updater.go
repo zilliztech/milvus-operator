@@ -77,7 +77,9 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 	if err != nil {
 		return err
 	}
-	updatePodTemplate(updater, &deployment.Spec.Template, appLabels, isCreating)
+	isStopped := getDeployReplicas(deployment) == 0
+	updateDefaults := isCreating || isStopped
+	updatePodTemplate(updater, &deployment.Spec.Template, appLabels, updateDefaults)
 	return nil
 }
 
@@ -87,7 +89,7 @@ func updatePodTemplate(
 	updater deploymentUpdater,
 	template *corev1.PodTemplateSpec,
 	appLabels map[string]string,
-	isCreating bool,
+	updateDefaults bool,
 ) {
 	currentTemplate := template.DeepCopy()
 
@@ -95,19 +97,25 @@ func updatePodTemplate(
 	updateInitContainers(template, updater)
 	updateUserDefinedVolumes(template, updater)
 	updateScheduleSpec(template, updater)
-	updateMilvusContainer(template, updater, isCreating)
+	updateMilvusContainer(template, updater, updateDefaults)
 	updateSidecars(template, updater)
 	updateNetworkSettings(template, updater)
 
-	// no rolling update
-	if IsEqual(currentTemplate, template) {
+	var hasUpdates = !IsEqual(currentTemplate, template)
+	switch {
+	case hasUpdates:
+		podTemplateLogger.WithValues(
+			"namespace", updater.GetMilvus().Namespace,
+			"milvus", updater.GetMilvus().Name).
+			Info("pod template updated by crd", "diff", diff.ObjectDiff(currentTemplate, template))
+	case updateDefaults:
+	default:
+		// no updates, no default changes
 		return
 	}
-	podTemplateLogger.WithValues(
-		"namespace", updater.GetMilvus().Namespace,
-		"milvus", updater.GetMilvus().Name).
-		Info("pod template changed", "diff", diff.ObjectDiff(currentTemplate, template))
-	// some defaults change will cause rolling update, so we only perform when rolling update
+
+	// some defaults change will cause rolling update
+	// so we only perform when rolling update or when caller explicitly ask for it
 	updateSomeFieldsOnlyWhenRolling(template, updater)
 }
 
