@@ -65,6 +65,8 @@ spec:
             properties:
               components:
                 properties:
+                  activeConfigMap:
+                    type: string
                   affinity:
                     properties:
                       nodeAffinity:
@@ -7383,6 +7385,8 @@ spec:
             properties:
               components:
                 properties:
+                  activeConfigMap:
+                    type: string
                   affinity:
                     properties:
                       nodeAffinity:
