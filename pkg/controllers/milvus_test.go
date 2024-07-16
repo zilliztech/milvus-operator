@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/helm"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -128,20 +128,21 @@ func TestCluster_SetDefaultStatus(t *testing.T) {
 	defer env.checkMocks()
 	r := env.Reconciler
 	mockClient := env.MockClient
+	mockStatusCli := NewMockK8sStatusClient(env.Ctrl)
 	ctx := env.ctx
 	errTest := errors.New("test")
 
 	// no status, set default failed
 	m := env.Inst
-	mockClient.EXPECT().Status().Return(mockClient)
-	mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errTest)
+	mockClient.EXPECT().Status().Return(mockStatusCli)
+	mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errTest)
 	err := r.SetDefaultStatus(ctx, &m)
 	assert.Error(t, err)
 
 	// no status, set default ok
 	m = env.Inst // ptr value changed, need reset
-	mockClient.EXPECT().Status().Return(mockClient)
-	mockClient.EXPECT().Update(gomock.Any(), gomock.Any())
+	mockClient.EXPECT().Status().Return(mockStatusCli)
+	mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any())
 	err = r.SetDefaultStatus(ctx, &m)
 	assert.NoError(t, err)
 

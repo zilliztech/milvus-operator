@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/config"
 	"github.com/milvus-io/milvus-operator/pkg/util"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -95,7 +95,7 @@ func TestReconciler_ReconcilePodMonitor_UpdateIfExisted(t *testing.T) {
 	m.Default()
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
-		Do(func(ctx, key, obj interface{}) error {
+		Do(func(ctx, key, obj interface{}, opts ...any) error {
 			s := obj.(*monitoringv1.PodMonitor)
 			s.Namespace = "ns"
 			s.Name = "cm1"

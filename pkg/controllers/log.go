@@ -63,6 +63,6 @@ func (l pulsarLog) Errorf(format string, args ...interface{}) {
 	l.logger.Info(fmt.Sprintf(format, args...))
 }
 
-func newPulsarLog(logger logr.Logger) pulsarLog {
+func newPulsarLog(logger Logger) pulsarLog {
 	return pulsarLog{logger: logger.WithName("pulsar")}
 }

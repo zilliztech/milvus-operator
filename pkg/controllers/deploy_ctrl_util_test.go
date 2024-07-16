@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"

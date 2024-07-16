@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -382,7 +382,7 @@ func TestK8sUtilImpl_GetSavedObject(t *testing.T) {
 		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
 		mockK8sCli.EXPECT().Get(ctx, key,
 			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
-			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
 				*obj.(*appsv1.ControllerRevision) = controllerrevision
 				return nil
 			})
@@ -398,7 +398,7 @@ func TestK8sUtilImpl_GetSavedObject(t *testing.T) {
 		key := client.ObjectKey{Name: "name", Namespace: mc.Namespace}
 		mockK8sCli.EXPECT().Get(ctx, key,
 			gomock.AssignableToTypeOf(new(appsv1.ControllerRevision))).
-			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
 				*obj.(*appsv1.ControllerRevision) = controllerrevision
 				return nil
 			})

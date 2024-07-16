@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -18,6 +18,7 @@ func Test_MilvusUpgradeReconciler_Reconcile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockClient := NewMockK8sClient(ctrl)
+	mockStatusCli := NewMockK8sStatusClient(ctrl)
 	scheme := runtime.NewScheme()
 	v1beta1.AddToScheme(scheme)
 
@@ -54,7 +55,7 @@ func Test_MilvusUpgradeReconciler_Reconcile(t *testing.T) {
 		Namespace: "ns1",
 	}
 	mockGetMilvusUpSuccess := func() {
-		mockClient.EXPECT().Get(ctx, req.NamespacedName, gomock.Any()).DoAndReturn(func(ctx context.Context, name types.NamespacedName, obj runtime.Object) error {
+		mockClient.EXPECT().Get(ctx, req.NamespacedName, gomock.Any()).DoAndReturn(func(ctx context.Context, name types.NamespacedName, obj runtime.Object, opt ...any) error {
 			assert.Equal(t, name, req.NamespacedName)
 			mu := obj.(*v1beta1.MilvusUpgrade)
 			*mu = milvusUp
@@ -70,8 +71,8 @@ func Test_MilvusUpgradeReconciler_Reconcile(t *testing.T) {
 			fn()
 		}
 		mockClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(v1beta1.Resource("Milvus"), "milvus1"))
-		mockClient.EXPECT().Status().Return(mockClient)
-		mockClient.EXPECT().Update(ctx, gomock.Any()).Return(kerrors.NewInternalError(errMock))
+		mockClient.EXPECT().Status().Return(mockStatusCli)
+		mockStatusCli.EXPECT().Update(ctx, gomock.Any()).Return(kerrors.NewInternalError(errMock))
 		_, err := r.Reconcile(ctx, req)
 		assert.Error(t, err)
 	})
@@ -82,8 +83,8 @@ func Test_MilvusUpgradeReconciler_Reconcile(t *testing.T) {
 			fn()
 		}
 		mockClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(v1beta1.Resource("Milvus"), "milvus1"))
-		mockClient.EXPECT().Status().Return(mockClient)
-		mockClient.EXPECT().Update(ctx, gomock.Any()).Return(nil)
+		mockClient.EXPECT().Status().Return(mockStatusCli)
+		mockStatusCli.EXPECT().Update(ctx, gomock.Any()).Return(nil)
 		_, err := r.Reconcile(ctx, req)
 		assert.Error(t, err)
 	})

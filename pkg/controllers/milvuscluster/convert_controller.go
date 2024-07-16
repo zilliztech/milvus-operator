@@ -90,7 +90,7 @@ func (r *MilvusClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		milvus.Annotations = make(map[string]string)
 	}
 	if milvus.Annotations[v1beta1.DependencyValuesMergedAnnotation] != v1beta1.TrueStr {
-		logger := logr.FromContext(ctx)
+		logger := ctrl.LoggerFrom(ctx)
 		logger.Info("sync values from beta to alpha")
 		milvus.Labels = betaMilvus.Labels
 		milvus.Annotations = betaMilvus.Annotations
@@ -106,7 +106,7 @@ func (r *MilvusClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	if milvus.Annotations[v1beta1.UpgradeAnnotation] == v1beta1.AnnotationUpgraded {
-		logger := logr.FromContext(ctx)
+		logger := ctrl.LoggerFrom(ctx)
 		logger.Info("sync upgraded from beta to alpha")
 		milvus.Labels = betaMilvus.Labels
 		milvus.Annotations = betaMilvus.Annotations
