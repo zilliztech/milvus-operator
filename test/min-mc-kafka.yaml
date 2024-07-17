@@ -38,6 +38,12 @@ spec:
         deletionPolicy: Delete
         pvcDeletion: true
         values:
+          persistence:
+            enabled: true
+            storageClass:
+            accessMode: ReadWriteOnce
+            size: 20Gi
+          heapOpts: -Xmx512m -Xms320m
           defaultReplicationFactor: 1
           offsetsTopicReplicationFactor: 1
           replicaCount: 1
