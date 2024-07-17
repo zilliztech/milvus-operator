@@ -22,96 +22,97 @@ func TestDeployControllerImpl_Reconcile(t *testing.T) {
 	mockRollingModeStatusUpdater := NewMockRollingModeStatusUpdater(mockCtrl)
 	mc := v1beta1.Milvus{}
 	DeployControllerImpl := NewDeployController(mockFactory, mockOneDeployModeController, mockRollingModeStatusUpdater)
-	t.Cleanup(func() {
-		mockCtrl.Finish()
-	})
 
 	t.Run("update status rolling mode failed", func(t *testing.T) {
+		defer mockCtrl.Finish()
 		mockRollingModeStatusUpdater.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errMock)
 		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)
 	})
 	mockRollingModeStatusUpdater.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	t.Run("check deploy mode failed", func(t *testing.T) {
+		defer mockCtrl.Finish()
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.DeployModeUnknown, errMock)
 		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)
 	})
 
 	t.Run("oneDeploy mode updating, continue", func(t *testing.T) {
+		defer mockCtrl.Finish()
+		m := *mc.DeepCopy()
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.OneDeployMode, nil)
-		mockBiz.EXPECT().IsUpdating(gomock.Any(), mc).Return(true, nil)
-		mockOneDeployModeController.EXPECT().Reconcile(gomock.Any(), mc, QueryNode).Return(nil)
-		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		mockBiz.EXPECT().IsUpdating(gomock.Any(), m).Return(true, nil)
+		mockOneDeployModeController.EXPECT().Reconcile(gomock.Any(), m, QueryNode).Return(nil)
+		err := DeployControllerImpl.Reconcile(ctx, m, QueryNode)
 		assert.NoError(t, err)
 	})
 
 	t.Run("oneDeploy mode check updating failed", func(t *testing.T) {
+		defer mockCtrl.Finish()
+		m := *mc.DeepCopy()
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.OneDeployMode, nil)
-		mockBiz.EXPECT().IsUpdating(gomock.Any(), mc).Return(false, errMock)
-		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		mockBiz.EXPECT().IsUpdating(gomock.Any(), m).Return(false, errMock)
+		err := DeployControllerImpl.Reconcile(ctx, m, QueryNode)
 		assert.Error(t, err)
 	})
 
 	t.Run("oneDeploy mode change to v2, mark failed", func(t *testing.T) {
+		defer mockCtrl.Finish()
+		m := *mc.DeepCopy()
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.OneDeployMode, nil)
-		mockBiz.EXPECT().IsUpdating(gomock.Any(), mc).Return(false, nil)
-		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, true).Return(errMock)
-		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		mockBiz.EXPECT().IsUpdating(gomock.Any(), m).Return(false, nil)
+		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), m, true).Return(errMock)
+		err := DeployControllerImpl.Reconcile(ctx, m, QueryNode)
 		assert.Error(t, err)
 	})
 
 	t.Run("oneDeploy mode change to v2 failed", func(t *testing.T) {
+		defer mockCtrl.Finish()
+		m := *mc.DeepCopy()
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.OneDeployMode, nil)
-		mockBiz.EXPECT().IsUpdating(gomock.Any(), mc).Return(false, nil)
-		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, true).Return(nil)
-		mockBiz.EXPECT().ChangeToTwoDeployMode(gomock.Any(), mc).Return(errMock)
-		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		mockBiz.EXPECT().IsUpdating(gomock.Any(), m).Return(false, nil)
+		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), m, true).Return(nil)
+		mockBiz.EXPECT().ChangeToTwoDeployMode(gomock.Any(), m).Return(errMock)
+		err := DeployControllerImpl.Reconcile(ctx, m, QueryNode)
 		assert.Error(t, err)
 	})
 
 	t.Run("oneDeploy mode change to v2 ok, handle create requeue err", func(t *testing.T) {
+		defer mockCtrl.Finish()
+		m := *mc.DeepCopy()
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.OneDeployMode, nil)
-		mockBiz.EXPECT().IsUpdating(gomock.Any(), mc).Return(false, nil)
-		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, true).Return(nil)
-		mockBiz.EXPECT().ChangeToTwoDeployMode(gomock.Any(), mc).Return(nil)
-		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(ErrRequeue)
-		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		mockBiz.EXPECT().IsUpdating(gomock.Any(), m).Return(false, nil)
+		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), m, true).Return(nil)
+		mockBiz.EXPECT().ChangeToTwoDeployMode(gomock.Any(), m).Return(nil)
+		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), m, false).Return(nil)
+		mockBiz.EXPECT().HandleCreate(gomock.Any(), m).Return(ErrRequeue)
+		err := DeployControllerImpl.Reconcile(ctx, m, QueryNode)
 		assert.True(t, errors.Is(err, ErrRequeue))
 	})
 
 	t.Run("TwoDeploy mode handle create error", func(t *testing.T) {
-		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, false).Return(nil)
+		defer mockCtrl.Finish()
+		m := *mc.DeepCopy()
+		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), m, false).Return(nil)
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil)
-		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(errMock)
-		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
+		mockBiz.EXPECT().HandleCreate(gomock.Any(), m).Return(errMock)
+		err := DeployControllerImpl.Reconcile(ctx, m, QueryNode)
 		assert.Error(t, err)
 	})
 
 	t.Run("TwoDeploy mode is paused", func(t *testing.T) {
-		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, false).Return(nil)
-		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil)
-		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(nil)
-		mockBiz.EXPECT().IsPaused(gomock.Any(), mc).Return(true)
-		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
-		assert.NoError(t, err)
-	})
-
-	t.Run("TwoDeploy mode hanlde stop ok", func(t *testing.T) {
+		defer mockCtrl.Finish()
 		m := *mc.DeepCopy()
-		m.Spec.Mode = v1beta1.MilvusModeCluster
-		m.Default()
-		m.Spec.Com.QueryNode.Replicas = int32Ptr(0)
-		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil)
 		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), m, false).Return(nil)
+		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil)
 		mockBiz.EXPECT().HandleCreate(gomock.Any(), m).Return(nil)
-		mockBiz.EXPECT().IsPaused(gomock.Any(), m).Return(false)
-		mockBiz.EXPECT().HandleStop(gomock.Any(), m).Return(nil)
+		mockBiz.EXPECT().IsPaused(gomock.Any(), m).Return(true)
 		err := DeployControllerImpl.Reconcile(ctx, m, QueryNode)
 		assert.NoError(t, err)
 	})
 
 	t.Run("TwoDeploy mode rolling err", func(t *testing.T) {
+		defer mockCtrl.Finish()
 		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, false).Return(nil)
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil)
 		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(nil)
@@ -122,6 +123,7 @@ func TestDeployControllerImpl_Reconcile(t *testing.T) {
 	})
 
 	t.Run("TwoDeploy mode, manual mode skip scaling", func(t *testing.T) {
+		defer mockCtrl.Finish()
 		mc := *mc.DeepCopy()
 		mc.Spec.Com.EnableManualMode = true
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil)
@@ -134,6 +136,7 @@ func TestDeployControllerImpl_Reconcile(t *testing.T) {
 	})
 
 	t.Run("TwoDeploy mode scaling err", func(t *testing.T) {
+		defer mockCtrl.Finish()
 		mc = *mc.DeepCopy()
 		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, false).Return(nil)
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil)
@@ -145,7 +148,26 @@ func TestDeployControllerImpl_Reconcile(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("TwoDeploy mode hanlde stop ok", func(t *testing.T) {
+		defer mockCtrl.Finish()
+		m := *mc.DeepCopy()
+		m.Spec.Mode = v1beta1.MilvusModeCluster
+		m.Default()
+		m.Spec.Com.QueryNode.Replicas = int32Ptr(0)
+		gomock.InOrder(
+			mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil),
+			mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), m, false).Return(nil),
+			mockBiz.EXPECT().HandleCreate(gomock.Any(), m).Return(nil),
+			mockBiz.EXPECT().IsPaused(gomock.Any(), m).Return(false),
+			mockBiz.EXPECT().HandleRolling(gomock.Any(), m).Return(nil),
+			mockBiz.EXPECT().HandleStop(gomock.Any(), m).Return(nil),
+		)
+		err := DeployControllerImpl.Reconcile(ctx, m, QueryNode)
+		assert.NoError(t, err)
+	})
+
 	t.Run("TwoDeploy mode all ok", func(t *testing.T) {
+		defer mockCtrl.Finish()
 		gomock.InOrder(
 			mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil),
 			mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, false).Return(nil),
@@ -159,6 +181,7 @@ func TestDeployControllerImpl_Reconcile(t *testing.T) {
 	})
 
 	t.Run("unknown mode err", func(t *testing.T) {
+		defer mockCtrl.Finish()
 		mockBiz.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.DeployModeUnknown, nil)
 		err := DeployControllerImpl.Reconcile(ctx, v1beta1.Milvus{}, QueryNode)
 		assert.Error(t, err)

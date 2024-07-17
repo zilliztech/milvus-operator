@@ -92,7 +92,10 @@ func (c *DeployControllerBizUtilImpl) RenderPodTemplateWithoutGroupID(mc v1beta1
 	}
 	updater := newMilvusDeploymentUpdater(mc, c.cli.Scheme(), component)
 	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponentName())
-	updatePodTemplate(updater, ret, appLabels, currentTemplate == nil)
+	isCreating := currentTemplate == nil
+	isStopped := ReplicasValue(component.GetReplicas(mc.Spec)) == 0
+	updateDefaults := isCreating || isStopped
+	updatePodTemplate(updater, ret, appLabels, updateDefaults)
 	return ret
 }
 

@@ -61,6 +61,9 @@ type MilvusSpec struct {
 
 // IsStopping returns true if the MilvusSpec has replicas serving
 func (ms MilvusSpec) IsStopping() bool {
+	if ms.Com.EnableManualMode {
+		return false
+	}
 	if *ms.Com.Standalone.Replicas != 0 {
 		return false
 	}
