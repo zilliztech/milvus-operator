@@ -10,6 +10,7 @@ spec:
   mode: cluster
   dependencies: {}
   components: 
+    # now mixCoord is used by default
     # mixCoord deploys all coordinators in one 'mixture' deployment
     mixCoord:
       replicas: 1

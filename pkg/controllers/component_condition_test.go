@@ -103,6 +103,7 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 	})
 
 	milvus.Spec.Mode = v1beta1.MilvusModeCluster
+	milvus.Spec.Com.RootCoord = &v1beta1.MilvusRootCoord{}
 	milvus.Default()
 	t.Run(("cluster all ok"), func(t *testing.T) {
 		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).

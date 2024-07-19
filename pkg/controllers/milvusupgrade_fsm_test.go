@@ -640,6 +640,7 @@ func Test_recordOldInfo_stopMiluvs(t *testing.T) {
 	upgrade.Namespace = "ns"
 	milvus := &v1beta1.Milvus{}
 	milvus.Spec.Mode = "cluster"
+	milvus.Spec.Com.RootCoord = &v1beta1.MilvusRootCoord{}
 	milvus.Default()
 
 	recordOldInfo(ctx, mockClient, upgrade, milvus)

@@ -240,6 +240,13 @@ func (r *Milvus) DefaultMode() {
 	}
 }
 
+func (r *Milvus) noCoordSpecifiedByUser() bool {
+	return r.Spec.Com.RootCoord == nil &&
+		r.Spec.Com.DataCoord == nil &&
+		r.Spec.Com.IndexCoord == nil &&
+		r.Spec.Com.QueryCoord == nil
+}
+
 func (r *Milvus) DefaultComponents() {
 	spec := &r.Spec
 	setDefaultStr(&spec.Com.Image, config.DefaultMilvusImage)
@@ -257,17 +264,22 @@ func (r *Milvus) DefaultComponents() {
 			spec.Com.Proxy = &MilvusProxy{}
 		}
 		if spec.Com.MixCoord == nil {
-			if spec.Com.RootCoord == nil {
-				spec.Com.RootCoord = &MilvusRootCoord{}
-			}
-			if spec.Com.DataCoord == nil {
-				spec.Com.DataCoord = &MilvusDataCoord{}
-			}
-			if spec.Com.IndexCoord == nil {
-				spec.Com.IndexCoord = &MilvusIndexCoord{}
-			}
-			if spec.Com.QueryCoord == nil {
-				spec.Com.QueryCoord = &MilvusQueryCoord{}
+			if r.noCoordSpecifiedByUser() {
+				// default to use mixcoord
+				spec.Com.MixCoord = &MilvusMixCoord{}
+			} else {
+				if spec.Com.RootCoord == nil {
+					spec.Com.RootCoord = &MilvusRootCoord{}
+				}
+				if spec.Com.DataCoord == nil {
+					spec.Com.DataCoord = &MilvusDataCoord{}
+				}
+				if spec.Com.IndexCoord == nil {
+					spec.Com.IndexCoord = &MilvusIndexCoord{}
+				}
+				if spec.Com.QueryCoord == nil {
+					spec.Com.QueryCoord = &MilvusQueryCoord{}
+				}
 			}
 		}
 		if spec.Com.DataNode == nil {
@@ -296,9 +308,6 @@ func (r *Milvus) defaultComponentsReplicas() {
 				spec.Com.MixCoord.Replicas = &defaultReplicas
 			}
 		} else {
-			if spec.Com.Proxy.Replicas == nil {
-				spec.Com.Proxy.Replicas = &defaultReplicas
-			}
 			if spec.Com.RootCoord.Replicas == nil {
 				spec.Com.RootCoord.Replicas = &defaultReplicas
 			}
@@ -311,15 +320,18 @@ func (r *Milvus) defaultComponentsReplicas() {
 			if spec.Com.QueryCoord.Replicas == nil {
 				spec.Com.QueryCoord.Replicas = &defaultReplicas
 			}
-			if spec.Com.DataNode.Replicas == nil {
-				spec.Com.DataNode.Replicas = &defaultReplicas
-			}
-			if spec.Com.IndexNode.Replicas == nil {
-				spec.Com.IndexNode.Replicas = &defaultReplicas
-			}
-			if spec.Com.QueryNode.Replicas == nil {
-				spec.Com.QueryNode.Replicas = &defaultReplicas
-			}
+		}
+		if spec.Com.Proxy.Replicas == nil {
+			spec.Com.Proxy.Replicas = &defaultReplicas
+		}
+		if spec.Com.DataNode.Replicas == nil {
+			spec.Com.DataNode.Replicas = &defaultReplicas
+		}
+		if spec.Com.IndexNode.Replicas == nil {
+			spec.Com.IndexNode.Replicas = &defaultReplicas
+		}
+		if spec.Com.QueryNode.Replicas == nil {
+			spec.Com.QueryNode.Replicas = &defaultReplicas
 		}
 	} else {
 		if spec.Com.Standalone.Replicas == nil {
@@ -470,14 +482,12 @@ func (r *Milvus) DefaultConf() {
 	}
 
 	if r.Spec.Com.EnableRollingUpdate == nil {
-		if r.isRollingUpdateEnabledByConfig() {
-			r.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
-		}
+		r.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
 	}
-	if r.Spec.Com.EnableRollingUpdate != nil &&
-		*r.Spec.Com.EnableRollingUpdate {
-		r.setRollingUpdate(true)
+	if !r.isRollingUpdateSupportedByConfig() {
+		r.Spec.Com.EnableRollingUpdate = util.BoolPtr(false)
 	}
+	setEnableActiveStandby(&r.Spec, true)
 }
 
 var rollingUpdateConfigFields = []string{
@@ -490,24 +500,18 @@ var rollingUpdateConfigFields = []string{
 // EnableActiveStandByConfig is a config in coordinators to determine whether a coordinator can be rolling updated
 const EnableActiveStandByConfig = "enableActiveStandby"
 
-func (r *Milvus) isRollingUpdateEnabledByConfig() bool {
+func (r *Milvus) isRollingUpdateSupportedByConfig() bool {
 	if r.Spec.Mode != MilvusModeCluster {
 		switch r.Spec.Dep.MsgStreamType {
 		case MsgStreamTypeRocksMQ, MsgStreamTypeNatsMQ:
 			return false
 		}
 	}
-	for _, configFieldName := range rollingUpdateConfigFields {
-		enableActiveStandBy, _ := util.GetBoolValue(r.Spec.Conf.Data, configFieldName, EnableActiveStandByConfig)
-		if !enableActiveStandBy {
-			return false
-		}
-	}
 	return true
 }
 
-func (r *Milvus) setRollingUpdate(enabled bool) {
+func setEnableActiveStandby(spec *MilvusSpec, enabled bool) {
 	for _, configFieldName := range rollingUpdateConfigFields {
-		util.SetValue(r.Spec.Conf.Data, enabled, configFieldName, EnableActiveStandByConfig)
+		util.SetValue(spec.Conf.Data, enabled, configFieldName, EnableActiveStandByConfig)
 	}
 }
