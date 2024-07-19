@@ -60,12 +60,14 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 					Component: defaultComponent,
 				},
 			},
-			RollingMode: RollingModeV2,
+			EnableRollingUpdate: util.BoolPtr(false),
+			RollingMode:         RollingModeV2,
 		},
 		Conf: Values{
 			Data: map[string]interface{}{},
 		},
 	}
+	setEnableActiveStandby(&standaloneDefault, true)
 
 	t.Run("standalone not external ok", func(t *testing.T) {
 		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
@@ -105,6 +107,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 				Component: defaultComponent,
 			},
 		},
+		EnableRollingUpdate: util.BoolPtr(true),
 		MixCoord: &MilvusMixCoord{
 			Component: defaultComponent,
 		},
@@ -207,7 +210,7 @@ func TestMilvus_Default_DeleteUnSetableOK(t *testing.T) {
 		},
 	}
 	mc.Default()
-	assert.Equal(t, conf, mc.Spec.Conf)
+	assert.Equal(t, conf.Data["minio"], mc.Spec.Conf.Data["minio"])
 }
 
 func TestMilvus_ValidateCreate_NoError(t *testing.T) {
@@ -288,17 +291,8 @@ func Test_DefaultLabels_Legacy(t *testing.T) {
 }
 
 func Test_DefaultConf_EnableRollingUpdate(t *testing.T) {
-
-	t.Run("default nil", func(t *testing.T) {
+	t.Run("default enable", func(t *testing.T) {
 		m := Milvus{}
-		m.DefaultConf()
-		assert.Nil(t, m.Spec.Com.EnableRollingUpdate)
-	})
-
-	t.Run("enable by config", func(t *testing.T) {
-		m := Milvus{}
-		m.Spec.Conf.Data = map[string]interface{}{}
-		m.setRollingUpdate(true)
 		m.DefaultConf()
 		assert.True(t, *m.Spec.Com.EnableRollingUpdate)
 	})
@@ -307,24 +301,23 @@ func Test_DefaultConf_EnableRollingUpdate(t *testing.T) {
 		m := Milvus{}
 		m.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
 		m.DefaultConf()
-		assert.True(t, m.isRollingUpdateEnabledByConfig())
+		assert.True(t, *m.Spec.Com.EnableRollingUpdate)
 	})
 
 	t.Run("set false", func(t *testing.T) {
 		m := Milvus{}
 		m.Spec.Com.EnableRollingUpdate = util.BoolPtr(false)
 		m.DefaultConf()
-		assert.False(t, m.isRollingUpdateEnabledByConfig())
+		assert.False(t, *m.Spec.Com.EnableRollingUpdate)
 	})
 
 	t.Run("rocksmq false", func(t *testing.T) {
 		m := Milvus{}
 		m.DefaultConf()
-		m.setRollingUpdate(true)
 		m.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
 		m.Spec.Dep.MsgStreamType = MsgStreamTypeRocksMQ
 		m.DefaultConf()
-		assert.False(t, m.isRollingUpdateEnabledByConfig())
+		assert.False(t, *m.Spec.Com.EnableRollingUpdate)
 	})
 }
 

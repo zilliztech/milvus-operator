@@ -482,14 +482,12 @@ func (r *Milvus) DefaultConf() {
 	}
 
 	if r.Spec.Com.EnableRollingUpdate == nil {
-		if r.isRollingUpdateEnabledByConfig() {
-			r.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
-		}
+		r.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
 	}
-	if r.Spec.Com.EnableRollingUpdate != nil &&
-		*r.Spec.Com.EnableRollingUpdate {
-		r.setRollingUpdate(true)
+	if !r.isRollingUpdateSupportedByConfig() {
+		r.Spec.Com.EnableRollingUpdate = util.BoolPtr(false)
 	}
+	setEnableActiveStandby(&r.Spec, true)
 }
 
 var rollingUpdateConfigFields = []string{
@@ -502,24 +500,18 @@ var rollingUpdateConfigFields = []string{
 // EnableActiveStandByConfig is a config in coordinators to determine whether a coordinator can be rolling updated
 const EnableActiveStandByConfig = "enableActiveStandby"
 
-func (r *Milvus) isRollingUpdateEnabledByConfig() bool {
+func (r *Milvus) isRollingUpdateSupportedByConfig() bool {
 	if r.Spec.Mode != MilvusModeCluster {
 		switch r.Spec.Dep.MsgStreamType {
 		case MsgStreamTypeRocksMQ, MsgStreamTypeNatsMQ:
 			return false
 		}
 	}
-	for _, configFieldName := range rollingUpdateConfigFields {
-		enableActiveStandBy, _ := util.GetBoolValue(r.Spec.Conf.Data, configFieldName, EnableActiveStandByConfig)
-		if !enableActiveStandBy {
-			return false
-		}
-	}
 	return true
 }
 
-func (r *Milvus) setRollingUpdate(enabled bool) {
+func setEnableActiveStandby(spec *MilvusSpec, enabled bool) {
 	for _, configFieldName := range rollingUpdateConfigFields {
-		util.SetValue(r.Spec.Conf.Data, enabled, configFieldName, EnableActiveStandByConfig)
+		util.SetValue(spec.Conf.Data, enabled, configFieldName, EnableActiveStandByConfig)
 	}
 }
