@@ -379,15 +379,17 @@ func TestStatusSyncer_UpdateReplicas(t *testing.T) {
 
 	mockCli := NewMockK8sClient(ctrl)
 	ctx := context.Background()
-	m := &v1beta1.Milvus{}
-	m.Spec.Mode = v1beta1.MilvusModeCluster
-	m.Default()
+	mc := &v1beta1.Milvus{}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
 	s := new(replicaUpdaterImpl)
 
 	t.Run("all ok", func(t *testing.T) {
+		defer ctrl.Finish()
+		m := mc.DeepCopy()
 		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Do(func(_, _, deploy interface{}, opts ...any) {
 			deploy.(*appsv1.Deployment).Status.UpdatedReplicas = 2
-		}).Return(nil).Times(len(MilvusComponents))
+		}).Return(nil).Times(len(MixtureComponents))
 		err := s.UpdateReplicas(ctx, m, mockCli)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, m.Status.DeprecatedReplicas.Proxy)
@@ -395,13 +397,16 @@ func TestStatusSyncer_UpdateReplicas(t *testing.T) {
 	})
 
 	t.Run("components not found ok", func(t *testing.T) {
-		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "")).Times(len(MilvusComponents))
+		defer ctrl.Finish()
+		m := mc.DeepCopy()
+		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "")).Times(len(MixtureComponents))
 		err := s.UpdateReplicas(ctx, m, mockCli)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, m.Status.DeprecatedReplicas.Proxy)
 		assert.Equal(t, 0, m.Status.DeprecatedReplicas.DataNode)
 	})
 	t.Run("get deploy err", func(t *testing.T) {
+		m := mc.DeepCopy()
 		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(kerrors.NewServiceUnavailable("")).Times(1)
 		err := s.UpdateReplicas(ctx, m, mockCli)
 		assert.Error(t, err)
