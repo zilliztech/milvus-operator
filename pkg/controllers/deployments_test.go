@@ -47,11 +47,11 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
 			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "")).
-			Times(len(MilvusComponents) - 1)
+			Times(len(MixtureComponents) - 1)
 		mockClient.EXPECT().
 			Create(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
 			Return(nil).
-			Times(len(MilvusComponents) - 1)
+			Times(len(MixtureComponents) - 1)
 		mockQnController.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		err := r.ReconcileDeployments(ctx, *mcDefault.DeepCopy())
@@ -74,11 +74,11 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
 			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "")).
-			Times(len(MilvusComponents) - 1)
+			Times(len(MixtureComponents) - 1)
 		mockClient.EXPECT().
 			Create(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
 			Return(nil).
-			Times(len(MilvusComponents) - 1)
+			Times(len(MixtureComponents) - 1)
 		mockQnController.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		err := r.ReconcileDeployments(ctx, *mcDefault.DeepCopy())
@@ -97,11 +97,11 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
 			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "")).
-			Times(len(MilvusComponents) - 1)
+			Times(len(MixtureComponents) - 1)
 		mockClient.EXPECT().
 			Create(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
 			Return(nil).
-			Times(len(MilvusComponents) - 1)
+			Times(len(MixtureComponents) - 1)
 		mockQnController.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		err := r.ReconcileDeployments(ctx, mc)
@@ -130,6 +130,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 		CheckComponentHasTerminatingPod = bak
 	}()
 	t.Run("call client.Update if changed", func(t *testing.T) {
+		defer env.Ctrl.Finish()
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
@@ -138,10 +139,10 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 				cm.Namespace = "ns"
 				cm.Name = "mc"
 				return nil
-			}).Times(len(MilvusComponents) - 1)
+			}).Times(len(MixtureComponents) - 1)
 		mockClient.EXPECT().
 			Update(gomock.Any(), gomock.Any()).Return(nil).
-			Times(len(MilvusComponents) - 1)
+			Times(len(MixtureComponents) - 1)
 		mockQnController.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		err := r.ReconcileDeployments(ctx, m)
@@ -149,6 +150,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 	})
 
 	t.Run("not call client.Update if configmap not changed", func(t *testing.T) {
+		defer env.Ctrl.Finish()
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
@@ -159,14 +161,8 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 				switch key.Name {
 				case "mc-milvus-proxy":
 					r.updateDeployment(ctx, m, cm, Proxy)
-				case "mc-milvus-rootcoord":
-					r.updateDeployment(ctx, m, cm, RootCoord)
-				case "mc-milvus-datacoord":
-					r.updateDeployment(ctx, m, cm, DataCoord)
-				case "mc-milvus-querycoord":
-					r.updateDeployment(ctx, m, cm, QueryCoord)
-				case "mc-milvus-indexcoord":
-					r.updateDeployment(ctx, m, cm, IndexCoord)
+				case "mc-milvus-mixcoord":
+					r.updateDeployment(ctx, m, cm, MixCoord)
 				case "mc-milvus-datanode":
 					r.updateDeployment(ctx, m, cm, DataNode)
 				case "mc-milvus-querynode":
@@ -177,7 +173,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 					r.updateDeployment(ctx, m, cm, MilvusStandalone)
 				}
 				return nil
-			}).Times(len(MilvusComponents) - 1)
+			}).Times(len(MixtureComponents) - 1)
 
 		mockQnController.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 

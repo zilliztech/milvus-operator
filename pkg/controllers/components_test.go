@@ -583,6 +583,7 @@ func TestMilvusComponent_GetDependencies(t *testing.T) {
 		m := v1beta1.Milvus{}
 		m.Spec.Mode = v1beta1.MilvusModeCluster
 		m.Spec.Com.Image = "milvusdb/milvus:v2.3.0"
+		m.Spec.Com.RootCoord = &v1beta1.MilvusRootCoord{}
 		m.Default()
 		assert.Len(t, IndexNode.GetDependencies(m.Spec), 0)
 		assert.Equal(t, IndexNode, RootCoord.GetDependencies(m.Spec)[0])
@@ -597,6 +598,7 @@ func TestMilvusComponent_GetDependencies(t *testing.T) {
 	t.Run("clusterModeDowngrade", func(t *testing.T) {
 		m := v1beta1.Milvus{}
 		m.Spec.Com.Image = "milvusdb/milvus:2.3.0"
+		m.Spec.Com.RootCoord = &v1beta1.MilvusRootCoord{}
 		m.Spec.Mode = v1beta1.MilvusModeCluster
 		m.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeRollingDowngrade
 		m.Default()

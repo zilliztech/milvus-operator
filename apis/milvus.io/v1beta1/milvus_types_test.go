@@ -123,6 +123,7 @@ func TestMilvusSpec_IsStopping(t *testing.T) {
 	})
 
 	com.MixCoord = nil
+	com.RootCoord = &MilvusRootCoord{}
 	m.Default()
 	t.Run("cluster not stopping", func(t *testing.T) {
 		assert.False(t, m.Spec.IsStopping())

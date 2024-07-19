@@ -105,16 +105,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 				Component: defaultComponent,
 			},
 		},
-		RootCoord: &MilvusRootCoord{
-			Component: defaultComponent,
-		},
-		DataCoord: &MilvusDataCoord{
-			Component: defaultComponent,
-		},
-		IndexCoord: &MilvusIndexCoord{
-			Component: defaultComponent,
-		},
-		QueryCoord: &MilvusQueryCoord{
+		MixCoord: &MilvusMixCoord{
 			Component: defaultComponent,
 		},
 		DataNode: &MilvusDataNode{
@@ -132,7 +123,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 			},
 		},
 	}
-	t.Run("cluster not external ok", func(t *testing.T) {
+	t.Run("cluster not external dep ok", func(t *testing.T) {
 		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
 		mc.Spec.Mode = MilvusModeCluster
 		mc.Default()

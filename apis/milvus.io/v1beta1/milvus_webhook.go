@@ -240,6 +240,13 @@ func (r *Milvus) DefaultMode() {
 	}
 }
 
+func (r *Milvus) noCoordSpecifiedByUser() bool {
+	return r.Spec.Com.RootCoord == nil &&
+		r.Spec.Com.DataCoord == nil &&
+		r.Spec.Com.IndexCoord == nil &&
+		r.Spec.Com.QueryCoord == nil
+}
+
 func (r *Milvus) DefaultComponents() {
 	spec := &r.Spec
 	setDefaultStr(&spec.Com.Image, config.DefaultMilvusImage)
@@ -257,17 +264,22 @@ func (r *Milvus) DefaultComponents() {
 			spec.Com.Proxy = &MilvusProxy{}
 		}
 		if spec.Com.MixCoord == nil {
-			if spec.Com.RootCoord == nil {
-				spec.Com.RootCoord = &MilvusRootCoord{}
-			}
-			if spec.Com.DataCoord == nil {
-				spec.Com.DataCoord = &MilvusDataCoord{}
-			}
-			if spec.Com.IndexCoord == nil {
-				spec.Com.IndexCoord = &MilvusIndexCoord{}
-			}
-			if spec.Com.QueryCoord == nil {
-				spec.Com.QueryCoord = &MilvusQueryCoord{}
+			if r.noCoordSpecifiedByUser() {
+				// default to use mixcoord
+				spec.Com.MixCoord = &MilvusMixCoord{}
+			} else {
+				if spec.Com.RootCoord == nil {
+					spec.Com.RootCoord = &MilvusRootCoord{}
+				}
+				if spec.Com.DataCoord == nil {
+					spec.Com.DataCoord = &MilvusDataCoord{}
+				}
+				if spec.Com.IndexCoord == nil {
+					spec.Com.IndexCoord = &MilvusIndexCoord{}
+				}
+				if spec.Com.QueryCoord == nil {
+					spec.Com.QueryCoord = &MilvusQueryCoord{}
+				}
 			}
 		}
 		if spec.Com.DataNode == nil {
@@ -296,9 +308,6 @@ func (r *Milvus) defaultComponentsReplicas() {
 				spec.Com.MixCoord.Replicas = &defaultReplicas
 			}
 		} else {
-			if spec.Com.Proxy.Replicas == nil {
-				spec.Com.Proxy.Replicas = &defaultReplicas
-			}
 			if spec.Com.RootCoord.Replicas == nil {
 				spec.Com.RootCoord.Replicas = &defaultReplicas
 			}
@@ -311,15 +320,18 @@ func (r *Milvus) defaultComponentsReplicas() {
 			if spec.Com.QueryCoord.Replicas == nil {
 				spec.Com.QueryCoord.Replicas = &defaultReplicas
 			}
-			if spec.Com.DataNode.Replicas == nil {
-				spec.Com.DataNode.Replicas = &defaultReplicas
-			}
-			if spec.Com.IndexNode.Replicas == nil {
-				spec.Com.IndexNode.Replicas = &defaultReplicas
-			}
-			if spec.Com.QueryNode.Replicas == nil {
-				spec.Com.QueryNode.Replicas = &defaultReplicas
-			}
+		}
+		if spec.Com.Proxy.Replicas == nil {
+			spec.Com.Proxy.Replicas = &defaultReplicas
+		}
+		if spec.Com.DataNode.Replicas == nil {
+			spec.Com.DataNode.Replicas = &defaultReplicas
+		}
+		if spec.Com.IndexNode.Replicas == nil {
+			spec.Com.IndexNode.Replicas = &defaultReplicas
+		}
+		if spec.Com.QueryNode.Replicas == nil {
+			spec.Com.QueryNode.Replicas = &defaultReplicas
 		}
 	} else {
 		if spec.Com.Standalone.Replicas == nil {
