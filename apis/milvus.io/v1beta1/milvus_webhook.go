@@ -232,6 +232,11 @@ func (r *Milvus) DefaultMeta() {
 	if r.IsFirstTimeStarting() {
 		r.Annotations[PodServiceLabelAddedAnnotation] = TrueStr
 	}
+	// backward compatibility
+	if r.Annotations[OldAnnotationCurrentQueryNodeGroupID] != "" {
+		Labels().SetCurrentGroupIDStr(r, QueryNodeName, r.Annotations[OldAnnotationCurrentQueryNodeGroupID])
+		r.Annotations[OldAnnotationCurrentQueryNodeGroupID] = ""
+	}
 }
 
 func (r *Milvus) DefaultMode() {
