@@ -30,7 +30,8 @@ const (
 	// so instead we use milvus.io/service="true" to select the service pods
 	PodServiceLabelAddedAnnotation = MilvusIO + "pod-service-label-added"
 	// ServiceLabel is the label to indicate whether the pod is a service pod
-	ServiceLabel = MilvusIO + "service"
+	ServiceLabel                         = MilvusIO + "service"
+	OldAnnotationCurrentQueryNodeGroupID = MilvusIO + "current-querynode-group-id"
 )
 
 // +kubebuilder:object:generate=false
