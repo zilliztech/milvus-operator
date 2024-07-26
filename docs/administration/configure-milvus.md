@@ -10,7 +10,7 @@ Usually, a Milvus component reads its configuration through a configuration file
 
 If we don't set any specific configuration, the default config file within the your Milvus image will be used. You can find the default configurations for milvus releases in the Milvus GitHub repository.
 
-For example: the latest milvus release v2.2.2's default configuration file can be found at `https://github.com/milvus-io/milvus/blob/master/configs/milvus.yaml`, and the following link describes most configurations fields in detail: `https://milvus.io/docs/system_configuration.md`.
+For example: the latest milvus release default configuration file can be found at `https://github.com/milvus-io/milvus/blob/master/configs/milvus.yaml`, and the following link describes most configurations fields in detail: `https://milvus.io/docs/system_configuration.md`.
 
 ## Change the milvus.yaml
 
@@ -51,6 +51,27 @@ spec:
         maxSize: 300
         rootPath: /var/log/milvus
 ```
+
+## Dynamic configuration update
+
+Since Milvus Operator v1.0.0 you can dynamically update the configuration of Milvus(of v2.4.5+) components without restarting it. First you need to set `spec.components.updateConfigMapOnly` to `true` to avoid restarting components when update config. Then You can change the configuration of a running Milvus cluster by updating the `spec.config` field in the Milvus CRD. for example, update `dataCoord.segment.diskSegmentMaxSize` to `4096MB` from initial `2048MB`:
+```yaml
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  config: 
+    dataCoord:
+      segment:
+        diskSegmentMaxSize: 4096
+  components:
+    updateConfigMapOnly: true
+```
+
+> Note: not all fields in the `milvus.yaml` can be dynamically updated. You can refer to the [Applicable configuration items](https://milvus.io/docs/dynamic_config.md#Applicable-configuration-items) for more details.
 
 ## Configuration for Milvus dependencies
 
