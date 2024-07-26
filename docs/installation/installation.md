@@ -133,7 +133,7 @@ The `EXTERNAL-IP` is the IP address of your Milvus instance. You can use this IP
 
 Follow the [Hello Milvus Guide](https://milvus.io/docs/quickstart.md)
 
-> Remember to change the `host` parameter to your `EXTERNAL-IP` of your Milvus instance. The `connect to server` code should be like`connections.connect("default", host="10.100.31.101", port="19530")` in my case.
+> Remember to change the `host` parameter to your `EXTERNAL-IP` of your Milvus instance. The `connect to server` code should be like`connections.connect("default", host="10.100.31.101", port="19530")` in above case.
 
 # What's next
 
