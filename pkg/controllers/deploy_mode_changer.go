@@ -155,7 +155,7 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 			return errors.Errorf("invalid old replica set name: %s", rs.Name)
 		}
 		rsHash := splitedName[len(splitedName)-1]
-		deployName := strings.Join(splitedName[:len(splitedName)-2], "-")
+		deployName := strings.Join(splitedName[:len(splitedName)-1], "-")
 		rs.Name = fmt.Sprintf("%s-0-%s", deployName, rsHash)
 		logger.Info("recovering old replica set", "new-name", rs.Name)
 		err = c.util.CreateObject(ctx, &rs)
