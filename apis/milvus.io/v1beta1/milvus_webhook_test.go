@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 func TestMilvus_Default_NotExternal(t *testing.T) {
@@ -28,8 +29,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 	}
 
 	etcdStandaloneDefaultInClusterConfig := defaultInClusterConfig.DeepCopy()
-	etcdStandaloneDefaultInClusterConfig.Values.Data["replicaCount"] = 1
-
+	etcdStandaloneDefaultInClusterConfig.Values.Data["replicaCount"] = int64(1)
 	minioStandAloneDefaultInClusterConfig := defaultInClusterConfig.DeepCopy()
 	minioStandAloneDefaultInClusterConfig.Values.Data["mode"] = "standalone"
 
@@ -39,7 +39,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		Mode: MilvusModeStandalone,
 		Dep: MilvusDependencies{
 			Etcd: MilvusEtcd{
-				Endpoints: []string{"mc-etcd.default:2379"},
+				Endpoints: []string{"mc-etcd-0.mc-etcd-headless.default:2379"},
 				InCluster: etcdStandaloneDefaultInClusterConfig,
 			},
 			MsgStreamType: MsgStreamTypeRocksMQ,
@@ -94,7 +94,12 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		Endpoint:  "mc-pulsar-proxy.default:6650",
 		InCluster: defaultInClusterConfig,
 	}
-	delete(clusterDefault.Dep.Etcd.InCluster.Values.Data, "replicaCount")
+	clusterDefault.Dep.Etcd.Endpoints = []string{
+		"mc-etcd-0.mc-etcd-headless.default:2379",
+		"mc-etcd-1.mc-etcd-headless.default:2379",
+		"mc-etcd-2.mc-etcd-headless.default:2379",
+	}
+	clusterDefault.Dep.Etcd.InCluster.Values.Data["replicaCount"] = int64(3)
 	delete(clusterDefault.Dep.Storage.InCluster.Values.Data, "mode")
 	clusterDefault.Com = MilvusComponents{
 		ImageUpdateMode: ImageUpdateModeRollingUpgrade,
@@ -139,8 +144,15 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		newReplica := int32(2)
 		mc.Spec.Com.RootCoord = &MilvusRootCoord{}
 		mc.Spec.Com.RootCoord.Replicas = &newReplica
+		mc.Spec.Dep.Etcd.InCluster = &InClusterConfig{}
+		mc.Spec.Dep.Etcd.InCluster.Values.Data = map[string]interface{}{}
+		err := yaml.Unmarshal([]byte(`
+replicaCount: 1
+`), &mc.Spec.Dep.Etcd.InCluster.Values.Data)
+		assert.NoError(t, err)
 		mc.Default()
 		assert.Equal(t, newReplica, *mc.Spec.Com.RootCoord.Replicas)
+		assert.Equal(t, int64(1), mc.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"])
 	})
 
 }
