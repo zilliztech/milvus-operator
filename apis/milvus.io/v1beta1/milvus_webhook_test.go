@@ -28,7 +28,6 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 	}
 
 	etcdStandaloneDefaultInClusterConfig := defaultInClusterConfig.DeepCopy()
-	etcdStandaloneDefaultInClusterConfig.Values.Data["replicaCount"] = 1
 
 	minioStandAloneDefaultInClusterConfig := defaultInClusterConfig.DeepCopy()
 	minioStandAloneDefaultInClusterConfig.Values.Data["mode"] = "standalone"
@@ -39,7 +38,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		Mode: MilvusModeStandalone,
 		Dep: MilvusDependencies{
 			Etcd: MilvusEtcd{
-				Endpoints: []string{"mc-etcd.default:2379"},
+				Endpoints: []string{"mc-etcd-0.mc-etcd-headless.default:2379"},
 				InCluster: etcdStandaloneDefaultInClusterConfig,
 			},
 			MsgStreamType: MsgStreamTypeRocksMQ,
@@ -94,7 +93,11 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		Endpoint:  "mc-pulsar-proxy.default:6650",
 		InCluster: defaultInClusterConfig,
 	}
-	delete(clusterDefault.Dep.Etcd.InCluster.Values.Data, "replicaCount")
+	clusterDefault.Dep.Etcd.Endpoints = []string{
+		"mc-etcd-0.mc-etcd-headless.default:2379",
+		"mc-etcd-1.mc-etcd-headless.default:2379",
+		"mc-etcd-2.mc-etcd-headless.default:2379",
+	}
 	delete(clusterDefault.Dep.Storage.InCluster.Values.Data, "mode")
 	clusterDefault.Com = MilvusComponents{
 		ImageUpdateMode: ImageUpdateModeRollingUpgrade,
@@ -139,8 +142,12 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		newReplica := int32(2)
 		mc.Spec.Com.RootCoord = &MilvusRootCoord{}
 		mc.Spec.Com.RootCoord.Replicas = &newReplica
+		mc.Spec.Dep.Etcd.InCluster = &InClusterConfig{}
+		mc.Spec.Dep.Etcd.InCluster.Values.Data = map[string]interface{}{}
+		mc.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"] = 1
 		mc.Default()
 		assert.Equal(t, newReplica, *mc.Spec.Com.RootCoord.Replicas)
+		assert.Equal(t, 1, mc.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"])
 	})
 
 }
