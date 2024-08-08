@@ -3,9 +3,9 @@
 IMG ?= milvusdb/milvus-operator:dev-latest
 TOOL_IMG ?= milvus-config-tool:dev-latest
 SIT_IMG ?= milvus-operator:sit
-VERSION ?= 1.0.1
+VERSION ?= 1.0.2
 TOOL_VERSION ?= 0.4.0
-MILVUS_HELM_VERSION ?= milvus-4.2.1
+MILVUS_HELM_VERSION ?= milvus-4.2.3
 RELEASE_IMG ?= milvusdb/milvus-operator:v$(VERSION)
 TOOL_RELEASE_IMG ?= milvusdb/milvus-config-tool:v$(TOOL_VERSION)
 KIND_CLUSTER ?= kind
@@ -232,11 +232,11 @@ sit-prepare-operator-images:
 
 sit-prepare-images: sit-prepare-operator-images
 	@echo "Preparing images"
-	docker pull milvusdb/milvus:v2.4.6
+	docker pull milvusdb/milvus:v2.4.7
 	
 	# docker pull -q apachepulsar/pulsar:2.8.2
 	docker pull -q bitnami/kafka:3.1.0-debian-10-r52
-	docker pull -q milvusdb/etcd:3.5.5-r4
+	docker pull -q milvusdb/etcd:3.5.14-r1
 	docker pull -q minio/minio:RELEASE.2023-03-20T20-16-18Z
 	docker pull -q haorenfsa/pymilvus:latest
 
@@ -249,19 +249,19 @@ sit-load-operator-images:
 
 sit-load-images: sit-load-operator-images
 	@echo "Loading images"
-	kind load docker-image milvusdb/milvus:v2.4.6
+	kind load docker-image milvusdb/milvus:v2.4.7
 	# kind load docker-image apachepulsar/pulsar:2.8.2 --name ${KIND_CLUSTER}
 	kind load docker-image bitnami/kafka:3.1.0-debian-10-r52 --name ${KIND_CLUSTER}
-	kind load docker-image milvusdb/etcd:3.5.5-r4 --name ${KIND_CLUSTER}
+	kind load docker-image milvusdb/etcd:3.5.14-r1 --name ${KIND_CLUSTER}
 	kind load docker-image minio/minio:RELEASE.2023-03-20T20-16-18Z --name ${KIND_CLUSTER}
 	kind load docker-image haorenfsa/pymilvus:latest --name ${KIND_CLUSTER}
 
 sit-load-and-cleanup-images: sit-load-images
 	@echo "Clean up some big images to save disk space in github action"
-	docker rmi milvusdb/milvus:v2.4.6
+	docker rmi milvusdb/milvus:v2.4.7
 	# docker rmi apachepulsar/pulsar:2.8.2
 	docker rmi bitnami/kafka:3.1.0-debian-10-r52
-	docker rmi milvusdb/etcd:3.5.5-r4
+	docker rmi milvusdb/etcd:3.5.14-r1
 	docker rmi minio/minio:RELEASE.2023-03-20T20-16-18Z
 
 sit-generate-manifest:
