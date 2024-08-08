@@ -354,18 +354,36 @@ func (r *Milvus) DefaultDependencies() {
 
 func (r *Milvus) defaultEtcd() {
 	if !r.Spec.Dep.Etcd.External {
-		r.Spec.Dep.Etcd.Endpoints = []string{fmt.Sprintf("%s-etcd.%s:2379", r.Name, r.Namespace)}
 		if r.Spec.Dep.Etcd.InCluster == nil {
 			r.Spec.Dep.Etcd.InCluster = &InClusterConfig{}
 		}
 		if r.Spec.Dep.Etcd.InCluster.Values.Data == nil {
 			r.Spec.Dep.Etcd.InCluster.Values.Data = map[string]interface{}{}
 		}
-		if r.Spec.Mode == MilvusModeStandalone {
-			if _, exists := r.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"]; !exists {
-				r.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"] = 1
+		etcdReplicaCountRaw, etcdReplicaCountExists := r.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"]
+		etcdReplicaCountInt64, etcdReplicaCountValid := etcdReplicaCountRaw.(int64)
+		var etcdReplicaCount int
+		if !etcdReplicaCountExists || !etcdReplicaCountValid {
+			if r.Spec.Mode == MilvusModeStandalone {
+				etcdReplicaCount = 1
+			} else {
+				etcdReplicaCount = 3
+			}
+			r.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"] = int64(etcdReplicaCount)
+		} else {
+			etcdReplicaCount = int(etcdReplicaCountInt64)
+		}
+		if len(r.Spec.Dep.Etcd.Endpoints) == 0 &&
+			etcdReplicaCount > 0 {
+			headlessServiceName := fmt.Sprintf("%s-etcd-headless", r.Name)
+			for i := 0; i < etcdReplicaCount; i++ {
+				podName := fmt.Sprintf("%s-etcd-%d", r.Name, i)
+				r.Spec.Dep.Etcd.Endpoints = append(r.Spec.Dep.Etcd.Endpoints,
+					fmt.Sprintf("%s.%s.%s:2379", podName, headlessServiceName, r.Namespace),
+				)
 			}
 		}
+
 		r.defaultValuesByDependency(values.DependencyKindEtcd)
 		if r.Spec.Dep.Etcd.InCluster.DeletionPolicy == "" {
 			r.Spec.Dep.Etcd.InCluster.DeletionPolicy = DeletionPolicyRetain
