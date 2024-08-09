@@ -13,6 +13,38 @@
 
 The Milvus Operator provides an easy and solid solution to deploy and manage a full Milvus service stack including both the milvus components and its relevant dependencies such as etcd, pulsar and minio to the target [Kubernetes](https://kubernetes.io/) clusters in a scalable and high-available way. The Milvus Operator defines a `Milvus` custom resources on top of Kubernetes [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/). The Kubernetes API can then be used in a declarative way to manage Milvus deployment stack and ensure its scalability and high-availability operation.
 
+# Milvus Operator VS Helm
+
+In general, Milvus Operator is recommanded for production. Helm is recommanded for beginners.
+
+Milvus Operator provides more features for production. But you need to install it in your kubernetes before you start your first Milvus instance. If you are new to Milvus and Kubernetes. Helm is easier to use and you can start your first Milvus instance in minutes. 
+
+For more details, please check the table below:
+
+<!-- source csv for table
+Advantages, Milvus Operator, Milvus Helm
+Recommended for Beginners , , ✅
+Quick Start , , ✅
+Recommended for Production , ✅, 
+Better Managed Rolling Upgrade, ✅, 
+Dynamic Configuration Reload , ✅, 
+Health Check Metrics , ✅, 
+Diagnose Message When Unhealthy, ✅, 
+Quick Suspending Instance, ✅, 
+Cleanup Resources after Deletion, ✅,  -->
+
+|Advantages| Milvus Operator| Milvus Helm|
+|---|---|---|
+|Recommended for Beginners | | ✅|
+|Quick Start | | ✅|
+|Recommended for Production | ✅| |
+|Better Managed Rolling Upgrade| ✅| |
+|Dynamic Configuration Reload | ✅| |
+|Health Check Metrics | ✅| |
+|Diagnose Message When Unhealthy| ✅| |
+|Quick Suspend Running Instance| ✅| |
+|Cleanup Resources after Deletion| ✅| |
+
 # Documentations
 - [Installation](docs/installation/installation.md)
 - [Install KinD for development](docs/installation/kind-installation.md)
@@ -77,21 +109,21 @@ Versions, v2.4.7 `[1]`, 2.8.2 / 3.1.0, 3.5.14, RELEASE.2023-03-20T20-16-18Z -->
 
 <!-- source csv for table
 Milvus Versions, <=v2.0.0-rc8, v2.0.0-pre-ga, >=v2.0.0
-Compatibility, ✖️, ✔️, ✔️  -->
+Compatibility, ❌, ✅, ✅  -->
 
 |Milvus Versions| <=v2.0.0-rc8| v2.0.0-pre-ga| >=v2.0.0|
 |---|---|---|---|
-|Compatibility| ✖️| ✔️| ✔️|
+|Compatibility| ❌| ✅| ✅|
 
 ## Compatibility With Milvus-Operator Earlier Releases
 
 <!-- source csv for table
 Milvus Operator Versions, <0.4.0, >=0.4.0
-Compatibility, ✖️, ✔️  -->
+Compatibility, ❌, ✅  -->
 
 |Milvus Operator Versions| <0.4.0| >=0.4.0|
 |---|---|---|
-|Compatibility| ✖️| ✔️|
+|Compatibility| ❌| ✅|
 
 
 # Install / upgrade milvus-operator of a specific version
