@@ -388,6 +388,16 @@ func GetMinioSecure(conf map[string]interface{}) bool {
 	return false
 }
 
+func GetVirtualHostCondition(conf map[string]interface{}) bool {
+	fields := []string{"minio", "useVirtualHost"}
+	useVirtualHost, exist := util.GetBoolValue(conf, fields...)
+	if exist {
+		return useVirtualHost
+	}
+
+	return false
+}
+
 func GetMinioBucket(conf map[string]interface{}) string {
 	return GetStringValueWithDefault(conf, defaultBucketName, "minio", "bucketName")
 }

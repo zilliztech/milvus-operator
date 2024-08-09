@@ -487,6 +487,7 @@ func (r *MilvusStatusSyncer) GetMinioCondition(
 		UseIAM:         GetMinioUseIAM(mc.Spec.Conf.Data),
 		IAMEndpoint:    GetMinioIAMEndpoint(mc.Spec.Conf.Data),
 		StorageAccount: GetAzureStorageAccount(mc.Spec.Conf.Data),
+		UseVirtualHost: GetVirtualHostCondition(mc.Spec.Conf.Data),
 	}
 	getter := wrapMinioConditionGetter(ctx, r.logger, r.Client, info)
 	return GetCondition(getter, []string{mc.Spec.Dep.Storage.Endpoint}), nil
