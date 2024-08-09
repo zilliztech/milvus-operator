@@ -16,14 +16,15 @@ import (
 // CheckMinIOArgs is info for acquiring storage condition
 type CheckMinIOArgs struct {
 	// S3 / MinIO
-	Type        string
-	AK          string
-	SK          string
-	Bucket      string
-	Endpoint    string
-	UseSSL      bool
-	UseIAM      bool
-	IAMEndpoint string
+	Type           string
+	AK             string
+	SK             string
+	Bucket         string
+	Endpoint       string
+	UseSSL         bool
+	UseIAM         bool
+	IAMEndpoint    string
+	UseVirtualHost bool
 }
 
 var DependencyCheckTimeout = 5 * time.Second
@@ -40,11 +41,15 @@ func CheckMinIO(args CheckMinIOArgs) error {
 				// minio client cannot recognize aws endpoints with :443
 				endpoint = strings.TrimSuffix(endpoint, ":443")
 			}
+			bucketLookup := minio.BucketLookupPath
+			if args.UseVirtualHost {
+				bucketLookup = minio.BucketLookupDNS
+			}
 			cli, err := minio.New(endpoint, &minio.Options{
 				// GetBucketLocation will succeed as long as the bucket exists
 				Creds:        credentials.NewStaticV4(args.AK, args.SK, ""),
 				Secure:       args.UseSSL,
-				BucketLookup: minio.BucketLookupDNS,
+				BucketLookup: bucketLookup,
 			})
 			if err != nil {
 				return err

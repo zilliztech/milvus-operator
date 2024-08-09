@@ -114,6 +114,7 @@ type StorageConditionInfo struct {
 	IAMEndpoint string
 	// StorageAccount of azure
 	StorageAccount string
+	UseVirtualHost bool
 }
 
 type checkMinIOFunc = func(args external.CheckMinIOArgs) error
@@ -148,14 +149,15 @@ func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Clien
 		ak = info.StorageAccount
 	}
 	err := checkMinIO(external.CheckMinIOArgs{
-		Type:        info.Storage.Type,
-		AK:          ak,
-		SK:          string(secretkey),
-		Endpoint:    info.Storage.Endpoint,
-		Bucket:      info.Bucket,
-		UseSSL:      info.UseSSL,
-		UseIAM:      info.UseIAM,
-		IAMEndpoint: info.IAMEndpoint,
+		Type:           info.Storage.Type,
+		AK:             ak,
+		SK:             string(secretkey),
+		Endpoint:       info.Storage.Endpoint,
+		Bucket:         info.Bucket,
+		UseSSL:         info.UseSSL,
+		UseIAM:         info.UseIAM,
+		IAMEndpoint:    info.IAMEndpoint,
+		UseVirtualHost: info.UseVirtualHost,
 	})
 	if err != nil {
 		return newErrStorageCondResult(v1beta1.ReasonClientErr, err.Error())
