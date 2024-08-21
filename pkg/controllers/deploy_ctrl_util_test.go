@@ -11,6 +11,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -688,7 +689,545 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
 		assert.NoError(t, err)
 	})
+	t.Run("rollout limit change", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
+		lastDeploy.Spec.Replicas = int32Ptr(2)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(nil)
+		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
+		assert.True(t, *currentDeploy.Spec.Replicas == 1)
+		assert.True(t, *lastDeploy.Spec.Replicas == 2)
+		assert.NoError(t, err)
+	})
 
+	t.Run("rollout limit change 2", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(1)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
+		lastDeploy.Spec.Replicas = int32Ptr(2)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(nil)
+		mockutil.EXPECT().UpdateAndRequeue(ctx, lastDeploy).Return(nil)
+		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
+		assert.True(t, *currentDeploy.Spec.Replicas == 1)
+		assert.True(t, *lastDeploy.Spec.Replicas == 1)
+		assert.NoError(t, err)
+	})
+
+	t.Run("rollout limit not change", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		lastDeploy.Spec.Replicas = int32Ptr(2)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(nil)
+		mockutil.EXPECT().UpdateAndRequeue(ctx, lastDeploy).Return(nil)
+		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
+		assert.True(t, *currentDeploy.Spec.Replicas == 0)
+		assert.True(t, *lastDeploy.Spec.Replicas == 1)
+		assert.NoError(t, err)
+	})
+	t.Run("plan for scale rollout limit not change and lastdeploy has more replicas", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(2)
+		action := bizUtil.planScaleForRollout(mc, currentDeploy, lastDeploy)
+		assert.True(t, action.deploy == lastDeploy)
+		assert.True(t, action.replicaChange == -1)
+	})
+	t.Run("plan for scale rollout limit not change and currentdeploy has more replicas", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(2)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		action := bizUtil.planScaleForRollout(mc, currentDeploy, lastDeploy)
+		assert.True(t, action == noScaleAction)
+	})
+	t.Run("plan for scale rollout limit not change and lastdeploy replicas is not enough", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		action := bizUtil.planScaleForRollout(mc, currentDeploy, lastDeploy)
+		assert.True(t, action.deploy == currentDeploy)
+		assert.True(t, action.replicaChange == 1)
+	})
+	t.Run("plan for scale rollout limit not change and lastdeploy replicas is equal to expect", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(1)
+		action := bizUtil.planScaleForRollout(mc, currentDeploy, lastDeploy)
+		assert.True(t, action.deploy == currentDeploy)
+		assert.True(t, action.replicaChange == 1)
+	})
+	t.Run("plan for scale rollout limit not change and current replicas is equal to expect", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(1)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		action := bizUtil.planScaleForRollout(mc, currentDeploy, lastDeploy)
+		assert.True(t, action == noScaleAction)
+	})
+
+	t.Run("plan for scale rollout limit cpu change and currentdeploy has more replicas", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(2)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("4"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		action := bizUtil.planScaleForRollout(mc, currentDeploy, lastDeploy)
+		assert.True(t, action.deploy == currentDeploy)
+		assert.True(t, action.replicaChange == -1)
+	})
+
+	t.Run("plan for scale rollout limit cpu change and currentdeploy replicas is equal to expect but lastdeploy replicas is not zero", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(1)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{"cpu": resource.MustParse("4")},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(1)
+		action := bizUtil.planScaleForRollout(mc, currentDeploy, lastDeploy)
+		assert.True(t, action.deploy == lastDeploy)
+		assert.True(t, action.replicaChange == -1)
+	})
+
+	t.Run("plan for scale rollout limit cpu change and currentdeploy replicas is equal to expect and lastdeploy replicas is zero", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(1)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("4"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		action := bizUtil.planScaleForRollout(mc, currentDeploy, lastDeploy)
+		assert.True(t, action == noScaleAction)
+	})
+
+	t.Run("plan for scale rollout limit cpu change and current replicas is not enough", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("4"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		action := bizUtil.planScaleForRollout(mc, currentDeploy, lastDeploy)
+		assert.True(t, action.deploy == currentDeploy)
+		assert.True(t, action.replicaChange == 1)
+	})
+	t.Run("resource not change", func(t *testing.T) {
+		mockCtrl.Finish()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name: "c1",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+			{
+				Name: "c2",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name: "c1",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+			{
+				Name: "c2",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		equal := compareDeployResourceLimitEqual(currentDeploy, lastDeploy)
+		assert.True(t, equal)
+	})
+	t.Run("limit cpu change", func(t *testing.T) {
+		mockCtrl.Finish()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("4"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		equal := compareDeployResourceLimitEqual(currentDeploy, lastDeploy)
+		assert.False(t, equal)
+	})
+	t.Run("container count change", func(t *testing.T) {
+		mockCtrl.Finish()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name: "c1",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name: "c1",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+			{
+				Name: "c2",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		equal := compareDeployResourceLimitEqual(currentDeploy, lastDeploy)
+		assert.False(t, equal)
+	})
+	t.Run("container change", func(t *testing.T) {
+		mockCtrl.Finish()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name: "c1",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name: "c2",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		equal := compareDeployResourceLimitEqual(currentDeploy, lastDeploy)
+		assert.False(t, equal)
+	})
+	t.Run("container resource change", func(t *testing.T) {
+		mockCtrl.Finish()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name: "c1",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name: "c1",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"memory": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		equal := compareDeployResourceLimitEqual(currentDeploy, lastDeploy)
+		assert.False(t, equal)
+	})
+	t.Run("container resource count change", func(t *testing.T) {
+		mockCtrl.Finish()
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name: "c1",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name: "c1",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu":    resource.MustParse("3"),
+						"memory": resource.MustParse("3"),
+					},
+				},
+			},
+		}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		equal := compareDeployResourceLimitEqual(currentDeploy, lastDeploy)
+		assert.False(t, equal)
+	})
 	t.Run("not enough spec.replicas, current deploy scale out", func(t *testing.T) {
 		mockCtrl.Finish()
 		mc := *milvus.DeepCopy()
