@@ -341,6 +341,40 @@ func (c *DeployControllerBizUtilImpl) planScaleForHPA(currentDeployment *appsv1.
 	return noScaleAction
 }
 
+func compareDeployResourceLimitEqual(currentDeployment, lastDeployment *appsv1.Deployment) bool {
+	currentDeployLimits := map[string]corev1.ResourceList{}
+	for _, c := range currentDeployment.Spec.Template.Spec.Containers {
+		currentDeployLimits[c.Name] = c.Resources.Limits
+	}
+	lastDeploymentLimits := map[string]corev1.ResourceList{}
+	for _, c := range lastDeployment.Spec.Template.Spec.Containers {
+		lastDeploymentLimits[c.Name] = c.Resources.Limits
+	}
+
+	if len(currentDeployLimits) != len(lastDeploymentLimits) {
+		return false
+	}
+	for cName, currLimitList := range currentDeployLimits {
+		lastLimitList, ok := lastDeploymentLimits[cName]
+		if !ok {
+			return false
+		}
+		if len(currLimitList) != len(lastLimitList) {
+			return false
+		}
+		for resName, currLimit := range currLimitList {
+			lastLimit, exist := lastLimitList[resName]
+			if !exist {
+				return false
+			}
+			if currLimit.String() != lastLimit.String() {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // planScaleForRollout, if not hpa ,return nil
 func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
 	currentDeployReplicas := getDeployReplicas(currentDeployment)
@@ -348,25 +382,42 @@ func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, cur
 
 	currentReplicas := currentDeployReplicas + lastDeployReplicas
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
-	switch {
-	case currentReplicas > expectedReplicas:
-		if lastDeployReplicas > 0 {
-			// continue rollout by scale in last deployment
-			return scaleAction{deploy: lastDeployment, replicaChange: -1}
+	if compareDeployResourceLimitEqual(currentDeployment, lastDeployment) {
+		switch {
+		case currentReplicas > expectedReplicas:
+			if lastDeployReplicas > 0 {
+				// continue rollout by scale in last deployment
+				return scaleAction{deploy: lastDeployment, replicaChange: -1}
+			}
+			// scale in is not allowed during a rollout
+			return noScaleAction
+		case currentReplicas == expectedReplicas:
+			if lastDeployReplicas == 0 {
+				// stable state
+				return noScaleAction
+			}
+			// continue rollout by scale out last deployment
+			return scaleAction{deploy: currentDeployment, replicaChange: 1}
+		default:
+			// case currentReplicas < expectedReplicas
+			// scale out
+			return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentReplicas}
 		}
-		// scale in is not allowed during a rollout
-		return noScaleAction
-	case currentReplicas == expectedReplicas:
-		if lastDeployReplicas == 0 {
-			// stable state
+	} else {
+		switch {
+		case currentDeployReplicas < expectedReplicas:
+			// scale current deploy replica to expected
+			return scaleAction{deploy: currentDeployment, replicaChange: 1}
+		case currentDeployReplicas > expectedReplicas:
+			// scale current deploy replica to expected
+			return scaleAction{deploy: currentDeployment, replicaChange: -1}
+		default:
+			if lastDeployReplicas > 0 {
+				// continue rollout by scale in last deployment
+				return scaleAction{deploy: lastDeployment, replicaChange: -1}
+			}
 			return noScaleAction
 		}
-		// continue rollout by scale out last deployment
-		return scaleAction{deploy: currentDeployment, replicaChange: 1}
-	default:
-		// case currentReplicas < expectedReplicas
-		// scale out
-		return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentReplicas}
 	}
 }
 
