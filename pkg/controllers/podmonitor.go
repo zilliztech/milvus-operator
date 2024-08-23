@@ -35,6 +35,9 @@ func (r *MilvusReconciler) updatePodMonitor(
 			},
 		}
 	}
+	for i := range podmonitor.Spec.PodMetricsEndpoints {
+		podmonitor.Spec.PodMetricsEndpoints[i].Interval = interval
+	}
 
 	podmonitor.Spec.NamespaceSelector = monitoringv1.NamespaceSelector{
 		MatchNames: []string{mc.Namespace},
