@@ -404,20 +404,31 @@ func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, cur
 			return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentReplicas}
 		}
 	} else {
-		switch {
-		case currentDeployReplicas < expectedReplicas:
-			// scale current deploy replica to expected
-			return scaleAction{deploy: currentDeployment, replicaChange: 1}
-		case currentDeployReplicas > expectedReplicas:
+		// Resource is changed.
+		// If the lastDeployReplicas have not been scaled down to 0, we need to first scale up the currentDeployReplicas to the maximum value among the expectedReplicas or the lastDeployReplicas.
+		// This ensures that during the subsequent scaling down process, pods will not experience out-of-memory (OOM) issues due to load balancing.
+		// We only begin scaling down the lastDeployReplicas when the currentDeployReplicas is no less than lastDeployReplicas.
+		// When the lastDeployReplicas reach 0, we need to ensure that the currentDeployReplicas are at their expected value.
+		if lastDeployReplicas > 0 {
+			if currentDeployReplicas < lastDeployReplicas || currentDeployReplicas < expectedReplicas {
+				// scale current deploy replica to max of lastDeployReplicas or expectedReplicas
+				if lastDeployReplicas < expectedReplicas {
+					return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentDeployReplicas}
+				}
+				return scaleAction{deploy: currentDeployment, replicaChange: lastDeployReplicas - currentDeployReplicas}
+			}
+			// continue rollout by scale in last deployment
+			return scaleAction{deploy: lastDeployment, replicaChange: -1}
+		}
+		if currentDeployReplicas > expectedReplicas {
 			// scale current deploy replica to expected
 			return scaleAction{deploy: currentDeployment, replicaChange: -1}
-		default:
-			if lastDeployReplicas > 0 {
-				// continue rollout by scale in last deployment
-				return scaleAction{deploy: lastDeployment, replicaChange: -1}
-			}
-			return noScaleAction
+		} else if currentDeployReplicas < expectedReplicas {
+			// scale current deploy replica to expected
+			// This branch seems unlikely to occur.
+			return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentDeployReplicas}
 		}
+		return noScaleAction
 	}
 }
 
