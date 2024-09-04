@@ -49,6 +49,7 @@ func main() {
 	var workDir string
 	var k8sQps int = 100
 	var k8sBurst int = 100
+	var enableWebhook bool
 	showVersion := flag.Bool("version", false, "Show version")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -67,9 +68,8 @@ func main() {
 	flag.IntVar(&k8sQps, "k8s-qps", k8sQps, "The qps of k8s client")
 	flag.IntVar(&k8sBurst, "k8s-burst", k8sQps, "The burst of k8s client")
 	flag.BoolVar(&controllers.Debug, "debug", controllers.Debug, "Enable debug")
-	opts := zap.Options{
-		Development: true,
-	}
+	flag.BoolVar(&enableWebhook, "webhook", true, "Enable webhook for support of v1alpha1 crd & validation")
+	opts := zap.Options{}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	if *showVersion {
@@ -103,7 +103,7 @@ func main() {
 
 	controllers.InitializeMetrics()
 
-	if err := controllers.SetupControllers(ctx, mgr, strings.Split(stopReconcilers, ","), true); err != nil {
+	if err := controllers.SetupControllers(ctx, mgr, strings.Split(stopReconcilers, ","), enableWebhook); err != nil {
 		setupLog.Error(err, "unable to setup controller with manager")
 		os.Exit(1)
 	}
