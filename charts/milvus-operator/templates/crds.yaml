@@ -6356,6 +6356,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -6380,6 +6382,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -6438,6 +6442,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -6487,6 +6493,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -7099,6 +7107,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -7123,6 +7133,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -7181,6 +7193,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -7230,6 +7244,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -14005,6 +14021,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -14029,6 +14047,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -14087,6 +14107,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:
@@ -14136,6 +14158,8 @@ spec:
                         type: boolean
                       inCluster:
                         properties:
+                          chartVersion:
+                            type: string
                           deletionPolicy:
                             default: Retain
                             enum:

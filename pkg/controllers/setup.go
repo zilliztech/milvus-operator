@@ -97,6 +97,7 @@ func SetupControllers(ctx context.Context, mgr manager.Manager, stopReconcilers 
 		}
 	}
 
+	logger.Info("enable webhook", "enable", enableHook)
 	if enableHook {
 		if err := (&milvusv1beta1.Milvus{}).SetupWebhookWithManager(mgr); err != nil {
 			logger.Error(err, "unable to create webhook", "webhook", "Milvus")

@@ -403,11 +403,14 @@ func (r *Milvus) defaultValuesByDependency(dependency values.DependencyKind) {
 	if r.defaultValuesMerged() {
 		return
 	}
-	valuesPtr := reflect.ValueOf(r.Spec.Dep).FieldByName(string(dependency)).
-		FieldByName("InCluster").Elem().FieldByName("Values").Addr().Interface().(*Values)
+	inClusterPtr := reflect.ValueOf(r.Spec.Dep).FieldByName(string(dependency)).
+		FieldByName("InCluster")
+	chartVersion := inClusterPtr.Interface().(*InClusterConfig).ChartVersion
+
+	valuesPtr := inClusterPtr.Elem().FieldByName("Values").Addr().Interface().(*Values)
 	valueData := util.DeepCopyValues(
 		values.GetDefaultValuesProvider().
-			GetDefaultValues(dependency))
+			GetDefaultValues(dependency, chartVersion))
 
 	util.MergeValues(valueData, valuesPtr.Data)
 	valuesPtr.Data = valueData

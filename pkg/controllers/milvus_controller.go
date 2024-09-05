@@ -58,7 +58,6 @@ type MilvusReconciler struct {
 //+kubebuilder:rbac:groups=milvus.io,resources=milvuses,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=milvus.io,resources=milvuses/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=milvus.io,resources=milvuses/finalizers,verbs=update
-//+kubebuilder:rbac:groups=extensions,resources=statefulsets;deployments;pods;secrets;services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources="*",verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources="*",verbs=get;list;watch;create;update;patch;delete
@@ -69,8 +68,10 @@ type MilvusReconciler struct {
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterroles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="monitoring.coreos.com",resources=servicemonitors;podmonitors,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=list;get;watch
+//+kubebuilder:rbac:groups=extensions,resources=statefulsets;deployments;pods;secrets;services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=extensions,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -111,15 +112,8 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 	} else {
-		logger.Info("deleteing milvus")
 		if milvus.Status.Status != milvusv1beta1.StatusDeleting {
-			if !controllerutil.ContainsFinalizer(milvus, ForegroundDeletionFinalizer) {
-				// delete self again with foreground deletion
-				logger.Info("change background delete to foreground")
-				if err := r.Delete(ctx, milvus, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-					return ctrl.Result{}, err
-				}
-			}
+			logger.Info("deleting milvus")
 			milvus.Status.Status = milvusv1beta1.StatusDeleting
 			if err := r.Status().Update(ctx, milvus); err != nil {
 				return ctrl.Result{}, err
@@ -131,13 +125,20 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err != nil {
 				logger.Error(err, "deleting milvus: check milvus stopped failed")
 			} else {
+				if !controllerutil.ContainsFinalizer(milvus, ForegroundDeletionFinalizer) {
+					// delete self again with foreground deletion
+					logger.Info("change background delete to foreground")
+					if err := r.Delete(ctx, milvus, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+						return ctrl.Result{}, err
+					}
+				}
 				logger.Info("deleting milvus: not all pod stopped, requeue")
 			}
 			return ctrl.Result{RequeueAfter: unhealthySyncInterval}, err
 		}
 
-		logger.Info("finalizing milvus")
 		if controllerutil.ContainsFinalizer(milvus, MilvusFinalizerName) {
+			logger.Info("finalizing milvus")
 			if err := Finalize(ctx, r, *milvus); err != nil {
 				return ctrl.Result{}, err
 			}

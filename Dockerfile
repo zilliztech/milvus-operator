@@ -16,7 +16,7 @@ COPY main.go main.go
 COPY apis/ apis/
 COPY pkg/ pkg/
 COPY tool/ tool/
-COPY config/assets/templates out/config/assets/templates
+COPY config/assets out/config/assets
 COPY scripts/ scripts/
 COPY Makefile Makefile
 RUN make docker-prepare
