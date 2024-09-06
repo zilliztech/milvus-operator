@@ -273,6 +273,10 @@ func renderInitContainer(container *corev1.Container, toolImage string) *corev1.
 		configVolumeMount,
 		toolVolumeMount,
 	}
+	container.SecurityContext = &corev1.SecurityContext{
+		RunAsNonRoot: boolPtr(true),
+		RunAsUser:    int64Ptr(1000),
+	}
 	fillContainerDefaultValues(container)
 	return container
 }
@@ -297,6 +301,8 @@ var (
 )
 
 func configVolumeByName(name string) corev1.Volume {
+	// so that non root user can change the config
+	configmapMode := int32(0777)
 	return corev1.Volume{
 		Name: MilvusConfigVolumeName,
 		VolumeSource: corev1.VolumeSource{
@@ -304,7 +310,7 @@ func configVolumeByName(name string) corev1.Volume {
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: name,
 				},
-				DefaultMode: &DefaultConfigMapMode,
+				DefaultMode: &configmapMode,
 			},
 		},
 	}

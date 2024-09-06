@@ -472,6 +472,10 @@ func int64Ptr(i int64) *int64 {
 	return &ret
 }
 
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 func getDeployReplicas(deploy *appsv1.Deployment) int {
 	if deploy.Spec.Replicas == nil {
 		return 1

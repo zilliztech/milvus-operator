@@ -101,6 +101,13 @@ func updatePodTemplate(
 	updateSidecars(template, updater)
 	updateNetworkSettings(template, updater)
 
+	if updater.GetMilvus().Spec.Com.RunAsNonRoot {
+		template.Spec.SecurityContext = &corev1.PodSecurityContext{
+			RunAsNonRoot: &updater.GetMilvus().Spec.Com.RunAsNonRoot,
+			RunAsUser:    int64Ptr(1000),
+		}
+	}
+
 	var hasUpdates = !IsEqual(currentTemplate, template)
 	switch {
 	case hasUpdates:

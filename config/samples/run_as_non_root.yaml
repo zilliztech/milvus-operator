@@ -1,0 +1,25 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mc-sit
+---
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: milvus
+  namespace: mc-sit
+  labels:
+    app: milvus
+spec:
+  components:
+    runAsNonRoot: true
+    volumes:
+    - emptyDir: {}
+      name: data
+    volumeMounts:
+    - mountPath: /milvus/data
+      name: data
+  config:
+    localStorage:
+      path: /milvus/data

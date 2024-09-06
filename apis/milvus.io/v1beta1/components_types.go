@@ -183,6 +183,11 @@ type MilvusComponents struct {
 	// so it's hard to determine when to switch. you need to switch it manually.
 	ActiveConfigMap string `json:"activeConfigMap,omitempty"`
 
+	// RunAsNonRoot whether to run milvus as non-root user
+	// this disables some certain features
+	// +kubebuilder:validation:Optional
+	RunAsNonRoot bool `json:"runAsNonRoot,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	Proxy *MilvusProxy `json:"proxy,omitempty"`
 

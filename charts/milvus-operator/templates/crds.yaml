@@ -5676,6 +5676,8 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
+                  runAsNonRoot:
+                    type: boolean
                   runWithSubProcess:
                     type: boolean
                   schedulerName:
@@ -13341,6 +13343,8 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
+                  runAsNonRoot:
+                    type: boolean
                   runWithSubProcess:
                     type: boolean
                   schedulerName:
