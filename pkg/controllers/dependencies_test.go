@@ -8,7 +8,6 @@ import (
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/helm"
-	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"helm.sh/helm/v3/pkg/action"
@@ -16,10 +15,6 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
-
-func init() {
-	DefaultValuesPath = util.GetGitRepoRootDir() + "test/values.yaml"
-}
 
 func TestLocalHelmReconciler_ReconcilePanic(t *testing.T) {
 	mockCtrl := gomock.NewController(t)

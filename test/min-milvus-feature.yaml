@@ -37,14 +37,83 @@ spec:
               memory: 100Mi
           persistence:
             size: 20Gi
-    rocksmq:
-      persistence:
-        enabled: true
-        persistentVolumeClaim:
-          spec:
+    msgStreamType: pulsar
+    pulsar:
+      inCluster:
+        chartVersion: pulsar-v3
+        deletionPolicy: Delete
+        pvcDeletion: true
+        values:
+          persistence: false
+          volumes:
+            persistence: false
+          components:
+            autorecovery: false
+          zookeeper:
+            replicaCount: 1
+            podMonitor:
+              enabled: false
             resources:
-            limits:
-              storage: 20Gi
+              requests:
+                memory: 64Mi
+                cpu: 0.001
+            volumes:
+              # use a persistent volume or emptyDir
+              persistence: false
+            configData:
+              PULSAR_MEM: >
+                -Xms64m -Xmx256m
+          bookkeeper:
+            component: bookie
+            replicaCount: 1
+            podMonitor:
+              enabled: false
+            resources:
+              requests:
+                memory: 64Mi
+                cpu: 0.001
+            volumes:
+              # use a persistent volume or emptyDir
+              persistence: false
+            configData:
+              PULSAR_MEM: >
+                -Xms64m
+                -Xmx4096m
+                -XX:MaxDirectMemorySize=8192m
+          autorecovery:
+            replicaCount: 0
+            podMonitor:
+              enabled: false
+          broker:
+            replicaCount: 1
+            podMonitor:
+              enabled: false
+            resources:
+              requests:
+                memory: 64Mi
+                cpu: 0.001
+            configData:
+              PULSAR_MEM: >
+                -Xms64m -Xmx4096m -XX:MaxDirectMemorySize=8192m
+              managedLedgerDefaultEnsembleSize: "1"
+              managedLedgerDefaultWriteQuorum: "1"
+              managedLedgerDefaultAckQuorum: "1"
+          proxy:
+            replicaCount: 1
+            autoscaling:
+              enabled: false
+            podMonitor:
+              enabled: false
+              interval: 30s
+              scrapeTimeout: 10s
+            resources:
+              requests:
+                memory: 64Mi
+                cpu: 0.001
+            configData:
+              PULSAR_MEM: >
+                -Xms64m -Xmx512m -XX:MaxDirectMemorySize=2048m
+        # end pulsar values
   config:
     rootCoord:
       enableActiveStandby: true

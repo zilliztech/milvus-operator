@@ -1,5 +1,7 @@
 package v1beta1
 
+import "github.com/milvus-io/milvus-operator/pkg/helm/values"
+
 type DependencyDeletionPolicy string
 
 const (
@@ -72,6 +74,14 @@ type InClusterConfig struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Values Values `json:"values,omitempty"`
 
+	// ChartVersion is the pulsar chart version to be installed
+	// For now only pulsar uses this field
+	// pulsar-v2 (v2.7.8) & pulsar-v3 (v3.3.0) can be used
+	// default to pulsar-v2 for backward compatibility
+	// note it's the version of chart, not pulsar
+	// +kubebuilder:validation:Optional
+	ChartVersion values.ChartVersion `json:"chartVersion,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum:={"Delete", "Retain"}
 	// +kubebuilder:default:="Retain"
@@ -80,6 +90,13 @@ type InClusterConfig struct {
 	// +kubebuilder:validation:Optional
 	PVCDeletion bool `json:"pvcDeletion,omitempty"`
 }
+
+type ChartVersion string
+
+const (
+	ChartVersionPulsarV2 ChartVersion = "pulsar-v2"
+	ChartVersionPulsarV3 ChartVersion = "pulsar-v3"
+)
 
 type MilvusStorage struct {
 	// +kubebuilder:default:="MinIO"

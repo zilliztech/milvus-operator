@@ -24,12 +24,6 @@ const (
 	Kafka  = "kafka"
 )
 
-var (
-	// DefaultValuesPath is the path to the default values file
-	// variable in test, const in runtime
-	DefaultValuesPath = "config/assets/charts/values.yaml"
-)
-
 // HelmReconciler reconciles Helm releases
 type HelmReconciler interface {
 	NewHelmCfg(namespace string) *action.Configuration

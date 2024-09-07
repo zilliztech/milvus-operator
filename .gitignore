@@ -48,7 +48,4 @@ charts/milvus-operator/charts/*.tgz
 out/
 *.bak
 
-# helm chart
-config/assets/charts
-
 .gocache/

@@ -3,6 +3,7 @@ package helm
 import (
 	"errors"
 	"reflect"
+	"strings"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/helm/values"
@@ -97,6 +98,8 @@ func (d *LocalClient) Install(cfg *action.Configuration, request ChartRequest) e
 	if client.Version == "" && client.Devel {
 		client.Version = ">0.0.0-0"
 	}
+	// operator doesn't have permission to create CRDs, leave it to the cluster admin
+	client.SkipCRDs = true
 
 	chartRequested, err := loader.Load(request.Chart)
 	if err != nil {
@@ -130,8 +133,13 @@ func GetChartPathByName(chart string) string {
 func GetChartRequest(mc v1beta1.Milvus, dep values.DependencyKind, chart string) ChartRequest {
 	inCluster := reflect.ValueOf(mc.Spec.Dep).FieldByName(string(dep)).
 		FieldByName("InCluster").Interface().(*v1beta1.InClusterConfig)
+	switch inCluster.ChartVersion {
+	case values.ChartVersionPulsarV3:
+		chart = values.PulsarV3
+	}
+	chartKind := strings.Split(chart, "-")[0]
 	return ChartRequest{
-		ReleaseName: mc.Name + "-" + chart,
+		ReleaseName: mc.Name + "-" + chartKind,
 		Namespace:   mc.Namespace,
 		Chart:       GetChartPathByName(chart),
 		Values:      inCluster.Values.Data,

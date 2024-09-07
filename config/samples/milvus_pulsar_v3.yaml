@@ -1,0 +1,15 @@
+# This is an example of Milvus deployment with Pulsar v3 as the message stream.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  dependencies:
+    msgStreamType: pulsar
+    pulsar:
+      inCluster:
+        chartVersion: pulsar-v3
+        deletionPolicy: Delete
+        pvcDeletion: true

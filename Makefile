@@ -111,18 +111,20 @@ docker-build: ## Build docker image with the manager.
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
-out/config/assets/templates:
+out/config/assets:
 	mkdir -p out/config/assets
-	cp -r config/assets/templates out/config/assets/templates
+	cp -r config/assets out/config/assets
 
-docker-prepare: build-release out/config/assets/templates
-	mkdir -p ./out/config/assets/charts/
+docker-prepare: build-release out/config/assets
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/etcd-6.3.3.tgz -O ./etcd.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/minio-8.0.17.tgz -O ./minio.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/pulsar-2.7.8.tgz -O ./pulsar.tgz
+	wget https://archive.apache.org/dist/pulsar/helm-chart/3.3.0/pulsar-3.3.0.tgz -O ./pulsar-v3.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/kafka-15.5.1.tgz -O ./kafka.tgz
 	tar -xf ./etcd.tgz -C ./out/config/assets/charts/
 	tar -xf ./minio.tgz -C ./out/config/assets/charts/
+	tar -xf ./pulsar-v3.tgz -C ./out/config/assets/charts/
+	mv ./out/config/assets/charts/pulsar ./out/config/assets/charts/pulsar-v3
 	tar -xf ./pulsar.tgz -C ./out/config/assets/charts/
 	tar -xf ./kafka.tgz -C ./out/config/assets/charts/
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/values.yaml -O ./out/config/assets/charts/values.yaml

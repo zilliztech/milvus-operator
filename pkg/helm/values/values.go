@@ -10,6 +10,12 @@ import (
 type DependencyKind string
 type Chart = string
 type Values = map[string]interface{}
+type ChartVersion string
+
+const (
+	ChartVersionPulsarV2 ChartVersion = "pulsar-v2"
+	ChartVersionPulsarV3 ChartVersion = "pulsar-v3"
+)
 
 const (
 	DependencyKindEtcd    DependencyKind = "Etcd"
@@ -17,20 +23,23 @@ const (
 	DependencyKindPulsar  DependencyKind = "Pulsar"
 	DependencyKindKafka   DependencyKind = "Kafka"
 
-	Etcd   = "etcd"
-	Minio  = "minio"
-	Pulsar = "pulsar"
-	Kafka  = "kafka"
+	Etcd     = "etcd"
+	Minio    = "minio"
+	Pulsar   = "pulsar"
+	PulsarV3 = string(ChartVersionPulsarV3)
+	Kafka    = "kafka"
 )
 
-var (
+const (
+	ValuesRootPath = "config/assets/charts"
 	// DefaultValuesPath is the path to the default values file
-	// variable in test, const in runtime
-	DefaultValuesPath = "config/assets/charts/values.yaml"
+	DefaultValuesPath = ValuesRootPath + "/values.yaml"
+
+	DefaultPulsarV3ValuesPath = ValuesRootPath + "/pulsar-v3-values.yaml"
 )
 
 type DefaultValuesProvider interface {
-	GetDefaultValues(dependencyName DependencyKind) map[string]interface{}
+	GetDefaultValues(dependencyName DependencyKind, chartVersion ChartVersion) map[string]interface{}
 }
 
 var globalDefaultValues DefaultValuesProvider = &dummyValues{}
@@ -50,28 +59,37 @@ func MustInitDefaultValuesProvider() {
 		err = errors.Wrapf(err, "failed to read default helm chart values from [%s]", DefaultValuesPath)
 		panic(err)
 	}
+	pulsarV3Values, err := readValuesFromFile(DefaultPulsarV3ValuesPath)
+	if err != nil {
+		err = errors.Wrapf(err, "failed to read default pulsar v3 chart values from [%s]", DefaultPulsarV3ValuesPath)
+		panic(err)
+	}
 	globalDefaultValues = &DefaultValuesProviderImpl{
 		chartDefaultValues: map[Chart]Values{
-			Etcd:   values[Etcd].(Values),
-			Minio:  values[Minio].(Values),
-			Pulsar: values[Pulsar].(Values),
-			Kafka:  values[Kafka].(Values),
+			Etcd:     values[Etcd].(Values),
+			Minio:    values[Minio].(Values),
+			Pulsar:   values[Pulsar].(Values),
+			PulsarV3: Values(pulsarV3Values),
+			Kafka:    values[Kafka].(Values),
 		},
 	}
 }
 
-func (d DefaultValuesProviderImpl) GetDefaultValues(dependencyName DependencyKind) map[string]interface{} {
+func (d DefaultValuesProviderImpl) GetDefaultValues(dependencyName DependencyKind, chartVersion ChartVersion) map[string]interface{} {
 	switch dependencyName {
 	case DependencyKindEtcd:
 		return d.chartDefaultValues[Etcd]
 	case DependencyKindStorage:
 		return d.chartDefaultValues[Minio]
 	case DependencyKindPulsar:
+		if chartVersion == ChartVersionPulsarV3 {
+			return d.chartDefaultValues[PulsarV3]
+		}
 		return d.chartDefaultValues[Pulsar]
 	case DependencyKindKafka:
 		return d.chartDefaultValues[Kafka]
 	default:
-		panic("unknown dependency kind")
+		return map[string]interface{}{}
 	}
 }
 

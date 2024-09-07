@@ -4,6 +4,6 @@ package values
 type dummyValues struct {
 }
 
-func (dummyValues) GetDefaultValues(dependencyName DependencyKind) map[string]interface{} {
+func (dummyValues) GetDefaultValues(dependencyName DependencyKind, chartVersion ChartVersion) map[string]interface{} {
 	return map[string]interface{}{}
 }
