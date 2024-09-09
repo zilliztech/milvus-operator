@@ -16,12 +16,19 @@ spec:
   components:
     rollingMode: 3
     runWithSubProcess: true
+    runAsNonRoot: true
     proxy:
       ingress:
         hosts: ["mc-sit.milvus.io"]
       replicas: 1
     mixCoord:
       replicas: 1
+    volumes:
+    - emptyDir: {}
+      name: data
+    volumeMounts:
+    - mountPath: /milvus/data
+      name: data
   dependencies:
     etcd:
       inCluster:
@@ -55,6 +62,8 @@ spec:
           persistence:
             size: 20Gi
   config:
+    localStorage:
+      path: /milvus/data
     milvus:
       log:
         level: info

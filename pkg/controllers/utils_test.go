@@ -533,3 +533,7 @@ func TestSetControllerReference(t *testing.T) {
 func Test_int64Ptr(t *testing.T) {
 	assert.Equal(t, int64(10), *int64Ptr(10))
 }
+
+func Test_boolPtr(t *testing.T) {
+	assert.True(t, *boolPtr(true))
+}
