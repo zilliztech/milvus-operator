@@ -65,7 +65,6 @@ zookeeper:
       name: data
       size: 20Gi
       local_storage: false
-      storageClassName: gp3
   configData:
     PULSAR_MEM: >
       -Xms256m -Xmx256m
