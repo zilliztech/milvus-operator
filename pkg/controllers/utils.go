@@ -388,13 +388,20 @@ func GetMinioSecure(conf map[string]interface{}) bool {
 	return false
 }
 
-func GetVirtualHostCondition(conf map[string]interface{}) bool {
+func ShouldUseVirtualHost(conf map[string]interface{}) bool {
 	fields := []string{"minio", "useVirtualHost"}
 	useVirtualHost, exist := util.GetBoolValue(conf, fields...)
 	if exist {
-		return useVirtualHost
+		if useVirtualHost {
+			return true
+		}
 	}
 
+	fields = []string{"minio", "cloudProvider"}
+	cloudProvider, exists := util.GetStringValue(conf, fields...)
+	if exists && cloudProvider != "aws" {
+		return true
+	}
 	return false
 }
 
