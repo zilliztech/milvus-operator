@@ -490,14 +490,14 @@ func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc 
 	logger := ctrl.LoggerFrom(ctx)
 	labelHelper := v1beta1.Labels()
 	currentGroupIdStr := labelHelper.GetLabelGroupID(c.component.Name, currentDeployment)
-	logger.Info("prepare new rollout stage 1 update podTemplate", "deployGroupId", currentGroupIdStr, "podTemplateDiff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
+	logger.Info("prepare new rollout stage 1: updateDeployTemplate", "deployGroupId", currentGroupIdStr, "podTemplateDiff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
 	currentDeployment.Spec.Template = *podTemplate
 	labelHelper.SetGroupIDStr(c.component.Name, currentDeployment.Spec.Template.Labels, currentGroupIdStr)
 	err := c.cli.Update(ctx, currentDeployment)
 	if err != nil {
-		return errors.Wrap(err, "update current deploy for rolling failed")
+		return errors.Wrap(err, "updateDeployTemplate failed")
 	}
-	logger.Info("prepare new rollout stage 2: set current group id, set component to rolling", "currentGroupId", currentGroupIdStr)
+	logger.Info("prepare new rollout stage 2: setRolling", "currentGroupId", currentGroupIdStr)
 	labelHelper.SetCurrentGroupIDStr(&mc, c.component.Name, currentGroupIdStr)
 	labelHelper.SetComponentRolling(&mc, c.component.Name, true)
 	return c.UpdateAndRequeue(ctx, &mc)

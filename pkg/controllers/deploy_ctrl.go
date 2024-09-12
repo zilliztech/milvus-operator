@@ -96,13 +96,13 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return nil
 	}
 
+	if mc.Spec.Com.EnableManualMode {
+		return biz.HandleManualMode(ctx, mc)
+	}
+
 	err = biz.HandleRolling(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "handle rolling")
-	}
-
-	if mc.Spec.Com.EnableManualMode {
-		return nil
 	}
 
 	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 {
@@ -130,6 +130,7 @@ type DeployControllerBiz interface {
 	HandleStop(ctx context.Context, mc v1beta1.Milvus) error
 	HandleScaling(ctx context.Context, mc v1beta1.Milvus) error
 	HandleRolling(ctx context.Context, mc v1beta1.Milvus) error
+	HandleManualMode(ctx context.Context, mc v1beta1.Milvus) error
 }
 
 // DeployModeChanger changes deploy mode
@@ -284,10 +285,10 @@ func (c *DeployControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.
 func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.Milvus) error {
 	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "get querynode deploys")
+		return errors.Wrapf(err, "get [%s] deploys", c.component.Name)
 	}
 	if currentDeploy == nil {
-		return errors.Errorf("querynode deployment not found")
+		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
 	}
 	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component)
 
@@ -313,5 +314,20 @@ func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.
 		return c.util.PrepareNewRollout(ctx, mc, currentDeploy, podTemplate)
 	}
 
+	return nil
+}
+
+func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1beta1.Milvus) error {
+	currentDeploy, _, err := c.util.GetDeploys(ctx, mc)
+	if err != nil {
+		return errors.Wrapf(err, "get [%s] deploys", c.component.Name)
+	}
+	if currentDeploy == nil {
+		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
+	}
+	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component)
+	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
+		return c.util.PrepareNewRollout(ctx, mc, currentDeploy, podTemplate)
+	}
 	return nil
 }

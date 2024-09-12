@@ -130,7 +130,7 @@ func TestDeployControllerImpl_Reconcile(t *testing.T) {
 		mockBiz.EXPECT().MarkDeployModeChanging(gomock.Any(), mc, false).Return(nil)
 		mockBiz.EXPECT().HandleCreate(gomock.Any(), mc).Return(nil)
 		mockBiz.EXPECT().IsPaused(gomock.Any(), mc).Return(false)
-		mockBiz.EXPECT().HandleRolling(gomock.Any(), mc).Return(nil)
+		mockBiz.EXPECT().HandleManualMode(gomock.Any(), mc).Return(nil)
 		err := DeployControllerImpl.Reconcile(ctx, mc, QueryNode)
 		assert.NoError(t, err)
 	})
