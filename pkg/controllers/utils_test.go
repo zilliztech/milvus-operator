@@ -537,3 +537,44 @@ func Test_int64Ptr(t *testing.T) {
 func Test_boolPtr(t *testing.T) {
 	assert.True(t, *boolPtr(true))
 }
+
+func TestShouldUseVirtualHost(t *testing.T) {
+	config := map[string]interface{}{
+		"minio": map[string]interface{}{
+			"useVirtualHost": true,
+		},
+	}
+	assert.True(t, ShouldUseVirtualHost(config))
+
+	config = map[string]interface{}{
+		"minio": map[string]interface{}{
+			"useVirtualHost": false,
+			"cloudProvider":  "gcp",
+		},
+	}
+	assert.True(t, ShouldUseVirtualHost(config))
+
+	config = map[string]interface{}{
+		"minio": map[string]interface{}{
+			"useVirtualHost": false,
+			"cloudProvider":  "aliyun",
+		},
+	}
+	assert.True(t, ShouldUseVirtualHost(config))
+
+	config = map[string]interface{}{
+		"minio": map[string]interface{}{
+			"useVirtualHost": false,
+			"cloudProvider":  "aws",
+		},
+	}
+	assert.False(t, ShouldUseVirtualHost(config))
+
+	config = map[string]interface{}{
+		"minio": map[string]interface{}{
+			"useVirtualHost": true,
+			"cloudProvider":  "aws",
+		},
+	}
+	assert.True(t, ShouldUseVirtualHost(config))
+}
