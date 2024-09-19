@@ -281,14 +281,40 @@ func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v
 	if err != nil {
 		return err
 	}
-	if v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
-		err = c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
-		if err != nil {
-			return err
-		}
+	err = c.checkCanScaleNow(ctx, mc, currentDeployment, lastDeployment)
+	if err != nil {
+		return err
 	}
 	action := c.planNextScaleAction(mc, currentDeployment, lastDeployment)
 	return c.doScaleAction(ctx, action)
+}
+
+func (c *DeployControllerBizUtilImpl) checkCanScaleNow(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
+	isForceUpdate := mc.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce
+	if isForceUpdate {
+		return nil
+	}
+	if v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
+		err := c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
+		if err != nil {
+			return errors.Wrap(err, "check deployments stable")
+		}
+	}
+	return nil
+}
+
+func (c *DeployControllerBizUtilImpl) planScaleForForceUpgrade(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
+	currentDeployReplicas := getDeployReplicas(currentDeployment)
+	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
+	if currentDeployReplicas != expectedReplicas {
+		return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentDeployReplicas}
+	}
+
+	lastDeployReplicas := getDeployReplicas(lastDeployment)
+	if lastDeployReplicas != 0 {
+		return scaleAction{deploy: lastDeployment, replicaChange: -lastDeployReplicas}
+	}
+	return scaleAction{}
 }
 
 type scaleAction struct {
@@ -307,6 +333,8 @@ func (c *DeployControllerBizUtilImpl) planNextScaleAction(mc v1beta1.Milvus, cur
 		return c.planScaleForHPA(currentDeployment)
 	case scaleKindRollout:
 		return c.planScaleForRollout(mc, currentDeployment, lastDeployment)
+	case scaleKindForce:
+		return c.planScaleForForceUpgrade(mc, currentDeployment, lastDeployment)
 	default:
 		return c.planScaleForNormalState(mc, currentDeployment)
 	}
@@ -318,9 +346,13 @@ const (
 	scaleKindNormal scaleKind = iota
 	scaleKindRollout
 	scaleKindHPA
+	scaleKindForce
 )
 
 func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus) scaleKind {
+	if mc.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce {
+		return scaleKindForce
+	}
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
 	isHpa := expectedReplicas < 0
 	if isHpa {
