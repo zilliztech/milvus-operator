@@ -1346,6 +1346,51 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 	})
 }
 
+func TestDeployControllerBizUtilImpl_planNextScaleAction(t *testing.T) {
+	bizUtil := DeployControllerBizUtilImpl{
+		component: MilvusStandalone,
+	}
+	mc := v1beta1.Milvus{}
+	mc.Spec.Com.Standalone = &v1beta1.MilvusStandalone{}
+
+	currentDeploy := new(appsv1.Deployment)
+	lastDeploy := new(appsv1.Deployment)
+	currentReplicas := &currentDeploy.Spec.Replicas
+	lastReplicas := &lastDeploy.Spec.Replicas
+	expected := &mc.Spec.Com.Standalone.Replicas
+	t.Run("force upgrade/current<expected", func(t *testing.T) {
+		mc.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeForce
+		*expected = int32Ptr(3)
+		*currentReplicas = int32Ptr(0)
+		action := bizUtil.planNextScaleAction(mc, currentDeploy, lastDeploy)
+		assert.Equal(t, scaleAction{
+			deploy:        currentDeploy,
+			replicaChange: 3,
+		}, action)
+	})
+
+	t.Run("force upgrade/current=expected/last!=0", func(t *testing.T) {
+		mc.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeForce
+		*expected = int32Ptr(3)
+		*currentReplicas = int32Ptr(3)
+		*lastReplicas = int32Ptr(3)
+		action := bizUtil.planNextScaleAction(mc, currentDeploy, lastDeploy)
+		assert.Equal(t, scaleAction{
+			deploy:        lastDeploy,
+			replicaChange: -3,
+		}, action)
+	})
+
+	t.Run("force upgrade/current=expected/last=0", func(t *testing.T) {
+		mc.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeForce
+		*expected = int32Ptr(3)
+		*currentReplicas = int32Ptr(3)
+		*lastReplicas = int32Ptr(0)
+		action := bizUtil.planNextScaleAction(mc, currentDeploy, lastDeploy)
+		assert.Equal(t, noScaleAction, action)
+	})
+}
+
 func TestDeployControllerBizUtilImpl_PrepareNewRollout(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
