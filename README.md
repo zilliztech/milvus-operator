@@ -104,6 +104,7 @@ Versions, v2.4.11 `[1]`, 2.9.5 / 3.1.0, 3.5.14, RELEASE.2023-03-20T20-16-18Z -->
 
 
 > `[1]` Version of milvus is the default version we will use, you can set it to other version. The Compatibility with milvus releases is showed below.
+>
 > `[2]` pulsar of 3.x is also supported. check [this sample](config/samples/milvus_pulsar_v3.yaml) for more details.
 
 ## Compatibility With Milvus Releases
