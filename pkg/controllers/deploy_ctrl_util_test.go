@@ -1423,3 +1423,35 @@ func TestDeployControllerBizUtilImpl_PrepareNewRollout(t *testing.T) {
 		assert.True(t, errors.Is(err, ErrRequeue))
 	})
 }
+
+func TestDeployControllerBizUtilImpl_RenewDeployAnnotation(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockcli := NewMockK8sClient(mockCtrl)
+	mockutil := NewMockK8sUtil(mockCtrl)
+	bizUtil := NewDeployControllerBizUtil(DataNode, mockcli, mockutil)
+
+	ctx := context.Background()
+	mc := v1beta1.Milvus{}
+	mc.Generation = 1
+
+	deploy := new(appsv1.Deployment)
+
+	t.Run("no annotation, renewed", func(t *testing.T) {
+		renewed := bizUtil.RenewDeployAnnotation(ctx, mc, deploy)
+		assert.True(t, renewed)
+	})
+
+	t.Run("annotation exists, not renewed", func(t *testing.T) {
+		deploy.Annotations = map[string]string{AnnotationMilvusGeneration: "1"}
+		renewed := bizUtil.RenewDeployAnnotation(ctx, mc, deploy)
+		assert.False(t, renewed)
+	})
+
+	mc.Generation = 2
+	t.Run("annotation exists, renewed", func(t *testing.T) {
+		renewed := bizUtil.RenewDeployAnnotation(ctx, mc, deploy)
+		assert.True(t, renewed)
+	})
+
+}

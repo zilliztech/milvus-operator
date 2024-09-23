@@ -543,3 +543,40 @@ func TestDeployControllerBizImpl_HandleRolling(t *testing.T) {
 		assert.True(t, errors.Is(err, ErrRequeue))
 	})
 }
+
+func TestDeployControllerBizImpl_HandleManualMode(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
+	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
+	mockCli := NewMockK8sClient(mockCtrl)
+	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	mc := v1beta1.Milvus{}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	t.Run("get querynode deploy failed", func(t *testing.T) {
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, nil, errMock)
+		err := bizImpl.HandleManualMode(ctx, mc)
+		assert.Error(t, err)
+	})
+
+	t.Run("deploy not found failed", func(t *testing.T) {
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, nil, nil)
+		err := bizImpl.HandleManualMode(ctx, mc)
+		assert.Error(t, err)
+	})
+
+	deploy := &appsv1.Deployment{}
+	t.Run("no rolling, renew deploy annotation, update requeue", func(t *testing.T) {
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(deploy, nil, nil)
+		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(mc, gomock.Any(), QueryNode).Return(nil)
+		mockUtil.EXPECT().IsNewRollout(ctx, deploy, nil).Return(false)
+		mockUtil.EXPECT().RenewDeployAnnotation(ctx, mc, deploy).Return(true)
+		mockUtil.EXPECT().UpdateAndRequeue(ctx, deploy).Return(ErrRequeue)
+		err := bizImpl.HandleManualMode(ctx, mc)
+		assert.Error(t, err)
+		assert.Equal(t, ErrRequeue, err)
+	})
+
+}
