@@ -60,7 +60,7 @@ type EtcdEndPointHealth struct {
 // MilvusStatusSyncerInterface abstracts MilvusStatusSyncer
 type MilvusStatusSyncerInterface interface {
 	RunIfNot()
-	UpdateStatusForNewGeneration(ctx context.Context, mc *v1beta1.Milvus) error
+	UpdateStatusForNewGeneration(ctx context.Context, mc *v1beta1.Milvus, checkDependency bool) error
 }
 
 type MilvusStatusSyncer struct {
@@ -218,7 +218,7 @@ func (r *MilvusStatusSyncer) UpdateStatusRoutine(ctx context.Context, mc *v1beta
 	// so we call default again to ensure
 	mc.Default()
 
-	err := r.UpdateStatusForNewGeneration(ctx, mc)
+	err := r.UpdateStatusForNewGeneration(ctx, mc, true)
 	return errors.Wrapf(err, "UpdateStatus for milvus[%s/%s]", mc.Namespace, mc.Name)
 }
 
@@ -252,29 +252,20 @@ func (r *MilvusStatusSyncer) checkDependencyConditions(ctx context.Context, mc *
 	return nil
 }
 
-func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, mc *v1beta1.Milvus) error {
+// UpdateStatusForNewGeneration updates the status of the Milvus CR. if given checkDependency = true, it will check the dependency conditions
+func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, mc *v1beta1.Milvus, checkDependency bool) error {
 	beginStatus := mc.Status.DeepCopy()
 	mc.Status.ObservedGeneration = mc.Generation
 
-	if !Debug {
+	if Debug {
+		checkDependency = false
+	}
+
+	if checkDependency {
 		err := r.checkDependencyConditions(ctx, mc)
 		if err != nil {
 			return errors.Wrap(err, "check dependency conditions failed")
 		}
-	} else {
-		// debug mode, set dependency conditions to true
-		UpdateCondition(&mc.Status, v1beta1.MilvusCondition{
-			Type:   v1beta1.EtcdReady,
-			Status: corev1.ConditionTrue,
-		})
-		UpdateCondition(&mc.Status, v1beta1.MilvusCondition{
-			Type:   v1beta1.StorageReady,
-			Status: corev1.ConditionTrue,
-		})
-		UpdateCondition(&mc.Status, v1beta1.MilvusCondition{
-			Type:   v1beta1.MsgStreamReady,
-			Status: corev1.ConditionTrue,
-		})
 	}
 
 	err := r.UpdateIngressStatus(ctx, mc)

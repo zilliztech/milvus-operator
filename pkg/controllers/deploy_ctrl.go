@@ -200,7 +200,7 @@ func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Mil
 	if mc.Spec.IsStopping() {
 		return false, nil
 	}
-	err := c.statusSyncer.UpdateStatusForNewGeneration(ctx, &mc)
+	err := c.statusSyncer.UpdateStatusForNewGeneration(ctx, &mc, false)
 	if err != nil {
 		return false, errors.Wrap(err, "update status for new generation")
 	}
