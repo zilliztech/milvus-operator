@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/util"
@@ -37,6 +38,8 @@ type DeployControllerBizUtil interface {
 	ScaleDeployments(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error
 	// PrepareNewRollout prepare a new rollout, it assumes currentDeployment not nil
 	PrepareNewRollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) error
+	// RenewDeployAnnotation check annotation, renew if necessary, returns true if annotation is updated
+	RenewDeployAnnotation(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment) bool
 
 	K8sUtil
 }
@@ -525,6 +528,7 @@ func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc 
 	logger.Info("prepare new rollout stage 1: updateDeployTemplate", "deployGroupId", currentGroupIdStr, "podTemplateDiff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
 	currentDeployment.Spec.Template = *podTemplate
 	labelHelper.SetGroupIDStr(c.component.Name, currentDeployment.Spec.Template.Labels, currentGroupIdStr)
+	c.RenewDeployAnnotation(ctx, mc, currentDeployment)
 	err := c.cli.Update(ctx, currentDeployment)
 	if err != nil {
 		return errors.Wrap(err, "updateDeployTemplate failed")
@@ -533,4 +537,18 @@ func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc 
 	labelHelper.SetCurrentGroupIDStr(&mc, c.component.Name, currentGroupIdStr)
 	labelHelper.SetComponentRolling(&mc, c.component.Name, true)
 	return c.UpdateAndRequeue(ctx, &mc)
+}
+
+// RenewDeployAnnotation returns true if annotation is updated
+func (c *DeployControllerBizUtilImpl) RenewDeployAnnotation(ctx context.Context, mc v1beta1.Milvus, currentDeploy *appsv1.Deployment) bool {
+	if currentDeploy.Annotations == nil {
+		currentDeploy.Annotations = map[string]string{}
+	}
+	currentGen := currentDeploy.Annotations[AnnotationMilvusGeneration]
+	expectedGen := strconv.FormatInt(mc.GetGeneration(), 10)
+	if currentGen == expectedGen {
+		return false
+	}
+	currentDeploy.Annotations[AnnotationMilvusGeneration] = expectedGen
+	return true
 }

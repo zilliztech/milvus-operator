@@ -24,11 +24,12 @@ const (
 	MilvusOriginalConfigPath = MilvusConfigRootPath + "/milvus.yaml"
 	MilvusConfigmapMountPath = MilvusConfigRootPath + "/operator"
 
-	UserYaml           = "user.yaml"
-	HookYaml           = "hook.yaml"
-	AccessKey          = "accesskey"
-	SecretKey          = "secretkey"
-	AnnotationCheckSum = "checksum/config"
+	UserYaml                   = "user.yaml"
+	HookYaml                   = "hook.yaml"
+	AccessKey                  = "accesskey"
+	SecretKey                  = "secretkey"
+	AnnotationCheckSum         = "checksum/config"
+	AnnotationMilvusGeneration = v1beta1.AnnotationMilvusGeneration
 
 	ToolsVolumeName = "tools"
 	ToolsMountPath  = "/milvus/tools"

@@ -329,5 +329,8 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
 		return c.util.PrepareNewRollout(ctx, mc, currentDeploy, podTemplate)
 	}
+	if c.util.RenewDeployAnnotation(ctx, mc, currentDeploy) {
+		return c.util.UpdateAndRequeue(ctx, currentDeploy)
+	}
 	return nil
 }
