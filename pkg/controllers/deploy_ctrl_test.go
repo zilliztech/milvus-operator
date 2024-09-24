@@ -247,20 +247,20 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	})
 
 	t.Run("update status failed", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc).Return(errMock)
+		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(errMock)
 		_, err := bizImpl.IsUpdating(ctx, mc)
 		assert.Error(t, err)
 	})
 
 	t.Run("milvus condition not exist, sugguests updating", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc).Return(nil)
+		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(nil)
 		ret, err := bizImpl.IsUpdating(ctx, mc)
 		assert.NoError(t, err)
 		assert.True(t, ret)
 	})
 
 	t.Run("milvus condition shows updating", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc).Return(nil)
+		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(nil)
 		mc.Status.Conditions = []v1beta1.MilvusCondition{
 			{
 				Type:   v1beta1.MilvusUpdated,
@@ -280,14 +280,14 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	}
 
 	t.Run("get old deploy failed", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc).Return(nil)
+		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(nil)
 		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(nil, errMock)
 		_, err := bizImpl.IsUpdating(ctx, mc)
 		assert.Error(t, err)
 	})
 
 	t.Run("is new rollout, so updating", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc).Return(nil)
+		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(nil)
 		deploy := appsv1.Deployment{}
 
 		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(&deploy, nil)
@@ -300,7 +300,7 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	})
 
 	t.Run("not updating", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc).Return(nil)
+		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(nil)
 		deploy := appsv1.Deployment{}
 
 		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(&deploy, nil)

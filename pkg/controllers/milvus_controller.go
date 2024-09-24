@@ -188,7 +188,8 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	if err := r.statusSyncer.UpdateStatusForNewGeneration(ctx, milvus); err != nil {
+	// not check dependency, to avoid blocking too long
+	if err := r.statusSyncer.UpdateStatusForNewGeneration(ctx, milvus, false); err != nil {
 		return ctrl.Result{}, err
 	}
 	// metrics
