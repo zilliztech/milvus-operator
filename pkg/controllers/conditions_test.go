@@ -72,7 +72,7 @@ func TestWrapGetters(t *testing.T) {
 		fn()
 	})
 	t.Run("etcd", func(t *testing.T) {
-		fn := wrapEtcdConditionGetter(ctx, []string{})
+		fn := wrapEtcdConditionGetter(ctx, &v1beta1.Milvus{}, []string{})
 		fn()
 	})
 	t.Run("minio", func(t *testing.T) {
@@ -202,7 +202,7 @@ func TestGetEtcdCondition(t *testing.T) {
 	errTest := errors.New("test")
 
 	// no endpoint
-	ret := GetEtcdCondition(ctx, []string{})
+	ret := GetEtcdCondition(ctx, EtcdAuthConfig{}, []string{})
 	assert.Equal(t, corev1.ConditionFalse, ret.Status)
 	assert.Equal(t, v1beta1.ReasonEtcdNotReady, ret.Reason)
 
@@ -210,7 +210,7 @@ func TestGetEtcdCondition(t *testing.T) {
 	t.Run("new client failed", func(t *testing.T) {
 		stubs := gostub.Stub(&etcdNewClient, getMockNewEtcdClient(nil, errTest))
 		defer stubs.Reset()
-		ret = GetEtcdCondition(ctx, []string{"etcd:2379"})
+		ret = GetEtcdCondition(ctx, EtcdAuthConfig{}, []string{"etcd:2379"})
 		assert.Equal(t, corev1.ConditionFalse, ret.Status)
 		assert.Equal(t, v1beta1.ReasonEtcdNotReady, ret.Reason)
 	})
@@ -221,7 +221,7 @@ func TestGetEtcdCondition(t *testing.T) {
 	defer stubs.Reset()
 	mockEtcdCli.EXPECT().Get(gomock.Any(), etcdHealthKey, gomock.Any()).Return(nil, errTest).AnyTimes()
 	mockEtcdCli.EXPECT().Close().AnyTimes()
-	ret = GetEtcdCondition(ctx, []string{"etcd:2379"})
+	ret = GetEtcdCondition(ctx, EtcdAuthConfig{}, []string{"etcd:2379"})
 	assert.Equal(t, corev1.ConditionFalse, ret.Status)
 	assert.Equal(t, v1beta1.ReasonEtcdNotReady, ret.Reason)
 
@@ -229,7 +229,7 @@ func TestGetEtcdCondition(t *testing.T) {
 	mockEtcdCli.EXPECT().Get(gomock.Any(), etcdHealthKey, gomock.Any()).Return(nil, rpctypes.ErrPermissionDenied).AnyTimes()
 	mockEtcdCli.EXPECT().AlarmList(gomock.Any()).Return(nil, errTest).AnyTimes()
 	mockEtcdCli.EXPECT().Close().AnyTimes()
-	ret = GetEtcdCondition(ctx, []string{"etcd:2379"})
+	ret = GetEtcdCondition(ctx, EtcdAuthConfig{}, []string{"etcd:2379"})
 	assert.Equal(t, corev1.ConditionFalse, ret.Status)
 	assert.Equal(t, v1beta1.ReasonEtcdNotReady, ret.Reason)
 
@@ -241,7 +241,7 @@ func TestGetEtcdCondition(t *testing.T) {
 		},
 	}, nil).AnyTimes()
 	mockEtcdCli.EXPECT().Close().AnyTimes()
-	ret = GetEtcdCondition(ctx, []string{"etcd:2379"})
+	ret = GetEtcdCondition(ctx, EtcdAuthConfig{}, []string{"etcd:2379"})
 	assert.Equal(t, corev1.ConditionFalse, ret.Status)
 	assert.Equal(t, v1beta1.ReasonEtcdNotReady, ret.Reason)
 

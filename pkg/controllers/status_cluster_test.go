@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/go-logr/logr"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/prashantv/gostub"
@@ -436,14 +435,6 @@ func (m *mockEndpointCheckCache) EndProbeFor(endpoint []string) {}
 
 func mockConditionGetter() v1beta1.MilvusCondition {
 	return v1beta1.MilvusCondition{Reason: "update"}
-}
-
-func TestWrapGetter(t *testing.T) {
-	var getter func() v1beta1.MilvusCondition
-	getter = wrapEtcdConditionGetter(nil, []string{})
-	assert.NotNil(t, getter)
-	getter = wrapMinioConditionGetter(nil, logr.Logger{}, nil, StorageConditionInfo{})
-	assert.NotNil(t, getter)
 }
 
 func Test_updateMetrics(t *testing.T) {

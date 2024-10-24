@@ -49,8 +49,20 @@ var (
 	wrapKafkaConditonGetter = func(ctx context.Context, logger logr.Logger, p v1beta1.MilvusKafka, cfg external.CheckKafkaConfig) func() v1beta1.MilvusCondition {
 		return func() v1beta1.MilvusCondition { return GetKafkaCondition(ctx, logger, p, cfg) }
 	}
-	wrapEtcdConditionGetter = func(ctx context.Context, endpoints []string) func() v1beta1.MilvusCondition {
-		return func() v1beta1.MilvusCondition { return GetEtcdCondition(ctx, endpoints) }
+	wrapEtcdConditionGetter = func(ctx context.Context, m *v1beta1.Milvus, endpoints []string) func() v1beta1.MilvusCondition {
+		sslEnabled, _ := util.GetBoolValue(m.Spec.Conf.Data, "etcd", "ssl", "enabled")
+		if sslEnabled {
+			return external.NewTCPDialConditionGetter(v1beta1.EtcdReady, endpoints).GetCondition
+		}
+		authEnabled, _ := util.GetBoolValue(m.Spec.Conf.Data, "etcd", "auth", "enabled")
+		userName, _ := util.GetStringValue(m.Spec.Conf.Data, "etcd", "auth", "userName")
+		password, _ := util.GetStringValue(m.Spec.Conf.Data, "etcd", "auth", "password")
+		authCfg := EtcdAuthConfig{
+			Enabled:  authEnabled,
+			Username: userName,
+			Password: password,
+		}
+		return func() v1beta1.MilvusCondition { return GetEtcdCondition(ctx, authCfg, endpoints) }
 	}
 	wrapMinioConditionGetter = func(ctx context.Context, logger logr.Logger, cli client.Client, info StorageConditionInfo) func() v1beta1.MilvusCondition {
 		return func() v1beta1.MilvusCondition { return GetMinioCondition(ctx, logger, cli, info) }
@@ -140,8 +152,8 @@ type EtcdConditionInfo struct {
 	Endpoints []string
 }
 
-func GetEtcdCondition(ctx context.Context, endpoints []string) v1beta1.MilvusCondition {
-	health := GetEndpointsHealth(endpoints)
+func GetEtcdCondition(ctx context.Context, authCfg EtcdAuthConfig, endpoints []string) v1beta1.MilvusCondition {
+	health := GetEndpointsHealth(authCfg, endpoints)
 	etcdReady := false
 	var msg string
 	for _, ep := range endpoints {
@@ -174,19 +186,29 @@ var etcdNewClient NewEtcdClientFunc = func(cfg clientv3.Config) (EtcdClient, err
 
 const etcdHealthKey = "health"
 
-func GetEndpointsHealth(endpoints []string) map[string]EtcdEndPointHealth {
+type EtcdAuthConfig struct {
+	Enabled  bool
+	Username string
+	Password string
+}
+
+func GetEndpointsHealth(authConfig EtcdAuthConfig, endpoints []string) map[string]EtcdEndPointHealth {
 	hch := make(chan EtcdEndPointHealth, len(endpoints))
 	var wg sync.WaitGroup
 	for _, ep := range endpoints {
 		wg.Add(1)
 		go func(ep string) {
 			defer wg.Done()
-
+			cliCfg := clientv3.Config{
+				Endpoints:   []string{ep},
+				DialTimeout: 5 * time.Second,
+			}
+			if authConfig.Enabled {
+				cliCfg.Username = authConfig.Username
+				cliCfg.Password = authConfig.Password
+			}
 			var checkEtcd = func() error {
-				cli, err := etcdNewClient(clientv3.Config{
-					Endpoints:   []string{ep},
-					DialTimeout: 5 * time.Second,
-				})
+				cli, err := etcdNewClient(cliCfg)
 				if err != nil {
 					return errors.Wrap(err, "failed to create etcd client")
 				}
