@@ -440,8 +440,6 @@ func mockConditionGetter() v1beta1.MilvusCondition {
 
 func TestWrapGetter(t *testing.T) {
 	var getter func() v1beta1.MilvusCondition
-	getter = wrapPulsarConditonGetter(nil, logr.Logger{}, v1beta1.MilvusPulsar{})
-	assert.NotNil(t, getter)
 	getter = wrapEtcdConditionGetter(nil, []string{})
 	assert.NotNil(t, getter)
 	getter = wrapMinioConditionGetter(nil, logr.Logger{}, nil, StorageConditionInfo{})

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/external"
 	"github.com/prashantv/gostub"
@@ -72,10 +71,6 @@ func TestWrapGetters(t *testing.T) {
 		fn := wrapKafkaConditonGetter(ctx, logger, v1beta1.MilvusKafka{}, external.CheckKafkaConfig{})
 		fn()
 	})
-	t.Run("pulsar", func(t *testing.T) {
-		fn := wrapPulsarConditonGetter(ctx, logger, v1beta1.MilvusPulsar{})
-		fn()
-	})
 	t.Run("etcd", func(t *testing.T) {
 		fn := wrapEtcdConditionGetter(ctx, []string{})
 		fn()
@@ -89,12 +84,6 @@ func TestWrapGetters(t *testing.T) {
 	})
 }
 
-func getMockPulsarNewClient(cli pulsar.Client, err error) func(options pulsar.ClientOptions) (pulsar.Client, error) {
-	return func(options pulsar.ClientOptions) (pulsar.Client, error) {
-		return cli, err
-	}
-}
-
 func TestGetKafkaCondition(t *testing.T) {
 	checkKafka = func(external.CheckKafkaConfig) error { return nil }
 	ret := GetKafkaCondition(context.TODO(), logf.Log.WithName("test"), v1beta1.MilvusKafka{}, external.CheckKafkaConfig{})
@@ -103,51 +92,6 @@ func TestGetKafkaCondition(t *testing.T) {
 	checkKafka = func(external.CheckKafkaConfig) error { return errors.New("failed") }
 	ret = GetKafkaCondition(context.TODO(), logf.Log.WithName("test"), v1beta1.MilvusKafka{}, external.CheckKafkaConfig{})
 	assert.Equal(t, corev1.ConditionFalse, ret.Status)
-}
-
-func TestGetPulsarCondition(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.TODO()
-	logger := logf.Log.WithName("test")
-	mockPulsarNewClient := NewMockPulsarClient(ctrl)
-	errTest := errors.New("test")
-
-	t.Run("new client failed, no err", func(t *testing.T) {
-		stubs := gostub.Stub(&pulsarNewClient, getMockPulsarNewClient(mockPulsarNewClient, errTest))
-		defer stubs.Reset()
-		ret := GetPulsarCondition(ctx, logger, v1beta1.MilvusPulsar{})
-		assert.Equal(t, corev1.ConditionFalse, ret.Status)
-		assert.Equal(t, v1beta1.ReasonMsgStreamNotReady, ret.Reason)
-	})
-
-	t.Run("new client ok, create read failed, no err", func(t *testing.T) {
-		stubs := gostub.Stub(&pulsarNewClient, getMockPulsarNewClient(mockPulsarNewClient, nil))
-		defer stubs.Reset()
-		gomock.InOrder(
-			mockPulsarNewClient.EXPECT().CreateReader(gomock.Any()).Return(nil, errTest),
-			mockPulsarNewClient.EXPECT().Close(),
-		)
-		ret := GetPulsarCondition(ctx, logger, v1beta1.MilvusPulsar{})
-		assert.Equal(t, corev1.ConditionFalse, ret.Status)
-		assert.Equal(t, v1beta1.ReasonMsgStreamNotReady, ret.Reason)
-	})
-
-	t.Run("new client ok, create read ok, no err", func(t *testing.T) {
-		stubs := gostub.Stub(&pulsarNewClient, getMockPulsarNewClient(mockPulsarNewClient, nil))
-		defer stubs.Reset()
-		mockReader := NewMockPulsarReader(ctrl)
-		gomock.InOrder(
-			mockPulsarNewClient.EXPECT().CreateReader(gomock.Any()).Return(mockReader, nil),
-			mockReader.EXPECT().Close(),
-			mockPulsarNewClient.EXPECT().Close(),
-		)
-		ret := GetPulsarCondition(ctx, logger, v1beta1.MilvusPulsar{})
-		assert.Equal(t, corev1.ConditionTrue, ret.Status)
-		assert.Equal(t, v1beta1.ReasonMsgStreamReady, ret.Reason)
-	})
-
 }
 
 func getMockCheckMinIOFunc(err error) checkMinIOFunc {

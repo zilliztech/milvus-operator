@@ -49,9 +49,6 @@ var (
 	wrapKafkaConditonGetter = func(ctx context.Context, logger logr.Logger, p v1beta1.MilvusKafka, cfg external.CheckKafkaConfig) func() v1beta1.MilvusCondition {
 		return func() v1beta1.MilvusCondition { return GetKafkaCondition(ctx, logger, p, cfg) }
 	}
-	wrapPulsarConditonGetter = func(ctx context.Context, logger logr.Logger, p v1beta1.MilvusPulsar) func() v1beta1.MilvusCondition {
-		return func() v1beta1.MilvusCondition { return GetPulsarCondition(ctx, logger, p) }
-	}
 	wrapEtcdConditionGetter = func(ctx context.Context, endpoints []string) func() v1beta1.MilvusCondition {
 		return func() v1beta1.MilvusCondition { return GetEtcdCondition(ctx, endpoints) }
 	}
@@ -60,38 +57,7 @@ var (
 	}
 )
 
-func GetPulsarCondition(ctx context.Context, logger logr.Logger, p v1beta1.MilvusPulsar) v1beta1.MilvusCondition {
-
-	client, err := pulsarNewClient(pulsar.ClientOptions{
-		URL:               "pulsar://" + p.Endpoint,
-		ConnectionTimeout: 2 * time.Second,
-		OperationTimeout:  3 * time.Second,
-		Logger:            newPulsarLog(logger),
-	})
-
-	if err != nil {
-		return newErrMsgStreamCondResult(v1beta1.ReasonMsgStreamNotReady, err.Error())
-	}
-	defer client.Close()
-
-	reader, err := client.CreateReader(pulsar.ReaderOptions{
-		Topic:          "milvus-operator-topic",
-		StartMessageID: pulsar.EarliestMessageID(),
-	})
-	if err != nil {
-		return newErrMsgStreamCondResult(v1beta1.ReasonMsgStreamNotReady, err.Error())
-	}
-	defer reader.Close()
-
-	return msgStreamReadyCondition
-}
-
-var msgStreamReadyCondition = v1beta1.MilvusCondition{
-	Type:    v1beta1.MsgStreamReady,
-	Status:  GetConditionStatus(true),
-	Reason:  v1beta1.ReasonMsgStreamReady,
-	Message: MessageMsgStreamReady,
-}
+var msgStreamReadyCondition = external.MQReadyCondition
 
 var checkKafka = external.CheckKafka
 
