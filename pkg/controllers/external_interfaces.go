@@ -3,8 +3,6 @@ package controllers
 import (
 	"context"
 
-	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/go-logr/logr"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -19,30 +17,6 @@ type K8sClient interface {
 // K8sStatusClient for mock K8sClient.Status()
 type K8sStatusClient interface {
 	client.SubResourceWriter
-}
-
-// Logger for mock
-type Logger interface {
-	Enabled() bool
-	Error(err error, msg string, keysAndValues ...interface{})
-	GetSink() logr.LogSink
-	Info(msg string, keysAndValues ...interface{})
-	V(level int) logr.Logger
-	WithCallDepth(depth int) logr.Logger
-	WithCallStackHelper() (func(), logr.Logger)
-	WithName(name string) logr.Logger
-	WithSink(sink logr.LogSink) logr.Logger
-	WithValues(keysAndValues ...interface{}) logr.Logger
-}
-
-// PulsarClient for mock
-type PulsarClient interface {
-	pulsar.Client
-}
-
-// PulsarReader for mock
-type PulsarReader interface {
-	pulsar.Reader
 }
 
 // EtcdClient for mock

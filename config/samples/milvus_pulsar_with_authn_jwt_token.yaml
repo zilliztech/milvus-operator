@@ -1,0 +1,70 @@
+# This is an example of Milvus deployment with Pulsar with token authentication.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-release-pulsar-token-symmetric-key
+type: Opaque
+stringData:
+  # the root SECRETKEY used for signing jwt token for users
+  SECRETKEY: my-pulsar-secret-key-example-change-it-to-your-own!!
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-release-pulsar-token-milvus
+type: Opaque
+stringData:
+  # signed to user: milvus with SECRETKEY
+  TOKEN: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJtaWx2dXMifQ.2ciEzP9-vuwO6oI-4WfnYA1UqI5oXz7uOLJpOBrrhYo
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-release-pulsar-token-pulsar-proxy
+type: Opaque
+stringData:
+  # signed to user: pulsar-proxy with SECRETKEY
+  TOKEN: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJwdWxzYXItcHJveHkifQ.OgKpFomaZVIoMFl2GmgYED48RaDcFzhqe5Td_v8JNhU
+---
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  config:
+    pulsar:
+      authPlugin: token
+      authParams: file:/milvus/pulsar/token
+  component:
+    volumes:
+      - name: pulsar-token
+        secret:
+          secretName: my-release-pulsar-token-milvus
+          items:
+            - key: TOKEN
+              path: token
+    volumeMounts:
+      - name: pulsar-token
+        mountPath: /milvus/pulsar
+  dependencies:
+    msgStreamType: pulsar
+    pulsar:
+      inCluster:
+        values:
+          auth:
+            authentication:
+              enabled: true
+              provider: "jwt"
+              jwt:
+                usingSecretKey: true
+            authorization:
+              enabled: true
+            superUsers:
+              # broker to broker communication
+              broker: "milvus"
+              # proxy to broker communication
+              proxy: "pulsar-proxy"
+              # pulsar-admin client to broker/proxy communication
+              client: ""

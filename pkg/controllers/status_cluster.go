@@ -461,7 +461,7 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 		eps = mc.Spec.Dep.Kafka.BrokerList
 	default:
 		// default pulsar
-		getter = wrapPulsarConditonGetter(ctx, r.logger, mc.Spec.Dep.Pulsar)
+		getter = external.NewPulsarConditionGetter(&mc).GetCondition
 		eps = []string{mc.Spec.Dep.Pulsar.Endpoint}
 	}
 	return GetCondition(getter, eps), nil
