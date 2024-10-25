@@ -360,10 +360,9 @@ func (r *Milvus) defaultEtcd() {
 		if r.Spec.Dep.Etcd.InCluster.Values.Data == nil {
 			r.Spec.Dep.Etcd.InCluster.Values.Data = map[string]interface{}{}
 		}
-		etcdReplicaCountRaw, etcdReplicaCountExists := r.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"]
-		etcdReplicaCountInt64, etcdReplicaCountValid := etcdReplicaCountRaw.(int64)
+		etcdReplicaCountNumber, etcdReplicaCountValid := util.GetNumberValue(r.Spec.Dep.Etcd.InCluster.Values.Data, "replicaCount")
 		var etcdReplicaCount int
-		if !etcdReplicaCountExists || !etcdReplicaCountValid {
+		if !etcdReplicaCountValid {
 			if r.Spec.Mode == MilvusModeStandalone {
 				etcdReplicaCount = 1
 			} else {
@@ -371,7 +370,7 @@ func (r *Milvus) defaultEtcd() {
 			}
 			r.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"] = int64(etcdReplicaCount)
 		} else {
-			etcdReplicaCount = int(etcdReplicaCountInt64)
+			etcdReplicaCount = int(etcdReplicaCountNumber)
 		}
 		if len(r.Spec.Dep.Etcd.Endpoints) == 0 &&
 			etcdReplicaCount > 0 {

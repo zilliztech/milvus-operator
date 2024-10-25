@@ -12,6 +12,22 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+func TestGetNumberValue(t *testing.T) {
+	vals := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": int64(1),
+			"c": float64(2.2),
+		},
+	}
+
+	ret, exist := GetNumberValue(vals, "a", "b")
+	assert.True(t, exist)
+	assert.Equal(t, float64(1), ret)
+	ret, exist = GetNumberValue(vals, "a", "c")
+	assert.True(t, exist)
+	assert.Equal(t, float64(2.2), ret)
+}
+
 func TestGetStringValue(t *testing.T) {
 	vals := map[string]interface{}{
 		"a": map[string]interface{}{
