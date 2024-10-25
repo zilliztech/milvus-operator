@@ -485,7 +485,7 @@ func (r *MilvusStatusSyncer) GetMinioCondition(
 }
 
 func (r *MilvusStatusSyncer) GetEtcdCondition(ctx context.Context, mc v1beta1.Milvus) (v1beta1.MilvusCondition, error) {
-	getter := wrapEtcdConditionGetter(ctx, mc.Spec.Dep.Etcd.Endpoints)
+	getter := wrapEtcdConditionGetter(ctx, &mc, mc.Spec.Dep.Etcd.Endpoints)
 	return GetCondition(getter, mc.Spec.Dep.Etcd.Endpoints), nil
 }
 

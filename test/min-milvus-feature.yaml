@@ -66,6 +66,10 @@ spec:
         pvcDeletion: true
         values:
           replicaCount: 1
+          auth:
+            rbac:
+              enabled: true
+              rootPassword: myrootpass
     storage:
       inCluster:
         deletionPolicy: Delete
@@ -186,3 +190,8 @@ spec:
     pulsar:
       authPlugin: token
       authParams: file:/milvus/pulsar/token
+    etcd:
+      auth:
+        enabled: true
+        userName: root
+        password: myrootpass

@@ -1,0 +1,24 @@
+# This is a sample to enable etcd auth for milvus
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  dependencies:
+    etcd:
+      inCluster:
+        values:
+          replicaCount: 1
+          auth:
+            rbac:
+              enabled: true
+              rootPassword: myrootpass
+  components: {}
+  config:
+    etcd:
+      auth:
+        enabled: true
+        userName: root
+        password: myrootpass
