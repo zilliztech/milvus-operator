@@ -221,7 +221,7 @@ func TestDeployControllerBizUtilImpl_GetDeploys(t *testing.T) {
 
 }
 
-func TestDeployControllerBizUtilImpl_CreateDataNodeDeploy(t *testing.T) {
+func TestDeployControllerBizUtilImpl_CreateDeploy(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
@@ -256,6 +256,18 @@ func TestDeployControllerBizUtilImpl_CreateDataNodeDeploy(t *testing.T) {
 		mockcli.EXPECT().Scheme().Return(scheme).Times(3)
 		mockcli.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).Return(nil)
 		err := bizUtil.CreateDeploy(ctx, mc, nil, 0)
+		assert.NoError(t, err)
+	})
+
+	t.Run("groupId=1, image set to dummy", func(t *testing.T) {
+		mockcli.EXPECT().Scheme().Return(scheme).Times(3)
+		mockcli.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).
+			DoAndReturn(func(ctx context.Context, obj client.Object, opt ...client.Options) error {
+				deploy := obj.(*appsv1.Deployment)
+				assert.Equal(t, "dummy", deploy.Spec.Template.Spec.Containers[0].Image)
+				return nil
+			})
+		err := bizUtil.CreateDeploy(ctx, mc, nil, 1)
 		assert.NoError(t, err)
 	})
 }

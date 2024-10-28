@@ -28,7 +28,7 @@ type DeployControllerBizUtil interface {
 	// - return ErrNoCurrentDeployment when no current deployment found
 	// - return ErrNoLastDeployment when no last deployment found
 	GetDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error)
-	// CreateDeploy with replica = 0
+	// CreateDeploy with replica = 0, if groupId != 0, set image to dummy to avoid rolling back and forth
 	CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error
 
 	ShouldRollback(ctx context.Context, currentDeploy, lastDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
@@ -165,6 +165,10 @@ func formatComponentDeployName(mc v1beta1.Milvus, component MilvusComponent, gro
 func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error {
 	if podTemplate == nil {
 		podTemplate = c.RenderPodTemplateWithoutGroupID(mc, nil, c.component)
+		if groupId != 0 {
+			// is not the first deploy, set image to dummy to avoid rolling back and forth
+			podTemplate.Spec.Containers[0].Image = "dummy"
+		}
 	}
 
 	deploy := new(appsv1.Deployment)
