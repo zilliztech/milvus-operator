@@ -65,7 +65,7 @@ spec:
         deletionPolicy: Delete
         pvcDeletion: true
         values:
-          replicaCount: 1
+          replicaCount: 3
           auth:
             rbac:
               enabled: true

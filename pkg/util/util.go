@@ -21,6 +21,21 @@ import (
 
 const MqTypeConfigKey = "messageQueue"
 
+// GetNumberValue supports int64 / float64 in values return as float64
+// see https://datatracker.ietf.org/doc/html/rfc8259#section-6
+func GetNumberValue(values map[string]interface{}, fields ...string) (float64, bool) {
+	val, found, err := unstructured.NestedInt64(values, fields...)
+	if err == nil && found {
+		return float64(val), true
+	}
+
+	fval, found, err := unstructured.NestedFloat64(values, fields...)
+	if err == nil && found {
+		return fval, true
+	}
+	return 0, false
+}
+
 func GetBoolValue(values map[string]interface{}, fields ...string) (bool, bool) {
 	val, found, err := unstructured.NestedBool(values, fields...)
 	if err != nil || !found {
