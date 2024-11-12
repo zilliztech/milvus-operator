@@ -12,7 +12,7 @@ metadata:
 spec:
   mode: cluster
   config: {}
-  components: 
+  components:
     enableRollingUpdate: true
     imageUpdateMode: rollingUpgrade
     proxy:
@@ -41,7 +41,7 @@ spec:
             requests:
               memory: 100Mi
           persistence:
-              size: 20Gi
+            size: 20Gi
         deletionPolicy: Delete
         pvcDeletion: true
     msgStreamType: kafka

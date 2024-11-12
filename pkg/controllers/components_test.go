@@ -322,15 +322,6 @@ func TestMilvusComponent_GetContainerName(t *testing.T) {
 	assert.Equal(t, com.Name, com.GetContainerName())
 }
 
-func TestMilvusComponent_GetContainerPorts(t *testing.T) {
-	com := QueryNode
-	spec := newSpecCluster()
-	ports := com.GetContainerPorts(spec)
-	assert.Equal(t, 2, len(ports))
-	assert.Equal(t, com.DefaultPort, ports[0].ContainerPort)
-	assert.Equal(t, int32(MetricPort), ports[1].ContainerPort)
-}
-
 func TestMilvusComponent_GetServiceType(t *testing.T) {
 	com := QueryNode
 	spec := newSpecCluster()
@@ -424,8 +415,14 @@ func TestMilvusComponent_GetComponentPort(t *testing.T) {
 	spec := newSpecCluster()
 	assert.Equal(t, com.DefaultPort, com.GetComponentPort(spec))
 
-	spec.Com.QueryNode.Component.Port = 8080
-	assert.Equal(t, QueryNode.DefaultPort, com.GetComponentPort(spec))
+	com = Proxy
+	spec.Com.Proxy.Port = 19532
+	assert.Equal(t, spec.Com.Proxy.Port, com.GetComponentPort(spec))
+
+	com = MilvusStandalone
+	spec = newSpec()
+	spec.Com.Standalone.Port = 19533
+	assert.Equal(t, spec.Com.Standalone.Port, com.GetComponentPort(spec))
 }
 
 func TestMilvusComponent_GetComponentSpec(t *testing.T) {

@@ -52,7 +52,6 @@ func (r *MilvusSpec) ConvertSpecTo(dst *v1beta1.MilvusSpec) {
 				Component: v1beta1.Component{
 					ComponentSpec: r.ComponentSpec,
 					Replicas:      r.Replicas,
-					Port:          19530,
 				},
 				ServiceType:        r.ServiceType,
 				ServiceLabels:      r.ServiceLabels,

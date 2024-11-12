@@ -12,23 +12,23 @@ metadata:
   labels:
     app: milvus
 spec:
-  mode: "cluster"
+  mode: 'cluster'
   components:
     rollingMode: 3
     runWithSubProcess: true
     runAsNonRoot: true
     proxy:
       ingress:
-        hosts: ["mc-sit.milvus.io"]
+        hosts: ['mc-sit.milvus.io']
       replicas: 1
     mixCoord:
       replicas: 1
     volumes:
-    - emptyDir: {}
-      name: data
+      - emptyDir: {}
+        name: data
     volumeMounts:
-    - mountPath: /milvus/data
-      name: data
+      - mountPath: /milvus/data
+        name: data
   dependencies:
     etcd:
       inCluster:
@@ -67,3 +67,5 @@ spec:
     milvus:
       log:
         level: info
+    rootCoord:
+      port: 13000
