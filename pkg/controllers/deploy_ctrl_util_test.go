@@ -270,6 +270,19 @@ func TestDeployControllerBizUtilImpl_CreateDeploy(t *testing.T) {
 		err := bizUtil.CreateDeploy(ctx, mc, nil, 1)
 		assert.NoError(t, err)
 	})
+
+	t.Run("groupId=1, image set to spec.componenents.dummyImage", func(t *testing.T) {
+		mc.Spec.Com.DummyImage = "my-registry/my-dummy-image"
+		mockcli.EXPECT().Scheme().Return(scheme).Times(3)
+		mockcli.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).
+			DoAndReturn(func(ctx context.Context, obj client.Object, opt ...client.Options) error {
+				deploy := obj.(*appsv1.Deployment)
+				assert.Equal(t, mc.Spec.Com.DummyImage, deploy.Spec.Template.Spec.Containers[0].Image)
+				return nil
+			})
+		err := bizUtil.CreateDeploy(ctx, mc, nil, 1)
+		assert.NoError(t, err)
+	})
 }
 
 func TestDeployControllerBizUtilImpl_ShouldRollback(t *testing.T) {

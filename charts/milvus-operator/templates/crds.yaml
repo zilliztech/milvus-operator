@@ -1529,6 +1529,8 @@ spec:
                     type: boolean
                   dnsPolicy:
                     type: string
+                  dummyImage:
+                    type: string
                   enableManualMode:
                     type: boolean
                   enableRollingUpdate:
@@ -9155,6 +9157,8 @@ spec:
                   disableMetric:
                     type: boolean
                   dnsPolicy:
+                    type: string
+                  dummyImage:
                     type: string
                   enableManualMode:
                     type: boolean

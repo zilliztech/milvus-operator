@@ -156,6 +156,11 @@ type MilvusComponents struct {
 	// +kubebuilder:validation:Optional
 	ToolImage string `json:"toolImage,omitempty"`
 
+	// DummyImage specify dummy image to use when creating an alternative deploy for rolling update
+	// when rollingMode is v2 or v3
+	// +kubebuilder:validation:Optional
+	DummyImage string `json:"dummyImage,omitempty"`
+
 	// UpdateToolImage when milvus-operator upgraded, whether milvus should restart to update the tool image, too
 	// otherwise, the tool image will be updated when milvus deploy's podTemplate changed
 	// +kubebuilder:validation:Optional

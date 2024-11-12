@@ -17,6 +17,7 @@ spec:
     rollingMode: 3
     runWithSubProcess: true
     runAsNonRoot: true
+    dummyImage: 'my-registry/my-dummy-image'
     proxy:
       ingress:
         hosts: ['mc-sit.milvus.io']

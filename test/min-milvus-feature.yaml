@@ -42,13 +42,14 @@ metadata:
   labels:
     app: milvus
 spec:
-  mode: "standalone"
+  mode: 'standalone'
   components:
     rollingMode: 3
     runWithSubProcess: true
+    dummyImage: 'my-registry/my-dummy-image'
     standalone:
       ingress:
-        hosts: ["mc-sit.milvus.io"]
+        hosts: ['mc-sit.milvus.io']
     volumes:
       - name: pulsar-token
         secret:
@@ -91,18 +92,18 @@ spec:
           auth:
             authentication:
               enabled: true
-              provider: "jwt"
+              provider: 'jwt'
               jwt:
                 usingSecretKey: true
             authorization:
               enabled: true
             superUsers:
               # broker to broker communication
-              broker: "milvus"
+              broker: 'milvus'
               # proxy to broker communication
-              proxy: "pulsar-proxy"
+              proxy: 'pulsar-proxy'
               # pulsar-admin client to broker/proxy communication
-              client: ""
+              client: ''
           volumes:
             persistence: false
           components:
@@ -153,9 +154,9 @@ spec:
             configData:
               PULSAR_MEM: >
                 -Xms64m -Xmx4096m -XX:MaxDirectMemorySize=8192m
-              managedLedgerDefaultEnsembleSize: "1"
-              managedLedgerDefaultWriteQuorum: "1"
-              managedLedgerDefaultAckQuorum: "1"
+              managedLedgerDefaultEnsembleSize: '1'
+              managedLedgerDefaultWriteQuorum: '1'
+              managedLedgerDefaultAckQuorum: '1'
           proxy:
             replicaCount: 1
             autoscaling:
