@@ -875,11 +875,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -1440,11 +1435,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -2099,11 +2089,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -2664,11 +2649,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -3231,11 +3211,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -4418,11 +4393,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -4983,11 +4953,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -5581,11 +5546,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -8542,11 +8502,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -9107,11 +9062,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -9766,11 +9716,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -10331,11 +10276,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -10898,11 +10838,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -12085,11 +12020,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -12650,11 +12580,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:
@@ -13248,11 +13173,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      port:
-                        format: int32
-                        maximum: 65535
-                        minimum: 0
-                        type: integer
                       priorityClassName:
                         type: string
                       replicas:

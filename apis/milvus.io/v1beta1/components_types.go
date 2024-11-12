@@ -227,12 +227,6 @@ type Component struct {
 	// when replicas is -1, it means the replicas should be managed by HPA
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Minimum=0
-	// +kubebuilder:validation:Maximum=65535
-	// not used for now
-	Port int32 `json:"port,omitempty"`
-
 	// SideCars is same as []corev1.Container, we use a Values here to avoid the CRD become too large
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:pruning:PreserveUnknownFields
@@ -293,6 +287,12 @@ type ServiceComponent struct {
 	// +kubebuilder:validation:Enum={"ClusterIP", "NodePort", "LoadBalancer"}
 	// +kubebuilder:default="ClusterIP"
 	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
+
+	// Port of grpc service, if not set or <=0, default to 19530
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=65535
+	Port int32 `json:"port,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	ServiceRestfulPort int32 `json:"serviceRestfulPort,omitempty"`

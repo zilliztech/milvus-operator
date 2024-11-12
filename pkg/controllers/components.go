@@ -233,22 +233,6 @@ func (c MilvusComponent) GetPortName() string {
 	return c.Name
 }
 
-// GetContainerPorts returns the ports of the component container
-func (c MilvusComponent) GetContainerPorts(spec v1beta1.MilvusSpec) []corev1.ContainerPort {
-	return []corev1.ContainerPort{
-		{
-			Name:          c.GetPortName(),
-			ContainerPort: c.GetComponentPort(spec),
-			Protocol:      corev1.ProtocolTCP,
-		},
-		{
-			Name:          MetricPortName,
-			ContainerPort: MetricPort,
-			Protocol:      corev1.ProtocolTCP,
-		},
-	}
-}
-
 func (c MilvusComponent) IsService() bool {
 	return c == Proxy || c == MilvusStandalone
 }
@@ -308,6 +292,12 @@ func (c MilvusComponent) GetServicePorts(spec v1beta1.MilvusSpec) []corev1.Servi
 
 // GetComponentPort returns the port of the component
 func (c MilvusComponent) GetComponentPort(spec v1beta1.MilvusSpec) int32 {
+	if c == Proxy || c == MilvusStandalone {
+		svcPort := spec.GetServiceComponent().Port
+		if svcPort > 0 {
+			return svcPort
+		}
+	}
 	return c.DefaultPort
 }
 

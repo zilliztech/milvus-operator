@@ -16,8 +16,7 @@ import (
 
 type deploymentUpdater interface {
 	GetIntanceName() string
-	GetComponentName() string
-	GetPortName() string
+	GetComponent() MilvusComponent
 	GetRestfulPort() int32
 	GetControllerRef() metav1.Object
 	GetScheme() *runtime.Scheme
@@ -63,7 +62,7 @@ func updateDeploymentReplicas(deployment *appsv1.Deployment, updater deploymentU
 }
 
 func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) error {
-	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponentName())
+	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponent().Name)
 	deployment.Labels = MergeLabels(deployment.Labels, appLabels)
 	if err := SetControllerReference(updater.GetControllerRef(), deployment, updater.GetScheme()); err != nil {
 		return pkgErrs.Wrap(err, "set controller reference")
@@ -234,11 +233,11 @@ func updateBuiltInVolumes(template *corev1.PodTemplateSpec, updater deploymentUp
 func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentUpdater, isCreating bool) {
 	mergedComSpec := updater.GetMergedComponentSpec()
 
-	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponentName())
+	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponent().Name)
 	if containerIdx < 0 {
 		template.Spec.Containers = append(
 			template.Spec.Containers,
-			corev1.Container{Name: updater.GetComponentName()},
+			corev1.Container{Name: updater.GetComponent().Name},
 		)
 		containerIdx = len(template.Spec.Containers) - 1
 	}
@@ -252,12 +251,12 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 		ContainerPort: MetricPort,
 		Protocol:      corev1.ProtocolTCP,
 	}
-	componentName := updater.GetComponentName()
+	componentName := updater.GetComponent().Name
 	if componentName == ProxyName || componentName == StandaloneName {
 		container.Ports = []corev1.ContainerPort{
 			{
-				Name:          updater.GetPortName(),
-				ContainerPort: MilvusPort,
+				Name:          updater.GetComponent().GetPortName(),
+				ContainerPort: updater.GetComponent().GetComponentPort(updater.GetMilvus().Spec),
 				Protocol:      corev1.ProtocolTCP,
 			},
 			metricPort,
@@ -291,7 +290,7 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 }
 
 func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
-	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponentName())
+	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponent().Name)
 	if containerIdx < 0 {
 		return
 	}
@@ -320,8 +319,8 @@ func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater d
 	updateBuiltInVolumes(template, updater)
 	updateBuiltInVolumeMounts(template, updater)
 	updateConfigContainer(template, updater)
-	componentName := updater.GetComponentName()
-	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponentName())
+	componentName := updater.GetComponent().Name
+	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponent().Name)
 	container := &template.Spec.Containers[containerIdx]
 	if componentName == ProxyName || componentName == StandaloneName {
 		template.Labels[v1beta1.ServiceLabel] = v1beta1.TrueStr
@@ -390,12 +389,13 @@ func (m milvusDeploymentUpdater) GetPersistenceConfig() *v1beta1.Persistence {
 func (m milvusDeploymentUpdater) GetIntanceName() string {
 	return m.Name
 }
-func (m milvusDeploymentUpdater) GetComponentName() string {
-	return m.component.GetName()
-}
 
 func (m milvusDeploymentUpdater) GetPortName() string {
 	return m.component.GetPortName()
+}
+
+func (m milvusDeploymentUpdater) GetComponent() MilvusComponent {
+	return m.component
 }
 
 func (m milvusDeploymentUpdater) GetRestfulPort() int32 {

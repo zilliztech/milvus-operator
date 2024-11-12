@@ -193,13 +193,6 @@ func deleteUnsettableConf(conf map[string]interface{}) {
 	util.DeleteValue(conf, "pulsar", "address")
 	util.DeleteValue(conf, "pulsar", "port")
 	util.DeleteValue(conf, "etcd", "endpoints")
-
-	for _, t := range MilvusComponentTypes {
-		util.DeleteValue(conf, t.String(), "port")
-	}
-	for _, t := range MilvusCoordTypes {
-		util.DeleteValue(conf, t.String(), "address")
-	}
 }
 
 var (
