@@ -165,9 +165,12 @@ func formatComponentDeployName(mc v1beta1.Milvus, component MilvusComponent, gro
 func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error {
 	if podTemplate == nil {
 		podTemplate = c.RenderPodTemplateWithoutGroupID(mc, nil, c.component)
-		if groupId != 0 {
-			// is not the first deploy, set image to dummy to avoid rolling back and forth
-			podTemplate.Spec.Containers[0].Image = "dummy"
+	}
+	if groupId != 0 {
+		// is not the first deploy, set image to dummy to avoid rolling back and forth
+		podTemplate.Spec.Containers[0].Image = "dummy"
+		if mc.Spec.Com.DummyImage != "" {
+			podTemplate.Spec.Containers[0].Image = mc.Spec.Com.DummyImage
 		}
 	}
 
