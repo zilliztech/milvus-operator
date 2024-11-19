@@ -7,8 +7,6 @@ images:
 
 resources:
 - namespace.yaml
-- manager.yaml
-- checker.yaml
 
 generatorOptions:
   disableNameSuffixHash: true

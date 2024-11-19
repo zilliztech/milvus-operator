@@ -43,8 +43,6 @@ patchesStrategicMerge:
 # 'CERTMANAGER' needs to be enabled to use ca injection
 - webhookcainjection_patch.yaml
 
-- job_args_patch.yaml
-
 vars:
 - name: DEPLOYMENT_NAMESPACE # namespace of the deployment
   objref:

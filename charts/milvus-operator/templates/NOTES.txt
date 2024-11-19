@@ -1,5 +1,4 @@
 Milvus Operator Is Starting, use `kubectl get -n {{ .Release.Namespace }} deploy/{{ .Release.Name }}` to check if its successfully installed
-If Operator not started successfully, check the checker's log with `kubectl -n {{ .Release.Namespace }} logs job/{{ .Release.Name }}-checker`
 Full Installation doc can be found in https://github.com/zilliztech/milvus-operator/blob/main/docs/installation/installation.md
 Quick start with `kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/main/config/samples/milvus_minimum.yaml`
 More samples can be found in https://github.com/zilliztech/milvus-operator/tree/main/config/samples

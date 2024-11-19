@@ -4,36 +4,6 @@ kind: Namespace
 metadata:
   name: milvus-sit
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: milvus-sit
-  name: milvus-pulsar-token-symmetric-key
-type: Opaque
-stringData:
-  # the root SECRETKEY used for signing jwt token for users
-  SECRETKEY: my-pulsar-secret-key-example-change-it-to-your-own!!
----
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: milvus-sit
-  name: milvus-pulsar-token-milvus
-type: Opaque
-stringData:
-  # signed to user: milvus with SECRETKEY
-  TOKEN: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJtaWx2dXMifQ.2ciEzP9-vuwO6oI-4WfnYA1UqI5oXz7uOLJpOBrrhYo
----
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: milvus-sit
-  name: milvus-pulsar-token-pulsar-proxy
-type: Opaque
-stringData:
-  # signed to user: pulsar-proxy with SECRETKEY
-  TOKEN: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJwdWxzYXItcHJveHkifQ.OgKpFomaZVIoMFl2GmgYED48RaDcFzhqe5Td_v8JNhU
----
 apiVersion: milvus.io/v1beta1
 kind: Milvus
 metadata:
@@ -50,27 +20,11 @@ spec:
     standalone:
       ingress:
         hosts: ['mc-sit.milvus.io']
-    volumes:
-      - name: pulsar-token
-        secret:
-          secretName: milvus-pulsar-token-milvus
-          items:
-            - key: TOKEN
-              path: token
-    volumeMounts:
-      - name: pulsar-token
-        mountPath: /milvus/pulsar
   dependencies:
     etcd:
       inCluster:
         deletionPolicy: Delete
         pvcDeletion: true
-        values:
-          replicaCount: 3
-          auth:
-            rbac:
-              enabled: true
-              rootPassword: myrootpass
     storage:
       inCluster:
         deletionPolicy: Delete
@@ -89,21 +43,6 @@ spec:
         deletionPolicy: Delete
         pvcDeletion: true
         values:
-          auth:
-            authentication:
-              enabled: true
-              provider: 'jwt'
-              jwt:
-                usingSecretKey: true
-            authorization:
-              enabled: true
-            superUsers:
-              # broker to broker communication
-              broker: 'milvus'
-              # proxy to broker communication
-              proxy: 'pulsar-proxy'
-              # pulsar-admin client to broker/proxy communication
-              client: ''
           volumes:
             persistence: false
           components:
@@ -174,25 +113,6 @@ spec:
                 -Xms64m -Xmx512m -XX:MaxDirectMemorySize=2048m
         # end pulsar values
   config:
-    rootCoord:
-      enableActiveStandby: true
-    dataCoord:
-      enableActiveStandby: true
-    queryCoord:
-      enableActiveStandby: true
-    indexCoord:
-      enableActiveStandby: true
     milvus:
       log:
         level: info
-    component:
-      proxy:
-        timeTickInterval: 150
-    pulsar:
-      authPlugin: token
-      authParams: file:/milvus/pulsar/token
-    etcd:
-      auth:
-        enabled: true
-        userName: root
-        password: myrootpass

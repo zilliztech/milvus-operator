@@ -61,13 +61,3 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
-
-{{- define "chart.checkerServiceAccountName" -}}
-{{- if .Values.installDependencies.enable }}
-{{- if .Values.installDependencies.serviceAccount.create }}
-{{- default (printf "%s-checker" (include "chart.fullname" .)) .Values.installDependencies.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
-{{- end }}

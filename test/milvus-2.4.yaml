@@ -6,7 +6,7 @@ metadata:
     app: milvus
 spec:
   components:
-    image: "milvusdb/milvus:v2.1.4"
+    image: "milvusdb/milvus:v2.4.17"
   dependencies:
     etcd:
       inCluster:
