@@ -12,7 +12,7 @@ KIND_CLUSTER ?= kind
 
 # Produce remove descriptions, it's too long
 CRD_OPTIONS ?= "crd:maxDescLen=0"
-# cert-manager 
+# cert-manager
 CERT_MANAGER_MANIFEST ?= "https://github.com/jetstack/cert-manager/releases/download/v1.5.3/cert-manager.yaml"
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -100,13 +100,12 @@ build-config-tool:
 build-release: build-config-tool
 	mkdir -p out
 	CGO_ENABLED=0 go build -ldflags="$(BUILD_LDFLAGS)" -o out/manager main.go
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o out/checker ./tool/checker
 
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 docker-build: ## Build docker image with the manager.
-	docker build -t ${IMG} . 
+	docker build -t ${IMG} .
 
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
@@ -148,7 +147,7 @@ docker-tool-push:
 	docker manifest push ${TOOL_RELEASE_IMG}
 
 docker-local-build:
-	docker build -t ${IMG} -f local.Dockerfile . 
+	docker build -t ${IMG} -f local.Dockerfile .
 
 docker-local: build-release docker-local-build
 
@@ -274,12 +273,11 @@ sit-deploy: sit-load-and-cleanup-images
 	$(HELM) -n milvus-operator install --set image.repository=milvus-operator,image.tag=sit,resources.requests.cpu=10m --create-namespace milvus-operator ./charts/milvus-operator
 	kubectl -n milvus-operator describe pods
 	@echo "Waiting for operator to be ready"
-	kubectl -n milvus-operator wait --for=condition=complete job/milvus-operator-checker --timeout=6m
 	kubectl -n milvus-operator rollout restart deploy/milvus-operator
 	kubectl -n milvus-operator wait --timeout=3m --for=condition=available deployments/milvus-operator
 	sleep 5 #wait for the service to be ready
 
-sit-test: 
+sit-test:
 	./test/sit.sh ${test_mode}
 
 cleanup-sit:
@@ -340,8 +338,7 @@ $(CHARTS_DIRECTORY)/milvus-operator-$(VERSION).tgz: $(CHART_MILVUS_OPERATOR)/tem
 	$(wildcard $(CHART_MILVUS_OPERATOR)/assets/*) \
 	$(CHART_TEMPLATE_PATH)/role.yaml $(CHART_TEMPLATE_PATH)/clusterrole.yaml \
 	$(CHART_TEMPLATE_PATH)/rolebinding.yaml $(CHART_TEMPLATE_PATH)/clusterrolebinding.yaml \
-	$(CHART_TEMPLATE_PATH)/mutatingwebhookconfiguration.yaml $(CHART_TEMPLATE_PATH)/validatingwebhookconfiguration.yaml \
-	$(CHART_TEMPLATE_PATH)/deployment.yaml
+	$(CHART_TEMPLATE_PATH)/mutatingwebhookconfiguration.yaml $(CHART_TEMPLATE_PATH)/validatingwebhookconfiguration.yaml
 	$(HELM) package $(CHART_MILVUS_OPERATOR) \
 		--version $(VERSION) \
 		--app-version $(VERSION) \
@@ -353,13 +350,6 @@ $(CHART_MILVUS_OPERATOR)/templates/crds.yaml: kustomize config/crd/bases
 	$(KUSTOMIZE) build config/helm/crds/ | \
 	sed "s/'\({{[^}}]*}}\)'/\1/g">> '$@'
 	echo '{{- end -}}' >> '$@'
-
-$(CHART_TEMPLATE_PATH)/deployment.yaml: kustomize $(wildcard config/helm/deployment/*) $(wildcard config/manager/*) $(wildcard config/config/*)
-	echo '{{- /* $(DO_NOT_EDIT) */ -}}' > $(CHART_TEMPLATE_PATH)/deployment.yaml
-	$(KUSTOMIZE) build --reorder legacy config/helm/deployment | \
-	$(KUSTOMIZE) cfg grep --annotate=false 'kind=Deployment' | \
-	sed "s/'\({{[^}}]*}}\)'/\1/g" \
-		>> $(CHART_TEMPLATE_PATH)/deployment.yaml
 
 $(CHART_TEMPLATE_PATH)/role.yaml: kustomize $(wildcard config/helm/rbac/*) $(wildcard config/rbac/*)
 	echo '{{- /* $(DO_NOT_EDIT) */ -}}' > $(CHART_TEMPLATE_PATH)/role.yaml
@@ -403,23 +393,26 @@ $(CHART_TEMPLATE_PATH)/clusterrolebinding.yaml: kustomize $(wildcard config/helm
 
 $(CHART_TEMPLATE_PATH)/validatingwebhookconfiguration.yaml: kustomize $(wildcard config/helm/webhook/*) $(wildcard config/webhook/*)
 	echo '{{- /* $(DO_NOT_EDIT) */ -}}' > $(CHART_TEMPLATE_PATH)/validatingwebhookconfiguration.yaml
+	echo '{{- if .Values.enableWebhook }}' >> $(CHART_TEMPLATE_PATH)/validatingwebhookconfiguration.yaml
 	$(KUSTOMIZE) build --reorder legacy config/helm/webhook | \
 	$(KUSTOMIZE) cfg grep --annotate=false 'kind=ValidatingWebhookConfiguration' | \
 	sed "s/'\({{[^}}]*}}\)'/\1/g" \
 		>> $(CHART_TEMPLATE_PATH)/validatingwebhookconfiguration.yaml
+	echo '{{- end -}}' >> $(CHART_TEMPLATE_PATH)/validatingwebhookconfiguration.yaml
 
 $(CHART_TEMPLATE_PATH)/mutatingwebhookconfiguration.yaml: kustomize $(wildcard config/helm/webhook/*) $(wildcard config/webhook/*)
 	echo '{{- /* $(DO_NOT_EDIT) */ -}}' > $(CHART_TEMPLATE_PATH)/mutatingwebhookconfiguration.yaml
+	echo '{{- if .Values.enableWebhook }}' >> $(CHART_TEMPLATE_PATH)/mutatingwebhookconfiguration.yaml
 	$(KUSTOMIZE) build --reorder legacy config/helm/webhook | \
 	$(KUSTOMIZE) cfg grep --annotate=false 'kind=MutatingWebhookConfiguration' | \
 	sed "s/'\({{[^}}]*}}\)'/\1/g" \
 		>> $(CHART_TEMPLATE_PATH)/mutatingwebhookconfiguration.yaml
+	echo '{{- end -}}' >> $(CHART_TEMPLATE_PATH)/mutatingwebhookconfiguration.yaml
 
 deploy-by-manifest: sit-prepare-operator-images sit-load-operator-images sit-generate-manifest
 	@echo "Deploying Milvus Operator"
 	kubectl apply -f ./test/test_gen.yaml
 	@echo "Waiting for the operator to be ready..."
-	kubectl -n milvus-operator wait --for=condition=complete job/milvus-operator-checker --timeout=6m
 	kubectl -n milvus-operator rollout restart deploy/milvus-operator
 	kubectl -n milvus-operator wait --timeout=3m --for=condition=available deployments/milvus-operator
 	sleep 5 #wait for the service to be ready

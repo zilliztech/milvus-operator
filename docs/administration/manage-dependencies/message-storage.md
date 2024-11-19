@@ -38,7 +38,7 @@ RocksMQ is the default message storage in Milvus standalone.
 The following example configures a RocksMQ service. 
 
 ```YAML
-apiVersion: milvus.io/v1alpha1
+apiVersion: milvus.io/v1beta1
 kind: Milvus
 metadata:
   name: milvus

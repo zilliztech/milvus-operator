@@ -5,7 +5,6 @@
 *.dll
 *.so
 *.dylib
-*.tgz
 bin
 testbin/*
 tmp
@@ -42,7 +41,6 @@ test/*_gen.yaml
 # Helm packages
 charts/index.yaml
 charts/*.tgz
-charts/milvus-operator/charts/*.tgz
 
 # output
 out/

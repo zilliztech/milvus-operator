@@ -5,11 +5,11 @@ metadata:
   name: my-release
 spec:
   mode: cluster
-  components: 
+  components:
     proxy:
       # set replicas to -1 will stop operator from scaling the component
       # thus handover the scaling responsibility to HPA
-      replicas: -1 
+      replicas: -1
 ---
 # for more info see: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
 apiVersion: autoscaling/v2

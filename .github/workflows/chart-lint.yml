@@ -18,6 +18,9 @@ jobs:
         uses: azure/setup-helm@v1
         with:
           version: v3.4.0
+      - name: Add dependency chart repos
+        run: |
+          helm repo add cert-manager https://charts.jetstack.io
 
       - name: Set up chart-testing
         uses: helm/chart-testing-action@v2.1.0

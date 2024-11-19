@@ -1,0 +1,23 @@
+{{- if .Values.enableWebhook -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: '{{ include "chart.fullname" . }}-serving-cert'
+  namespace: {{ .Release.Namespace }}
+spec:
+  dnsNames:
+  - milvus-operator-webhook-service.{{ .Release.Namespace }}.svc
+  - milvus-operator-webhook-service.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: '{{ include "chart.fullname" . }}-selfsigned-issuer'
+  secretName: '{{ include "chart.fullname" . }}-webhook-cert'
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: '{{ include "chart.fullname" . }}-selfsigned-issuer'
+  namespace: {{ .Release.Namespace }}
+spec:
+  selfSigned: {}
+{{- end -}}

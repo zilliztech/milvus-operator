@@ -1,3 +1,9 @@
+cert-manager:
+  enabled: false
+  fullnameOverride: "cert-manager"
+
+enableWebhook: false
+
 # Default values for milvus-operator.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
@@ -13,24 +19,6 @@ image:
 installCRDs: true
 
 monitoringEnabled: false
-
-checker:
-  disableCertManagerCheck: false
-  disableCertManagerInstall: false
-  # checker.annotations -- Annotations to add to the checker job
-  annotations: {}
-
-# check and install the dependencies when enabled, this need an extra service account with privileged clusterroles
-installDependencies:
-  enable: true
-  serviceAccount:
-    # serviceAccount.create -- Specifies whether a service account should be created
-    create: true
-    # serviceAccount.annotations -- Annotations to add to the service account
-    annotations: {}
-    # serviceAccount.name -- The name of the service account to use.
-    # If not set and create is true, a name is generated using the fullname template
-    name: ""
 
 nameOverride: ""
 fullnameOverride: ""

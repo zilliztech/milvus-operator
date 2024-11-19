@@ -4,8 +4,8 @@ ignore:
 coverage:
   status:
     project:
-      default: 
+      default:
         target: 80%
     patch:
-      default: 
+      default:
         target: 20%
