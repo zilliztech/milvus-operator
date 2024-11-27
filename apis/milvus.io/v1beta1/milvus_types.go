@@ -132,6 +132,14 @@ func (ms *MilvusSpec) GetPersistenceConfig() *Persistence {
 	return nil
 }
 
+func (ms *MilvusSpec) UseMixCoord() bool {
+	return ms.Com.MixCoord != nil
+}
+
+func (ms *MilvusSpec) UseStreamingNode() bool {
+	return ms.Com.StreamingNode != nil
+}
+
 // MilvusMode defines the mode of Milvus deployment
 type MilvusMode string
 
@@ -158,11 +166,6 @@ type MilvusStatus struct {
 
 	// IngressStatus of the ingress created by milvus
 	IngressStatus networkv1.IngressStatus `json:"ingress,omitempty"`
-
-	// DeprecatedReplicas is deprecated, will be removed in next major version, use ComponentsDeployStatus instead
-	// DeprecatedReplicas is the number of updated replicas in ready status
-	// +kubebuilder:validation:Optional
-	DeprecatedReplicas MilvusReplicas `json:"replicas,omitempty"`
 
 	// ComponentsDeployStatus contains the map of component's name to the status of each component deployment
 	// it is used to check the status of rolling update of each component
@@ -285,6 +288,8 @@ type MilvusReplicas struct {
 	IndexNode int `json:"indexNode,omitempty"`
 	//+kubebuilder:validation:Optional
 	QueryNode int `json:"queryNode,omitempty"`
+	//+kubebuilder:validation:Optional
+	StreamingNode int `json:"streamingNode,omitempty"`
 	//+kubebuilder:validation:Optional
 	Standalone int `json:"standalone,omitempty"`
 }

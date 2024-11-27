@@ -67,7 +67,6 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 			Data: map[string]interface{}{},
 		},
 	}
-	setEnableActiveStandby(&standaloneDefault, true)
 
 	t.Run("standalone not external ok", func(t *testing.T) {
 		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
@@ -131,6 +130,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 			},
 		},
 	}
+	setEnableActiveStandby(&clusterDefault, true)
 	t.Run("cluster not external dep ok", func(t *testing.T) {
 		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
 		mc.Spec.Mode = MilvusModeCluster

@@ -68,13 +68,13 @@ func main() {
 	flag.IntVar(&k8sQps, "k8s-qps", k8sQps, "The qps of k8s client")
 	flag.IntVar(&k8sBurst, "k8s-burst", k8sQps, "The burst of k8s client")
 	flag.BoolVar(&controllers.Debug, "debug", controllers.Debug, "Enable debug")
-	flag.BoolVar(&enableWebhook, "webhook", true, "Enable webhook for support of v1alpha1 crd & validation")
+	flag.BoolVar(&enableWebhook, "webhook", false, "Enable webhook for support of v1alpha1 crd & validation")
 	opts := zap.Options{}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
+	fmt.Println("version: " + v1beta1.Version)
+	fmt.Println("milvus-helm version: " + v1beta1.MilvusHelmVersion)
 	if *showVersion {
-		fmt.Println("version: " + v1beta1.Version)
-		fmt.Println("milvus-helm version: " + v1beta1.MilvusHelmVersion)
 		os.Exit(0)
 	}
 

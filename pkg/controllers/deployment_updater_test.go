@@ -19,13 +19,16 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		err := updateDeployment(deployment, updater)
 		assert.Error(t, err)
 	})
+
+	sampleDeployment := &appsv1.Deployment{}
+	sampleDeployment.Name = "deploy"
+	sampleDeployment.Namespace = "ns"
+
 	t.Run("custom command", func(t *testing.T) {
 		inst := env.Inst.DeepCopy()
 		inst.Spec.GetServiceComponent().Commands = []string{"milvus", "run", "mycomponent"}
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"/milvus/tools/run.sh", "milvus", "run", "mycomponent"}, deployment.Spec.Template.Spec.Containers[0].Args)
@@ -71,9 +74,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 				inst.Spec.Com.Proxy.Replicas = int32Ptr(tc.compReplicas)
 				inst.Spec.Mode = v1beta1.MilvusModeCluster
 				updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, Proxy)
-				deployment := &appsv1.Deployment{}
-				deployment.Name = "deploy"
-				deployment.Namespace = "ns"
+				deployment := sampleDeployment.DeepCopy()
 				deployment.Spec.Replicas = int32Ptr(tc.originalDeployReplicas)
 
 				err := updateDeployment(deployment, updater)
@@ -92,9 +93,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		inst.Spec.Com.Standalone.InitContainers = []v1beta1.Values{{}}
 		inst.Spec.GetServiceComponent().Commands = []string{"milvus", "run", "mycomponent"}
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Len(t, deployment.Spec.Template.Spec.InitContainers, 2)
@@ -108,9 +107,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		inst := env.Inst.DeepCopy()
 		inst.Spec.GetServiceComponent().Commands = []string{"milvus", "run", "mycomponent"}
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		deployment.Spec.Template.Spec.InitContainers = []corev1.Container{
@@ -128,9 +125,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		inst.Spec.Com.UpdateToolImage = true
 		inst.Spec.GetServiceComponent().Commands = []string{"milvus", "run", "mycomponent"}
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		deployment.Spec.Template.Spec.InitContainers[0].Image = ""
@@ -143,9 +138,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		inst := env.Inst.DeepCopy()
 		inst.Spec.GetServiceComponent().Commands = []string{"milvus", "run", "mycomponent"}
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 		deployment.Spec.Template.Spec.InitContainers = []corev1.Container{
 			{
 				Name: configContainerName,
@@ -159,9 +152,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 	t.Run("persistence disabled", func(t *testing.T) {
 		inst := env.Inst.DeepCopy()
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Len(t, deployment.Spec.Template.Spec.Volumes, 2)
@@ -172,9 +163,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		inst := env.Inst.DeepCopy()
 		inst.Spec.Dep.RocksMQ.Persistence.Enabled = true
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Len(t, deployment.Spec.Template.Spec.Volumes, 3)
@@ -186,9 +175,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		inst.Spec.Dep.RocksMQ.Persistence.Enabled = true
 		inst.Spec.Dep.RocksMQ.Persistence.PersistentVolumeClaim.ExistingClaim = "pvc1"
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Len(t, deployment.Spec.Template.Spec.Volumes, 3)
@@ -210,9 +197,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		inst.Spec.Com.Image = oldImage
 		inst.Default()
 
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 		inDeploy := deployment.DeepCopy()
 		// default
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MixCoord)
@@ -280,9 +265,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		inst.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeAll
 		inst.Default()
 
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, DataNode)
 		updateDeployment(deployment, updater)
@@ -299,9 +282,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		inst.Spec.Com.HostNetwork = false
 		inst.Spec.Com.DNSPolicy = corev1.DNSPolicy("ClusterFirst") // 设置 DNSPolicy 的值
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
-		deployment := &appsv1.Deployment{}
-		deployment.Name = "deploy"
-		deployment.Namespace = "ns"
+		deployment := sampleDeployment.DeepCopy()
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Equal(t, false, deployment.Spec.Template.Spec.HostNetwork)
@@ -314,5 +295,23 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, true, deployment.Spec.Template.Spec.HostNetwork)
 		assert.Equal(t, corev1.DNSPolicy("Default"), deployment.Spec.Template.Spec.DNSPolicy)
+	})
+
+	t.Run("streamingnode set env", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Com.StreamingNode = &v1beta1.MilvusStreamingNode{}
+		inst.Default()
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, StreamingNode)
+		deployment := sampleDeployment.DeepCopy()
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		var envAdded bool
+		for _, env := range deployment.Spec.Template.Spec.Containers[0].Env {
+			if env.Name == "MILVUS_STREAMING_SERVICE_ENABLED" {
+				envAdded = true
+				assert.Equal(t, "1", env.Value)
+			}
+		}
+		assert.True(t, envAdded)
 	})
 }

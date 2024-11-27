@@ -295,30 +295,9 @@ func TestStatusSyncer_UpdateStatusRoutine(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	mockReplicaUpdater := NewMockreplicaUpdaterInterface(ctrl)
-	backup := replicaUpdater
-	replicaUpdater = mockReplicaUpdater
-	defer func() {
-		replicaUpdater = backup
-	}()
-	t.Run("update ingress status nil, update replica failed", func(t *testing.T) {
-		defer ctrl.Finish()
-		mockRunner.EXPECT().RunWithResult(gomock.Len(3), gomock.Any(), gomock.Any()).
-			Return([]Result{
-				{Data: v1beta1.MilvusCondition{}},
-			})
-		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		mockDeployStatusUpdater.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
-		mockReplicaUpdater.EXPECT().UpdateReplicas(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("test"))
-		m.Status.Status = v1beta1.StatusPending
-		err = s.UpdateStatusRoutine(ctx, m)
-		assert.Error(t, err)
-	})
-
 	t.Run("update status healthy to unhealthy success", func(t *testing.T) {
 		defer ctrl.Finish()
 		mockDeployStatusUpdater.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
-		mockReplicaUpdater.EXPECT().UpdateReplicas(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mockRunner.EXPECT().RunWithResult(gomock.Len(3), gomock.Any(), gomock.Any()).
 			Return([]Result{
 				{Data: v1beta1.MilvusCondition{}},
@@ -353,7 +332,6 @@ func TestStatusSyncer_UpdateStatusRoutine(t *testing.T) {
 	t.Run("update status creating", func(t *testing.T) {
 		defer ctrl.Finish()
 		mockDeployStatusUpdater.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
-		mockReplicaUpdater.EXPECT().UpdateReplicas(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mockRunner.EXPECT().RunWithResult(gomock.Len(3), gomock.Any(), gomock.Any()).
 			Return([]Result{
 				{Data: v1beta1.MilvusCondition{}},
@@ -369,46 +347,6 @@ func TestStatusSyncer_UpdateStatusRoutine(t *testing.T) {
 		err = s.UpdateStatusRoutine(ctx, m)
 		assert.NoError(t, err)
 		assert.Equal(t, v1beta1.StatusPending, m.Status.Status)
-	})
-}
-
-func TestStatusSyncer_UpdateReplicas(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockCli := NewMockK8sClient(ctrl)
-	ctx := context.Background()
-	mc := &v1beta1.Milvus{}
-	mc.Spec.Mode = v1beta1.MilvusModeCluster
-	mc.Default()
-	s := new(replicaUpdaterImpl)
-
-	t.Run("all ok", func(t *testing.T) {
-		defer ctrl.Finish()
-		m := mc.DeepCopy()
-		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Do(func(_, _, deploy interface{}, opts ...any) {
-			deploy.(*appsv1.Deployment).Status.UpdatedReplicas = 2
-		}).Return(nil).Times(len(MixtureComponents))
-		err := s.UpdateReplicas(ctx, m, mockCli)
-		assert.NoError(t, err)
-		assert.Equal(t, 2, m.Status.DeprecatedReplicas.Proxy)
-		assert.Equal(t, 2, m.Status.DeprecatedReplicas.DataNode)
-	})
-
-	t.Run("components not found ok", func(t *testing.T) {
-		defer ctrl.Finish()
-		m := mc.DeepCopy()
-		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "")).Times(len(MixtureComponents))
-		err := s.UpdateReplicas(ctx, m, mockCli)
-		assert.NoError(t, err)
-		assert.Equal(t, 0, m.Status.DeprecatedReplicas.Proxy)
-		assert.Equal(t, 0, m.Status.DeprecatedReplicas.DataNode)
-	})
-	t.Run("get deploy err", func(t *testing.T) {
-		m := mc.DeepCopy()
-		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(kerrors.NewServiceUnavailable("")).Times(1)
-		err := s.UpdateReplicas(ctx, m, mockCli)
-		assert.Error(t, err)
 	})
 }
 

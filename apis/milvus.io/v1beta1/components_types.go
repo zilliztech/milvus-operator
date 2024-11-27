@@ -7,25 +7,27 @@ import (
 type ComponentType string
 
 const (
-	RootCoord  ComponentType = "rootCoord"
-	DataCoord  ComponentType = "dataCoord"
-	QueryCoord ComponentType = "queryCoord"
-	IndexCoord ComponentType = "indexCoord"
-	DataNode   ComponentType = "dataNode"
-	QueryNode  ComponentType = "queryNode"
-	IndexNode  ComponentType = "indexNode"
-	Proxy      ComponentType = "proxy"
+	RootCoord     ComponentType = "rootCoord"
+	DataCoord     ComponentType = "dataCoord"
+	QueryCoord    ComponentType = "queryCoord"
+	IndexCoord    ComponentType = "indexCoord"
+	DataNode      ComponentType = "dataNode"
+	QueryNode     ComponentType = "queryNode"
+	IndexNode     ComponentType = "indexNode"
+	StreamingNode ComponentType = "streamingNode"
+	Proxy         ComponentType = "proxy"
 
-	MixCoordName   = "mixcoord"
-	RootCoordName  = "rootcoord"
-	DataCoordName  = "datacoord"
-	QueryCoordName = "querycoord"
-	IndexCoordName = "indexcoord"
-	DataNodeName   = "datanode"
-	QueryNodeName  = "querynode"
-	IndexNodeName  = "indexnode"
-	ProxyName      = "proxy"
-	StandaloneName = "standalone"
+	MixCoordName      = "mixcoord"
+	RootCoordName     = "rootcoord"
+	DataCoordName     = "datacoord"
+	QueryCoordName    = "querycoord"
+	IndexCoordName    = "indexcoord"
+	DataNodeName      = "datanode"
+	QueryNodeName     = "querynode"
+	IndexNodeName     = "indexnode"
+	ProxyName         = "proxy"
+	StandaloneName    = "standalone"
+	StreamingNodeName = "streamingnode"
 )
 
 var (
@@ -141,7 +143,6 @@ type MilvusComponents struct {
 
 	// Note: it's still in beta, do not use for production. EnableRollingUpdate whether to enable rolling update for milvus component
 	// there is nearly zero downtime for rolling update
-	// TODO: enable rolling update by default for next major version
 	// +kubebuilder:validation:Optional
 	EnableRollingUpdate *bool `json:"enableRollingUpdate,omitempty"`
 
@@ -221,6 +222,9 @@ type MilvusComponents struct {
 	QueryNode *MilvusQueryNode `json:"queryNode,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	StreamingNode *MilvusStreamingNode `json:"streamingNode,omitempty"`
+
+	// +kubebuilder:validation:Optional
 	Standalone *MilvusStandalone `json:"standalone,omitempty"`
 }
 
@@ -277,6 +281,10 @@ type MilvusQueryCoord struct {
 }
 
 type MilvusIndexCoord struct {
+	Component `json:",inline"`
+}
+
+type MilvusStreamingNode struct {
 	Component `json:",inline"`
 }
 

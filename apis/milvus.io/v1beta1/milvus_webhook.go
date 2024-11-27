@@ -261,7 +261,7 @@ func (r *Milvus) DefaultComponents() {
 		if spec.Com.Proxy == nil {
 			spec.Com.Proxy = &MilvusProxy{}
 		}
-		if spec.Com.MixCoord == nil {
+		if !r.Spec.UseMixCoord() {
 			if r.noCoordSpecifiedByUser() {
 				// default to use mixcoord
 				spec.Com.MixCoord = &MilvusMixCoord{}
@@ -300,6 +300,11 @@ func (r *Milvus) defaultComponentsReplicas() {
 	if spec.Mode == MilvusModeCluster {
 		if spec.Com.Standalone.Replicas == nil {
 			spec.Com.Standalone.Replicas = &defaultNoReplicas
+		}
+		if r.Spec.UseStreamingNode() {
+			if spec.Com.StreamingNode.Replicas == nil {
+				spec.Com.StreamingNode.Replicas = &defaultReplicas
+			}
 		}
 		if spec.Com.MixCoord != nil {
 			if spec.Com.MixCoord.Replicas == nil {
@@ -505,7 +510,9 @@ func (r *Milvus) DefaultConf() {
 	if !r.isRollingUpdateSupportedByConfig() {
 		r.Spec.Com.EnableRollingUpdate = util.BoolPtr(false)
 	}
-	setEnableActiveStandby(&r.Spec, true)
+	if *r.Spec.Com.EnableRollingUpdate {
+		setEnableActiveStandby(&r.Spec, true)
+	}
 }
 
 var rollingUpdateConfigFields = []string{
