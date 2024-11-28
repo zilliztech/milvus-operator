@@ -466,6 +466,9 @@ func (r *Milvus) defaultMsgStream() {
 			if r.Spec.Dep.Pulsar.InCluster.Values.Data == nil {
 				r.Spec.Dep.Pulsar.InCluster.Values.Data = map[string]interface{}{}
 			}
+			if r.IsFirstTimeStarting() {
+				r.Spec.Dep.Pulsar.InCluster.ChartVersion = "pulsar-v3"
+			}
 			r.defaultValuesByDependency(values.DependencyKindPulsar)
 			if r.Spec.Dep.Pulsar.InCluster.DeletionPolicy == "" {
 				r.Spec.Dep.Pulsar.InCluster.DeletionPolicy = DeletionPolicyRetain
