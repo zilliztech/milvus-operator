@@ -9,6 +9,7 @@ metadata:
 spec:
   dependencies: {}
   components: {}
+  # check full configuration options at https://github.com/milvus-io/milvus/blob/master/configs/milvus.yaml
   config:
     etcd:
       rootPath: my-release

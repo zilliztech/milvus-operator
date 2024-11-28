@@ -1,0 +1,56 @@
+# This is a sample to enable external tls
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: certs
+type: Opaque
+stringData:
+# change data to your own certificates
+# If you don't have your own certificates, you can create them by following the instructions in the link below
+# https://milvus.io/docs/tls.md#Create-your-own-certificate
+  server.pem: |
+    -----BEGIN CERTIFICATE-----
+    change to your own certificate
+    -----END CERTIFICATE-----
+  server.key:
+    -----BEGIN RSA PRIVATE KEY-----
+    change to your own private key
+    -----END RSA PRIVATE KEY-----
+  ca.pem:
+    -----BEGIN CERTIFICATE-----
+    change to your own ca certificate
+    -----END CERTIFICATE-----
+---
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  config:
+    proxy:
+      http:
+        # for now not support config restful on same port with grpc
+        # so we set to 8080, grpc will still use 19530
+        port: 8080 
+    common:
+      security:
+        tlsMode: 1 # set to 2 to enable Mutual TLS
+      # Configure the proxy tls certificates
+      # if this field not set, it will use the self signed localhost certificates within the image
+      tls:
+        serverPemPath: /certs/server.pem
+        serverKeyPath: /certs/server.key
+        caPemPath: /certs/ca.pem
+  components:
+    # mount the certs secret to the milvus container
+    volumes:
+      - name: certs
+        secret:
+          secretName: certs
+    volumeMounts:
+      - name: certs
+        mountPath: /certs
+        readOnly: true
