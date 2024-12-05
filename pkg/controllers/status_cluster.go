@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -278,11 +277,6 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 		return errors.Wrap(err, "update deploy status failed")
 	}
 
-	err = replicaUpdater.UpdateReplicas(ctx, mc, r.Client)
-	if err != nil {
-		return errors.Wrap(err, "update replica status failed")
-	}
-
 	mc.Status.Endpoint = r.GetMilvusEndpoint(ctx, *mc)
 
 	milvusCond, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, r.Client, *mc)
@@ -337,38 +331,6 @@ func (r *MilvusStatusSyncer) handleTerminatingPods(ctx context.Context, mc *v1be
 				r.logger.Error(err, "kill terminating pod failed")
 			}
 		}
-	}
-	return nil
-}
-
-var replicaUpdater replicaUpdaterInterface = new(replicaUpdaterImpl)
-
-type replicaUpdaterInterface interface {
-	UpdateReplicas(ctx context.Context, obj *v1beta1.Milvus, cli client.Client) error
-}
-
-type replicaUpdaterImpl struct{}
-
-func (r replicaUpdaterImpl) UpdateReplicas(ctx context.Context, obj *v1beta1.Milvus, cli client.Client) error {
-	components := GetComponentsBySpec(obj.Spec)
-	status := reflect.ValueOf(obj).Elem().FieldByName("Status").Addr().Interface().(*v1beta1.MilvusStatus)
-	return updateReplicas(ctx, client.ObjectKeyFromObject(obj), status, components, cli)
-}
-
-func updateReplicas(ctx context.Context, key client.ObjectKey, status *v1beta1.MilvusStatus, components []MilvusComponent, client client.Client) error {
-	for _, component := range components {
-		deploy, err := getComponentDeployment(ctx, key, component, client)
-		if err != nil {
-			return errors.Wrap(err, "get component deployment failed")
-		}
-		replica := 0
-		if deploy != nil {
-			replica = int(deploy.Status.UpdatedReplicas - deploy.Status.UnavailableReplicas)
-			if replica < 0 {
-				replica = 0
-			}
-		}
-		component.SetStatusReplicas(&status.DeprecatedReplicas, replica)
 	}
 	return nil
 }

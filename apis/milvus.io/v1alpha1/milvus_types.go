@@ -111,9 +111,9 @@ type MilvusReplicas struct {
 
 // +genclient
 // +genclient:noStatus
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:path=milvuses,singular=milvus,shortName=mi
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:path=milvuses,singular=milvus,shortName=mi
 // Milvus is the Schema for the milvus API
 type Milvus struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -123,7 +123,7 @@ type Milvus struct {
 	Status v1beta1.MilvusStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 // MilvusList contains a list of Milvus
 type MilvusList struct {
 	metav1.TypeMeta `json:",inline"`

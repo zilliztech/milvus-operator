@@ -134,6 +134,8 @@ spec:
                     type: integer
                   standalone:
                     type: integer
+                  streamingNode:
+                    type: integer
                 type: object
               retriedTimes:
                 type: integer

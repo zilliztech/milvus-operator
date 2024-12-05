@@ -22,39 +22,42 @@ const (
 
 	RestfulPortName = "restful"
 
-	MixCoordName   = v1beta1.MixCoordName
-	RootCoordName  = v1beta1.RootCoordName
-	DataCoordName  = v1beta1.DataCoordName
-	QueryCoordName = v1beta1.QueryCoordName
-	IndexCoordName = v1beta1.IndexCoordName
-	DataNodeName   = v1beta1.DataNodeName
-	QueryNodeName  = v1beta1.QueryNodeName
-	IndexNodeName  = v1beta1.IndexNodeName
-	ProxyName      = v1beta1.ProxyName
-	StandaloneName = v1beta1.StandaloneName
-	MilvusName     = "milvus"
+	MixCoordName      = v1beta1.MixCoordName
+	RootCoordName     = v1beta1.RootCoordName
+	DataCoordName     = v1beta1.DataCoordName
+	QueryCoordName    = v1beta1.QueryCoordName
+	IndexCoordName    = v1beta1.IndexCoordName
+	DataNodeName      = v1beta1.DataNodeName
+	QueryNodeName     = v1beta1.QueryNodeName
+	IndexNodeName     = v1beta1.IndexNodeName
+	ProxyName         = v1beta1.ProxyName
+	StandaloneName    = v1beta1.StandaloneName
+	StreamingNodeName = v1beta1.StreamingNodeName
+	MilvusName        = "milvus"
 
-	MixCoordFieldName   = "MixCoord"
-	RootCoordFieldName  = "RootCoord"
-	DataCoordFieldName  = "DataCoord"
-	QueryCoordFieldName = "QueryCoord"
-	IndexCoordFieldName = "IndexCoord"
-	DataNodeFieldName   = "DataNode"
-	QueryNodeFieldName  = "QueryNode"
-	IndexNodeFieldName  = "IndexNode"
-	ProxyFieldName      = "Proxy"
-	StandaloneFieldName = "Standalone"
+	MixCoordFieldName      = "MixCoord"
+	RootCoordFieldName     = "RootCoord"
+	DataCoordFieldName     = "DataCoord"
+	QueryCoordFieldName    = "QueryCoord"
+	IndexCoordFieldName    = "IndexCoord"
+	DataNodeFieldName      = "DataNode"
+	QueryNodeFieldName     = "QueryNode"
+	IndexNodeFieldName     = "IndexNode"
+	StreamingNodeFieldName = "StreamingNode"
+	ProxyFieldName         = "Proxy"
+	StandaloneFieldName    = "Standalone"
 
-	MetricPort     = 9091
-	MultiplePorts  = -1
-	RootCoordPort  = 53100
-	DataCoordPort  = 13333
-	QueryCoordPort = 19531
-	IndexCoordPort = 31000
-	IndexNodePort  = 21121
-	QueryNodePort  = 21123
-	DataNodePort   = 21124
-	ProxyPort      = 19530
+	MetricPort        = 9091
+	MultiplePorts     = -1
+	RootCoordPort     = 53100
+	DataCoordPort     = 13333
+	QueryCoordPort    = 19531
+	IndexCoordPort    = 31000
+	IndexNodePort     = 21121
+	QueryNodePort     = 21123
+	DataNodePort      = 21124
+	StreamingNodePort = 22222
+	ProxyPort         = 19530
 	// TODO: use configurable port?
 	MilvusPort     = ProxyPort
 	StandalonePort = MilvusPort
@@ -69,15 +72,16 @@ type MilvusComponent struct {
 
 // define MilvusComponents
 var (
-	MixCoord   = MilvusComponent{MixCoordName, MixCoordFieldName, MultiplePorts}
-	RootCoord  = MilvusComponent{RootCoordName, RootCoordFieldName, RootCoordPort}
-	DataCoord  = MilvusComponent{DataCoordName, DataCoordFieldName, DataCoordPort}
-	QueryCoord = MilvusComponent{QueryCoordName, QueryCoordFieldName, QueryCoordPort}
-	IndexCoord = MilvusComponent{IndexCoordName, IndexCoordFieldName, IndexCoordPort}
-	DataNode   = MilvusComponent{DataNodeName, DataNodeFieldName, DataNodePort}
-	QueryNode  = MilvusComponent{QueryNodeName, QueryNodeFieldName, QueryNodePort}
-	IndexNode  = MilvusComponent{IndexNodeName, IndexNodeFieldName, IndexNodePort}
-	Proxy      = MilvusComponent{ProxyName, ProxyFieldName, ProxyPort}
+	MixCoord      = MilvusComponent{MixCoordName, MixCoordFieldName, MultiplePorts}
+	RootCoord     = MilvusComponent{RootCoordName, RootCoordFieldName, RootCoordPort}
+	DataCoord     = MilvusComponent{DataCoordName, DataCoordFieldName, DataCoordPort}
+	QueryCoord    = MilvusComponent{QueryCoordName, QueryCoordFieldName, QueryCoordPort}
+	IndexCoord    = MilvusComponent{IndexCoordName, IndexCoordFieldName, IndexCoordPort}
+	DataNode      = MilvusComponent{DataNodeName, DataNodeFieldName, DataNodePort}
+	QueryNode     = MilvusComponent{QueryNodeName, QueryNodeFieldName, QueryNodePort}
+	IndexNode     = MilvusComponent{IndexNodeName, IndexNodeFieldName, IndexNodePort}
+	StreamingNode = MilvusComponent{StreamingNodeName, StreamingNodeFieldName, StreamingNodePort}
+	Proxy         = MilvusComponent{ProxyName, ProxyFieldName, ProxyPort}
 
 	// Milvus standalone
 	MilvusStandalone = MilvusComponent{StandaloneName, StandaloneFieldName, StandalonePort}
@@ -123,10 +127,16 @@ func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
 	if spec.Mode != v1beta1.MilvusModeCluster {
 		return StandaloneComponents
 	}
-	if spec.Com.MixCoord != nil {
-		return MixtureComponents
+	var ret = []MilvusComponent{}
+	if spec.UseMixCoord() {
+		ret = append(ret, MixtureComponents...)
+	} else {
+		ret = append(ret, MilvusComponents...)
 	}
-	return MilvusComponents
+	if spec.UseStreamingNode() {
+		ret = append(ret, StreamingNode)
+	}
+	return ret
 }
 
 // IsCoord return if it's a coord by its name
@@ -367,10 +377,12 @@ func (c MilvusComponent) GetDependencies(spec v1beta1.MilvusSpec) []MilvusCompon
 	// cluster mode
 	var depGraph = clusterDependencyGraph
 
-	isMixCoord := spec.Com.MixCoord != nil
 	isDowngrade := spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeRollingDowngrade
-	if isMixCoord {
+	if spec.UseMixCoord() {
 		depGraph = mixCoordClusterDependencyGraph
+	}
+	if spec.UseStreamingNode() {
+		depGraph = streamingNodeClusterDependencyGraph
 	}
 	if isDowngrade {
 		return depGraph.GetReversedDependencies(c)
