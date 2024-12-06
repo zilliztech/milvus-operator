@@ -68,7 +68,9 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 		delete(conf, "rocksmq")
 	case v1beta1.MsgStreamTypeRocksMQ:
 		// adhoc: to let the merger know we're using rocksmq config
-		conf["rocksmq"] = map[string]interface{}{}
+		if conf["rocksmq"] == nil {
+			conf["rocksmq"] = map[string]interface{}{}
+		}
 		// delete other mq config to make milvus use rocksmq
 		delete(conf, "pulsar")
 		delete(conf, "kafka")
