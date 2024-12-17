@@ -69,5 +69,5 @@ spec:
       - name: cert
         secret:
           defaultMode: 420
-          # secretName: {{ include "$.chart.fullname" . }}-webhook-cert
+          secretName: {{ include "chart.fullname" . }}-webhook-cert
       {{- end }}
