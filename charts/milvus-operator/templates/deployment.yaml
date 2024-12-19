@@ -22,8 +22,8 @@ spec:
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --leader-elect
-        {{- if not .Values.enableWebhook }}
-        - --webhook=false
+        {{- if .Values.enableWebhook }}
+        - --webhook=true
         {{- end }}
         command:
         - /manager
