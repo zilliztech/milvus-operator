@@ -1,5 +1,7 @@
 # This file contains recommended default values for a production deployment
 persistence: true
+extra: {}
+monitoring: {}
 volumes:
   persistence: true
   local_storage: false
@@ -25,35 +27,37 @@ components:
 images:
   zookeeper:
     repository: apachepulsar/pulsar
-    tag: 3.0.2
+    tag: 3.0.7
     pullPolicy: IfNotPresent
   bookie:
     repository: apachepulsar/pulsar
-    tag: 3.0.2
+    tag: 3.0.7
     pullPolicy: IfNotPresent
   autorecovery:
     repository: apachepulsar/pulsar
-    tag: 3.0.2
+    tag: 3.0.7
     pullPolicy: IfNotPresent
   broker:
     repository: apachepulsar/pulsar
-    tag: 3.0.2
+    tag: 3.0.7
     pullPolicy: IfNotPresent
   proxy:
     repository: apachepulsar/pulsar
-    tag: 3.0.2
+    tag: 3.0.7
     pullPolicy: IfNotPresent
 
 zookeeper:
+  pdb:
+    usePolicy: false
+  affinity:
+    anti_affinity: false
   component: zookeeper
   replicaCount: 3
   updateStrategy:
     type: RollingUpdate
   podManagementPolicy: Parallel
   podMonitor:
-    enabled: true
-    interval: 10s
-    scrapeTimeout: 10s
+    enabled: false
   resources:
     requests:
       memory: 256Mi
@@ -81,15 +85,17 @@ zookeeper:
       -XX:+PerfDisableSharedMem
 
 bookkeeper:
+  pdb:
+    usePolicy: false
+  affinity:
+    anti_affinity: false
   component: bookie
   replicaCount: 3
   updateStrategy:
     type: RollingUpdate
   podManagementPolicy: Parallel
   podMonitor:
-    enabled: true
-    interval: 30s
-    scrapeTimeout: 10s
+    enabled: false
   resources:
     requests:
       memory: 2048Mi
@@ -99,11 +105,11 @@ bookkeeper:
     persistence: true
     journal:
       name: journal
-      size: 50Gi
+      size: 100Gi
       local_storage: false
     ledgers:
       name: ledgers
-      size: 500Gi
+      size: 200Gi
       local_storage: false
   configData:
     PULSAR_MEM: >
@@ -123,18 +129,18 @@ bookkeeper:
       -XX:-ResizePLAB
       -XX:+ExitOnOutOfMemoryError
       -XX:+PerfDisableSharedMem
-
+    nettyMaxFrameSizeBytes: "104867840"
 autorecovery:
+  affinity:
+    anti_affinity: false
   component: recovery
   replicaCount: 1
-  podMonitor:
-    enabled: true
-    interval: 30s
-    scrapeTimeout: 10s
   resources:
     requests:
       memory: 128Mi
       cpu: 0.1
+  podMonitor:
+    enabled: false
   configData:
     BOOKIE_MEM: >
       -Xms128m -Xmx128m
@@ -143,18 +149,20 @@ pulsar_metadata:
   component: pulsar-init
   image:
     repository: apachepulsar/pulsar
-    tag: 3.0.2
+    tag: 3.0.7
     pullPolicy: IfNotPresent
 
 broker:
+  pdb:
+    usePolicy: false
+  affinity:
+    anti_affinity: false
   component: broker
   replicaCount: 2
   autoscaling:
     enabled: false
   podMonitor:
-    enabled: true
-    interval: 30s
-    scrapeTimeout: 10s
+    enabled: false
   resources:
     requests:
       memory: 2048Mi
@@ -189,14 +197,16 @@ broker:
     backlogQuotaDefaultRetentionPolicy: producer_exception
 
 proxy:
+  pdb:
+    usePolicy: false
+  affinity:
+    anti_affinity: false
   component: proxy
   replicaCount: 2
   autoscaling:
     enabled: false
   podMonitor:
-    enabled: true
-    interval: 30s
-    scrapeTimeout: 10s
+    enabled: false
   resources:
     requests:
       memory: 1024Mi
@@ -240,4 +250,3 @@ kube-prometheus-stack:
     enabled: false
   grafana:
     enabled: false
-

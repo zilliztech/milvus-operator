@@ -6889,6 +6889,7 @@ spec:
                           pvcDeletion:
                             type: boolean
                           values:
+                            nullable: true
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
                         type: object
@@ -6915,6 +6916,7 @@ spec:
                           pvcDeletion:
                             type: boolean
                           values:
+                            nullable: true
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
                         type: object
@@ -6975,6 +6977,7 @@ spec:
                           pvcDeletion:
                             type: boolean
                           values:
+                            nullable: true
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
                         type: object
@@ -7026,6 +7029,7 @@ spec:
                           pvcDeletion:
                             type: boolean
                           values:
+                            nullable: true
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
                         type: object

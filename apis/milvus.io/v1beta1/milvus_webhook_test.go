@@ -27,6 +27,8 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 			Data: map[string]interface{}{},
 		},
 	}
+	pulsarDefaultInClusterConfig := defaultInClusterConfig.DeepCopy()
+	pulsarDefaultInClusterConfig.ChartVersion = "pulsar-v3"
 
 	etcdStandaloneDefaultInClusterConfig := defaultInClusterConfig.DeepCopy()
 	etcdStandaloneDefaultInClusterConfig.Values.Data["replicaCount"] = int64(1)
@@ -91,7 +93,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 	clusterDefault.Dep.MsgStreamType = MsgStreamTypePulsar
 	clusterDefault.Dep.Pulsar = MilvusPulsar{
 		Endpoint:  "mc-pulsar-proxy.default:6650",
-		InCluster: defaultInClusterConfig,
+		InCluster: pulsarDefaultInClusterConfig,
 	}
 	clusterDefault.Dep.Etcd.Endpoints = []string{
 		"mc-etcd-0.mc-etcd-headless.default:2379",
