@@ -58,6 +58,7 @@ spec:
           name: cert
           readOnly: true
         {{- end }}
+      imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ include "chart.serviceAccountName" . | quote }}

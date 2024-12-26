@@ -11,10 +11,10 @@ metadata:
   name: "milvus-operator"
   namespace: "milvus-operator"
   labels:
-    helm.sh/chart: milvus-operator-1.1.4
+    helm.sh/chart: milvus-operator-1.1.5
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "1.1.4"
+    app.kubernetes.io/version: "1.1.5"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: milvus-operator/templates/crds.yaml
@@ -15833,10 +15833,10 @@ kind: Service
 metadata:
   labels:
     service-kind: metrics
-    helm.sh/chart: milvus-operator-1.1.4
+    helm.sh/chart: milvus-operator-1.1.5
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "1.1.4"
+    app.kubernetes.io/version: "1.1.5"
     app.kubernetes.io/managed-by: Helm
   name: 'milvus-operator-metrics-service'
   namespace: "milvus-operator"
@@ -15854,10 +15854,10 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    helm.sh/chart: milvus-operator-1.1.4
+    helm.sh/chart: milvus-operator-1.1.5
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "1.1.4"
+    app.kubernetes.io/version: "1.1.5"
     app.kubernetes.io/managed-by: Helm
   name: 'milvus-operator-webhook-service'
   namespace: "milvus-operator"
@@ -15876,10 +15876,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: milvus-operator-1.1.4
+    helm.sh/chart: milvus-operator-1.1.5
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "1.1.4"
+    app.kubernetes.io/version: "1.1.5"
     app.kubernetes.io/managed-by: Helm
   name: "milvus-operator"
   namespace: "milvus-operator"
@@ -15910,7 +15910,7 @@ spec:
         - --webhook=false
         command:
         - /manager
-        image: 'milvusdb/milvus-operator:v1.1.4'
+        image: 'milvusdb/milvus-operator:v1.1.5'
         imagePullPolicy: "IfNotPresent"
         livenessProbe:
           httpGet:
@@ -15941,6 +15941,8 @@ spec:
             memory: 100Mi
         securityContext:
           allowPrivilegeEscalation: false
+      imagePullSecrets:
+        []
       nodeSelector:
         {}
       securityContext:
