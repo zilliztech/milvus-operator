@@ -20,6 +20,7 @@ type UserYaml struct {
 		CloudProvider string `yaml:"cloudProvider"`
 		AccessKeyID   string `yaml:"accessKeyID"`
 		BucketName    string `yaml:"bucketName"`
+		Region        string `yaml:"region"`
 	} `yaml:"minio"`
 }
 

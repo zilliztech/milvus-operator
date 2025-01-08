@@ -8,11 +8,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-func VerifyAWS(ctx context.Context, bucketName, address string, secure bool) error {
+func VerifyAWS(ctx context.Context, bucketName, region, address string, secure bool) error {
 	// Initialize minio client object.
 	client, err := minio.New(address, &minio.Options{
 		Creds:  credentials.NewIAM(""),
 		Secure: secure,
+		Region: region,
 	})
 	if err != nil {
 		return errors.Wrap(err, "init minio client failed")
