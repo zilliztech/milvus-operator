@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func VerifyAliyun(ctx context.Context, bucketName, address string, secure bool) error {
+func VerifyAliyun(ctx context.Context, bucketName, region, address string, secure bool) error {
 	credProvider, err := NewCredentialProvider()
 	if err != nil {
 		return errors.Wrap(err, "failed to create credential provider")
@@ -19,6 +19,7 @@ func VerifyAliyun(ctx context.Context, bucketName, address string, secure bool) 
 	opts := minio.Options{
 		Creds:        creds,
 		Secure:       secure,
+		Region:       region,
 		BucketLookup: minio.BucketLookupDNS,
 	}
 	client, err := minio.New(address, &opts)

@@ -4,3 +4,4 @@ minio:
   bucketName: test
   useIAM: true
   cloudProvider: gcp
+  region: us-east-2

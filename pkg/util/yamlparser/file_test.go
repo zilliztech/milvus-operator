@@ -26,6 +26,7 @@ func TestParseUserYaml(t *testing.T) {
 		assert.Equal(t, "myakid", ret.Minio.AccessKeyID)
 		assert.Equal(t, "test", ret.Minio.BucketName)
 		assert.Equal(t, "gcp", ret.Minio.CloudProvider)
+		assert.Equal(t, "us-east-2", ret.Minio.Region)
 		assert.True(t, ret.Minio.UseIAM)
 	})
 
