@@ -100,13 +100,13 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return biz.HandleManualMode(ctx, mc)
 	}
 
+	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 {
+		return biz.HandleStop(ctx, mc)
+	}
+
 	err = biz.HandleRolling(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "handle rolling")
-	}
-
-	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 {
-		return biz.HandleStop(ctx, mc)
 	}
 
 	err = biz.HandleScaling(ctx, mc)
