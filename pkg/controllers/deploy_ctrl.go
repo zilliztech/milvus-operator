@@ -213,7 +213,7 @@ func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Mil
 	if err != nil {
 		return false, errors.Wrap(err, "get querynode deployments")
 	}
-	newPodtemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &deploy.Spec.Template, c.component)
+	newPodtemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &deploy.Spec.Template, c.component, false)
 	return c.util.IsNewRollout(ctx, deploy, newPodtemplate), nil
 
 }
@@ -290,7 +290,7 @@ func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.
 	if currentDeploy == nil {
 		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
 	}
-	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component)
+	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, false)
 
 	if c.util.ShouldRollback(ctx, currentDeploy, lastDeploy, podTemplate) {
 		currentDeploy = lastDeploy
@@ -325,7 +325,7 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 	if currentDeploy == nil {
 		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
 	}
-	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component)
+	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, true)
 	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
 		return c.util.PrepareNewRollout(ctx, mc, currentDeploy, podTemplate)
 	}

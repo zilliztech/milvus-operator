@@ -77,8 +77,8 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 		return err
 	}
 	isStopped := getDeployReplicas(deployment) == 0
-	updateDefaults := isCreating || isStopped
-	updatePodTemplate(updater, &deployment.Spec.Template, appLabels, updateDefaults)
+	forceUpdateAll := isCreating || isStopped
+	updatePodTemplate(updater, &deployment.Spec.Template, appLabels, forceUpdateAll)
 	return nil
 }
 
@@ -88,7 +88,7 @@ func updatePodTemplate(
 	updater deploymentUpdater,
 	template *corev1.PodTemplateSpec,
 	appLabels map[string]string,
-	updateDefaults bool,
+	forceUpdateAll bool,
 ) {
 	currentTemplate := template.DeepCopy()
 
@@ -96,7 +96,7 @@ func updatePodTemplate(
 	updateInitContainers(template, updater)
 	updateUserDefinedVolumes(template, updater)
 	updateScheduleSpec(template, updater)
-	updateMilvusContainer(template, updater, updateDefaults)
+	updateMilvusContainer(template, updater, forceUpdateAll)
 	updateSidecars(template, updater)
 	updateNetworkSettings(template, updater)
 
@@ -114,7 +114,7 @@ func updatePodTemplate(
 			"namespace", updater.GetMilvus().Namespace,
 			"milvus", updater.GetMilvus().Name).
 			Info("pod template updated by crd", "diff", diff.ObjectDiff(currentTemplate, template))
-	case updateDefaults:
+	case forceUpdateAll:
 	default:
 		// no updates, no default changes
 		return
@@ -230,7 +230,7 @@ func updateBuiltInVolumes(template *corev1.PodTemplateSpec, updater deploymentUp
 	}
 }
 
-func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentUpdater, isCreating bool) {
+func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentUpdater, forceUpdateImage bool) {
 	mergedComSpec := updater.GetMergedComponentSpec()
 
 	containerIdx := GetContainerIndex(template.Spec.Containers, updater.GetComponent().Name)
@@ -286,7 +286,7 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	}
 
 	container.ImagePullPolicy = *mergedComSpec.ImagePullPolicy
-	if isCreating ||
+	if forceUpdateImage ||
 		!updater.GetMilvus().IsRollingUpdateEnabled() || // rolling update is disabled
 		updater.GetMilvus().Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeAll || // image update mode is update all
 		updater.GetMilvus().Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce ||

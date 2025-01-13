@@ -38,7 +38,7 @@ func TestDeployControllerBizUtilImpl_RenderPodTemplateWithoutGroupID(t *testing.
 	component := DataNode
 
 	mockcli.EXPECT().Scheme().Return(scheme)
-	template := bizUtil.RenderPodTemplateWithoutGroupID(mc, currentTemplate, component)
+	template := bizUtil.RenderPodTemplateWithoutGroupID(mc, currentTemplate, component, false)
 	assert.NotNil(t, template)
 	assert.Equal(t, template.Labels[v1beta1.GetComponentGroupIdLabel(component.Name)], "")
 }
@@ -300,13 +300,13 @@ func TestDeployControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 	currentDeploy := new(appsv1.Deployment)
 	lastDeploy := new(appsv1.Deployment)
 	mockcli.EXPECT().Scheme().Return(scheme).AnyTimes()
-	podTemplate := bizUtil.RenderPodTemplateWithoutGroupID(mc, nil, DataNode)
+	podTemplate := bizUtil.RenderPodTemplateWithoutGroupID(mc, nil, DataNode, false)
 	labelHelper := v1beta1.Labels()
 
 	t.Cleanup(func() {
 		currentDeploy = new(appsv1.Deployment)
 		lastDeploy = new(appsv1.Deployment)
-		podTemplate = bizUtil.RenderPodTemplateWithoutGroupID(mc, nil, DataNode)
+		podTemplate = bizUtil.RenderPodTemplateWithoutGroupID(mc, nil, DataNode, false)
 		mockCtrl.Finish()
 	})
 

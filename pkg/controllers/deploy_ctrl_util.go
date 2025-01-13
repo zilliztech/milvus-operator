@@ -20,7 +20,7 @@ import (
 
 // DeployControllerBizUtil are the business logics of DeployControllerBizImpl, abstracted for unit test
 type DeployControllerBizUtil interface {
-	RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent) *corev1.PodTemplateSpec
+	RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent, forceUpdateAll bool) *corev1.PodTemplateSpec
 
 	// GetDeploys returns currentDeployment, lastDeployment when there is exactly one currentDeployment, one lastDeployment
 	// otherwise return err. in particular:
@@ -88,17 +88,19 @@ func NewDeployControllerBizUtil(component MilvusComponent, cli client.Client, k8
 	}
 }
 
-func (c *DeployControllerBizUtilImpl) RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent) *corev1.PodTemplateSpec {
+func (c *DeployControllerBizUtilImpl) RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent, forceUpdateAll bool) *corev1.PodTemplateSpec {
 	ret := new(corev1.PodTemplateSpec)
 	if currentTemplate != nil {
 		ret = currentTemplate.DeepCopy()
 	}
 	updater := newMilvusDeploymentUpdater(mc, c.cli.Scheme(), component)
 	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponent().Name)
-	isCreating := currentTemplate == nil
-	isStopped := ReplicasValue(component.GetReplicas(mc.Spec)) == 0
-	updateDefaults := isCreating || isStopped
-	updatePodTemplate(updater, ret, appLabels, updateDefaults)
+	if !forceUpdateAll {
+		isCreating := currentTemplate == nil
+		isStopped := ReplicasValue(component.GetReplicas(mc.Spec)) == 0
+		forceUpdateAll = isCreating || isStopped
+	}
+	updatePodTemplate(updater, ret, appLabels, forceUpdateAll)
 	return ret
 }
 
@@ -164,7 +166,7 @@ func formatComponentDeployName(mc v1beta1.Milvus, component MilvusComponent, gro
 
 func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error {
 	if podTemplate == nil {
-		podTemplate = c.RenderPodTemplateWithoutGroupID(mc, nil, c.component)
+		podTemplate = c.RenderPodTemplateWithoutGroupID(mc, nil, c.component, true)
 	}
 	if groupId != 0 {
 		// is not the first deploy, set image to dummy to avoid rolling back and forth
