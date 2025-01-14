@@ -597,6 +597,21 @@ func TestGetMilvusUpdatedCondition(t *testing.T) {
 		assert.Equal(t, corev1.ConditionTrue, cond.Status)
 	})
 
+	t.Run("standalone 2 deploy mode: old deployment scaling down", func(t *testing.T) {
+		m := &v1beta1.Milvus{}
+		m.Default()
+		v1beta1.Labels().SetComponentRolling(m, StandaloneName, true)
+		m.Status.ComponentsDeployStatus = map[string]v1beta1.ComponentDeployStatus{
+			StandaloneName: {
+				Generation: 1,
+				Image:      m.Spec.Com.Image,
+				Status:     readyDeployStatus,
+			},
+		}
+		cond := GetMilvusUpdatedCondition(m)
+		assert.Equal(t, corev1.ConditionFalse, cond.Status)
+	})
+
 	t.Run("cluster upgrade", func(t *testing.T) {
 		m := &v1beta1.Milvus{}
 		m.Spec.Mode = v1beta1.MilvusModeCluster
