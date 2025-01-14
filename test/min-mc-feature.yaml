@@ -14,6 +14,33 @@ metadata:
 spec:
   mode: 'cluster'
   components:
+    probes:
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /healthz
+          port: 9091
+          scheme: HTTP
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 30
+      readinessProbe:
+        failureThreshold: 2
+        httpGet:
+          path: /healthz
+          port: 9091
+          scheme: HTTP
+        periodSeconds: 15
+        successThreshold: 1
+        timeoutSeconds: 3
+      startupProbe:
+        failureThreshold: 60
+        httpGet:
+          path: /healthz
+          port: 9091
+          scheme: HTTP
+        periodSeconds: 10
+        successThreshold: 1
     image: milvusdb/milvus:v2.5.0-beta
     rollingMode: 3
     enableRollingUpdate: false # milvus 2.5.0-beta bug: not supported standby for streaming coord

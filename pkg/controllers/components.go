@@ -439,7 +439,7 @@ func GetMilvusConfCheckSum(spec v1beta1.MilvusSpec) string {
 	return util.CheckSum(b)
 }
 
-func GetStartupProbe() *corev1.Probe {
+func GetDefaultStartupProbe() *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
@@ -455,7 +455,7 @@ func GetStartupProbe() *corev1.Probe {
 	}
 }
 
-func GetLivenessProbe() *corev1.Probe {
+func GetDefaultLivenessProbe() *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
@@ -471,7 +471,7 @@ func GetLivenessProbe() *corev1.Probe {
 	}
 }
 
-func GetReadinessProbe() *corev1.Probe {
+func GetDefaultReadinessProbe() *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
@@ -629,6 +629,10 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 
 	if len(src.DNSPolicy) > 0 {
 		dst.DNSPolicy = src.DNSPolicy
+	}
+
+	if src.Probes.Data != nil {
+		dst.Probes = src.Probes
 	}
 
 	return dst

@@ -114,6 +114,19 @@ type ComponentSpec struct {
 	// DNSPolicy indicates the pod's DNS policy
 	// +kubebuilder:validation:Optional
 	DNSPolicy corev1.DNSPolicy `json:"dnsPolicy,omitempty"`
+
+	// Probes has fields startupProbe, livenessProbe, readinessProbe
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +nullable
+	Probes Values `json:"probes,omitempty"`
+}
+
+// Probes is the actual struct for the Probes field in ComponentSpec
+type Probes struct {
+	StartupProbe   *corev1.Probe `json:"startupProbe,omitempty"`
+	LivenessProbe  *corev1.Probe `json:"livenessProbe,omitempty"`
+	ReadinessProbe *corev1.Probe `json:"readinessProbe,omitempty"`
 }
 
 // ImageUpdateMode is how the milvus components' image should be updated. works only when rolling update is enabled.
