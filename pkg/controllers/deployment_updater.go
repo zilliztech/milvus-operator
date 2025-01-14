@@ -333,9 +333,7 @@ func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater d
 	if componentName == ProxyName || componentName == StandaloneName {
 		template.Labels[v1beta1.ServiceLabel] = v1beta1.TrueStr
 	}
-	container.StartupProbe = GetStartupProbe()
-	container.LivenessProbe = GetLivenessProbe()
-	container.ReadinessProbe = GetReadinessProbe()
+	updateProbes(container, updater.GetMergedComponentSpec())
 	if componentName == ProxyName || componentName == StandaloneName {
 		// When the proxy or standalone receives a SIGTERM,
 		// will stop handling new requests immediatelly
@@ -358,6 +356,25 @@ func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater d
 	// so that when pod stuck on rolling, the service will still be available.
 	// We'll have enough time to find the root cause and handle it gracefully.
 	template.Spec.TerminationGracePeriodSeconds = int64Ptr(int64(oneMonthSeconds))
+}
+
+func updateProbes(container *corev1.Container, spec ComponentSpec) {
+	probes := v1beta1.Probes{}
+	if spec.Probes.Data != nil {
+		spec.Probes.MustAsObj(&probes)
+	}
+	if probes.StartupProbe == nil {
+		probes.StartupProbe = GetDefaultStartupProbe()
+	}
+	if probes.LivenessProbe == nil {
+		probes.LivenessProbe = GetDefaultLivenessProbe()
+	}
+	if probes.ReadinessProbe == nil {
+		probes.ReadinessProbe = GetDefaultReadinessProbe()
+	}
+	container.StartupProbe = probes.StartupProbe
+	container.LivenessProbe = probes.LivenessProbe
+	container.ReadinessProbe = probes.ReadinessProbe
 }
 
 const oneMonthSeconds = 24 * 30 * int(time.Hour/time.Second)

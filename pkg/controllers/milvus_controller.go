@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	pkgErr "github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -153,6 +154,11 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: unhealthySyncInterval}, nil
 	}
 
+	err := r.VerifyCR(ctx, milvus)
+	if err != nil {
+		return ctrl.Result{}, pkgErr.Wrap(err, "verify cr")
+	}
+
 	old := milvus.DeepCopy()
 	milvus.Default()
 
@@ -169,7 +175,7 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
-	err := r.ReconcileLegacyValues(ctx, old, milvus)
+	err = r.ReconcileLegacyValues(ctx, old, milvus)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -197,6 +203,24 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		Set(MilvusStatusToCode(milvus.Status.Status, milvus.GetAnnotations()[MaintainingAnnotation] == "true"))
 
 	return ctrl.Result{}, nil
+}
+
+func (r *MilvusReconciler) VerifyCR(ctx context.Context, milvus *v1beta1.Milvus) error {
+	if milvus.Status.ObservedGeneration >= milvus.Generation {
+		// already verified
+		return nil
+	}
+	err := milvus.Spec.Com.Probes.AsObject(&v1beta1.Probes{})
+	if err != nil {
+		return pkgErr.Wrap(err, "verify custom probes")
+	}
+	for i, volume := range milvus.Spec.Com.Volumes {
+		err := volume.AsObject(&corev1.Volume{})
+		if err != nil {
+			return pkgErr.Wrapf(err, "verify custom volume %d", i)
+		}
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

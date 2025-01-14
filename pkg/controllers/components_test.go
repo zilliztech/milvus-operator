@@ -277,6 +277,20 @@ func TestMergeComponentSpec(t *testing.T) {
 		assert.Equal(t, corev1.DNSPolicy("ClusterFirst"), merged)
 	})
 
+	t.Run("merge Probes", func(t *testing.T) {
+		dst.Probes.Data = map[string]interface{}{
+			"livenessProbe": "yyy",
+		}
+		merged := MergeComponentSpec(src, dst).Probes
+		assert.Equal(t, "yyy", merged.Data["livenessProbe"])
+
+		src.Probes.Data = map[string]interface{}{
+			"livenessProbe": "xxx",
+		}
+		merged = MergeComponentSpec(src, dst).Probes
+		assert.Equal(t, "xxx", merged.Data["livenessProbe"])
+	})
+
 }
 
 func TestMilvusComponent_GetReplicas(t *testing.T) {
@@ -482,13 +496,13 @@ func TestMilvusComponent_GetMilvusConfCheckSumt(t *testing.T) {
 }
 
 func TestMilvusComponent_GetLivenessProbe_GetReadinessProbe(t *testing.T) {
-	lProbe := GetLivenessProbe()
+	lProbe := GetDefaultLivenessProbe()
 	assert.Equal(t, "/healthz", lProbe.HTTPGet.Path)
 	assert.Equal(t, intstr.FromInt(MetricPort), lProbe.HTTPGet.Port)
 	assert.Equal(t, int32(10), lProbe.TimeoutSeconds)
 	assert.Equal(t, int32(15), lProbe.PeriodSeconds)
 
-	rProbe := GetReadinessProbe()
+	rProbe := GetDefaultReadinessProbe()
 	assert.Equal(t, int32(3), rProbe.TimeoutSeconds)
 }
 

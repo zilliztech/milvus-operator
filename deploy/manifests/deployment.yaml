@@ -895,6 +895,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -1455,6 +1459,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -2111,6 +2119,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -2671,6 +2683,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -3233,6 +3249,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -3337,6 +3357,10 @@ spec:
                     type: object
                   priorityClassName:
                     type: string
+                  probes:
+                    nullable: true
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   proxy:
                     properties:
                       affinity:
@@ -3837,6 +3861,10 @@ spec:
                         type: integer
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -4415,6 +4443,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -4975,6 +5007,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -5568,6 +5604,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -6164,6 +6204,10 @@ spec:
                         type: integer
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -6742,6 +6786,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -7935,6 +7983,10 @@ spec:
                 type: object
               priorityClassName:
                 type: string
+              probes:
+                nullable: true
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
               replicas:
                 format: int32
                 type: integer
@@ -9039,6 +9091,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -9599,6 +9655,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -10255,6 +10315,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -10815,6 +10879,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -11377,6 +11445,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -11481,6 +11553,10 @@ spec:
                     type: object
                   priorityClassName:
                     type: string
+                  probes:
+                    nullable: true
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   proxy:
                     properties:
                       affinity:
@@ -11981,6 +12057,10 @@ spec:
                         type: integer
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -12559,6 +12639,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -13119,6 +13203,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -13712,6 +13800,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -14308,6 +14400,10 @@ spec:
                         type: integer
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
@@ -14886,6 +14982,10 @@ spec:
                         type: object
                       priorityClassName:
                         type: string
+                      probes:
+                        nullable: true
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       replicas:
                         format: int32
                         minimum: -1
