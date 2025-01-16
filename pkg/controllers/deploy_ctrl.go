@@ -145,16 +145,14 @@ var _ DeployControllerBiz = &DeployControllerBizImpl{}
 type DeployControllerBizImpl struct {
 	component MilvusComponent
 	DeployModeChanger
-	statusSyncer MilvusStatusSyncerInterface
-	util         DeployControllerBizUtil
-	cli          client.Client
+	util DeployControllerBizUtil
+	cli  client.Client
 }
 
-func NewDeployControllerBizImpl(component MilvusComponent, statusSyncer MilvusStatusSyncerInterface, util DeployControllerBizUtil, modeChanger DeployModeChanger, cli client.Client) *DeployControllerBizImpl {
+func NewDeployControllerBizImpl(component MilvusComponent, util DeployControllerBizUtil, modeChanger DeployModeChanger, cli client.Client) *DeployControllerBizImpl {
 	return &DeployControllerBizImpl{
 		component:         component,
 		DeployModeChanger: modeChanger,
-		statusSyncer:      statusSyncer,
 		util:              util,
 		cli:               cli,
 	}
@@ -200,9 +198,8 @@ func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Mil
 	if mc.Spec.IsStopping() {
 		return false, nil
 	}
-	err := c.statusSyncer.UpdateStatusForNewGeneration(ctx, &mc, false)
-	if err != nil {
-		return false, errors.Wrap(err, "update status for new generation")
+	if mc.Status.ObservedGeneration < mc.Generation {
+		return true, nil
 	}
 	cond := v1beta1.GetMilvusConditionByType(&mc.Status, v1beta1.MilvusUpdated)
 	if cond == nil || cond.Status != corev1.ConditionTrue {
@@ -324,6 +321,10 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 	}
 	if currentDeploy == nil {
 		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
+	}
+	// should not update deploy with replicas if it's in manual mode
+	if getDeployReplicas(currentDeploy) != 0 {
+		return nil
 	}
 	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, true)
 	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {

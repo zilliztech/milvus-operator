@@ -20,10 +20,9 @@ type DeployControllerBizFactoryImpl struct {
 }
 
 // NewDeployControllerBizFactory creates a new DeployControllerBizFactory
-func NewDeployControllerBizFactory(modeChangerFactory DeployModeChangerFactory, statusSyncer MilvusStatusSyncerInterface, utilFactory DeployControllerBizUtilFactory, cli client.Client) *DeployControllerBizFactoryImpl {
+func NewDeployControllerBizFactory(modeChangerFactory DeployModeChangerFactory, utilFactory DeployControllerBizUtilFactory, cli client.Client) *DeployControllerBizFactoryImpl {
 	return &DeployControllerBizFactoryImpl{
 		modeChangerFactory: modeChangerFactory,
-		statusSyncer:       statusSyncer,
 		utilFactory:        utilFactory,
 		cli:                cli,
 	}
@@ -31,7 +30,7 @@ func NewDeployControllerBizFactory(modeChangerFactory DeployModeChangerFactory, 
 
 // GetBiz get DeployControllerBiz for the given component
 func (f *DeployControllerBizFactoryImpl) GetBiz(component MilvusComponent) DeployControllerBiz {
-	return NewDeployControllerBizImpl(component, f.statusSyncer, f.utilFactory.GetBizUtil(component), f.modeChangerFactory.GetDeployModeChanger(component), f.cli)
+	return NewDeployControllerBizImpl(component, f.utilFactory.GetBizUtil(component), f.modeChangerFactory.GetDeployModeChanger(component), f.cli)
 }
 
 type DeployModeChangerFactory interface {
