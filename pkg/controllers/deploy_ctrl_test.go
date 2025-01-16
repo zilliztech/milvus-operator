@@ -190,11 +190,10 @@ func TestDeployControllerImpl_Reconcile(t *testing.T) {
 func TestDeployControllerBizImpl_CheckDeployMode(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	component := QueryNode
 	t.Run("status v2 shows twoDeploy", func(t *testing.T) {
@@ -222,11 +221,10 @@ func TestDeployControllerBizImpl_CheckDeployMode(t *testing.T) {
 func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	mc.Default()
 	component := QueryNode
@@ -245,21 +243,16 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 		mc.Spec.Com.Standalone.Replicas = int32Ptr(1)
 	})
 
-	t.Run("update status failed", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(errMock)
-		_, err := bizImpl.IsUpdating(ctx, mc)
-		assert.Error(t, err)
-	})
-
-	t.Run("milvus condition not exist, sugguests updating", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(nil)
+	mc.Generation = 2
+	mc.Status.ObservedGeneration = 1
+	t.Run("generation not updated, sugguests updating", func(t *testing.T) {
 		ret, err := bizImpl.IsUpdating(ctx, mc)
 		assert.NoError(t, err)
 		assert.True(t, ret)
 	})
 
+	mc.Status.ObservedGeneration = 2
 	t.Run("milvus condition shows updating", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(nil)
 		mc.Status.Conditions = []v1beta1.MilvusCondition{
 			{
 				Type:   v1beta1.MilvusUpdated,
@@ -279,14 +272,12 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	}
 
 	t.Run("get old deploy failed", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(nil)
 		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(nil, errMock)
 		_, err := bizImpl.IsUpdating(ctx, mc)
 		assert.Error(t, err)
 	})
 
 	t.Run("is new rollout, so updating", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(nil)
 		deploy := appsv1.Deployment{}
 
 		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(&deploy, nil)
@@ -299,7 +290,6 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	})
 
 	t.Run("not updating", func(t *testing.T) {
-		mockStatusSyncer.EXPECT().UpdateStatusForNewGeneration(ctx, &mc, false).Return(nil)
 		deploy := appsv1.Deployment{}
 
 		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(&deploy, nil)
@@ -315,7 +305,7 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 func TestDeployControllerBizImpl_IsPaused(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	bizImpl := NewDeployControllerBizImpl(QueryNode, nil, nil, nil, nil)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, nil, nil, nil)
 	mc := v1beta1.Milvus{}
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
 	mc.Default()
@@ -338,11 +328,10 @@ func TestDeployControllerBizImpl_IsPaused(t *testing.T) {
 func TestDeployControllerBizImpl_HandleCreate(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	deploy := appsv1.Deployment{}
 	t.Run("get querynode deploy failed", func(t *testing.T) {
@@ -383,11 +372,10 @@ func TestDeployControllerBizImpl_HandleCreate(t *testing.T) {
 func TestDeployControllerBizImpl_HandleStop(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
 	mc.Default()
@@ -432,11 +420,10 @@ func TestDeployControllerBizImpl_HandleStop(t *testing.T) {
 func TestDeployControllerBizImpl_HandleScaling(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
 	mc.Default()
@@ -469,11 +456,10 @@ func TestDeployControllerBizImpl_HandleScaling(t *testing.T) {
 func TestDeployControllerBizImpl_HandleRolling(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	deploy := appsv1.Deployment{}
 	deploy2 := appsv1.Deployment{}
@@ -546,11 +532,10 @@ func TestDeployControllerBizImpl_HandleRolling(t *testing.T) {
 func TestDeployControllerBizImpl_HandleManualMode(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockStatusSyncer := NewMockMilvusStatusSyncerInterface(mockCtrl)
 	mockUtil := NewMockDeployControllerBizUtil(mockCtrl)
 	mockCli := NewMockK8sClient(mockCtrl)
 	mockModeChanger := NewMockDeployModeChanger(mockCtrl)
-	bizImpl := NewDeployControllerBizImpl(QueryNode, mockStatusSyncer, mockUtil, mockModeChanger, mockCli)
+	bizImpl := NewDeployControllerBizImpl(QueryNode, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
 	mc.Default()
