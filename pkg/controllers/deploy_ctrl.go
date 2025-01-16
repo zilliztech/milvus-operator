@@ -200,9 +200,8 @@ func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Mil
 	if mc.Spec.IsStopping() {
 		return false, nil
 	}
-	err := c.statusSyncer.UpdateStatusForNewGeneration(ctx, &mc, false)
-	if err != nil {
-		return false, errors.Wrap(err, "update status for new generation")
+	if mc.Status.ObservedGeneration < mc.Generation {
+		return true, nil
 	}
 	cond := v1beta1.GetMilvusConditionByType(&mc.Status, v1beta1.MilvusUpdated)
 	if cond == nil || cond.Status != corev1.ConditionTrue {
