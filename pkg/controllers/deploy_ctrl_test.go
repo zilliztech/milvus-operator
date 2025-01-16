@@ -567,6 +567,7 @@ func TestDeployControllerBizImpl_HandleManualMode(t *testing.T) {
 	})
 
 	deploy := &appsv1.Deployment{}
+	deploy.Spec.Replicas = int32Ptr(0)
 	t.Run("no rolling, renew deploy annotation, update requeue", func(t *testing.T) {
 		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(deploy, nil, nil)
 		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(mc, gomock.Any(), QueryNode, true).Return(nil)
@@ -576,6 +577,13 @@ func TestDeployControllerBizImpl_HandleManualMode(t *testing.T) {
 		err := bizImpl.HandleManualMode(ctx, mc)
 		assert.Error(t, err)
 		assert.Equal(t, ErrRequeue, err)
+	})
+
+	t.Run("active deploy has replica, no new rollout", func(t *testing.T) {
+		deploy.Spec.Replicas = int32Ptr(1)
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(deploy, nil, nil)
+		err := bizImpl.HandleManualMode(ctx, mc)
+		assert.NoError(t, err)
 	})
 
 }

@@ -324,6 +324,10 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 	if currentDeploy == nil {
 		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
 	}
+	// should not update deploy with replicas if it's in manual mode
+	if getDeployReplicas(currentDeploy) != 0 {
+		return nil
+	}
 	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, true)
 	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
 		return c.util.PrepareNewRollout(ctx, mc, currentDeploy, podTemplate)
