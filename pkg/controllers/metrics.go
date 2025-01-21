@@ -3,6 +3,8 @@ package controllers
 import (
 	v1beta1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/prometheus/client_golang/prometheus"
+	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
+	"github.com/prometheus/common/version"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
@@ -66,4 +68,8 @@ func InitializeMetrics() {
 	// register our own
 	metrics.Registry.MustRegister(milvusStatusCollector)
 	metrics.Registry.MustRegister(milvusTotalCountCollector)
+
+	// Register a build info metric.
+	version.Version = v1beta1.Version
+	metrics.Registry.MustRegister(versioncollector.NewCollector("milvus_operator"))
 }
