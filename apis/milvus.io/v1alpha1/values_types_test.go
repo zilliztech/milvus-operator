@@ -36,6 +36,6 @@ func TestValues_DeepCopyInfo(t *testing.T) {
 	values2 := &Values{}
 	values.DeepCopyInto(values2)
 	assert.NotSame(t, values, values2)
-	assert.NotSame(t, values.Data, values2.Data)
+	assert.NotSame(t, &values.Data, &values2.Data)
 	assert.Equal(t, values, values2)
 }
