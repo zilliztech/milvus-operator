@@ -18,10 +18,11 @@ import (
 //go:generate mockgen -package=controllers -source=dependencies.go -destination=dependencies_mock.go HelmReconciler
 
 const (
-	Etcd   = "etcd"
-	Minio  = "minio"
-	Pulsar = "pulsar"
-	Kafka  = "kafka"
+	Etcd     = "etcd"
+	Minio    = "minio"
+	Pulsar   = "pulsar"
+	PulsarV3 = "pulsar-v3"
+	Kafka    = "kafka"
 )
 
 // HelmReconciler reconciles Helm releases
@@ -76,6 +77,10 @@ func getRESTClientGetterWithNamespace(env *cli.EnvSettings, namespace string) ge
 		ImpersonateGroup: &env.KubeAsGroups,
 		Insecure:         &configFlagInsecure,
 	}
+}
+
+func IsPulsarChartPath(chartPath string) bool {
+	return chartPath == helm.GetChartPathByName(Pulsar)
 }
 
 // ReconcileHelm reconciles Helm releases

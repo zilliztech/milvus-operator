@@ -10,6 +10,6 @@ spec:
     msgStreamType: pulsar
     pulsar:
       inCluster:
-        chartVersion: pulsar-v3
+        chartVersion: pulsar-v2
         deletionPolicy: Delete
         pvcDeletion: true
