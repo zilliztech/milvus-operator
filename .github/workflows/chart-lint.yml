@@ -11,11 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: recursive
       - name: Set up Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0
         with:
           version: v3.4.0
       - name: Add dependency chart repos
@@ -23,13 +23,13 @@ jobs:
           helm repo add cert-manager https://charts.jetstack.io
 
       - name: Set up chart-testing
-        uses: helm/chart-testing-action@v2.1.0
+        uses: helm/chart-testing-action@cf48dbf901ed202ae2c5aee26422dd6dfdf41e47 # v2.7.0
 
       - name: Run chart-testing (lint)
         run: ct lint --all --config ct.yaml
 
       - name: Create KinD cluster
-        uses: helm/kind-action@v1.2.0
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
 
       - name: Run chart-testing (install)
         id: install
