@@ -2,6 +2,29 @@ apiVersion: v1
 entries:
   milvus-operator:
     - apiVersion: v2
+      appVersion: 1.2.0
+      created: "2025-01-23T18:39:01.126758+08:00"
+      dependencies:
+      - condition: cert-manager.enabled
+        name: cert-manager
+        repository: https://charts.jetstack.io
+        tags:
+        - cert-manager
+        version: 1.5.3
+      description: A Helm chart for deploying Milvus Operator
+      digest: 2fba15e664a636118e7ab70164ebb8f8a53de80f77bcdf8aff0e93182076a873
+      home: https://github.com/zilliztech/milvus-operator
+      kubeVersion: '>= 1.16.0-0'
+      maintainers:
+      - email: devops@zilliz.com
+        name: zilliztech
+        url: https://zilliz.com
+      name: milvus-operator
+      type: application
+      urls:
+      - https://github.com/zilliztech/milvus-operator/releases/download/v1.2.0/milvus-operator-1.2.0.tgz
+      version: 1.2.0
+    - apiVersion: v2
       appVersion: 1.1.9
       created: "2025-01-21T16:14:07.865429+08:00"
       dependencies:
