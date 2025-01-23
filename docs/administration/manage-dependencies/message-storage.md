@@ -115,98 +115,81 @@ spec:
     # Omit other fields ...
     pulsar:
       inCluster:
+        chartVersion: pulsar-v3
+        deletionPolicy: Delete
+        pvcDeletion: true
         values:
-          components: 
+          volumes:
+            persistence: false
+          components:
             autorecovery: false
-            functions: false
-            toolset: false
-            pulsar_manager: false
-          monitoring:
-            prometheus: false
-            grafana: false
-            node_exporter: false
-            alert_manager: false
-          proxy:
-            replicaCount: 1
-            resources:
-              requests:
-                cpu: 0.01
-                memory: 256Mi
-            configData:
-              PULSAR_MEM: >
-                -Xms256m -Xmx256m
-              PULSAR_GC: >
-                -XX:MaxDirectMemorySize=256m
-          bookkeeper:
-            replicaCount: 2
-            resources:
-              requests:
-                cpu: 0.01
-                memory: 256Mi
-            configData:
-              PULSAR_MEM: >
-                -Xms256m
-                -Xmx256m
-                -XX:MaxDirectMemorySize=256m
-              PULSAR_GC: >
-                -Dio.netty.leakDetectionLevel=disabled
-                -Dio.netty.recycler.linkCapacity=1024
-                -XX:+UseG1GC -XX:MaxGCPauseMillis=10
-                -XX:+ParallelRefProcEnabled
-                -XX:+UnlockExperimentalVMOptions
-                -XX:+DoEscapeAnalysis
-                -XX:ParallelGCThreads=32
-                -XX:ConcGCThreads=32
-                -XX:G1NewSizePercent=50
-                -XX:+DisableExplicitGC
-                -XX:-ResizePLAB
-                -XX:+ExitOnOutOfMemoryError
-                -XX:+PerfDisableSharedMem
-                -XX:+PrintGCDetails
           zookeeper:
             replicaCount: 1
+            podMonitor:
+              enabled: false
             resources:
               requests:
-                cpu: 0.01
-                memory: 256Mi
+                memory: 64Mi
+                cpu: 0.001
+            volumes:
+              # use a persistent volume or emptyDir
+              persistence: false
             configData:
               PULSAR_MEM: >
-                -Xms256m
-                -Xmx256m
-              PULSAR_GC: >
-                -Dcom.sun.management.jmxremote
-                -Djute.maxbuffer=10485760
-                -XX:+ParallelRefProcEnabled
-                -XX:+UnlockExperimentalVMOptions
-                -XX:+DoEscapeAnalysis -XX:+DisableExplicitGC
-                -XX:+PerfDisableSharedMem
-                -Dzookeeper.forceSync=no
+                -Xms64m -Xmx256m
+          bookkeeper:
+            component: bookie
+            replicaCount: 1
+            podMonitor:
+              enabled: false
+            resources:
+              requests:
+                memory: 64Mi
+                cpu: 0.001
+            volumes:
+              # use a persistent volume or emptyDir
+              persistence: false
+            configData:
+              PULSAR_MEM: >
+                -Xms64m
+                -Xmx4096m
+                -XX:MaxDirectMemorySize=8192m
+          autorecovery:
+            replicaCount: 0
+            podMonitor:
+              enabled: false
           broker:
             replicaCount: 1
+            podMonitor:
+              enabled: false
             resources:
               requests:
-                cpu: 0.01
-                memory: 256Mi
+                memory: 64Mi
+                cpu: 0.001
             configData:
               PULSAR_MEM: >
-                -Xms256m
-                -Xmx256m
-              PULSAR_GC: >
-                -XX:MaxDirectMemorySize=256m
-                -Dio.netty.leakDetectionLevel=disabled
-                -Dio.netty.recycler.linkCapacity=1024
-                -XX:+ParallelRefProcEnabled
-                -XX:+UnlockExperimentalVMOptions
-                -XX:+DoEscapeAnalysis
-                -XX:ParallelGCThreads=32
-                -XX:ConcGCThreads=32
-                -XX:G1NewSizePercent=50
-                -XX:+DisableExplicitGC
-                -XX:-ResizePLAB
-                -XX:+ExitOnOutOfMemoryError       
+                -Xms64m -Xmx4096m -XX:MaxDirectMemorySize=8192m
+              managedLedgerDefaultEnsembleSize: '1'
+              managedLedgerDefaultWriteQuorum: '1'
+              managedLedgerDefaultAckQuorum: '1'
+          proxy:
+            replicaCount: 1
+            autoscaling:
+              enabled: false
+            podMonitor:
+              enabled: false
+              interval: 30s
+              scrapeTimeout: 10s
+            resources:
+              requests:
+                memory: 64Mi
+                cpu: 0.001
+            configData:
+              PULSAR_MEM: >
+                -Xms64m -Xmx512m -XX:MaxDirectMemorySize=2048m  
 ```
 
-> Find the complete configuration items to configure an internal Pulsar service in <a href="https://artifacthub.io/packages/helm/apache/pulsar/2.7.8?modal=values"> values.yaml</a>. Add configuration items as needed under `pulsar.inCluster.values` as shown in the preceding example.
+> Find the complete configuration items to configure an internal Pulsar service in <a href="https://artifacthub.io/packages/helm/apache/pulsar/3.3.0?modal=values"> values.yaml</a>. Add configuration items as needed under `pulsar.inCluster.values` as shown in the preceding example.
 
 
 ## Configure Kafka

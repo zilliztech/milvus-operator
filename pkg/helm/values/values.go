@@ -23,10 +23,11 @@ const (
 	DependencyKindPulsar  DependencyKind = "Pulsar"
 	DependencyKindKafka   DependencyKind = "Kafka"
 
+	// Chart names & values sub-fields in milvus-helm
 	Etcd     = "etcd"
 	Minio    = "minio"
 	Pulsar   = "pulsar"
-	PulsarV3 = string(ChartVersionPulsarV3)
+	PulsarV3 = "pulsarv3"
 	Kafka    = "kafka"
 )
 
@@ -34,8 +35,6 @@ const (
 	ValuesRootPath = "config/assets/charts"
 	// DefaultValuesPath is the path to the default values file
 	DefaultValuesPath = ValuesRootPath + "/values.yaml"
-
-	DefaultPulsarV3ValuesPath = ValuesRootPath + "/pulsar-v3-values.yaml"
 )
 
 type DefaultValuesProvider interface {
@@ -59,17 +58,18 @@ func MustInitDefaultValuesProvider() {
 		err = errors.Wrapf(err, "failed to read default helm chart values from [%s]", DefaultValuesPath)
 		panic(err)
 	}
-	pulsarV3Values, err := readValuesFromFile(DefaultPulsarV3ValuesPath)
-	if err != nil {
-		err = errors.Wrapf(err, "failed to read default pulsar v3 chart values from [%s]", DefaultPulsarV3ValuesPath)
-		panic(err)
-	}
+	pulsarV3Values := values[PulsarV3].(Values)
+	// helm uses $milvus-pulsarv3 as release name for historical reasons
+	// but milvus uses we use $milvus-pulsar
+	pulsarV3Values["name"] = "pulsar"
+	pulsarV3Values["nameOverride"] = ""
+
 	globalDefaultValues = &DefaultValuesProviderImpl{
 		chartDefaultValues: map[Chart]Values{
 			Etcd:     values[Etcd].(Values),
 			Minio:    values[Minio].(Values),
 			Pulsar:   values[Pulsar].(Values),
-			PulsarV3: Values(pulsarV3Values),
+			PulsarV3: pulsarV3Values,
 			Kafka:    values[Kafka].(Values),
 		},
 	}

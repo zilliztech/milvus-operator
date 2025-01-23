@@ -3,7 +3,6 @@ package helm
 import (
 	"errors"
 	"reflect"
-	"strings"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/helm/values"
@@ -133,11 +132,12 @@ func GetChartPathByName(chart string) string {
 func GetChartRequest(mc v1beta1.Milvus, dep values.DependencyKind, chart string) ChartRequest {
 	inCluster := reflect.ValueOf(mc.Spec.Dep).FieldByName(string(dep)).
 		FieldByName("InCluster").Interface().(*v1beta1.InClusterConfig)
+	chartKind := chart
 	switch inCluster.ChartVersion {
 	case values.ChartVersionPulsarV3:
 		chart = values.PulsarV3
+		chartKind = values.Pulsar
 	}
-	chartKind := strings.Split(chart, "-")[0]
 	return ChartRequest{
 		ReleaseName: mc.Name + "-" + chartKind,
 		Namespace:   mc.Namespace,
