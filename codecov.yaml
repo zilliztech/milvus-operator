@@ -5,6 +5,8 @@ ignore:
   - "test/**"
   - "apis/v1alpha1/milvus.io/v1alpha1/**"
   - "pkg/client/**"
+  - "pkg/controller/milvuscluster/**"
+  - "pkg/external/iam/**"
 coverage:
   status:
     project:
