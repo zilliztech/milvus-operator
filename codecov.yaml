@@ -1,6 +1,10 @@
 ignore:
   - "**/zz_generated.deepcopy.go"
   - "**/*_mock.go"
+  - "tool/**"
+  - "test/**"
+  - "apis/v1alpha1/milvus.io/v1alpha1/**"
+  - "pkg/client/**"
 coverage:
   status:
     project:
