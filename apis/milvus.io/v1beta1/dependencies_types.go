@@ -72,13 +72,15 @@ type MilvusEtcd struct {
 type InClusterConfig struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:pruning:PreserveUnknownFields
+	// +nullable
 	Values Values `json:"values,omitempty"`
 
 	// ChartVersion is the pulsar chart version to be installed
 	// For now only pulsar uses this field
 	// pulsar-v2 (v2.7.8) & pulsar-v3 (v3.3.0) can be used
-	// default to pulsar-v2 for backward compatibility
+	// after v1.2.0, pulsar-v3 is used for new milvus
 	// note it's the version of chart, not pulsar
+	// pulsar v2.x should use pulsar-v2 chart, & pulsar v3.x should use pulsar-v3 chart
 	// +kubebuilder:validation:Optional
 	ChartVersion values.ChartVersion `json:"chartVersion,omitempty"`
 
