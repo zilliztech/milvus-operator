@@ -145,9 +145,9 @@ type MilvusCondition struct {
 // +genclient
 // +genclient:noStatus
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:path=milvusclusters,singular=milvuscluster,shortName=mc;mic
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:path=milvusclusters,singular=milvuscluster,shortName=mc;mic
 // MilvusCluster is the Schema for the milvusclusters API
 type MilvusCluster struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -175,7 +175,7 @@ func (r *MilvusCluster) UpdateStatusFrom(src *v1beta1.Milvus) {
 	r.Status = src.Status
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 // MilvusClusterList contains a list of MilvusCluster
 type MilvusClusterList struct {
 	metav1.TypeMeta `json:",inline"`

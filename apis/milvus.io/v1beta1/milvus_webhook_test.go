@@ -230,7 +230,7 @@ func TestMilvus_Default_DeleteUnSetableOK(t *testing.T) {
 func TestMilvus_ValidateCreate_NoError(t *testing.T) {
 	mc := Milvus{}
 	mc.Default()
-	err := mc.ValidateCreate()
+	_, err := mc.ValidateCreate()
 	assert.NoError(t, err)
 }
 
@@ -244,7 +244,7 @@ func TestMilvus_ValidateCreate_Invalid1(t *testing.T) {
 			},
 		},
 	}
-	err := mc.ValidateCreate()
+	_, err := mc.ValidateCreate()
 	assert.Error(t, err)
 }
 
@@ -265,13 +265,13 @@ func TestMilvus_ValidateCreate_Invalid3(t *testing.T) {
 		},
 	}
 	mc.Default()
-	err := mc.ValidateCreate()
+	_, err := mc.ValidateCreate()
 	assert.Error(t, err)
 }
 
 func TestMilvus_ValidateUpdate_NoError(t *testing.T) {
 	mc := Milvus{}
-	err := mc.ValidateUpdate(&mc)
+	_, err := mc.ValidateUpdate(&mc)
 	assert.NoError(t, err)
 }
 
@@ -286,14 +286,14 @@ func TestMilvus_ValidateUpdate_Invalid(t *testing.T) {
 		},
 	}
 	old := Milvus{}
-	err := new.ValidateUpdate(&old)
+	_, err := new.ValidateUpdate(&old)
 	assert.Error(t, err)
 }
 
 func TestMilvus_ValidateUpdate_KindAssertionFailed(t *testing.T) {
 	new := Milvus{}
 	old := appsv1.Deployment{}
-	err := new.ValidateUpdate(&old)
+	_, err := new.ValidateUpdate(&old)
 	assert.Error(t, err)
 }
 

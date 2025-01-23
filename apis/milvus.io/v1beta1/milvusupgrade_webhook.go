@@ -12,6 +12,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // log is for logging in this package.
@@ -47,8 +48,8 @@ func (r *MilvusUpgrade) Default() {
 var _ webhook.Validator = &MilvusUpgrade{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *MilvusUpgrade) ValidateCreate() error {
-	return r.Validate()
+func (r *MilvusUpgrade) ValidateCreate() (admission.Warnings, error) {
+	return nil, r.Validate()
 }
 
 func AddPrefixV(version string) string {
@@ -100,13 +101,13 @@ func (r MilvusUpgrade) Validate() error {
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *MilvusUpgrade) ValidateUpdate(old runtime.Object) error {
+func (r *MilvusUpgrade) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	mulog.Info("validate update", "name", r.Name)
-	return r.Validate()
+	return nil, r.Validate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *MilvusUpgrade) ValidateDelete() error {
+func (r *MilvusUpgrade) ValidateDelete() (admission.Warnings, error) {
 	mulog.Info("validate delete", "name", r.Name)
-	return nil
+	return nil, nil
 }

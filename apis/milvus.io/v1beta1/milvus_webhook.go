@@ -32,6 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // log is for logging in this package.
@@ -64,7 +65,7 @@ func (r *Milvus) Default() {
 var _ webhook.Validator = &Milvus{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *Milvus) ValidateCreate() error {
+func (r *Milvus) ValidateCreate() (admission.Warnings, error) {
 	var allErrs field.ErrorList
 	if err := r.validateCommon(); err != nil {
 		allErrs = append(allErrs, err)
@@ -75,10 +76,10 @@ func (r *Milvus) ValidateCreate() error {
 	}
 
 	if len(allErrs) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	return apierrors.NewInvalid(schema.GroupKind{Group: GroupVersion.Group, Kind: "Milvus"}, r.Name, allErrs)
+	return nil, apierrors.NewInvalid(schema.GroupKind{Group: GroupVersion.Group, Kind: "Milvus"}, r.Name, allErrs)
 }
 
 func (r *Milvus) validateCommon() *field.Error {
@@ -130,10 +131,10 @@ func (r *Milvus) validatePersistConfig() *field.Error {
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *Milvus) ValidateUpdate(old runtime.Object) error {
+func (r *Milvus) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	_, ok := old.(*Milvus)
 	if !ok {
-		return errors.Errorf("failed type assertion on kind: %s", old.GetObjectKind().GroupVersionKind().String())
+		return nil, errors.Errorf("failed type assertion on kind: %s", old.GetObjectKind().GroupVersionKind().String())
 	}
 
 	var allErrs field.ErrorList
@@ -146,15 +147,15 @@ func (r *Milvus) ValidateUpdate(old runtime.Object) error {
 	}
 
 	if len(allErrs) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	return apierrors.NewInvalid(schema.GroupKind{Group: GroupVersion.Group, Kind: "Milvus"}, r.Name, allErrs)
+	return nil, apierrors.NewInvalid(schema.GroupKind{Group: GroupVersion.Group, Kind: "Milvus"}, r.Name, allErrs)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *Milvus) ValidateDelete() error {
-	return nil
+func (r *Milvus) ValidateDelete() (admission.Warnings, error) {
+	return nil, nil
 }
 
 func (r *Milvus) validateExternal() field.ErrorList {
