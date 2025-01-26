@@ -187,10 +187,10 @@ deploy-manifests: manifests kustomize helm-generate
 	helm template milvus-operator --create-namespace -n milvus-operator ./charts/milvus-operator-$(VERSION).tgz  >> deploy/manifests/deployment.yaml
 
 kind-dev: kind
-	sudo $(KIND) create cluster --config config/kind/kind-dev.yaml --name ${KIND_CLUSTER}
+	sudo $(KIND) create cluster --config config/kind/kind-dev.yaml --name $(KIND_CLUSTER)
 
 uninstall-kind-dev: kind
-	sudo $(KIND) delete cluster --name ${KIND_CLUSTER}
+	sudo $(KIND) delete cluster --name $(KIND_CLUSTER)
 
 # Install local certificate
 # Required for webhook server to start
@@ -244,19 +244,19 @@ sit-prepare-images: sit-prepare-operator-images
 
 sit-load-operator-images:
 	@echo "Loading operator images"
-	kind load docker-image ${SIT_IMG} --name ${KIND_CLUSTER}
-	kind load docker-image quay.io/jetstack/cert-manager-controller:v1.5.3 --name ${KIND_CLUSTER}
-	kind load docker-image quay.io/jetstack/cert-manager-webhook:v1.5.3 --name ${KIND_CLUSTER}
-	kind load docker-image quay.io/jetstack/cert-manager-cainjector:v1.5.3 --name ${KIND_CLUSTER}
+	kind load docker-image ${SIT_IMG} --name $(KIND_CLUSTER)
+	kind load docker-image quay.io/jetstack/cert-manager-controller:v1.5.3 --name $(KIND_CLUSTER)
+	kind load docker-image quay.io/jetstack/cert-manager-webhook:v1.5.3 --name $(KIND_CLUSTER)
+	kind load docker-image quay.io/jetstack/cert-manager-cainjector:v1.5.3 --name $(KIND_CLUSTER)
 
 sit-load-images: sit-load-operator-images
 	@echo "Loading images"
 	kind load docker-image milvusdb/milvus:v2.5.4
-	# kind load docker-image apachepulsar/pulsar:2.8.2 --name ${KIND_CLUSTER}
-	kind load docker-image bitnami/kafka:3.1.0-debian-10-r52 --name ${KIND_CLUSTER}
-	kind load docker-image milvusdb/etcd:3.5.14-r1 --name ${KIND_CLUSTER}
-	kind load docker-image minio/minio:RELEASE.2023-03-20T20-16-18Z --name ${KIND_CLUSTER}
-	kind load docker-image bitnami/pymilvus:2.4.6 --name ${KIND_CLUSTER}
+	# kind load docker-image apachepulsar/pulsar:2.8.2 --name $(KIND_CLUSTER)
+	kind load docker-image bitnami/kafka:3.1.0-debian-10-r52 --name $(KIND_CLUSTER)
+	kind load docker-image milvusdb/etcd:3.5.14-r1 --name $(KIND_CLUSTER)
+	kind load docker-image minio/minio:RELEASE.2023-03-20T20-16-18Z --name $(KIND_CLUSTER)
+	kind load docker-image bitnami/pymilvus:2.4.6 --name $(KIND_CLUSTER)
 
 sit-load-and-cleanup-images: sit-load-images
 	@echo "Clean up some big images to save disk space in github action"
