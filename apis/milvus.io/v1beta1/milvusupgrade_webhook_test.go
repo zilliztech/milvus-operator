@@ -46,8 +46,11 @@ func TestMilvusUpgrade_Validate(t *testing.T) {
 		r.Spec.SourceVersion = "2.1.4"
 		r.Spec.TargetVersion = "2.2.0"
 		assert.NoError(t, r.Validate())
-		assert.NoError(t, r.ValidateCreate())
-		assert.NoError(t, r.ValidateUpdate(r))
-		assert.NoError(t, r.ValidateDelete())
+		_, err := r.ValidateCreate()
+		assert.NoError(t, err)
+		_, err = r.ValidateUpdate(r)
+		assert.NoError(t, err)
+		_, err = r.ValidateDelete()
+		assert.NoError(t, err)
 	})
 }
