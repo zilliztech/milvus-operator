@@ -20,14 +20,14 @@ pull_request_rules:
     conditions:
       - or:
         - check-success!=check
-        - check-success!=Code Check (ubuntu18.04)
-        - check-success!=Unit Test (ubuntu18.04)
-        - check-success!=System Integration Test (ubuntu18.04)
-        - check-success!=System Integration Test for Mixture (ubuntu18.04)
-        - check-success!=System Integration Test for Upgrade (ubuntu18.04)
-        - check-success!=System Integration Test for New Feature (ubuntu18.04)
-        - check-success!=System Integration Test for Milvus Upgrade (ubuntu18.04)
-        - check-success!=Test Deploy by Manifest (ubuntu18.04)
+        - check-success!=Code Check (ubuntu24.04)
+        - check-success!=Unit Test (ubuntu24.04)
+        - check-success!=System Integration Test (ubuntu24.04)
+        - check-success!=System Integration Test for Mixture (ubuntu24.04)
+        - check-success!=System Integration Test for Upgrade (ubuntu24.04)
+        - check-success!=System Integration Test for New Feature (ubuntu24.04)
+        - check-success!=System Integration Test for Milvus Upgrade (ubuntu24.04)
+        - check-success!=Test Deploy by Manifest (ubuntu24.04)
         - check-success!=codecov/patch
         - check-success!=codecov/project
     actions:
@@ -37,14 +37,14 @@ pull_request_rules:
   - name: add ci-pass when CI passed
     conditions:
       - check-success=check
-      - check-success=Code Check (ubuntu18.04)
-      - check-success=Unit Test (ubuntu18.04)
-      - check-success=System Integration Test (ubuntu18.04)
-      - check-success=System Integration Test for Mixture (ubuntu18.04)
-      - check-success=System Integration Test for Upgrade (ubuntu18.04)
-      - check-success=System Integration Test for New Feature (ubuntu18.04)
-      - check-success=System Integration Test for Milvus Upgrade (ubuntu18.04)
-      - check-success=Test Deploy by Manifest (ubuntu18.04)
+      - check-success=Code Check (ubuntu24.04)
+      - check-success=Unit Test (ubuntu24.04)
+      - check-success=System Integration Test (ubuntu24.04)
+      - check-success=System Integration Test for Mixture (ubuntu24.04)
+      - check-success=System Integration Test for Upgrade (ubuntu24.04)
+      - check-success=System Integration Test for New Feature (ubuntu24.04)
+      - check-success=System Integration Test for Milvus Upgrade (ubuntu24.04)
+      - check-success=Test Deploy by Manifest (ubuntu24.04)
       - check-success=codecov/patch
       - check-success=codecov/project
     actions:
