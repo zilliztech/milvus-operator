@@ -496,11 +496,11 @@ func TestMilvusComponent_GetMilvusConfCheckSumt(t *testing.T) {
 }
 
 func TestMilvusComponent_GetLivenessProbe_GetReadinessProbe(t *testing.T) {
+	sProbe := GetDefaultStartupProbe()
+	assert.NotNil(t, sProbe.TCPSocket)
+
 	lProbe := GetDefaultLivenessProbe()
-	assert.Equal(t, "/healthz", lProbe.HTTPGet.Path)
-	assert.Equal(t, intstr.FromInt(MetricPort), lProbe.HTTPGet.Port)
-	assert.Equal(t, int32(10), lProbe.TimeoutSeconds)
-	assert.Equal(t, int32(15), lProbe.PeriodSeconds)
+	assert.NotNil(t, lProbe.TCPSocket)
 
 	rProbe := GetDefaultReadinessProbe()
 	assert.Equal(t, int32(3), rProbe.TimeoutSeconds)

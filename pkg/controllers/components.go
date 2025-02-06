@@ -442,10 +442,8 @@ func GetMilvusConfCheckSum(spec v1beta1.MilvusSpec) string {
 func GetDefaultStartupProbe() *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Path:   "/healthz",
-				Port:   intstr.FromInt(9091),
-				Scheme: corev1.URISchemeHTTP,
+			TCPSocket: &corev1.TCPSocketAction{
+				Port: intstr.FromInt(9091),
 			},
 		},
 		TimeoutSeconds:   3,
@@ -458,10 +456,8 @@ func GetDefaultStartupProbe() *corev1.Probe {
 func GetDefaultLivenessProbe() *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Path:   "/healthz",
-				Port:   intstr.FromInt(9091),
-				Scheme: corev1.URISchemeHTTP,
+			TCPSocket: &corev1.TCPSocketAction{
+				Port: intstr.FromInt(9091),
 			},
 		},
 		TimeoutSeconds:   10,
