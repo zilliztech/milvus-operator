@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	milvusio "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,7 +63,7 @@ var minimumMilvus = milvusio.Milvus{
 func run() error {
 	cli, err := getClient()
 	if err != nil {
-		return errors.Wrap(err, "getClient error")
+		return fmt.Errorf("getClient error: %w", err)
 	}
 
 	ctx := context.Background()
@@ -73,7 +73,7 @@ func run() error {
 			"usage": "batch-test",
 		}.AsSelector(),
 	}}); err != nil {
-		return errors.Wrap(err, "delete milvus error")
+		return fmt.Errorf("delete milvus error: %w", err)
 	}
 	return nil
 }
@@ -85,17 +85,17 @@ func baseName() string {
 func getClient() (client.Client, error) {
 	conf, err := ctrl.GetConfig()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get config")
+		return nil, fmt.Errorf("failed to get config: %w", err)
 	}
 	scheme, err := milvusio.SchemeBuilder.Build()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to build scheme")
+		return nil, fmt.Errorf("failed to build scheme: %w", err)
 	}
 	cli, err := client.New(conf, client.Options{
 		Scheme: scheme,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create client")
+		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 	return cli, nil
 }

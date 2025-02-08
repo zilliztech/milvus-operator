@@ -2,18 +2,18 @@ package iam
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/aliyun/credentials-go/credentials" // >= v1.2.6
 	"github.com/minio/minio-go/v7"
 	minioCred "github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/pkg/errors"
 )
 
 func VerifyAliyun(ctx context.Context, bucketName, region, address string, secure bool) error {
 	credProvider, err := NewCredentialProvider()
 	if err != nil {
-		return errors.Wrap(err, "failed to create credential provider")
+		return fmt.Errorf("failed to create credential provider: %w", err)
 	}
 	creds := minioCred.New(credProvider)
 	opts := minio.Options{
@@ -24,10 +24,10 @@ func VerifyAliyun(ctx context.Context, bucketName, region, address string, secur
 	}
 	client, err := minio.New(address, &opts)
 	if err != nil {
-		return errors.Wrap(err, "init minio client failed")
+		return fmt.Errorf("init minio client failed: %w", err)
 	}
 	_, err = client.BucketExists(ctx, bucketName)
-	return errors.Wrapf(err, "access aliyun bucket[%s] failed", bucketName)
+	return fmt.Errorf("access aliyun bucket[%s] failed: %w", bucketName, err)
 }
 
 // Credential is defined to mock aliyun credential.Credentials
@@ -47,7 +47,7 @@ type CredentialProvider struct {
 func NewCredentialProvider() (minioCred.Provider, error) {
 	aliyunCreds, err := credentials.NewCredential(nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create aliyun credential")
+		return nil, fmt.Errorf("failed to create aliyun credential: %w", err)
 	}
 	return &CredentialProvider{aliyunCreds: aliyunCreds}, nil
 }
@@ -60,16 +60,16 @@ func (c *CredentialProvider) Retrieve() (minioCred.Value, error) {
 	ret := minioCred.Value{}
 	ak, err := c.aliyunCreds.GetAccessKeyId()
 	if err != nil {
-		return ret, errors.Wrap(err, "failed to get access key id from aliyun credential")
+		return ret, fmt.Errorf("failed to get access key id from aliyun credential: %w", err)
 	}
 	ret.AccessKeyID = *ak
 	sk, err := c.aliyunCreds.GetAccessKeySecret()
 	if err != nil {
-		return minioCred.Value{}, errors.Wrap(err, "failed to get access key secret from aliyun credential")
+		return minioCred.Value{}, fmt.Errorf("failed to get access key secret from aliyun credential: %w", err)
 	}
 	securityToken, err := c.aliyunCreds.GetSecurityToken()
 	if err != nil {
-		return minioCred.Value{}, errors.Wrap(err, "failed to get security token from aliyun credential")
+		return minioCred.Value{}, fmt.Errorf("failed to get security token from aliyun credential: %w", err)
 	}
 	ret.SecretAccessKey = *sk
 	c.akCache = *ak

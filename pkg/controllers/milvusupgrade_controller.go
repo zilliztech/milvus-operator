@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,7 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1beta1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 )
 
 // MilvusUpgradeReconciler reconciles a MilvusUpgrade object
@@ -89,12 +89,12 @@ func (r *MilvusUpgradeReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	err = r.RunStateMachine(ctx, upgrade)
 	if err != nil {
-		err = errors.Wrap(err, "failed to do upgrade")
+		err = fmt.Errorf("failed to do upgrade: %w", err)
 	}
 
 	errUpdate := r.Status().Update(ctx, upgrade)
 	if errUpdate != nil {
-		return ret, errors.Wrapf(errUpdate, "failed to update status, with continueUpgrade err[%s]", err)
+		return ret, fmt.Errorf("failed to update status, with continueUpgrade err[%s]: %w", err, errUpdate)
 	}
 
 	if upgrade.Status.State.NeedRequeue() {

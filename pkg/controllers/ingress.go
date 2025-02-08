@@ -2,12 +2,12 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 	networkingv1 "k8s.io/api/networking/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,19 +27,19 @@ func reconcileIngress(ctx context.Context, logger logr.Logger,
 	new := ingressRenderer.Render(crd, ingress)
 
 	if err := SetControllerReference(crd, new, scheme); err != nil {
-		return errors.Wrap(err, "failed to set controller reference")
+		return fmt.Errorf("failed to set controller reference: %w", err)
 	}
 
 	old := &networkingv1.Ingress{}
 	key := client.ObjectKeyFromObject(crd)
 	key.Name = key.Name + "-milvus"
 	err := cli.Get(ctx, key, old)
-	if kerrors.IsNotFound(err) {
+	if k8sErrors.IsNotFound(err) {
 		logger.Info("Create Ingress")
 		err = cli.Create(ctx, new)
-		return errors.Wrap(err, "failed to create ingress")
+		return fmt.Errorf("failed to create ingress: %w", err)
 	} else if err != nil {
-		return errors.Wrap(err, "failed to get ingress")
+		return fmt.Errorf("failed to get ingress: %w", err)
 	}
 
 	if IsEqual(old.Spec, new.Spec) && IsEqual(old.ObjectMeta, new.ObjectMeta) {
@@ -56,7 +56,7 @@ func reconcileIngress(ctx context.Context, logger logr.Logger,
 
 	logger.Info("Update Ingress")
 	err = cli.Update(ctx, new)
-	return errors.Wrap(err, "failed to update ingress")
+	return fmt.Errorf("failed to update ingress: %w", err)
 }
 
 //go:generate mockgen -package=controllers -source=ingress.go -destination=ingress_mock.go ingressRendererInterface

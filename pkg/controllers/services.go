@@ -2,8 +2,7 @@ package controllers
 
 import (
 	"context"
-
-	pkgerr "github.com/pkg/errors"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -106,5 +105,5 @@ func (r *MilvusReconciler) ReconcileServices(ctx context.Context, mc v1beta1.Mil
 		err = r.ReconcileComponentService(ctx, mc, MilvusStandalone)
 	}
 
-	return pkgerr.Wrap(err, "reconcile milvus services")
+	return fmt.Errorf("reconcile milvus services error: %w", err)
 }

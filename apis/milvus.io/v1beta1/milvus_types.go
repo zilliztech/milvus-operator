@@ -17,12 +17,12 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/milvus-io/milvus-operator/pkg/util"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
@@ -117,7 +117,7 @@ func (ms MilvusSpec) GetMilvusVersionByImage() (*semver.Version, error) {
 	// parse format: registry/namespace/image:tag
 	splited := strings.Split(ms.Com.ComponentSpec.Image, ":")
 	if len(splited) != 2 {
-		return nil, errors.Errorf("unknown version of image[%s]", splited[0])
+		return nil, fmt.Errorf("unknown version of image[%s]", splited[0])
 	}
 	return util.GetSemanticVersion(splited[1])
 }

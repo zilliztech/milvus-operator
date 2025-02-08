@@ -16,7 +16,6 @@ import (
 
 	"github.com/Masterminds/sprig"
 	"github.com/coreos/go-semver/semver"
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -149,15 +148,15 @@ func HTTPGetBytes(url string) ([]byte, error) {
 	http.DefaultClient.Timeout = DefaultHTTPTimeout
 	resp, err := http.Get(url)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get url")
+		return nil, fmt.Errorf("failed to get url: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Errorf("unexpected status code %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 	ret, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read response body")
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 	return ret, nil
 }
@@ -195,5 +194,5 @@ func DoWithBackoff(name string, fn func() error, maxRetry int, backOff time.Dura
 		log.Printf("%s with backoff failed, retry %d, err: %v\n", name, i, err)
 		time.Sleep(backOff)
 	}
-	return errors.Wrap(err, name+" with backoff failed")
+	return fmt.Errorf("%s with backoff failed error: %w", name, err)
 }

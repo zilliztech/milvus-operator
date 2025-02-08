@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -18,7 +18,7 @@ func TestMilvusReconciler_ReconcilePVCs(t *testing.T) {
 	mockClient := env.MockClient
 	ctx := env.ctx
 	m := env.Inst
-	errNotFound := kerrors.NewNotFound(schema.GroupResource{}, "")
+	errNotFound := k8sErrors.NewNotFound(schema.GroupResource{}, "")
 
 	t.Run("persistence_disabled", func(t *testing.T) {
 		err := r.ReconcilePVCs(ctx, m)

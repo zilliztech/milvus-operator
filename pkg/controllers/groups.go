@@ -2,13 +2,14 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"runtime/debug"
 	"strings"
 	"sync"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/config"
-	"github.com/pkg/errors"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -44,7 +45,7 @@ func (g *Group) Go(f func() error) {
 			defer func() {
 				if r := recover(); r != nil {
 					stack := string(debug.Stack())
-					err := errors.Errorf("%s", r)
+					err := fmt.Errorf("%s", r)
 					groupLog.Error(err, "panic captured", "stack", stack)
 
 					g.locker.Lock()
@@ -85,7 +86,7 @@ func (g *Group) Wait() error {
 	}
 
 	if len(errTexts) > 0 {
-		return errors.Errorf("groups error: %s", strings.Join(errTexts, ";"))
+		return fmt.Errorf("groups error: %s", strings.Join(errTexts, ";"))
 	}
 
 	return nil

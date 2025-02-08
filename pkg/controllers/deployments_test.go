@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
@@ -231,7 +231,7 @@ func TestReconciler_handleOldInstanceChangingMode(t *testing.T) {
 
 		err := r.handleOldInstanceChangingMode(ctx, m, component)
 		assert.Error(t, err)
-		assert.Equal(t, ErrRequeue, errors.Cause(err))
+		assert.Equal(t, ErrRequeue, errors.Unwrap(err))
 	})
 
 	t.Run("changing, updated", func(t *testing.T) {

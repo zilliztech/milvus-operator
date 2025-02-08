@@ -2,9 +2,10 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/api/meta"
@@ -75,7 +76,7 @@ func (r *MilvusUpgradeReconciler) RunStateMachine(ctx context.Context, upgrade *
 		upgrade.Status.State = nextState
 		stateFunc, found := r.stateFuncMap[nextState]
 		if !found {
-			return errors.Errorf("Unexpected upgrade state[%s]", nextState)
+			return fmt.Errorf("Unexpected upgrade state[%s]", nextState)
 		}
 		if stateFunc == nil {
 			return nil
@@ -165,12 +166,12 @@ func (r *MilvusUpgradeReconciler) RollbackOldVersionStarting(ctx context.Context
 func (r *MilvusUpgradeReconciler) RollbackNewVersionStopping(ctx context.Context, upgrade *v1beta1.MilvusUpgrade, milvus *v1beta1.Milvus) (v1beta1.MilvusUpgradeState, error) {
 	if !isMilvusStopping(ctx, r.Client, milvus) {
 		err := stopMilvus(ctx, r.Client, upgrade, milvus)
-		return "", errors.Wrap(err, "stop milvus")
+		return "", fmt.Errorf("stop milvus: %w", err)
 	}
 	// else isStopping
 	stopped, err := isMilvusStopped(ctx, r.Client, milvus)
 	if err != nil {
-		return "", errors.Wrap(err, "check milvus is stopped")
+		return "", fmt.Errorf("check milvus is stopped: %w", err)
 	}
 
 	if stopped {
@@ -183,12 +184,12 @@ func (r *MilvusUpgradeReconciler) OldVersionStopping(ctx context.Context, upgrad
 	if !isMilvusStopping(ctx, r.Client, milvus) {
 		recordOldInfo(ctx, r.Client, upgrade, milvus)
 		err := stopMilvus(ctx, r.Client, upgrade, milvus)
-		return "", errors.Wrap(err, "stop milvus")
+		return "", fmt.Errorf("stop milvus: %w", err)
 	}
 	// else isStopping
 	stopped, err := isMilvusStopped(ctx, r.Client, milvus)
 	if err != nil {
-		return "", errors.Wrap(err, "check milvus is stopped")
+		return "", fmt.Errorf("check milvus is stopped: %w", err)
 	}
 
 	if stopped {
@@ -201,7 +202,7 @@ func (r *MilvusUpgradeReconciler) BackupMeta(ctx context.Context, upgrade *v1bet
 	var ret = new(v1beta1.MilvusUpgradeState)
 	onNoPod := func() error {
 		err := startBakupMetaPod(ctx, r.Client, upgrade, milvus)
-		return errors.Wrap(err, "start backup-meta pod")
+		return fmt.Errorf("start backup-meta pod: %w", err)
 	}
 	onSuccess := func() error {
 		upgrade.Status.MetaBackuped = true
@@ -220,7 +221,7 @@ func (r *MilvusUpgradeReconciler) UpdatingMeta(ctx context.Context, upgrade *v1b
 	if !upgrade.Status.MetaStorageChanged {
 		upgrade.Status.MetaStorageChanged = true
 		err := startUpdateMetaPod(ctx, r.Client, upgrade, milvus)
-		return "", errors.Wrap(err, "start update-meta pod")
+		return "", fmt.Errorf("start update-meta pod: %w", err)
 	}
 
 	var ret = new(v1beta1.MilvusUpgradeState)
@@ -247,7 +248,7 @@ func (r *MilvusUpgradeReconciler) RollbackRestoringOldMeta(ctx context.Context, 
 	var ret = new(v1beta1.MilvusUpgradeState)
 	onNoPod := func() error {
 		err := startRollbackMetaPod(ctx, r.Client, upgrade, milvus)
-		return errors.Wrap(err, "start backup-meta pod")
+		return fmt.Errorf("start backup-meta pod: %w", err)
 	}
 	onSuccess := func() error {
 		*ret = v1beta1.UpgradeStateRollbackOldVersionStarting
@@ -288,7 +289,7 @@ func (r *MilvusUpgradeReconciler) HandleBakupMetaFailed(ctx context.Context, upg
 	},
 		client.InNamespace(upgrade.Namespace))
 	if err != nil {
-		return "", errors.Wrap(err, "delete backup-meta pod")
+		return "", fmt.Errorf("delete backup-meta pod: %w", err)
 	}
 	upgrade.Status.State = v1beta1.UpgradeStateBackupMeta
 	upgrade.Status.RetriedTimes++
@@ -304,7 +305,7 @@ func (r *MilvusUpgradeReconciler) handlePod(ctx context.Context, upgrade *v1beta
 		},
 		client.InNamespace(upgrade.Namespace))
 	if err != nil {
-		return errors.Wrapf(err, "list pod for %s", kind)
+		return fmt.Errorf("list pod for %s: %w", kind, err)
 	}
 	return doOnPodPhase(podList, onNoPod, onSuccess, onFailure)
 }
@@ -332,10 +333,10 @@ func startMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.Milvus
 	milvus.RemoveStoppedAtAnnotation()
 	err := cli.Update(ctx, milvus)
 	if err != nil {
-		return errors.Wrap(err, "restore replicas")
+		return fmt.Errorf("restore replicas: %w", err)
 	}
 	err = annotateAlphaCR(ctx, cli, upgrade, milvus, v1beta1.AnnotationUpgraded)
-	return errors.Wrap(err, "annotate alpha cr")
+	return fmt.Errorf("annotate alpha cr: %w", err)
 }
 
 const (
@@ -349,7 +350,7 @@ const (
 func createSubObjectOrIgnore(ctx context.Context, cli client.Client, upgrade *v1beta1.MilvusUpgrade, obj client.Object) error {
 	err := ctrl.SetControllerReference(upgrade, obj, cli.Scheme())
 	if err != nil {
-		return errors.Wrap(err, "set controller reference")
+		return fmt.Errorf("set controller reference: %w", err)
 	}
 	_, err = ctrl.CreateOrUpdate(ctx, cli, obj, func() error { return nil })
 	return err
@@ -381,11 +382,11 @@ func startBakupMetaPod(ctx context.Context, cli client.Client, upgrade *v1beta1.
 		upgrade.Status.BackupPVC = pvc.Name
 		err := ctrl.SetControllerReference(upgrade, pvc, cli.Scheme())
 		if err != nil {
-			return errors.Wrap(err, "set controller reference")
+			return fmt.Errorf("set controller reference: %w", err)
 		}
 		_, err = ctrl.CreateOrUpdate(ctx, cli, pvc, func() error { return nil })
 		if err != nil {
-			return errors.Wrap(err, "create backup pvc")
+			return fmt.Errorf("create backup pvc: %w", err)
 		}
 	}
 	taskConf := taskConfig{
@@ -455,7 +456,7 @@ func annotateAlphaCR(ctx context.Context, cli client.Client, upgrade *v1beta1.Mi
 func stopMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.MilvusUpgrade, milvus *v1beta1.Milvus) error {
 	err := annotateAlphaCR(ctx, cli, upgrade, milvus, v1beta1.AnnotationUpgrading)
 	if err != nil {
-		return errors.Wrap(err, "annotate alpha cr")
+		return fmt.Errorf("annotate alpha cr: %w", err)
 	}
 	components := GetComponentsBySpec(milvus.Spec)
 	for _, component := range components {
@@ -511,7 +512,7 @@ func listAllDeployments(ctx context.Context, cli client.Client, milvus client.Ob
 	}
 	err := cli.List(ctx, list, opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "list milvus deployments")
+		return nil, fmt.Errorf("list milvus deployments: %w", err)
 	}
 	return list.Items, nil
 }

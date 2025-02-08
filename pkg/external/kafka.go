@@ -3,11 +3,12 @@ package external
 import (
 	"context"
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/util"
-	"github.com/pkg/errors"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl"
 	"github.com/segmentio/kafka-go/sasl/plain"
@@ -33,7 +34,7 @@ func GetKafkaConfFromCR(mc v1beta1.Milvus) (*CheckKafkaConfig, error) {
 		}
 		err := kafkaConfValues.AsObject(kafkaConf)
 		if err != nil {
-			return nil, errors.Wrap(err, "decode kafka config failed")
+			return nil, fmt.Errorf("decode kafka config failed: %w", err)
 		}
 	}
 	return kafkaConf, nil
@@ -53,7 +54,7 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 		useTls = true
 	case "PLAINTEXT", "":
 	default:
-		return nil, errors.Errorf("unspported security protocol: %s", conf.SecurityProtocol)
+		return nil, fmt.Errorf("unspported security protocol: %s", conf.SecurityProtocol)
 	}
 
 	var err error
@@ -72,7 +73,7 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 		case "PLAIN", "":
 			saslMechanism = &plain.Mechanism{Username: conf.SASLUsername, Password: conf.SASLPassword}
 		default:
-			err = errors.Errorf("unspported SASL mechanism: %s", conf.SASLMechanisms)
+			err = fmt.Errorf("unspported SASL mechanism: %s", conf.SASLMechanisms)
 		}
 		if err != nil {
 			return nil, err
@@ -95,7 +96,7 @@ func CheckKafka(conf CheckKafkaConfig) error {
 
 	dialer, err := GetKafkaDialer(conf)
 	if err != nil {
-		return errors.Wrap(err, "get kafka dialer failed")
+		return fmt.Errorf("get kafka dialer failed: %w", err)
 	}
 
 	r := kafka.NewReader(kafka.ReaderConfig{
@@ -108,7 +109,7 @@ func CheckKafka(conf CheckKafkaConfig) error {
 		ctx, cancel := context.WithTimeout(context.Background(), DependencyCheckTimeout)
 		defer cancel()
 		err := r.SetOffsetAt(ctx, time.Now())
-		return errors.Wrap(err, "check consume offset from broker failed")
+		return fmt.Errorf("check consume offset from broker failed: %w", err)
 	}
 	return util.DoWithBackoff("checkKafka", checkKafka, util.DefaultMaxRetry, util.DefaultBackOffInterval)
 }

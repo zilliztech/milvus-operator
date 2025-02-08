@@ -18,12 +18,12 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
-	pkgErr "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -94,7 +94,7 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	milvus := &milvusv1beta1.Milvus{}
 	if err := r.Get(ctx, req.NamespacedName, milvus); err != nil {
-		if errors.IsNotFound(err) {
+		if k8sErrors.IsNotFound(err) {
 			// The resource may have be deleted after reconcile request coming in
 			// Reconcile is done
 			return ctrl.Result{}, nil
@@ -156,7 +156,7 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	err := r.VerifyCR(ctx, milvus)
 	if err != nil {
-		return ctrl.Result{}, pkgErr.Wrap(err, "verify cr")
+		return ctrl.Result{}, fmt.Errorf("verify cr error: %w", err)
 	}
 
 	old := milvus.DeepCopy()
@@ -186,7 +186,7 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if err := r.ReconcileAll(ctx, *milvus); err != nil {
-		if pkgErr.Is(err, ErrRequeue) {
+		if errors.Is(err, ErrRequeue) {
 			r.logger.Info("requeue", "err", err.Error())
 			return ctrl.Result{RequeueAfter: unhealthySyncInterval / 2}, nil
 		}
@@ -212,12 +212,12 @@ func (r *MilvusReconciler) VerifyCR(ctx context.Context, milvus *v1beta1.Milvus)
 	}
 	err := milvus.Spec.Com.Probes.AsObject(&v1beta1.Probes{})
 	if err != nil {
-		return pkgErr.Wrap(err, "verify custom probes")
+		return fmt.Errorf("verify custom probes error: %w", err)
 	}
 	for i, volume := range milvus.Spec.Com.Volumes {
 		err := volume.AsObject(&corev1.Volume{})
 		if err != nil {
-			return pkgErr.Wrapf(err, "verify custom volume %d", i)
+			return fmt.Errorf("verify custom volume %d error: %w", i, err)
 		}
 	}
 	return nil

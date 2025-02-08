@@ -2,12 +2,12 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/util/rest"
-	"github.com/pkg/errors"
 	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

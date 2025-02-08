@@ -10,13 +10,13 @@ import (
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
 
-var errMockNotFound = kerrors.NewNotFound(corev1.Resource("pod"), "test-pod")
+var errMockNotFound = k8sErrors.NewNotFound(corev1.Resource("pod"), "test-pod")
 
 func TestK8sUtilImpl_CreateObject(t *testing.T) {
 	mockCtrl := gomock.NewController(t)

@@ -2,15 +2,15 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 )
 
 func getPVCNameByInstName(instName string) string {
@@ -35,7 +35,7 @@ func (r *MilvusReconciler) syncUpdatePVC(ctx context.Context, namespacedName typ
 	old := &corev1.PersistentVolumeClaim{}
 	err := r.Client.Get(ctx, namespacedName, old)
 
-	if kerrors.IsNotFound(err) {
+	if k8sErrors.IsNotFound(err) {
 		new := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      namespacedName.Name,
@@ -47,7 +47,7 @@ func (r *MilvusReconciler) syncUpdatePVC(ctx context.Context, namespacedName typ
 		return r.Create(ctx, new)
 	}
 	if err != nil {
-		return errors.Wrap(err, "failed to get data pvc")
+		return fmt.Errorf("failed to get data pvc: %w", err)
 	}
 	new := old.DeepCopy()
 
@@ -64,7 +64,7 @@ func (r *MilvusReconciler) syncUpdatePVC(ctx context.Context, namespacedName typ
 	}
 	r.logger.Info("Update PVC", "name", new.Name, "namespace", new.Namespace)
 	err = r.Client.Update(ctx, new)
-	return errors.Wrap(err, "failed to update data pvc")
+	return fmt.Errorf("failed to update data pvc: %w", err)
 }
 
 func (r *MilvusReconciler) syncPVC(ctx context.Context, milvusPVC v1beta1.PersistentVolumeClaim, pvc *corev1.PersistentVolumeClaim) {

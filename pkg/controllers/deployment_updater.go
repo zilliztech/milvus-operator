@@ -1,10 +1,10 @@
 package controllers
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	pkgErrs "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -65,7 +65,7 @@ func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) 
 	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponent().Name)
 	deployment.Labels = MergeLabels(deployment.Labels, appLabels)
 	if err := SetControllerReference(updater.GetControllerRef(), deployment, updater.GetScheme()); err != nil {
-		return pkgErrs.Wrap(err, "set controller reference")
+		return fmt.Errorf("set controller reference: %w", err)
 	}
 	isCreating := deployment.Spec.Selector == nil
 	if isCreating {

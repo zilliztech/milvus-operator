@@ -12,7 +12,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/util"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -468,7 +467,7 @@ var (
 					return nil
 				}
 			}
-			return errors.Wrap(err, "set controller reference")
+			return fmt.Errorf("set controller reference: %w", err)
 		}
 		return nil
 	}

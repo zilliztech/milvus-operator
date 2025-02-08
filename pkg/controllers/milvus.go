@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,7 +27,7 @@ func (r *MilvusReconciler) SetDefaultStatus(ctx context.Context, mc *v1beta1.Mil
 			Set(MilvusStatusToCode(mc.Status.Status, mc.GetAnnotations()[MaintainingAnnotation] == "true"))
 
 		err := r.Client.Status().Update(ctx, mc)
-		return errors.Wrapf(err, "set mc default status[%s/%s] failed", mc.Namespace, mc.Name)
+		return fmt.Errorf("set mc default status[%s/%s] failed: %w", mc.Namespace, mc.Name, err)
 	}
 	return nil
 }
@@ -41,7 +40,7 @@ func (r *MilvusReconciler) ReconcileAll(ctx context.Context, mc v1beta1.Milvus) 
 		r.ReconcileMilvus,
 	}
 	err := defaultGroupRunner.Run(reconcilers, ctx, mc)
-	return errors.Wrap(err, "reconcile milvus")
+	return fmt.Errorf("reconcile milvus: %w", err)
 }
 
 func (r *MilvusReconciler) ReconcileMilvus(ctx context.Context, mc v1beta1.Milvus) error {
@@ -61,7 +60,7 @@ func (r *MilvusReconciler) ReconcileMilvus(ctx context.Context, mc v1beta1.Milvu
 		r.ReconcilePodMonitor,
 	}
 	err := defaultGroupRunner.Run(comReconcilers, ctx, mc)
-	return errors.Wrap(err, "reconcile milvus")
+	return fmt.Errorf("reconcile milvus: %w", err)
 }
 
 func (r *MilvusReconciler) batchDeletePVC(ctx context.Context, namespace, labelKey, labelValue string) error {
@@ -77,7 +76,7 @@ func (r *MilvusReconciler) batchDeletePVC(ctx context.Context, namespace, labelK
 
 	for _, pvc := range pvcList.Items {
 		if err := r.Delete(ctx, &pvc); err != nil {
-			return errors.Wrapf(err, "delete pvc %s/%s failed", namespace, pvc.Name)
+			return fmt.Errorf("delete pvc %s/%s failed: %w", namespace, pvc.Name, err)
 		} else {
 			r.logger.Info("pvc deleted", "name", pvc.Name, "namespace", pvc.Namespace)
 		}
@@ -110,7 +109,7 @@ var Finalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus)
 			pvc.Namespace = mc.Namespace
 			pvc.Name = pvcName
 			if err := r.Delete(ctx, pvc); err != nil {
-				return errors.Wrap(err, "delete data pvc failed")
+				return fmt.Errorf("delete data pvc failed: %w", err)
 			} else {
 				r.logger.Info("pvc deleted", "name", pvc.Name, "namespace", pvc.Namespace)
 			}
@@ -135,14 +134,14 @@ var Finalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus)
 				// for etcd charts
 				err := r.batchDeletePVC(ctx, mc.Namespace, AppLabelInstance, releaseName)
 				if err != nil {
-					err = errors.Wrapf(err, "delete pvc with label %s=%s failed", AppLabelInstance, releaseName)
+					err = fmt.Errorf("delete pvc with label %s=%s failed: %w", AppLabelInstance, releaseName, err)
 					errs = append(errs, err)
 					continue
 				}
 				// for pulsar & minio charts
 				err = r.batchDeletePVC(ctx, mc.Namespace, HelmReleaseLabel, releaseName)
 				if err != nil {
-					err = errors.Wrapf(err, "delete pvc with label %s=%s failed", HelmReleaseLabel, releaseName)
+					err = fmt.Errorf("delete pvc with label %s=%s failed: %w", HelmReleaseLabel, releaseName, err)
 					errs = append(errs, err)
 					continue
 				}
@@ -150,7 +149,7 @@ var Finalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus)
 		}
 
 		if len(errs) > 0 {
-			return errors.Errorf(util.JoinErrors(errs))
+			return fmt.Errorf(util.JoinErrors(errs))
 		}
 	}
 

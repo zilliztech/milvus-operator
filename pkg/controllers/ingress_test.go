@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	networkingv1 "k8s.io/api/networking/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -56,7 +56,7 @@ func TestMilvusClusterReconciler_ReconcileIngress(t *testing.T) {
 	t.Run("ingress not found, create", func(t *testing.T) {
 		defer env.checkMocks()
 		mockRenderer.EXPECT().Render(gomock.Any(), gomock.Any()).Return(&rendered)
-		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(networkingv1.Resource("ingress"), "test"))
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(k8sErrors.NewNotFound(networkingv1.Resource("ingress"), "test"))
 		mockClient.EXPECT().Create(gomock.Any(), &rendered).Return(mockErr)
 		err := r.ReconcileIngress(ctx, mc)
 		assert.Error(t, err)

@@ -8,11 +8,10 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -103,7 +102,7 @@ func (r *MilvusStatusSyncer) updateMetrics() error {
 	milvusList := &v1beta1.MilvusList{}
 	err := r.List(r.ctx, milvusList)
 	if err != nil {
-		return errors.Wrap(err, "list milvus failed")
+		return fmt.Errorf("list milvus failed: %w", err)
 	}
 	healthyCount = 0
 	unhealthyCount = 0
@@ -139,7 +138,7 @@ func (r *MilvusStatusSyncer) syncUnealthyOrUpdating() error {
 	milvusList := &v1beta1.MilvusList{}
 	err := r.List(r.ctx, milvusList)
 	if err != nil {
-		return errors.Wrap(err, "list milvus failed")
+		return fmt.Errorf("list milvus failed: %w", err)
 	}
 	var argsArray = make([]*v1beta1.Milvus, 0, config.MaxConcurrentHealthCheck)
 	var ret error
@@ -164,7 +163,7 @@ func (r *MilvusStatusSyncer) syncUnealthyOrUpdating() error {
 	if err != nil {
 		ret = err
 	}
-	return errors.Wrap(ret, "UpdateStatus failed")
+	return fmt.Errorf("UpdateStatus failed: %w", ret)
 }
 
 func (r *MilvusStatusSyncer) syncHealthyUpdated() error {
@@ -177,7 +176,7 @@ func (r *MilvusStatusSyncer) syncHealthyUpdated() error {
 	milvusList := &v1beta1.MilvusList{}
 	err := r.List(r.ctx, milvusList)
 	if err != nil {
-		return errors.Wrap(err, "list milvus failed")
+		return fmt.Errorf("list milvus failed: %w", err)
 	}
 	var argsArray = make([]*v1beta1.Milvus, 0, config.MaxConcurrentHealthCheck)
 	var ret error
@@ -201,7 +200,7 @@ func (r *MilvusStatusSyncer) syncHealthyUpdated() error {
 	if err != nil {
 		ret = err
 	}
-	return errors.Wrap(ret, "UpdateStatus failed")
+	return fmt.Errorf("UpdateStatus failed: %w", ret)
 }
 
 func (r *MilvusStatusSyncer) UpdateStatusRoutine(ctx context.Context, mc *v1beta1.Milvus) error {
@@ -218,7 +217,7 @@ func (r *MilvusStatusSyncer) UpdateStatusRoutine(ctx context.Context, mc *v1beta
 	mc.Default()
 
 	err := r.UpdateStatusForNewGeneration(ctx, mc, true)
-	return errors.Wrapf(err, "UpdateStatus for milvus[%s/%s]", mc.Namespace, mc.Name)
+	return fmt.Errorf("UpdateStatus for milvus[%s/%s]: %w", mc.Namespace, mc.Name, err)
 }
 
 func (r *MilvusStatusSyncer) checkDependencyConditions(ctx context.Context, mc *v1beta1.Milvus) error {
@@ -263,18 +262,18 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 	if checkDependency {
 		err := r.checkDependencyConditions(ctx, mc)
 		if err != nil {
-			return errors.Wrap(err, "check dependency conditions failed")
+			return fmt.Errorf("check dependency conditions failed: %w", err)
 		}
 	}
 
 	err := r.UpdateIngressStatus(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "update ingress status failed")
+		return fmt.Errorf("update ingress status failed: %w", err)
 	}
 
 	err = r.deployStatusUpdater.Update(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "update deploy status failed")
+		return fmt.Errorf("update deploy status failed: %w", err)
 	}
 
 	mc.Status.Endpoint = r.GetMilvusEndpoint(ctx, *mc)
@@ -286,7 +285,7 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 	UpdateCondition(&mc.Status, milvusCond)
 	err = r.syncUpdatedCondition(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "handle terminating pods failed")
+		return fmt.Errorf("handle terminating pods failed: %w", err)
 	}
 
 	statusInfo := MilvusHealthStatusInfo{
@@ -339,7 +338,7 @@ func getComponentDeployment(ctx context.Context, key client.ObjectKey, component
 	deployment := &appsv1.Deployment{}
 	err := cli.Get(ctx, types.NamespacedName{Name: component.GetDeploymentName(key.Name), Namespace: key.Namespace}, deployment)
 	if err != nil {
-		if kerrors.IsNotFound(err) {
+		if k8sErrors.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -356,7 +355,7 @@ func (r *MilvusStatusSyncer) UpdateIngressStatus(ctx context.Context, mc *v1beta
 	key.Name = key.Name + "-milvus"
 	status, err := getIngressStatus(ctx, r.Client, key)
 	if err != nil {
-		return errors.Wrap(err, "get ingress status failed")
+		return fmt.Errorf("get ingress status failed: %w", err)
 	}
 	mc.Status.IngressStatus = *status
 	return nil
@@ -366,7 +365,7 @@ func getIngressStatus(ctx context.Context, client client.Client, key client.Obje
 	ingress := &networkv1.Ingress{}
 	err := client.Get(ctx, key, ingress)
 	if err != nil {
-		if kerrors.IsNotFound(err) {
+		if k8sErrors.IsNotFound(err) {
 			return &networkv1.IngressStatus{}, nil
 		}
 		return nil, err
@@ -395,7 +394,7 @@ func GetKafkaConfFromCR(mc v1beta1.Milvus) (*external.CheckKafkaConfig, error) {
 		}
 		err := kafkaConfValues.AsObject(kafkaConf)
 		if err != nil {
-			return nil, errors.Wrap(err, "decode kafka config failed")
+			return nil, fmt.Errorf("decode kafka config failed: %w", err)
 		}
 	}
 	return kafkaConf, nil
@@ -473,7 +472,7 @@ func (r *componentsDeployStatusUpdaterImpl) Update(ctx context.Context, mc *v1be
 		AppLabelName:     "milvus",
 	})
 	if err := r.List(ctx, deployList, opts); err != nil {
-		return errors.Wrap(err, "list deployments failed")
+		return fmt.Errorf("list deployments failed: %w", err)
 	}
 	if mc.Status.ComponentsDeployStatus == nil {
 		mc.Status.ComponentsDeployStatus = make(map[string]v1beta1.ComponentDeployStatus)

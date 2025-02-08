@@ -2,12 +2,12 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/util"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -114,7 +114,7 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 	commonlabels := NewComponentAppLabels(mc.Name, c.component.Name)
 	err = c.cli.List(ctx, &deploys, client.InNamespace(mc.Namespace), client.MatchingLabels(commonlabels))
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "list querynode deployments")
+		return nil, nil, fmt.Errorf("list querynode deployments: %w", err)
 	}
 	var items = []*appsv1.Deployment{}
 	for i := range deploys.Items {
@@ -123,7 +123,7 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 		}
 	}
 	if len(items) > 2 {
-		return nil, nil, errors.Errorf("unexpected: more than 2 querynode deployments found %d, admin please fix this, leave only 2 deployments", len(deploys.Items))
+		return nil, nil, fmt.Errorf("unexpected: more than 2 querynode deployments found %d, admin please fix this, leave only 2 deployments", len(deploys.Items))
 	}
 	if len(items) < 1 {
 		return nil, nil, ErrNotFound
@@ -133,7 +133,7 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 	for i := range items {
 		if componentDeployIsCurrentGroup(mc, c.component, items[i]) {
 			if current != nil {
-				return nil, nil, errors.Errorf("unexpected: more than 1 deployment is for current group id, admin please fix this by setting a current deployment")
+				return nil, nil, fmt.Errorf("unexpected: more than 1 deployment is for current group id, admin please fix this by setting a current deployment")
 			}
 			current = items[i]
 		} else {
@@ -141,7 +141,7 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 		}
 	}
 	if current == nil {
-		return nil, nil, errors.Errorf("unexpected: no deployment is for current group id, admin please fix this by setting a current deployment")
+		return nil, nil, fmt.Errorf("unexpected: no deployment is for current group id, admin please fix this by setting a current deployment")
 	}
 	// current != nil
 
@@ -151,7 +151,7 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 	// last == nil
 
 	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.Name) != "0" {
-		return nil, nil, errors.Errorf("unexpected: first deployment is not for group 0, admin please fix this by setting a last deployment for group 0")
+		return nil, nil, fmt.Errorf("unexpected: first deployment is not for group 0, admin please fix this by setting a last deployment for group 0")
 	}
 	return nil, nil, ErrNoLastDeployment
 }
@@ -181,7 +181,7 @@ func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1bet
 	deploy.Name = formatComponentDeployName(mc, c.component, groupId)
 	err := ctrl.SetControllerReference(&mc, deploy, c.cli.Scheme())
 	if err != nil {
-		return errors.Wrap(err, "set controller reference")
+		return fmt.Errorf("set controller reference: %w", err)
 	}
 	labels := NewComponentAppLabels(mc.Name, c.component.Name)
 	v1beta1.Labels().SetGroupID(c.component.Name, labels, groupId)
@@ -309,7 +309,7 @@ func (c *DeployControllerBizUtilImpl) checkCanScaleNow(ctx context.Context, mc v
 	if v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
 		err := c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
 		if err != nil {
-			return errors.Wrap(err, "check deployments stable")
+			return fmt.Errorf("check deployments stable: %w", err)
 		}
 	}
 	return nil
@@ -503,29 +503,29 @@ func (c *DeployControllerBizUtilImpl) doScaleAction(ctx context.Context, action 
 func (c *DeployControllerBizUtilImpl) markDeployAsCurrent(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment) error {
 	groupId, err := GetDeploymentGroupId(currentDeployment)
 	if err != nil {
-		return errors.Wrap(err, "get deployment group id")
+		return fmt.Errorf("get deployment group id: %w", err)
 	}
 	err = c.MarkMilvusComponentGroupId(ctx, mc, c.component, groupId)
-	return errors.Wrapf(err, "mark group id to %d", groupId)
+	return fmt.Errorf("mark group id to %d: %w", groupId, err)
 }
 
 func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment) error {
 	lastDeployPods, err := c.K8sUtil.ListDeployPods(ctx, lastDeployment, c.component)
 	if err != nil {
-		return errors.Wrap(err, "list last deploy pods")
+		return fmt.Errorf("list last deploy pods: %w", err)
 	}
 	isStable, reason := c.K8sUtil.DeploymentIsStable(lastDeployment, lastDeployPods)
 	if !isStable {
-		return errors.Wrapf(ErrRequeue, "last deploy is not stable[%s]", reason)
+		return fmt.Errorf("last deploy is not stable[%s]: %w", reason, ErrRequeue)
 	}
 
 	currentDeployPods, err := c.K8sUtil.ListDeployPods(ctx, currentDeployment, c.component)
 	if err != nil {
-		return errors.Wrap(err, "list current deploy pods")
+		return fmt.Errorf("list current deploy pods: %w", err)
 	}
 	isStable, reason = c.K8sUtil.DeploymentIsStable(currentDeployment, currentDeployPods)
 	if !isStable {
-		return errors.Wrapf(ErrRequeue, "current deploy is not stable[%s]", reason)
+		return fmt.Errorf("current deploy is not stable[%s]: %w", reason, ErrRequeue)
 	}
 	return nil
 }
@@ -540,7 +540,7 @@ func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc 
 	c.RenewDeployAnnotation(ctx, mc, currentDeployment)
 	err := c.cli.Update(ctx, currentDeployment)
 	if err != nil {
-		return errors.Wrap(err, "updateDeployTemplate failed")
+		return fmt.Errorf("updateDeployTemplate failed: %w", err)
 	}
 	logger.Info("prepare new rollout stage 2: setRolling", "currentGroupId", currentGroupIdStr)
 	labelHelper.SetCurrentGroupIDStr(&mc, c.component.Name, currentGroupIdStr)

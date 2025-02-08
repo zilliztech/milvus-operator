@@ -13,7 +13,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	runtimectrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,7 +45,7 @@ func TestMilvusStatusSyncer_UpdateIngressStatus(t *testing.T) {
 	})
 	t.Run("get ingress not found ok", func(t *testing.T) {
 		milvus.Spec.Com.Standalone.Ingress = &v1beta1.MilvusIngress{}
-		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, ""))
+		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
 		err := s.UpdateIngressStatus(ctx, &milvus)
 		assert.NoError(t, err)
 	})

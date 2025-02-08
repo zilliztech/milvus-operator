@@ -2,19 +2,18 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/util"
-	"github.com/pkg/errors"
-	pkgerr "github.com/pkg/errors"
 )
 
 const (
@@ -39,7 +38,7 @@ const (
 
 var (
 	DefaultConfigMapMode = corev1.ConfigMapVolumeSourceDefaultMode
-	ErrRequeue           = pkgerr.New("requeue")
+	ErrRequeue           = errors.New("requeue")
 )
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
@@ -78,7 +77,7 @@ func (r *MilvusReconciler) updateDeployment(
 	updater := newMilvusDeploymentUpdater(mc, r.Scheme, component)
 	hasTerminatingPod, err := CheckComponentHasTerminatingPod(ctx, r.Client, mc, component)
 	if err != nil {
-		return errors.Wrap(err, "check component has terminating pod")
+		return fmt.Errorf("check component has terminating pod: %w", err)
 	}
 	if hasTerminatingPod {
 		return updateDeploymentWithoutPodTemplate(deployment, updater)
@@ -94,7 +93,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 	namespacedName := NamespacedName(mc.Namespace, component.GetDeploymentName(mc.Name))
 	old := &appsv1.Deployment{}
 	err := r.Get(ctx, namespacedName, old)
-	if kerrors.IsNotFound(err) {
+	if k8sErrors.IsNotFound(err) {
 		new := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      component.GetDeploymentName(mc.Name),
@@ -142,14 +141,14 @@ func (r *MilvusReconciler) handleOldInstanceChangingMode(ctx context.Context, mc
 
 		err := r.labelServicePods(ctx, mc)
 		if err != nil {
-			return pkgerr.Wrap(err, "label service pods")
+			return fmt.Errorf("label service pods error: %w", err)
 		}
 
 		mc.Annotations[v1beta1.PodServiceLabelAddedAnnotation] = v1beta1.TrueStr
 		if err := r.Update(ctx, &mc); err != nil {
-			return errors.Wrap(err, "update milvus annotation")
+			return fmt.Errorf("update milvus annotation: %w", err)
 		}
-		return errors.Wrap(ErrRequeue, "requeue after updated milvus annotation")
+		return fmt.Errorf("requeue after updated milvus annotation: %w", ErrRequeue)
 	}
 	return nil
 }
@@ -167,7 +166,7 @@ func (r *MilvusReconciler) labelServicePods(ctx context.Context, mc v1beta1.Milv
 			serviceComponent.Name,
 		))
 		if err := r.List(ctx, pods, opts); err != nil {
-			return pkgerr.Wrapf(err, "list [%s] pods", serviceComponent.Name)
+			return fmt.Errorf("list [%s] pods error: %w", serviceComponent.Name, err)
 		}
 		for _, pod := range pods.Items {
 			if pod.Labels == nil {
@@ -176,7 +175,7 @@ func (r *MilvusReconciler) labelServicePods(ctx context.Context, mc v1beta1.Milv
 			if pod.Labels[v1beta1.ServiceLabel] != v1beta1.TrueStr {
 				pod.Labels[v1beta1.ServiceLabel] = v1beta1.TrueStr
 				if err := r.Update(ctx, &pod); err != nil {
-					return pkgerr.Wrapf(err, "label pod %s", pod.Name)
+					return fmt.Errorf("label pod %s error: %w", pod.Name, err)
 				}
 			}
 		}

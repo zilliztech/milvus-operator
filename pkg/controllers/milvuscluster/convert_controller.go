@@ -7,7 +7,6 @@ import (
 	"github.com/go-logr/logr"
 	milvusv1alpha1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1alpha1"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	pkgErrs "github.com/pkg/errors"
 	errors "k8s.io/apimachinery/pkg/api/errors"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -64,7 +63,7 @@ func (r *MilvusClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if errors.IsNotFound(err) {
 			milvus.ConvertToMilvus(betaMilvus)
 			if err := ctrl.SetControllerReference(milvus, betaMilvus, r.Scheme); err != nil {
-				return ctrl.Result{}, pkgErrs.Wrap(err, "set controller reference")
+				return ctrl.Result{}, fmt.Errorf("set controller reference: %w", err)
 			}
 			err := r.Create(ctx, betaMilvus)
 			if err != nil {
@@ -120,7 +119,7 @@ func (r *MilvusClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	milvus.ConvertToMilvus(betaMilvus)
 	if err := ctrl.SetControllerReference(milvus, betaMilvus, r.Scheme); err != nil {
-		return ctrl.Result{}, pkgErrs.Wrap(err, "set controller reference")
+		return ctrl.Result{}, fmt.Errorf("set controller reference: %w", err)
 	}
 
 	err = r.Update(ctx, betaMilvus)

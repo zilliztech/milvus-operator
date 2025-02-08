@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -81,7 +81,7 @@ func TestClusterReconciler(t *testing.T) {
 				// finalizer should be added
 				assert.Equal(t, u.Finalizers, []string{MilvusFinalizerName})
 			},
-		).Return(errors.Errorf("mock"))
+		).Return(fmt.Errorf("mock"))
 
 		m.Finalizers = []string{MilvusFinalizerName}
 		_, err := r.Reconcile(ctx, reconcile.Request{})

@@ -1,9 +1,9 @@
 package values
 
 import (
+	"fmt"
 	"io/ioutil"
 
-	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
 )
 
@@ -55,7 +55,7 @@ type DefaultValuesProviderImpl struct {
 func MustInitDefaultValuesProvider() {
 	values, err := readValuesFromFile(DefaultValuesPath)
 	if err != nil {
-		err = errors.Wrapf(err, "failed to read default helm chart values from [%s]", DefaultValuesPath)
+		err = fmt.Errorf("failed to read default helm chart values from [%s]: %w", DefaultValuesPath, err)
 		panic(err)
 	}
 	pulsarV3Values := values[PulsarV3].(Values)
@@ -96,12 +96,12 @@ func (d DefaultValuesProviderImpl) GetDefaultValues(dependencyName DependencyKin
 func readValuesFromFile(file string) (Values, error) {
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to read file %s", file)
+		return nil, fmt.Errorf("failed to read file %s: %w", file, err)
 	}
 	ret := Values{}
 	err = yaml.Unmarshal(data, &ret)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal file %s", file)
+		return nil, fmt.Errorf("failed to unmarshal file %s: %w", file, err)
 	}
 	return ret, nil
 }

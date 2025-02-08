@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/external"
 	"github.com/milvus-io/milvus-operator/pkg/util"
-	"github.com/pkg/errors"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	appsv1 "k8s.io/api/apps/v1"
@@ -210,7 +210,7 @@ func GetEndpointsHealth(authConfig EtcdAuthConfig, endpoints []string) map[strin
 			var checkEtcd = func() error {
 				cli, err := etcdNewClient(cliCfg)
 				if err != nil {
-					return errors.Wrap(err, "failed to create etcd client")
+					return fmt.Errorf("failed to create etcd client: %w", err)
 				}
 				defer cli.Close()
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -222,7 +222,7 @@ func GetEndpointsHealth(authConfig EtcdAuthConfig, endpoints []string) map[strin
 				}
 				resp, err := cli.AlarmList(ctx)
 				if err != nil {
-					return errors.Wrap(err, "Unable to fetch the alarm list")
+					return fmt.Errorf("Unable to fetch the alarm list: %w", err)
 				}
 				// err == nil
 				if len(resp.Alarms) < 1 {

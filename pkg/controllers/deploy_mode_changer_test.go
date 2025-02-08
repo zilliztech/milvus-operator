@@ -10,7 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -139,7 +139,7 @@ func TestDeployModeChangerImpl_SaveDeleteOldDeploy(t *testing.T) {
 	})
 
 	t.Run("old deploy not found, ok", func(t *testing.T) {
-		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(nil, kerrors.NewNotFound(appsv1.Resource("deployments"), "old"))
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(nil, k8sErrors.NewNotFound(appsv1.Resource("deployments"), "old"))
 		err := changer.SaveDeleteOldDeploy(ctx, mc)
 		assert.NoError(t, err)
 	})

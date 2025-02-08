@@ -2,15 +2,15 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -70,7 +70,7 @@ func TestDeployControllerBizUtilImpl_GetOldDeploy(t *testing.T) {
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).Return(nil)
 		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.Error(t, err)
-		assert.True(t, kerrors.IsNotFound(err))
+		assert.True(t, k8sErrors.IsNotFound(err))
 	})
 
 	t.Run("more than 1 deploy", func(t *testing.T) {
@@ -99,7 +99,7 @@ func TestDeployControllerBizUtilImpl_GetOldDeploy(t *testing.T) {
 			})
 		_, err := bizUtil.GetOldDeploy(ctx, mc, component)
 		assert.Error(t, err)
-		assert.True(t, kerrors.IsNotFound(err))
+		assert.True(t, k8sErrors.IsNotFound(err))
 	})
 
 	t.Run("1 deploy ok", func(t *testing.T) {
@@ -161,13 +161,13 @@ func TestDeployControllerBizUtilImpl_GetDeploys(t *testing.T) {
 				return nil
 			})
 		_, _, err := bizUtil.GetDeploys(ctx, mc)
-		assert.Equal(t, ErrNotFound, errors.Cause(err))
+		assert.Equal(t, ErrNotFound, errors.Unwrap(err))
 	})
 
 	t.Run("no deploy, ErrNotFound", func(t *testing.T) {
 		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).Return(nil)
 		_, _, err := bizUtil.GetDeploys(ctx, mc)
-		assert.Equal(t, ErrNotFound, errors.Cause(err))
+		assert.Equal(t, ErrNotFound, errors.Unwrap(err))
 	})
 
 	t.Run("1 deploy, not current, err", func(t *testing.T) {
@@ -180,7 +180,7 @@ func TestDeployControllerBizUtilImpl_GetDeploys(t *testing.T) {
 				return nil
 			})
 		_, _, err := bizUtil.GetDeploys(ctx, mc)
-		assert.NotEqual(t, ErrNoLastDeployment, errors.Cause(err))
+		assert.NotEqual(t, ErrNoLastDeployment, errors.Unwrap(err))
 	})
 
 	t.Run("1 deploy, is current, ErrLastDeployNotFound", func(t *testing.T) {
@@ -195,7 +195,7 @@ func TestDeployControllerBizUtilImpl_GetDeploys(t *testing.T) {
 				return nil
 			})
 		_, _, err := bizUtil.GetDeploys(ctx, mc)
-		assert.Equal(t, ErrNoLastDeployment, errors.Cause(err))
+		assert.Equal(t, ErrNoLastDeployment, errors.Unwrap(err))
 	})
 
 	t.Run("2 deploy saperate by group id", func(t *testing.T) {

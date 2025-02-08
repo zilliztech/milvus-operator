@@ -3,8 +3,8 @@ package rest
 import (
 	"bytes"
 	"context"
+	"fmt"
 
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -49,14 +49,14 @@ func init() {
 func newRestClientImpl(config *rest.Config) (*RestClientImpl, error) {
 	scheme := runtime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil {
-		return nil, errors.Wrap(err, "failed to add corev1 to scheme")
+		return nil, fmt.Errorf("failed to add corev1 to scheme: %w", err)
 	}
 	config.NegotiatedSerializer = serializer.NewCodecFactory(scheme)
 	config.GroupVersion = &corev1.SchemeGroupVersion
 	config.APIPath = "api"
 	restClient, err := rest.RESTClientFor(config)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create rest client")
+		return nil, fmt.Errorf("failed to create rest client: %w", err)
 	}
 
 	return &RestClientImpl{
@@ -82,7 +82,7 @@ func (clis RestClientImpl) Exec(ctx context.Context, namespace, pod, container s
 
 	exec, err := remotecommand.NewSPDYExecutor(clis.config, "POST", req.URL())
 	if err != nil {
-		return "", "", errors.Wrap(err, "failed to create executor")
+		return "", "", fmt.Errorf("failed to create executor: %w", err)
 	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer
@@ -91,7 +91,7 @@ func (clis RestClientImpl) Exec(ctx context.Context, namespace, pod, container s
 		Stderr: &stderrBuf,
 	})
 	if err != nil {
-		return "", "", errors.Wrap(err, "failed to exec command")
+		return "", "", fmt.Errorf("failed to exec command: %w", err)
 	}
 
 	return stdoutBuf.String(), stderrBuf.String(), nil

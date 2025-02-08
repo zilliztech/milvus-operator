@@ -2,10 +2,11 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/milvus-io/milvus-operator/pkg/config"
-	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/cli"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -160,7 +161,7 @@ func getOperatorImageInfo(cli client.Client) (*ImageInfo, error) {
 	deploy := appsv1.Deployment{}
 	err := cli.Get(context.TODO(), NamespacedName(config.OperatorNamespace, config.OperatorName), &deploy)
 	if err != nil {
-		return nil, errors.Wrapf(err, "get operator deployment[%s/%s] fail", config.OperatorNamespace, config.OperatorName)
+		return nil, fmt.Errorf("get operator deployment[%s/%s] fail: %w", config.OperatorNamespace, config.OperatorName, err)
 	}
 	if len(deploy.Spec.Template.Spec.Containers) < 1 {
 		return nil, errors.New("operator deployment has no container")

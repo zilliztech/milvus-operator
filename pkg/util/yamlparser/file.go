@@ -1,11 +1,11 @@
 package yamlparser
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"reflect"
 
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -33,13 +33,13 @@ func ParseUserYaml() (*UserYaml, error) {
 func ParseObjectFromFile(path string, obj interface{}) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return errors.Wrapf(err, "open file[%s] failed", path)
+		return fmt.Errorf("open file[%s] failed: %w", path, err)
 	}
 	defer file.Close()
 	fileData, err := io.ReadAll(file)
 	if err != nil {
-		return errors.Wrapf(err, "read file[%s] failed", path)
+		return fmt.Errorf("read file[%s] failed: %w", path, err)
 	}
 	err = yaml.Unmarshal(fileData, obj)
-	return errors.Wrapf(err, "unmarshal file[%s] as type[%s] failed", path, reflect.TypeOf(obj).String())
+	return fmt.Errorf("unmarshal file[%s] as type[%s] failed: %w", path, reflect.TypeOf(obj).String(), err)
 }

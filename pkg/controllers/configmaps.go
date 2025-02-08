@@ -4,7 +4,7 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
@@ -119,7 +119,7 @@ func (r *MilvusReconciler) ReconcileConfigMaps(ctx context.Context, mc v1beta1.M
 	namespacedName := NamespacedName(mc.Namespace, mc.GetActiveConfigMap())
 	old := &corev1.ConfigMap{}
 	err := r.Get(ctx, namespacedName, old)
-	if kerrors.IsNotFound(err) {
+	if k8sErrors.IsNotFound(err) {
 		new := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      mc.GetActiveConfigMap(),

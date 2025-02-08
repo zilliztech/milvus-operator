@@ -2,11 +2,11 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"sync"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -57,7 +57,7 @@ func (ParallelGroupRunner) Run(funcs []Func, ctx context.Context, args ...interf
 		g.Go(WrappedFunc(funcs[i], args...))
 	}
 	err := g.Wait()
-	return errors.Wrap(err, "run group failed")
+	return fmt.Errorf("run group failed: %w", err)
 }
 
 // RunWithResult runs a group of funcs by same args, returns results with data & err for each func called
@@ -74,7 +74,7 @@ func (ParallelGroupRunner) RunWithResult(funcs []Func, ctx context.Context, args
 	for i := 0; i < length; i++ {
 		f := funcs[i]
 		if reflect.TypeOf(f).Kind() != reflect.Func {
-			err := errors.Errorf("fatal error wrap func want func, got[%s]", reflect.TypeOf(f).Kind())
+			err := fmt.Errorf("fatal error wrap func want func, got[%s]", reflect.TypeOf(f).Kind())
 			res[i] = Result{Err: err}
 			continue
 		}
@@ -114,7 +114,7 @@ func (ParallelGroupRunner) RunDiffArgs(f MilvusReconcileFunc, ctx context.Contex
 	}
 
 	err := g.Wait()
-	return errors.Wrap(err, "run group")
+	return fmt.Errorf("run group: %w", err)
 }
 
 func getDummyErr(err error) func() error {
@@ -125,7 +125,7 @@ var gLogger = logf.Log.WithName("group_runner")
 
 func WrappedFunc(f interface{}, args ...interface{}) func() error {
 	if reflect.TypeOf(f).Kind() != reflect.Func {
-		err := errors.Errorf("fatal error wrap func want func, got[%s]", reflect.TypeOf(f).Kind())
+		err := fmt.Errorf("fatal error wrap func want func, got[%s]", reflect.TypeOf(f).Kind())
 		gLogger.Error(err, "wrap func")
 		return getDummyErr(err)
 	}

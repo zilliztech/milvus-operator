@@ -2,12 +2,12 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -47,18 +47,18 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 	ctx = ctrl.LoggerInto(ctx, logger)
 	err := c.rollingModeStatusUpdater.Update(ctx, &mc)
 	if err != nil {
-		return errors.Wrap(err, "update milvus rolling mode status")
+		return fmt.Errorf("update milvus rolling mode status: %w", err)
 	}
 	biz := c.bizFactory.GetBiz(component)
 	deployMode, err := biz.CheckDeployMode(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "check deploy mode")
+		return fmt.Errorf("check deploy mode: %w", err)
 	}
 	switch deployMode {
 	case v1beta1.OneDeployMode:
 		isUpdating, err := biz.IsUpdating(ctx, mc)
 		if err != nil {
-			return errors.Wrap(err, "check if updating")
+			return fmt.Errorf("check if updating: %w", err)
 		}
 		if isUpdating {
 			logger.Info("one deployment mode, still updating")
@@ -72,7 +72,7 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		}
 		err = biz.ChangeToTwoDeployMode(ctx, mc)
 		if err != nil {
-			return errors.Wrap(err, "change to two deployment mode")
+			return fmt.Errorf("change to two deployment mode: %w", err)
 		}
 		fallthrough
 	case v1beta1.TwoDeployMode:
@@ -81,7 +81,7 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 			return err
 		}
 	default:
-		err = errors.Errorf("unknown deploy mode: %d", deployMode)
+		err = fmt.Errorf("unknown deploy mode: %d", deployMode)
 		logger.Error(err, "switch case by deployMode")
 		return err
 	}
@@ -89,7 +89,7 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 	// is already in two deployment mode
 	err = biz.HandleCreate(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "handle create")
+		return fmt.Errorf("handle create: %w", err)
 	}
 
 	if biz.IsPaused(ctx, mc) {
@@ -106,12 +106,12 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 
 	err = biz.HandleRolling(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "handle rolling")
+		return fmt.Errorf("handle rolling: %w", err)
 	}
 
 	err = biz.HandleScaling(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "handle scaling")
+		return fmt.Errorf("handle scaling: %w", err)
 	}
 
 	return nil
@@ -175,7 +175,7 @@ func (c *DeployControllerBizImpl) CheckDeployMode(ctx context.Context, mc v1beta
 	}
 	mode, err := c.checkDeployModeInCluster(ctx, mc)
 	if err != nil {
-		return mode, errors.Wrap(err, "check rolling mode in cluster")
+		return mode, fmt.Errorf("check rolling mode in cluster: %w", err)
 	}
 	return mode, nil
 }
@@ -185,10 +185,10 @@ func (c *DeployControllerBizImpl) checkDeployModeInCluster(ctx context.Context, 
 	if err == nil {
 		return v1beta1.OneDeployMode, nil
 	}
-	if kerrors.IsNotFound(err) {
+	if k8sErrors.IsNotFound(err) {
 		return v1beta1.TwoDeployMode, nil
 	}
-	return v1beta1.DeployModeUnknown, errors.Wrap(err, "get deployments")
+	return v1beta1.DeployModeUnknown, fmt.Errorf("get deployments: %w", err)
 }
 
 func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Milvus) (bool, error) {
@@ -208,7 +208,7 @@ func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Mil
 
 	deploy, err := c.util.GetOldDeploy(ctx, mc, c.component)
 	if err != nil {
-		return false, errors.Wrap(err, "get querynode deployments")
+		return false, fmt.Errorf("get querynode deployments: %w", err)
 	}
 	newPodtemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &deploy.Spec.Template, c.component, false)
 	return c.util.IsNewRollout(ctx, deploy, newPodtemplate), nil
@@ -231,16 +231,16 @@ func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.M
 	case err == ErrNotFound:
 		err := c.util.MarkMilvusComponentGroupId(ctx, mc, c.component, 0)
 		if err != nil {
-			return errors.Wrapf(err, "mark milvus %s group id to %d", c.component.Name, 0)
+			return fmt.Errorf("mark milvus %s group id to %d: %w", c.component.Name, 0, err)
 		}
 		err = c.util.CreateDeploy(ctx, mc, nil, 0)
 		if err != nil {
-			return errors.Wrapf(err, "create %s deployment 0", c.component.Name)
+			return fmt.Errorf("create %s deployment 0: %w", c.component.Name, err)
 		}
 	case err == ErrNoLastDeployment:
 		return c.util.CreateDeploy(ctx, mc, nil, 1)
 	default:
-		return errors.Wrapf(err, "get %s deploys", c.component.Name)
+		return fmt.Errorf("get %s deploys: %w", c.component.Name, err)
 	}
 	return nil
 }
@@ -248,14 +248,14 @@ func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.M
 func (c *DeployControllerBizImpl) HandleStop(ctx context.Context, mc v1beta1.Milvus) error {
 	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "get querynode deploys")
+		return fmt.Errorf("get querynode deploys: %w", err)
 	}
 	err = c.stopDeployIfNot(ctx, currentDeploy)
 	if err != nil {
-		return errors.Wrap(err, "stop current deployment")
+		return fmt.Errorf("stop current deployment: %w", err)
 	}
 	err = c.stopDeployIfNot(ctx, lastDeploy)
-	return errors.Wrap(err, "stop last deployment")
+	return fmt.Errorf("stop last deployment: %w", err)
 }
 
 func (c *DeployControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy *appsv1.Deployment) error {
@@ -264,7 +264,7 @@ func (c *DeployControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy *a
 			deploy.Spec.Replicas = int32Ptr(0)
 			err := c.cli.Update(ctx, deploy)
 			if err != nil {
-				return errors.Wrap(err, "stop current deployment")
+				return fmt.Errorf("stop current deployment: %w", err)
 			}
 		}
 	}
@@ -274,7 +274,7 @@ func (c *DeployControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy *a
 func (c *DeployControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.Milvus) error {
 	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "get querynode deploys")
+		return fmt.Errorf("get querynode deploys: %w", err)
 	}
 	return c.util.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
 }
@@ -282,10 +282,10 @@ func (c *DeployControllerBizImpl) HandleScaling(ctx context.Context, mc v1beta1.
 func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.Milvus) error {
 	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
 	if err != nil {
-		return errors.Wrapf(err, "get [%s] deploys", c.component.Name)
+		return fmt.Errorf("get [%s] deploys: %w", c.component.Name, err)
 	}
 	if currentDeploy == nil {
-		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
+		return fmt.Errorf("[%s]'s current deployment not found", c.component.Name)
 	}
 	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, false)
 
@@ -296,7 +296,7 @@ func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.
 
 	lastRolloutFinished, err := c.util.LastRolloutFinished(ctx, mc, currentDeploy, lastDeploy)
 	if err != nil {
-		return errors.Wrap(err, "check last rollout")
+		return fmt.Errorf("check last rollout: %w", err)
 	}
 	if !lastRolloutFinished {
 		return nil
@@ -317,10 +317,10 @@ func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.
 func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1beta1.Milvus) error {
 	currentDeploy, _, err := c.util.GetDeploys(ctx, mc)
 	if err != nil {
-		return errors.Wrapf(err, "get [%s] deploys", c.component.Name)
+		return fmt.Errorf("get [%s] deploys: %w", c.component.Name, err)
 	}
 	if currentDeploy == nil {
-		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
+		return fmt.Errorf("[%s]'s current deployment not found", c.component.Name)
 	}
 	// should not update deploy with replicas if it's in manual mode
 	if getDeployReplicas(currentDeploy) != 0 {

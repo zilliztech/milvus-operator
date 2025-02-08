@@ -2,12 +2,12 @@ package iam
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/service"
-	"github.com/pkg/errors"
 )
 
 type VerifyAzureParams struct {
@@ -22,12 +22,12 @@ func VerifyAzure(ctx context.Context, params VerifyAzureParams) error {
 		TokenFilePath: os.Getenv("AZURE_FEDERATED_TOKEN_FILE"),
 	})
 	if err != nil {
-		return errors.Wrap(err, "init azure workload identity credential failed")
+		return fmt.Errorf("init azure workload identity credential failed: %w", err)
 	}
 	client, err := service.NewClient("https://"+params.StorageAccount+".blob.core.windows.net/", cred, &service.ClientOptions{})
 	if err != nil {
-		return errors.Wrap(err, "init azure storage client failed")
+		return fmt.Errorf("init azure storage client failed: %w", err)
 	}
 	_, err = client.NewContainerClient(params.ContainerName).GetProperties(ctx, &container.GetPropertiesOptions{})
-	return errors.Wrapf(err, "access azure container[%s] properties failed", params.ContainerName)
+	return fmt.Errorf("access azure container[%s] properties failed: %w", params.ContainerName, err)
 }

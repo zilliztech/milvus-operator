@@ -23,7 +23,6 @@ import (
 	"github.com/milvus-io/milvus-operator/pkg/config"
 	"github.com/milvus-io/milvus-operator/pkg/helm/values"
 	"github.com/milvus-io/milvus-operator/pkg/util"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -134,7 +133,7 @@ func (r *Milvus) validatePersistConfig() *field.Error {
 func (r *Milvus) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	_, ok := old.(*Milvus)
 	if !ok {
-		return nil, errors.Errorf("failed type assertion on kind: %s", old.GetObjectKind().GroupVersionKind().String())
+		return nil, fmt.Errorf("failed type assertion on kind: %s", old.GetObjectKind().GroupVersionKind().String())
 	}
 
 	var allErrs field.ErrorList

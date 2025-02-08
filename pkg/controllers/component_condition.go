@@ -6,7 +6,6 @@ import (
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/util/rest"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -58,7 +57,7 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 		if errDetail == nil {
 			errDetail, err = getComponentErrorDetail(ctx, cli, component.Name, deployment)
 			if err != nil {
-				return v1beta1.MilvusCondition{}, errors.Wrap(err, "failed to get component err detail")
+				return v1beta1.MilvusCondition{}, fmt.Errorf("failed to get component err detail: %w", err)
 			}
 		}
 	}
@@ -140,7 +139,7 @@ var getComponentErrorDetail = func(ctx context.Context, cli client.Client, compo
 	}
 	opts.LabelSelector = labels.SelectorFromSet(deploy.Spec.Selector.MatchLabels)
 	if err := cli.List(ctx, pods, opts); err != nil {
-		return nil, errors.Wrap(err, "list pods")
+		return nil, fmt.Errorf("list pods: %w", err)
 	}
 	if len(pods.Items) == 0 {
 		return ret, nil
@@ -255,7 +254,7 @@ func ExecKillIfTerminating(ctx context.Context, podList *corev1.PodList) error {
 		logger.Info("kill milvus output", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "stdout", stdout, "stderr", stderr)
 	}
 	if ret != nil {
-		return errors.Wrap(ret, "failed to kill some milvus pod")
+		return fmt.Errorf("failed to kill some milvus pod: %w", ret)
 	}
 	return nil
 }

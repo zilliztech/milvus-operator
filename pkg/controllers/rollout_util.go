@@ -7,10 +7,9 @@ import (
 	"strconv"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -36,7 +35,7 @@ func (c *K8sUtilImpl) GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, compo
 	labels := NewComponentAppLabels(mc.Name, component.Name)
 	err := c.cli.List(ctx, &deployList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
 	if err != nil {
-		return nil, errors.Wrapf(err, "list %s deployments", component.Name)
+		return nil, fmt.Errorf("list %s deployments: %w", component.Name, err)
 	}
 	var deploys = []appsv1.Deployment{}
 	for _, deploy := range deployList.Items {
@@ -45,10 +44,10 @@ func (c *K8sUtilImpl) GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, compo
 		}
 	}
 	if len(deploys) > 1 {
-		return nil, errors.Errorf("unexpected: more than 1 old %s deployment found %d, admin please fix this, leave only 1 deployment", component.Name, len(deploys))
+		return nil, fmt.Errorf("unexpected: more than 1 old %s deployment found %d, admin please fix this, leave only 1 deployment", component.Name, len(deploys))
 	}
 	if len(deploys) < 1 {
-		return nil, kerrors.NewNotFound(schema.GroupResource{
+		return nil, k8sErrors.NewNotFound(schema.GroupResource{
 			Group:    appsv1.SchemeGroupVersion.Group,
 			Resource: "deployments",
 		}, fmt.Sprintf("component=%s,instance=%s", component.Name, mc.Name))
@@ -64,12 +63,12 @@ func (c *K8sUtilImpl) SaveObject(ctx context.Context, mc v1beta1.Milvus, name st
 	controllerRevision.Revision = 1
 	data, err := json.Marshal(obj)
 	if err != nil {
-		return errors.Wrap(err, "marshal to-save object")
+		return fmt.Errorf("marshal to-save object: %w", err)
 	}
 	controllerRevision.Data.Raw = data
 	err = ctrl.SetControllerReference(&mc, controllerRevision, c.cli.Scheme())
 	if err != nil {
-		return errors.Wrap(err, "set controller reference")
+		return fmt.Errorf("set controller reference: %w", err)
 	}
 	return c.CreateObject(ctx, controllerRevision)
 }
@@ -78,11 +77,11 @@ func (c *K8sUtilImpl) GetSavedObject(ctx context.Context, key client.ObjectKey, 
 	controllerRevision := &appsv1.ControllerRevision{}
 	err := c.cli.Get(ctx, key, controllerRevision)
 	if err != nil {
-		return errors.Wrap(err, "get saved object")
+		return fmt.Errorf("get saved object: %w", err)
 	}
 	err = yaml.Unmarshal(controllerRevision.Data.Raw, obj)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal saved object")
+		return fmt.Errorf("unmarshal saved object: %w", err)
 	}
 	return nil
 }
@@ -92,18 +91,18 @@ func (c *K8sUtilImpl) CreateObject(ctx context.Context, obj client.Object) error
 	if err == nil {
 		return nil
 	}
-	if !kerrors.IsNotFound(err) {
-		return errors.Wrap(err, "check object exist")
+	if !k8sErrors.IsNotFound(err) {
+		return fmt.Errorf("check object exist: %w", err)
 	}
 	return c.cli.Create(ctx, obj)
 }
 
 func (c *K8sUtilImpl) OrphanDelete(ctx context.Context, obj client.Object) error {
 	err := c.cli.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationOrphan))
-	if err != nil && !kerrors.IsNotFound(err) {
-		return errors.Wrap(err, "delete old object")
+	if err != nil && !k8sErrors.IsNotFound(err) {
+		return fmt.Errorf("delete old object: %w", err)
 	}
-	if kerrors.IsNotFound(err) {
+	if k8sErrors.IsNotFound(err) {
 		return nil
 	}
 	// terminating, requeue
@@ -122,9 +121,9 @@ func (c *K8sUtilImpl) MarkMilvusComponentGroupId(ctx context.Context, mc v1beta1
 func (c *K8sUtilImpl) UpdateAndRequeue(ctx context.Context, obj client.Object) error {
 	err := c.cli.Update(ctx, obj)
 	if err != nil {
-		return errors.Wrap(err, "update object")
+		return fmt.Errorf("update object: %w", err)
 	}
-	return errors.Wrap(ErrRequeue, "update and requeue")
+	return fmt.Errorf("update and requeue: %w", ErrRequeue)
 }
 
 func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (appsv1.ReplicaSetList, error) {
@@ -132,7 +131,7 @@ func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus,
 	labels := NewComponentAppLabels(mc.Name, component.Name)
 	err := c.cli.List(ctx, &replicasetList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
 	if err != nil {
-		return replicasetList, errors.Wrap(err, "list component replica sets")
+		return replicasetList, fmt.Errorf("list component replica sets: %w", err)
 	}
 	ret := replicasetList
 	ret.Items = []appsv1.ReplicaSet{}
@@ -150,7 +149,7 @@ func (c *K8sUtilImpl) ListOldPods(ctx context.Context, mc v1beta1.Milvus, compon
 	labels := NewComponentAppLabels(mc.Name, component.Name)
 	err := c.cli.List(ctx, &podList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
 	if err != nil {
-		return nil, errors.Wrap(err, "list component pods")
+		return nil, fmt.Errorf("list component pods: %w", err)
 	}
 	ret := []corev1.Pod{}
 	labelhelper := v1beta1.Labels()
@@ -167,7 +166,7 @@ func (c *K8sUtilImpl) ListDeployPods(ctx context.Context, deploy *appsv1.Deploym
 	labels := deploy.Spec.Selector.MatchLabels
 	err := c.cli.List(ctx, &pods, client.InNamespace(deploy.Namespace), client.MatchingLabels(labels))
 	if err != nil {
-		return nil, errors.Wrap(err, "list pods")
+		return nil, fmt.Errorf("list pods: %w", err)
 	}
 	return pods.Items, nil
 }
@@ -220,7 +219,7 @@ func GetDeploymentGroupId(deploy *appsv1.Deployment) (int, error) {
 	componentName := deploy.Labels[AppLabelComponent]
 	groupId, err := strconv.Atoi(v1beta1.Labels().GetLabelGroupID(componentName, deploy))
 	if err != nil {
-		return 0, errors.Wrap(err, "parse component group id")
+		return 0, fmt.Errorf("parse component group id: %w", err)
 	}
 	return groupId, nil
 }

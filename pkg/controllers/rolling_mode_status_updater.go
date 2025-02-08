@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -46,7 +46,7 @@ func (c *RollingModeStatusUpdaterImpl) checkUpdated(ctx context.Context, mc *v1b
 		biz := c.bizFactory.GetBiz(component)
 		deployMode, err := biz.CheckDeployMode(ctx, *mc)
 		if err != nil {
-			return false, errors.Wrap(err, "check deploy mode")
+			return false, fmt.Errorf("check deploy mode: %w", err)
 		}
 		if deployMode != v1beta1.TwoDeployMode {
 			return false, nil
@@ -59,11 +59,11 @@ func (c *RollingModeStatusUpdaterImpl) checkUpdated(ctx context.Context, mc *v1b
 func (c *RollingModeStatusUpdaterImpl) Update(ctx context.Context, mc *v1beta1.Milvus) error {
 	updated, err := c.checkUpdated(ctx, mc)
 	if err != nil {
-		return errors.Wrap(err, "check updated")
+		return fmt.Errorf("check updated: %w", err)
 	}
 	if !updated {
 		return nil
 	}
 	err = c.cli.Status().Update(ctx, mc)
-	return errors.Wrap(err, "update milvus status")
+	return fmt.Errorf("update milvus status: %w", err)
 }

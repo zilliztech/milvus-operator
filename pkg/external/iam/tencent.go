@@ -2,17 +2,17 @@ package iam
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/minio/minio-go/v7"
 	minioCred "github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/pkg/errors"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 )
 
 func VerifyTencent(ctx context.Context, bucketName, region, address string, secure bool) error {
 	credProvider, err := NewTencentCredentialProvider()
 	if err != nil {
-		return errors.Wrap(err, "failed to create credential provider")
+		return fmt.Errorf("failed to create credential provider: %w", err)
 	}
 	creds := minioCred.New(credProvider)
 	opts := minio.Options{
@@ -23,10 +23,10 @@ func VerifyTencent(ctx context.Context, bucketName, region, address string, secu
 	}
 	client, err := minio.New(address, &opts)
 	if err != nil {
-		return errors.Wrap(err, "init minio client failed")
+		return fmt.Errorf("init minio client failed: %w", err)
 	}
 	_, err = client.BucketExists(ctx, bucketName)
-	return errors.Wrapf(err, "access aliyun bucket[%s] failed", bucketName)
+	return fmt.Errorf("access aliyun bucket[%s] failed: %w", bucketName, err)
 }
 
 // TencentCredentialProvider implements "github.com/minio/minio-go/v7/pkg/credentials".Provider
@@ -41,12 +41,12 @@ type TencentCredentialProvider struct {
 func NewTencentCredentialProvider() (minioCred.Provider, error) {
 	provider, err := common.DefaultTkeOIDCRoleArnProvider()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create tencent credential provider")
+		return nil, fmt.Errorf("failed to create tencent credential provider: %w", err)
 	}
 
 	cred, err := provider.GetCredential()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tencent credential")
+		return nil, fmt.Errorf("failed to get tencent credential: %w", err)
 	}
 	return &TencentCredentialProvider{tencentCreds: cred}, nil
 }

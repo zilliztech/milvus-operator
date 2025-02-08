@@ -6,9 +6,8 @@ import (
 	"strings"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -61,7 +60,7 @@ func (c *DeployModeChangerImpl) ChangeToTwoDeployMode(ctx context.Context, mc v1
 		logger.Info("changeModeToV2Steps", "step no.", i, "name", step.Name)
 		err := step.Func(ctx, mc)
 		if err != nil {
-			return errors.Wrapf(err, "step[no.%d][%s]", i, step.Name)
+			return fmt.Errorf("step[no.%d][%s]: %w", i, step.Name, err)
 		}
 	}
 	return nil
@@ -75,7 +74,7 @@ func (c *DeployModeChangerImpl) markChangingDeployMode(ctx context.Context, mc v
 	logger.Info("marking changing deploy mode", "changing", changing)
 	v1beta1.Labels().SetChangingMode(&mc, c.component.Name, changing)
 	err := c.util.UpdateAndRequeue(ctx, &mc)
-	return errors.Wrap(err, "marking changing deploy mode")
+	return fmt.Errorf("marking changing deploy mode: %w", err)
 }
 
 func (c *DeployModeChangerImpl) SaveDeleteOldDeploy(ctx context.Context, mc v1beta1.Milvus) error {
@@ -83,15 +82,15 @@ func (c *DeployModeChangerImpl) SaveDeleteOldDeploy(ctx context.Context, mc v1be
 	if err == nil {
 		err := c.util.SaveObject(ctx, mc, formatSaveOldDeployName(mc, c.component), oldDeploy)
 		if err != nil {
-			return errors.Wrap(err, "save old deploy")
+			return fmt.Errorf("save old deploy: %w", err)
 		}
 		err = c.util.OrphanDelete(ctx, oldDeploy)
 		if err != nil {
-			return errors.Wrap(err, "orphan delete old deploy")
+			return fmt.Errorf("orphan delete old deploy: %w", err)
 		}
 	}
-	if err != nil && !kerrors.IsNotFound(err) {
-		return errors.Wrapf(err, "get old deployments")
+	if err != nil && !k8sErrors.IsNotFound(err) {
+		return fmt.Errorf("get old deployments error: %w", err)
 	}
 	return nil
 }
@@ -99,17 +98,17 @@ func (c *DeployModeChangerImpl) SaveDeleteOldDeploy(ctx context.Context, mc v1be
 func (c *DeployModeChangerImpl) SaveDeleteOldReplicaSet(ctx context.Context, mc v1beta1.Milvus) error {
 	replicasetList, err := c.util.ListOldReplicaSets(ctx, mc, c.component)
 	if err != nil {
-		return errors.Wrap(err, "list old replica sets")
+		return fmt.Errorf("list old replica sets: %w", err)
 	}
 	err = c.util.SaveObject(ctx, mc, formatSaveOldReplicaSetListName(mc, c.component), &replicasetList)
 	if err != nil {
-		return errors.Wrap(err, "save old replicaset list")
+		return fmt.Errorf("save old replicaset list: %w", err)
 	}
 	var ret error
 	for _, rs := range replicasetList.Items {
 		err = c.util.OrphanDelete(ctx, &rs)
 		if err != nil {
-			ret = errors.Wrapf(err, "deleting old replica set[%s]", rs.Name)
+			ret = fmt.Errorf("deleting old replica set[%s]: %w", rs.Name, err)
 		}
 	}
 	return ret
@@ -118,13 +117,13 @@ func (c *DeployModeChangerImpl) SaveDeleteOldReplicaSet(ctx context.Context, mc 
 func (c *DeployModeChangerImpl) UpdateOldPodLabels(ctx context.Context, mc v1beta1.Milvus) error {
 	pods, err := c.util.ListOldPods(ctx, mc, c.component)
 	if err != nil {
-		return errors.Wrap(err, "list old pods")
+		return fmt.Errorf("list old pods: %w", err)
 	}
 	for _, pod := range pods {
 		v1beta1.Labels().SetGroupID(c.component.Name, pod.Labels, 0)
 		err = c.cli.Update(ctx, &pod)
 		if err != nil {
-			return errors.Wrap(err, "update old pod labels")
+			return fmt.Errorf("update old pod labels: %w", err)
 		}
 	}
 	return nil
@@ -138,7 +137,7 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 	}
 	err := c.util.GetSavedObject(ctx, key, replicasetList)
 	if err != nil {
-		return errors.Wrap(err, "list old replica sets")
+		return fmt.Errorf("list old replica sets: %w", err)
 	}
 	labelHelper := v1beta1.Labels()
 	logger := ctrl.LoggerFrom(ctx)
@@ -152,7 +151,7 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 		rs.ResourceVersion = ""
 		splitedName := strings.Split(rs.Name, "-")
 		if len(splitedName) < 2 {
-			return errors.Errorf("invalid old replica set name: %s", rs.Name)
+			return fmt.Errorf("invalid old replica set name: %s", rs.Name)
 		}
 		rsHash := splitedName[len(splitedName)-1]
 		deployName := strings.Join(splitedName[:len(splitedName)-1], "-")
@@ -160,7 +159,7 @@ func (c *DeployModeChangerImpl) RecoverReplicaSets(ctx context.Context, mc v1bet
 		logger.Info("recovering old replica set", "new-name", rs.Name)
 		err = c.util.CreateObject(ctx, &rs)
 		if err != nil {
-			return errors.Wrap(err, "recover old replica set")
+			return fmt.Errorf("recover old replica set: %w", err)
 		}
 	}
 	return nil
@@ -174,7 +173,7 @@ func (c *DeployModeChangerImpl) RecoverDeploy(ctx context.Context, mc v1beta1.Mi
 	}
 	err := c.util.GetSavedObject(ctx, key, oldDeploy)
 	if err != nil {
-		return errors.Wrap(err, "get old deploy")
+		return fmt.Errorf("get old deploy: %w", err)
 	}
 	labelHelper := v1beta1.Labels()
 	labelHelper.SetGroupID(c.component.Name, oldDeploy.Labels, 0)
@@ -185,7 +184,7 @@ func (c *DeployModeChangerImpl) RecoverDeploy(ctx context.Context, mc v1beta1.Mi
 	oldDeploy.Name = fmt.Sprintf("%s-0", oldDeploy.Name)
 	err = c.util.CreateObject(ctx, oldDeploy)
 	if err != nil {
-		return errors.Wrap(err, "recover old deploy")
+		return fmt.Errorf("recover old deploy: %w", err)
 	}
 	return nil
 }
@@ -196,7 +195,7 @@ func (c *DeployModeChangerImpl) MarkCurrentDeploy(ctx context.Context, mc v1beta
 	}
 	v1beta1.Labels().SetCurrentGroupID(&mc, c.component.Name, 0)
 	err := c.util.UpdateAndRequeue(ctx, &mc)
-	return errors.Wrap(err, "mark current deploy")
+	return fmt.Errorf("mark current deploy: %w", err)
 }
 
 func formatSaveOldDeployName(mc v1beta1.Milvus, component MilvusComponent) string {
