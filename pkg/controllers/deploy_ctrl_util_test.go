@@ -720,10 +720,10 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := deployTemplate.DeepCopy()
 		currentDeploy.Spec.Replicas = int32Ptr(0)
-		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
 		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := deployTemplate.DeepCopy()
-		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
 		lastDeploy.Spec.Replicas = int32Ptr(2)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
@@ -891,10 +891,10 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		mc := *milvus.DeepCopy()
 		currentDeploy := deployTemplate.DeepCopy()
 		currentDeploy.Spec.Replicas = int32Ptr(0)
-		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
 		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := deployTemplate.DeepCopy()
-		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
 		lastDeploy.Spec.Replicas = int32Ptr(3)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
@@ -914,10 +914,10 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		mc.Spec.Com.DataNode.Replicas = int32Ptr(3)
 		currentDeploy := deployTemplate.DeepCopy()
 		currentDeploy.Spec.Replicas = int32Ptr(1)
-		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
 		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := deployTemplate.DeepCopy()
-		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
 		lastDeploy.Spec.Replicas = int32Ptr(2)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
@@ -938,10 +938,10 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		mc.Spec.Com.DataNode.Replicas = int32Ptr(3)
 		currentDeploy := deployTemplate.DeepCopy()
 		currentDeploy.Spec.Replicas = int32Ptr(3)
-		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
 		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := deployTemplate.DeepCopy()
-		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
 		lastDeploy.Spec.Replicas = int32Ptr(2)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
@@ -962,10 +962,10 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		mc.Spec.Com.DataNode.Replicas = int32Ptr(3)
 		currentDeploy := deployTemplate.DeepCopy()
 		currentDeploy.Spec.Replicas = int32Ptr(6)
-		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
 		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := deployTemplate.DeepCopy()
-		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
@@ -986,10 +986,10 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		mc.Spec.Com.DataNode.Replicas = int32Ptr(6)
 		currentDeploy := deployTemplate.DeepCopy()
 		currentDeploy.Spec.Replicas = int32Ptr(3)
-		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
 		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := deployTemplate.DeepCopy()
-		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
@@ -1010,10 +1010,10 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		mc.Spec.Com.DataNode.Replicas = int32Ptr(3)
 		currentDeploy := deployTemplate.DeepCopy()
 		currentDeploy.Spec.Replicas = int32Ptr(3)
-		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
+		currentDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("3")}}}}
 		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
 		lastDeploy := deployTemplate.DeepCopy()
-		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{corev1.Container{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
+		lastDeploy.Spec.Template.Spec.Containers = []corev1.Container{{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{"cpu": resource.MustParse("4")}}}}
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
 		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)

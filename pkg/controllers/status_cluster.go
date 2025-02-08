@@ -14,7 +14,6 @@ import (
 	networkv1 "k8s.io/api/networking/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -333,18 +332,6 @@ func (r *MilvusStatusSyncer) handleTerminatingPods(ctx context.Context, mc *v1be
 		}
 	}
 	return nil
-}
-
-func getComponentDeployment(ctx context.Context, key client.ObjectKey, component MilvusComponent, cli client.Client) (*appsv1.Deployment, error) {
-	deployment := &appsv1.Deployment{}
-	err := cli.Get(ctx, types.NamespacedName{Name: component.GetDeploymentName(key.Name), Namespace: key.Namespace}, deployment)
-	if err != nil {
-		if kerrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return deployment, nil
 }
 
 func (r *MilvusStatusSyncer) UpdateIngressStatus(ctx context.Context, mc *v1beta1.Milvus) error {
