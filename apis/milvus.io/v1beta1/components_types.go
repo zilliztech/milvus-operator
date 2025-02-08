@@ -1,6 +1,7 @@
 package v1beta1
 
 import (
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -164,7 +165,7 @@ type MilvusComponents struct {
 
 	// MetricInterval the interval of podmonitor metric scraping in string
 	// +kubebuilder:validation:Optional
-	MetricInterval string `json:"metricInterval"`
+	MetricInterval monitoringv1.Duration `json:"metricInterval"`
 
 	// ToolImage specify tool image to merge milvus config to original one in image, default uses same image as milvus-operator
 	// +kubebuilder:validation:Optional
