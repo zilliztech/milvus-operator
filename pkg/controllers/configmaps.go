@@ -6,12 +6,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/config"
 	"github.com/milvus-io/milvus-operator/pkg/util"
+	"github.com/pkg/errors"
 )
 
 func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Milvus) (string, string) {
@@ -116,7 +119,40 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 }
 
 func (r *MilvusReconciler) ReconcileConfigMaps(ctx context.Context, mc v1beta1.Milvus) error {
-	namespacedName := NamespacedName(mc.Namespace, mc.GetActiveConfigMap())
+	if mc.Spec.Com.EnableManualMode {
+		namespacedName := NamespacedName(mc.Namespace, mc.GetActiveConfigMap())
+		return reconcileOneConfigMap(r, ctx, mc, namespacedName)
+	}
+	// reconcile all configmaps
+	cmLabels := NewAppLabels(mc.Name)
+	cmList := &corev1.ConfigMapList{}
+	err := r.List(ctx, cmList, &client.ListOptions{
+		Namespace:     mc.Namespace,
+		LabelSelector: labels.SelectorFromSet(cmLabels),
+	})
+	if err != nil {
+		return errors.Wrap(err, "list configmaps")
+	}
+	if len(cmList.Items) == 0 {
+		// when no configmap found, create one
+		cmList.Items = append(cmList.Items, corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      mc.GetActiveConfigMap(),
+				Namespace: mc.Namespace,
+			},
+		})
+	}
+
+	for _, cm := range cmList.Items {
+		err = reconcileOneConfigMap(r, ctx, mc, client.ObjectKeyFromObject(&cm))
+		if err != nil {
+			return errors.Wrapf(err, "reconcile configmap[%s]", &cm.ObjectMeta)
+		}
+	}
+	return nil
+}
+
+var reconcileOneConfigMap = func(r *MilvusReconciler, ctx context.Context, mc v1beta1.Milvus, namespacedName types.NamespacedName) error {
 	old := &corev1.ConfigMap{}
 	err := r.Get(ctx, namespacedName, old)
 	if kerrors.IsNotFound(err) {
