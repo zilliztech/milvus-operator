@@ -200,6 +200,7 @@ type MilvusComponents struct {
 	// note: the active configmap won't switch automatically
 	// because we may want to change configmap for existing pods
 	// so it's hard to determine when to switch. you need to switch it manually.
+	// if EnableManualMode is set to false, changes will be applied to all configmaps
 	ActiveConfigMap string `json:"activeConfigMap,omitempty"`
 
 	// RunAsNonRoot whether to run milvus as non-root user
