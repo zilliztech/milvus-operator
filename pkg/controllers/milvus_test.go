@@ -201,6 +201,7 @@ func TestCluster_ReconcileMilvus(t *testing.T) {
 	}
 
 	gomock.InOrder(
+		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()),
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{})).
 			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "")),

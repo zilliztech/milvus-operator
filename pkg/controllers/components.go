@@ -616,7 +616,7 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 	}
 
 	if src.RunWithSubProcess != nil {
-		dst.RunWithSubProcess = &(*src.RunWithSubProcess)
+		dst.RunWithSubProcess = src.RunWithSubProcess
 	}
 
 	if src.HostNetwork {

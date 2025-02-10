@@ -14,7 +14,6 @@ var _ DeployControllerBizFactory = &DeployControllerBizFactoryImpl{}
 // DeployControllerBizFactoryImpl is the implementation of DeployControllerBizFactory
 type DeployControllerBizFactoryImpl struct {
 	modeChangerFactory DeployModeChangerFactory
-	statusSyncer       MilvusStatusSyncerInterface
 	utilFactory        DeployControllerBizUtilFactory
 	cli                client.Client
 }

@@ -37,14 +37,6 @@ func listHasElement(list []string, elem string) bool {
 
 var reconcilers = map[string]reconciler{}
 
-func stopReconcilers(stopReoconcilers []string) map[string]bool {
-	stopReconcilersMap := make(map[string]bool)
-	for _, stopReconciler := range stopReoconcilers {
-		stopReconcilersMap[stopReconciler] = true
-	}
-	return stopReconcilersMap
-}
-
 func SetupControllers(ctx context.Context, mgr manager.Manager, stopReconcilers []string, enableHook bool) error {
 	logger := ctrl.Log.WithName("controller")
 
