@@ -3,7 +3,7 @@
 IMG ?= milvusdb/milvus-operator:dev-latest
 TOOL_IMG ?= milvus-config-tool:dev-latest
 SIT_IMG ?= milvus-operator:sit
-VERSION ?= 1.2.0
+VERSION ?= 1.2.1
 TOOL_VERSION ?= 1.0.0
 MILVUS_HELM_VERSION ?= milvus-4.2.36
 RELEASE_IMG ?= milvusdb/milvus-operator:v$(VERSION)
@@ -299,7 +299,7 @@ TMP_DIR=$$(mktemp -d) ;\
 cd $$TMP_DIR ;\
 go mod init tmp ;\
 echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go get $(2) ;\
+GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
 endef
