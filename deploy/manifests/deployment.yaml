@@ -16625,7 +16625,11 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - '*'
+  - pods
+  - pods/exec
+  - configmaps
+  - secrets
+  - services
   verbs:
   - create
   - delete
