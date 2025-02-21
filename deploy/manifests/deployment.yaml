@@ -16625,11 +16625,33 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - configmaps
+  - persistentvolumeclaims
+  - persistentvolumes
   - pods
   - pods/exec
-  - configmaps
+  - secrets
+  - serviceaccounts
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  - apps
+  - extensions
+  resources:
+  - deployments
+  - ingresses
+  - pods
   - secrets
   - services
+  - statefulsets
   verbs:
   - create
   - delete
@@ -16649,7 +16671,10 @@ rules:
 - apiGroups:
   - apps
   resources:
-  - '*'
+  - controllerrevisions
+  - deployments
+  - replicasets
+  - statefulsets
   verbs:
   - create
   - delete
@@ -16662,34 +16687,6 @@ rules:
   - batch
   resources:
   - jobs
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - extensions
-  resources:
-  - deployments
-  - pods
-  - secrets
-  - services
-  - statefulsets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - extensions
-  resources:
-  - ingresses
   verbs:
   - create
   - delete
@@ -16805,17 +16802,6 @@ rules:
   - policy
   resources:
   - poddisruptionbudgets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - policy
-  resources:
   - podsecuritypolicies
   verbs:
   - create
@@ -16829,41 +16815,8 @@ rules:
   - rbac.authorization.k8s.io
   resources:
   - clusterrolebindings
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
   - clusterroles
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
   - rolebindings
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
   - roles
   verbs:
   - create
