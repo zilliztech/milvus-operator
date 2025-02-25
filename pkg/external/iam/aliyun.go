@@ -89,3 +89,9 @@ func (c CredentialProvider) IsExpired() bool {
 	}
 	return *ak != c.akCache
 }
+
+// RetrieveWithCredContext implements "github.com/minio/minio-go/v7/pkg/credentials".Provider.RetrieveWithCredContext()
+func (c *CredentialProvider) RetrieveWithCredContext(_ *minioCred.CredContext) (minioCred.Value, error) {
+	// aliyunCreds doesn't support passing an http client context. Return the standard Retrieve().
+	return c.Retrieve()
+}

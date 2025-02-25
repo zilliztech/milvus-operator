@@ -77,3 +77,9 @@ func (c TencentCredentialProvider) IsExpired() bool {
 	ak := c.tencentCreds.GetSecretId()
 	return ak != c.akCache
 }
+
+// RetrieveWithCredContext implements "github.com/minio/minio-go/v7/pkg/credentials".Provider.RetrieveWithCredContext()
+func (c *TencentCredentialProvider) RetrieveWithCredContext(_ *minioCred.CredContext) (minioCred.Value, error) {
+	// Tencent doesn't support passing an http client context. Return the standard Retrieve().
+	return c.Retrieve()
+}
