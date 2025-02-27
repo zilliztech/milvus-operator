@@ -6,11 +6,13 @@ import (
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/config"
+	"github.com/milvus-io/milvus-operator/pkg/helm"
 	"github.com/milvus-io/milvus-operator/pkg/util"
 	"go.uber.org/mock/gomock"
 	"helm.sh/helm/v3/pkg/cli"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
 )
 
@@ -56,12 +58,22 @@ func newMilvusReconcilerForTest(ctrl *gomock.Controller) *MilvusReconciler {
 	scheme := runtime.NewScheme()
 	v1beta1.AddToScheme(scheme)
 	helmSetting := cli.New()
-	helm := MustNewLocalHelmReconciler(helmSetting, logger)
+
+	mockManager := NewMockManager(ctrl)
+	restConfig := &rest.Config{}
+	mockManager.EXPECT().GetConfig().Return(restConfig).AnyTimes()
+	mockManager.EXPECT().GetClient().Return(mockClient).AnyTimes()
+
+	helmClient := helm.NewMockClient(ctrl)
+	helmClient.EXPECT().ReleaseExist(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+	helm.SetDefaultClient(helmClient)
+	helmReconciler := MustNewLocalHelmReconciler(helmSetting, logger, mockManager)
+
 	r := MilvusReconciler{
 		Client:         mockClient,
 		logger:         logger,
 		Scheme:         scheme,
-		helmReconciler: helm,
+		helmReconciler: helmReconciler,
 	}
 	return &r
 }

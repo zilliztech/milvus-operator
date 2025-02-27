@@ -9,7 +9,6 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -41,15 +40,9 @@ func SetupControllers(ctx context.Context, mgr manager.Manager, stopReconcilers 
 	logger := ctrl.Log.WithName("controller")
 
 	if len(stopReconcilers) == 0 || stopReconcilers[0] != "all" {
-		conf := mgr.GetConfig()
 		settings := cli.New()
-		settings.KubeAPIServer = conf.Host
 		settings.MaxHistory = 2
-		settings.KubeToken = conf.BearerToken
-		getter := settings.RESTClientGetter()
-		config := getter.(*genericclioptions.ConfigFlags)
-		config.Insecure = &configFlagInsecure
-		helmReconciler := MustNewLocalHelmReconciler(settings, logger.WithName("helm"))
+		helmReconciler := MustNewLocalHelmReconciler(settings, logger.WithName("helm"), mgr)
 
 		// should be run after mgr started to make sure the client is ready
 		statusSyncer := NewMilvusStatusSyncer(ctx, mgr.GetClient(), logger.WithName("status-syncer"))

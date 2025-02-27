@@ -23,9 +23,15 @@ func TestLocalHelmReconciler_ReconcilePanic(t *testing.T) {
 	settings := cli.New()
 	logger := ctrl.Log.WithName("test")
 
+	// Create a mock manager
+	mockManager := NewMockManager(mockCtrl)
+
+	// Setup expectations for the manager
+	mockManager.EXPECT().GetConfig().Return(nil).AnyTimes()
+
 	ctx := context.TODO()
 	request := helm.ChartRequest{}
-	rec := MustNewLocalHelmReconciler(settings, logger)
+	rec := MustNewLocalHelmReconciler(settings, logger, mockManager)
 
 	// bad driver failed
 	os.Setenv("HELM_DRIVER", "bad")
@@ -49,9 +55,15 @@ func TestLocalHelmReconciler_Reconcile(t *testing.T) {
 	settings := cli.New()
 	logger := ctrl.Log.WithName("test")
 
+	// Create a mock manager
+	mockManager := NewMockManager(mockCtrl)
+
+	// Setup expectations for the manager
+	mockManager.EXPECT().GetConfig().Return(nil).AnyTimes()
+
 	ctx := context.TODO()
 	request := helm.ChartRequest{}
-	rec := MustNewLocalHelmReconciler(settings, logger)
+	rec := MustNewLocalHelmReconciler(settings, logger, mockManager)
 	errTest := errors.New("test")
 
 	t.Run("ReleaseExist failed", func(t *testing.T) {
