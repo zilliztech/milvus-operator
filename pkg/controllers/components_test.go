@@ -532,7 +532,7 @@ func TestMilvusComponent_GetDeploymentStrategy(t *testing.T) {
 		assert.Equal(t, appsv1.RollingUpdateDeploymentStrategyType, com.GetDeploymentStrategy(configs).Type)
 	})
 
-	t.Run("mixcoord / standalone not all enableActiveStandby", func(t *testing.T) {
+	t.Run("mixcoord or standalone not all enableActiveStandby", func(t *testing.T) {
 		com = MixCoord
 		assert.Equal(t, appsv1.RecreateDeploymentStrategyType, com.GetDeploymentStrategy(configs).Type)
 		com = MilvusStandalone
@@ -545,7 +545,7 @@ func TestMilvusComponent_GetDeploymentStrategy(t *testing.T) {
 		"queryCoord": enableActiveStandByMap,
 		"rootCoord":  enableActiveStandByMap,
 	}
-	t.Run("mixcoord / standalone all enableActiveStandby", func(t *testing.T) {
+	t.Run("mixcoord or standalone all enableActiveStandby", func(t *testing.T) {
 		com = MixCoord
 		assert.Equal(t, appsv1.RollingUpdateDeploymentStrategyType, com.GetDeploymentStrategy(configs).Type)
 		com = MilvusStandalone

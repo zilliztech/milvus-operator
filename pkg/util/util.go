@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/Masterminds/sprig"
 	"github.com/coreos/go-semver/semver"
+	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -185,6 +185,12 @@ func BoolPtr(val bool) *bool {
 var DefaultBackOffInterval = time.Second * 1
 var DefaultMaxRetry = 3
 
+var logger logr.Logger = logr.Discard()
+
+func SetLogger(l logr.Logger) {
+	logger = l
+}
+
 func DoWithBackoff(name string, fn func() error, maxRetry int, backOff time.Duration) error {
 	var err error
 	for i := 0; i < maxRetry; i++ {
@@ -192,8 +198,8 @@ func DoWithBackoff(name string, fn func() error, maxRetry int, backOff time.Dura
 		if err == nil {
 			return nil
 		}
-		log.Printf("%s with backoff failed, retry %d, err: %v\n", name, i, err)
+		logger.Info("dowithbackoff failed", "func", name, "retry", i, "err", err)
 		time.Sleep(backOff)
 	}
-	return errors.Wrap(err, name+" with backoff failed")
+	return errors.Wrapf(err, "dowithbackoff[%s] failed after %d retries", name, maxRetry)
 }

@@ -81,57 +81,7 @@ rules:
   - milvus.io
   resources:
   - milvusclusters
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - milvus.io
-  resources:
-  - milvusclusters/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - milvus.io
-  resources:
-  - milvusclusters/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - milvus.io
-  resources:
   - milvuses
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - milvus.io
-  resources:
-  - milvuses/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - milvus.io
-  resources:
-  - milvuses/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - milvus.io
-  resources:
   - milvusupgrades
   verbs:
   - create
@@ -144,12 +94,16 @@ rules:
 - apiGroups:
   - milvus.io
   resources:
+  - milvusclusters/finalizers
+  - milvuses/finalizers
   - milvusupgrades/finalizers
   verbs:
   - update
 - apiGroups:
   - milvus.io
   resources:
+  - milvusclusters/status
+  - milvuses/status
   - milvusupgrades/status
   verbs:
   - get
