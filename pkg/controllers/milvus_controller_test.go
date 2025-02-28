@@ -167,7 +167,12 @@ func TestMilvusReconciler_ReconcileLegacyValues(t *testing.T) {
 	defer ctrl.Finish()
 	testEnv := newTestEnv(t)
 	r := testEnv.Reconciler
-	helm.SetDefaultClient(&helm.LocalClient{})
+
+	mockHelmClient := helm.NewMockClient(ctrl)
+	mockHelmClient.EXPECT().ReleaseExist(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+	mockHelmClient.EXPECT().GetValues(gomock.Any(), gomock.Any()).Return(map[string]interface{}{}, nil).AnyTimes()
+	helm.SetDefaultClient(mockHelmClient)
+
 	template := v1beta1.Milvus{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "ns",
@@ -180,7 +185,6 @@ func TestMilvusReconciler_ReconcileLegacyValues(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("not legacy, no need to sync", func(t *testing.T) {
-		defer ctrl.Finish()
 		old := template.DeepCopy()
 		old.Status.Status = ""
 		old.Default()
@@ -190,10 +194,9 @@ func TestMilvusReconciler_ReconcileLegacyValues(t *testing.T) {
 	})
 
 	t.Run("legacy, update", func(t *testing.T) {
-		defer ctrl.Finish()
 		old := template.DeepCopy()
 		old.Default()
-		testEnv.MockClient.EXPECT().Update(gomock.Any(), gomock.Any())
+		testEnv.MockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 		obj := old.DeepCopy()
 		err := r.ReconcileLegacyValues(ctx, old, obj)
 		assert.NoError(t, err)

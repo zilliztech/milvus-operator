@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
@@ -12,7 +13,15 @@ import (
 	"github.com/milvus-io/milvus-operator/pkg/helm/values"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/disk"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 //go:generate mockgen -package=controllers -source=dependencies.go -destination=dependencies_mock.go HelmReconciler
@@ -39,12 +48,14 @@ type Values = map[string]interface{}
 type LocalHelmReconciler struct {
 	helmSettings *cli.EnvSettings
 	logger       logr.Logger
+	mgr          manager.Manager
 }
 
-func MustNewLocalHelmReconciler(helmSettings *cli.EnvSettings, logger logr.Logger) *LocalHelmReconciler {
+func MustNewLocalHelmReconciler(helmSettings *cli.EnvSettings, logger logr.Logger, mgr manager.Manager) *LocalHelmReconciler {
 	return &LocalHelmReconciler{
 		helmSettings: helmSettings,
 		logger:       logger,
+		mgr:          mgr,
 	}
 }
 
@@ -56,7 +67,7 @@ func (l LocalHelmReconciler) NewHelmCfg(namespace string) *action.Configuration 
 
 	// cfg.Init will never return err, only panic if bad driver
 	cfg.Init(
-		getRESTClientGetterWithNamespace(l.helmSettings, namespace),
+		getRESTClientGetterFromClient(l.helmSettings, namespace, l.mgr),
 		namespace,
 		os.Getenv("HELM_DRIVER"),
 		helmLogger,
@@ -77,6 +88,62 @@ func getRESTClientGetterWithNamespace(env *cli.EnvSettings, namespace string) ge
 		ImpersonateGroup: &env.KubeAsGroups,
 		Insecure:         &configFlagInsecure,
 	}
+}
+
+func getRESTClientGetterFromClient(env *cli.EnvSettings, namespace string, mgr manager.Manager) genericclioptions.RESTClientGetter {
+	return &clientRESTClientGetter{
+		namespace:  namespace,
+		kubeConfig: env.KubeConfig,
+		mgr:        mgr,
+	}
+}
+
+type clientRESTClientGetter struct {
+	namespace  string
+	kubeConfig string
+	mgr        manager.Manager
+}
+
+func (c *clientRESTClientGetter) ToRESTConfig() (*rest.Config, error) {
+	// Get the config from the client
+	return c.mgr.GetConfig(), nil
+}
+
+func (c *clientRESTClientGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	config, err := c.ToRESTConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return disk.NewCachedDiscoveryClientForConfig(
+		config,
+		"",
+		"",
+		45*time.Minute,
+	)
+}
+
+func (c *clientRESTClientGetter) ToRESTMapper() (meta.RESTMapper, error) {
+	discoveryClient, err := c.ToDiscoveryClient()
+	if err != nil {
+		return nil, err
+	}
+	return restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient), nil
+}
+
+func (c *clientRESTClientGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	if c.kubeConfig != "" {
+		loadingRules.ExplicitPath = c.kubeConfig
+	}
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		loadingRules,
+		&clientcmd.ConfigOverrides{
+			CurrentContext: "",
+			Context: clientcmdapi.Context{
+				Namespace: c.namespace,
+			},
+		})
 }
 
 func IsPulsarChartPath(chartPath string) bool {
