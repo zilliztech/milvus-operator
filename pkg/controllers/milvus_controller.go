@@ -84,7 +84,7 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if !config.IsDebug() {
 		defer func() {
 			if err := recover(); err != nil {
-				r.logger.Error(err.(error), "reconcile panic")
+				r.logger.Error(err.(error), "reconcile panic captured")
 			}
 		}()
 	}

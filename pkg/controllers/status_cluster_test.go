@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/milvus-io/milvus-operator/pkg/external"
 	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
@@ -67,6 +69,8 @@ func TestMilvusStatusSyncer_UpdateIngressStatus(t *testing.T) {
 
 func init() {
 	util.DefaultMaxRetry = 1
+	util.DefaultBackOffInterval = 0
+	external.DependencyCheckTimeout = time.Second * 3
 }
 
 func TestMilvusStatusSyncer_GetDependencyCondition(t *testing.T) {
@@ -375,7 +379,7 @@ func mockConditionGetter() v1beta1.MilvusCondition {
 	return v1beta1.MilvusCondition{Reason: "update"}
 }
 
-func Test_updateMetrics(t *testing.T) {
+func Test_UpdateMetrics(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCli := NewMockK8sClient(ctrl)

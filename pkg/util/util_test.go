@@ -263,27 +263,19 @@ func TestDeepCopyValues(t *testing.T) {
 	})
 
 	t.Run("panic marshal failed", func(t *testing.T) {
-		defer func() {
-			r := recover()
-			assert.NotNil(t, r)
-		}()
 		v1 := map[string]interface{}{
 			"s1": mockMarshal{
 				marshalFail: true,
 			},
 		}
-		DeepCopyValues(v1)
+		assert.Panics(t, func() { DeepCopyValues(v1) })
 	})
 
 	t.Run("panic unmarshal failed", func(t *testing.T) {
-		defer func() {
-			r := recover()
-			assert.NotNil(t, r)
-		}()
 		v1 := map[string]interface{}{
 			"s1": mockMarshal{},
 		}
-		DeepCopyValues(v1)
+		assert.Panics(t, func() { DeepCopyValues(v1) })
 	})
 }
 

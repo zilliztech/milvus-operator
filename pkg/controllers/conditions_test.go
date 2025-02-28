@@ -7,6 +7,7 @@ import (
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/external"
+	"github.com/milvus-io/milvus-operator/pkg/util"
 	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
 	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
@@ -172,7 +173,7 @@ func TestGetMinioCondition(t *testing.T) {
 	})
 
 	// one online check ok
-	t.Run(`is "not found" err`, func(t *testing.T) {
+	t.Run(`is not found err`, func(t *testing.T) {
 		stubs := gostub.Stub(&checkMinIO, getMockCheckMinIOFunc(nil))
 		defer stubs.Reset()
 		mockK8sCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -200,6 +201,7 @@ func TestGetEtcdCondition(t *testing.T) {
 
 	ctx := context.TODO()
 	errTest := errors.New("test")
+	util.DefaultBackOffInterval = 0
 
 	// no endpoint
 	ret := GetEtcdCondition(ctx, EtcdAuthConfig{}, []string{})

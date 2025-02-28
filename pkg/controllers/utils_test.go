@@ -364,9 +364,6 @@ func TestGetNotReadyDependencyConditions(t *testing.T) {
 		}
 		ret := GetNotReadyDependencyConditions(conds)
 		assert.Len(t, ret, 1)
-		for k, v := range ret {
-			print(k, v.Type)
-		}
 		assert.NotNil(t, ret[v1beta1.MsgStreamReady])
 		assert.Equal(t, v1beta1.ReasonMsgStreamReady, ret[v1beta1.MsgStreamReady].Reason)
 		assert.Equal(t, "mq msg", ret[v1beta1.MsgStreamReady].Message)

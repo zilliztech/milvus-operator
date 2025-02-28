@@ -1383,7 +1383,7 @@ func TestDeployControllerBizUtilImpl_planNextScaleAction(t *testing.T) {
 	currentReplicas := &currentDeploy.Spec.Replicas
 	lastReplicas := &lastDeploy.Spec.Replicas
 	expected := &mc.Spec.Com.Standalone.Replicas
-	t.Run("force upgrade/current<expected", func(t *testing.T) {
+	t.Run("force upgrade or current<expected", func(t *testing.T) {
 		mc.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeForce
 		*expected = int32Ptr(3)
 		*currentReplicas = int32Ptr(0)
@@ -1394,7 +1394,7 @@ func TestDeployControllerBizUtilImpl_planNextScaleAction(t *testing.T) {
 		}, action)
 	})
 
-	t.Run("force upgrade/current=expected/last!=0", func(t *testing.T) {
+	t.Run("force upgrade or current=expected or last!=0", func(t *testing.T) {
 		mc.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeForce
 		*expected = int32Ptr(3)
 		*currentReplicas = int32Ptr(3)
@@ -1406,7 +1406,7 @@ func TestDeployControllerBizUtilImpl_planNextScaleAction(t *testing.T) {
 		}, action)
 	})
 
-	t.Run("force upgrade/current=expected/last=0", func(t *testing.T) {
+	t.Run("force upgrade or current=expected or last=0", func(t *testing.T) {
 		mc.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeForce
 		*expected = int32Ptr(3)
 		*currentReplicas = int32Ptr(3)

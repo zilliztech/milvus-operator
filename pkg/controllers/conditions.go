@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
@@ -149,7 +150,7 @@ type EtcdConditionInfo struct {
 }
 
 func GetEtcdCondition(ctx context.Context, authCfg EtcdAuthConfig, endpoints []string) v1beta1.MilvusCondition {
-	health := GetEndpointsHealth(authCfg, endpoints)
+	health := GetEndpointsHealth(ctx, authCfg, endpoints)
 	etcdReady := false
 	var msg string
 	for _, ep := range endpoints {
@@ -188,7 +189,7 @@ type EtcdAuthConfig struct {
 	Password string
 }
 
-func GetEndpointsHealth(authConfig EtcdAuthConfig, endpoints []string) map[string]EtcdEndPointHealth {
+func GetEndpointsHealth(ctx context.Context, authConfig EtcdAuthConfig, endpoints []string) map[string]EtcdEndPointHealth {
 	hch := make(chan EtcdEndPointHealth, len(endpoints))
 	var wg sync.WaitGroup
 	for _, ep := range endpoints {
@@ -197,7 +198,8 @@ func GetEndpointsHealth(authConfig EtcdAuthConfig, endpoints []string) map[strin
 			defer wg.Done()
 			cliCfg := clientv3.Config{
 				Endpoints:   []string{ep},
-				DialTimeout: 5 * time.Second,
+				DialTimeout: external.DependencyCheckTimeout,
+				Logger:      zap.NewNop(),
 			}
 			if authConfig.Enabled {
 				cliCfg.Username = authConfig.Username
@@ -209,7 +211,7 @@ func GetEndpointsHealth(authConfig EtcdAuthConfig, endpoints []string) map[strin
 					return errors.Wrap(err, "failed to create etcd client")
 				}
 				defer cli.Close()
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				ctx, cancel := context.WithTimeout(ctx, external.DependencyCheckTimeout*2)
 				defer cancel()
 				_, err = cli.Get(ctx, etcdHealthKey, clientv3.WithSerializable()) // use serializable to avoid linear read overhead
 				// permission denied is OK since proposal goes through consensus to get it

@@ -3,3 +3,4 @@ Full Installation doc can be found in https://github.com/zilliztech/milvus-opera
 Quick start with `kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/main/config/samples/milvus_minimum.yaml`
 More samples can be found in https://github.com/zilliztech/milvus-operator/tree/main/config/samples
 CRD Documentation can be found in https://github.com/zilliztech/milvus-operator/tree/main/docs/CRD
+Administration Documentation can be found in https://github.com/zilliztech/milvus-operator/tree/main/docs/administration

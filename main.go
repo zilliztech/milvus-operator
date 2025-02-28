@@ -34,6 +34,7 @@ import (
 	"github.com/milvus-io/milvus-operator/pkg/controllers"
 	"github.com/milvus-io/milvus-operator/pkg/helm/values"
 	"github.com/milvus-io/milvus-operator/pkg/manager"
+	"github.com/milvus-io/milvus-operator/pkg/util"
 )
 
 var (
@@ -83,8 +84,9 @@ func main() {
 			setupLog.Error(http.ListenAndServe(":6060", nil), "serve pprof")
 		}()
 	}
-
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	logger := zap.New(zap.UseFlagOptions(&opts))
+	ctrl.SetLogger(logger)
+	util.SetLogger(logger)
 
 	if err := config.Init(workDir); err != nil {
 		setupLog.Error(err, "unable to init config")

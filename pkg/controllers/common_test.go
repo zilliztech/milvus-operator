@@ -77,3 +77,6 @@ func newMilvusReconcilerForTest(ctrl *gomock.Controller) *MilvusReconciler {
 	}
 	return &r
 }
+
+func TestCommonTestDummy(t *testing.T) {
+}

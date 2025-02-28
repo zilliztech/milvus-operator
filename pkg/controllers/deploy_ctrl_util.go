@@ -256,7 +256,6 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	logger := ctrl.LoggerFrom(ctx)
 	if !deploymentShowsRolloutFinished {
 		logger := ctrl.LoggerFrom(ctx)
-		println(failedIndex)
 		logger.Info("rollout not finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.Name), "reason", reasons[failedIndex])
 		return false, nil
 	}
