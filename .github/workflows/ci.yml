@@ -96,7 +96,7 @@ jobs:
         run:
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/local/share/boost /opt/ghc
       - name: Maximize build space
-        uses: easimon/maximize-build-space@v7
+        uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 20480
           swap-size-mb: 1024
@@ -130,7 +130,7 @@ jobs:
         run:
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/local/share/boost /opt/ghc
       - name: Maximize build space
-        uses: easimon/maximize-build-space@v7
+        uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 20480
           swap-size-mb: 1024
