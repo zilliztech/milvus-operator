@@ -29,7 +29,7 @@ jobs:
           helm repo add cert-manager https://charts.jetstack.io
 
       - name: Set up chart-testing
-        uses: helm/chart-testing-action@cf48dbf901ed202ae2c5aee26422dd6dfdf41e47 # v2.7.0
+        uses: helm/chart-testing-action@0d28d3144d3a25ea2cc349d6e59901c4ff469b3b # v2.7.0
 
       - name: Run chart-testing (lint)
         run: ct lint --all --config ct.yaml
