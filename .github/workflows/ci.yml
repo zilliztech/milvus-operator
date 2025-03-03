@@ -82,6 +82,7 @@ jobs:
         with:
           files: ./cover.out
           name: ubuntu-${{ matrix.ubuntu }}-unittests
+          fail_ci_if_error: true
 
   sit:
     name: System Integration Test
