@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/milvus-io/milvus-operator/pkg/util/rest"
@@ -239,6 +240,9 @@ func ExecKillIfTerminating(ctx context.Context, podList *corev1.PodList) error {
 	// we use kubectl exec to kill milvus process, because tini ignore SIGKILL
 	cli := rest.GetRestClient()
 	var ret error
+	const killTimeout = 30 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, killTimeout)
+	defer cancel()
 	for _, pod := range podList.Items {
 		if pod.DeletionTimestamp == nil {
 			continue
