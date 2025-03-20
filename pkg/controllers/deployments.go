@@ -208,23 +208,26 @@ func (r *MilvusReconciler) RemoveOldStandlone(ctx context.Context, mc v1beta1.Mi
 }
 
 func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.Milvus) error {
-	g, gtx := NewGroup(ctx)
 	err := r.RemoveOldStandlone(ctx, mc)
 	if err != nil {
 		return err
 	}
+	var errs = []error{}
 	for _, component := range GetComponentsBySpec(mc.Spec) {
 		switch {
 		case component == QueryNode ||
 			mc.Spec.Com.RollingMode == v1beta1.RollingModeV3:
-			g.Go(WarppedReconcileComponentFunc(r.deployCtrl.Reconcile, gtx, mc, component))
+			err = r.deployCtrl.Reconcile(ctx, mc, component)
 		default:
-			g.Go(WarppedReconcileComponentFunc(r.ReconcileComponentDeployment, gtx, mc, component))
+			err = r.ReconcileComponentDeployment(ctx, mc, component)
+		}
+		if err != nil {
+			errs = append(errs, err)
 		}
 	}
 
-	if err := g.Wait(); err != nil {
-		return fmt.Errorf("reconcile milvus deployments: %w", err)
+	if len(errs) > 0 {
+		return fmt.Errorf("reconcile milvus deployments errs: %w", err)
 	}
 
 	return nil
