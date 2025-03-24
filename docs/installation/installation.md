@@ -12,7 +12,7 @@ For quick start, install with one line command:
 ```shell
 helm install milvus-operator \
   -n milvus-operator --create-namespace \
-  https://github.com/zilliztech/milvus-operator/releases/download/v1.2.3/milvus-operator-1.2.3.tgz
+  https://github.com/zilliztech/milvus-operator/releases/download/v1.2.4/milvus-operator-1.2.4.tgz
 ```
 
 If you already have `cert-manager` v1.0+ installed which is not in its default configuration, you may encounter some error with the check of cert-manager installation. you can install with special options to disable the check:
@@ -20,7 +20,7 @@ If you already have `cert-manager` v1.0+ installed which is not in its default c
 ```
 helm install milvus-operator \
   -n milvus-operator --create-namespace \
-  https://github.com/zilliztech/milvus-operator/releases/download/v1.2.3/milvus-operator-1.2.3.tgz \
+  https://github.com/zilliztech/milvus-operator/releases/download/v1.2.4/milvus-operator-1.2.4.tgz \
   --set checker.disableCertManagerCheck=true
 ```
 
@@ -39,7 +39,7 @@ use helm commands to upgrade earlier milvus-operator to current version:
 
 ```shell
 helm upgrade -n milvus-operator milvus-operator --reuse-values \
-  https://github.com/zilliztech/milvus-operator/releases/download/v1.2.3/milvus-operator-1.2.3.tgz
+  https://github.com/zilliztech/milvus-operator/releases/download/v1.2.4/milvus-operator-1.2.4.tgz
 ```
 
 ## Delete operator
@@ -62,7 +62,7 @@ If you don't want to use helm you can also install with kubectl and raw manifest
 ## Installation
 It is recommended to install the milvus operator with a newest stable version
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/v1.2.3/deploy/manifests/deployment.yaml
+kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/v1.2.4/deploy/manifests/deployment.yaml
 ``` 
 
 Check the installed operators:
@@ -85,7 +85,7 @@ Same as installation, you can update the milvus operator with a newer version by
 Delete the milvus operator stack by the deployment manifest:
 
 ```shell
-kubectl delete -f https://raw.githubusercontent.com/zilliztech/milvus-operator/v1.2.3/deploy/manifests/deployment.yaml
+kubectl delete -f https://raw.githubusercontent.com/zilliztech/milvus-operator/v1.2.4/deploy/manifests/deployment.yaml
 ```
 
 Or delete the milvus operator stack by using makefile:
