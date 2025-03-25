@@ -1,0 +1,20 @@
+# the manifest to enable streaming node for milvus cluster mode
+# ref https://milvus.io/docs/release_notes.md#Streaming-Node-Beta
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: milvus
+  namespace: mc-sit
+  labels:
+    app: milvus
+spec:
+  mode: 'cluster'
+  components:
+    # image not formally released yet
+    image: harbor.milvus.io/milvus/milvus:tinswzy-support_woodpecker_wal_type-36319c0-20250326
+    streamingNode:
+      replicas: 1
+    indexNode:
+      replicas: 0
+  dependencies:
+    msgStreamType: woodpecker

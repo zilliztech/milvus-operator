@@ -6,29 +6,29 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMilvusDependencies_GetMilvusBuildInMQ(t *testing.T) {
+func TestMilvusDependencies_GetMilvusBuiltInMQ(t *testing.T) {
 	m := &MilvusDependencies{
 		MsgStreamType: MsgStreamTypePulsar,
 	}
-	assert.Nil(t, m.GetMilvusBuildInMQ())
+	assert.Nil(t, m.GetMilvusBuiltInMQ())
 	m.MsgStreamType = MsgStreamTypeKafka
-	assert.Nil(t, m.GetMilvusBuildInMQ())
+	assert.Nil(t, m.GetMilvusBuiltInMQ())
 
 	m.MsgStreamType = MsgStreamTypeCustom
-	assert.Nil(t, m.GetMilvusBuildInMQ())
+	assert.Nil(t, m.GetMilvusBuiltInMQ())
 
 	m.MsgStreamType = MsgStreamType("unknown")
-	assert.Nil(t, m.GetMilvusBuildInMQ())
+	assert.Nil(t, m.GetMilvusBuiltInMQ())
 
 	m.MsgStreamType = MsgStreamTypeWoodPecker
-	assert.NotNil(t, m.GetMilvusBuildInMQ())
-	assert.Equal(t, &m.WoodPecker, m.GetMilvusBuildInMQ())
+	assert.NotNil(t, m.GetMilvusBuiltInMQ())
+	assert.Equal(t, &m.WoodPecker, m.GetMilvusBuiltInMQ())
 
 	m.MsgStreamType = MsgStreamTypeRocksMQ
-	assert.NotNil(t, m.GetMilvusBuildInMQ())
-	assert.Equal(t, &m.RocksMQ, m.GetMilvusBuildInMQ())
+	assert.NotNil(t, m.GetMilvusBuiltInMQ())
+	assert.Equal(t, &m.RocksMQ, m.GetMilvusBuiltInMQ())
 
 	m.MsgStreamType = MsgStreamTypeNatsMQ
-	assert.NotNil(t, m.GetMilvusBuildInMQ())
-	assert.Equal(t, &m.NatsMQ, m.GetMilvusBuildInMQ())
+	assert.NotNil(t, m.GetMilvusBuiltInMQ())
+	assert.Equal(t, &m.NatsMQ, m.GetMilvusBuiltInMQ())
 }
