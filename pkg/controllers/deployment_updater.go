@@ -28,7 +28,6 @@ type deploymentUpdater interface {
 	GetMergedComponentSpec() ComponentSpec
 	GetArgs() []string
 	GetSecretRef() string
-	GetPersistenceConfig() *v1beta1.Persistence
 	GetMilvus() *v1beta1.Milvus
 	RollingUpdateImageDependencyReady() bool
 	HasHookConfig() bool
@@ -207,13 +206,20 @@ func updateUserDefinedVolumes(template *corev1.PodTemplateSpec, updater deployme
 		fillConfigMapVolumeDefaultValues(&volume)
 		userDefinedVolumes = append(userDefinedVolumes, volume)
 	}
-	if persistence := updater.GetPersistenceConfig(); persistence != nil && persistence.Enabled {
-		rocketMqPvcName := getPVCNameByInstName(updater.GetIntanceName())
-		if len(persistence.PersistentVolumeClaim.ExistingClaim) > 0 {
-			rocketMqPvcName = persistence.PersistentVolumeClaim.ExistingClaim
+	builtInMq := updater.GetMilvus().Spec.Dep.GetMilvusBuiltInMQ()
+
+	if builtInMq != nil {
+		if builtInMq.Persistence.Enabled {
+			rocketMqPvcName := getPVCNameByInstName(updater.GetIntanceName())
+			if len(builtInMq.Persistence.PersistentVolumeClaim.ExistingClaim) > 0 {
+				rocketMqPvcName = builtInMq.Persistence.PersistentVolumeClaim.ExistingClaim
+			}
+			userDefinedVolumes = append(userDefinedVolumes, persisentDataVolumeByName(rocketMqPvcName))
+		} else {
+			userDefinedVolumes = append(userDefinedVolumes, emptyDirDataVolume())
 		}
-		userDefinedVolumes = append(userDefinedVolumes, persisentVolumeByName(rocketMqPvcName))
 	}
+
 	for _, volume := range userDefinedVolumes {
 		addVolume(&template.Spec.Volumes, volume)
 	}
@@ -315,8 +321,9 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 
 func getUserDefinedVolumeMounts(updater deploymentUpdater) []corev1.VolumeMount {
 	ret := updater.GetMergedComponentSpec().VolumeMounts
-	if persistence := updater.GetPersistenceConfig(); persistence != nil && persistence.Enabled {
-		ret = append(ret, persistentVolumeMount())
+	builtInMq := updater.GetMilvus().Spec.Dep.GetMilvusBuiltInMQ()
+	if builtInMq != nil {
+		ret = append(ret, dataVolumeMount())
 	}
 	return ret
 }

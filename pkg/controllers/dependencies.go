@@ -224,11 +224,11 @@ func (r *MilvusReconciler) ReconcileMsgStream(ctx context.Context, mc v1beta1.Mi
 	switch mc.Spec.Dep.MsgStreamType {
 	case v1beta1.MsgStreamTypeKafka:
 		return r.ReconcileKafka(ctx, mc)
-	case v1beta1.MsgStreamTypeRocksMQ, v1beta1.MsgStreamTypeNatsMQ, v1beta1.MsgStreamTypeCustom:
-		// built in, do nothing
-		return nil
-	default:
+	case v1beta1.MsgStreamTypePulsar:
 		return r.ReconcilePulsar(ctx, mc)
+	default:
+		// built in mq or custom mq, do nothing
+		return nil
 	}
 }
 

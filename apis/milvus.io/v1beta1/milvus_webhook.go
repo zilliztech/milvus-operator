@@ -434,15 +434,18 @@ func (r *Milvus) defaultValuesMerged() bool {
 	return r.Annotations[DependencyValuesMergedAnnotation] == TrueStr
 }
 
-func (r *Milvus) defaultMsgStream() {
+func (r *Milvus) setDefaultMsgStreamType() {
 	if r.Spec.Dep.MsgStreamType == "" {
 		switch r.Spec.Mode {
 		case MilvusModeStandalone:
 			r.Spec.Dep.MsgStreamType = MsgStreamTypeRocksMQ
-		case MilvusModeCluster:
+		default:
 			r.Spec.Dep.MsgStreamType = MsgStreamTypePulsar
 		}
 	}
+}
+
+func (r *Milvus) setDefaultMsgStreamConfigs() {
 	switch r.Spec.Dep.MsgStreamType {
 	case MsgStreamTypeKafka:
 		if !r.Spec.Dep.Kafka.External {
@@ -481,6 +484,11 @@ func (r *Milvus) defaultMsgStream() {
 			}
 		}
 	}
+}
+
+func (r *Milvus) defaultMsgStream() {
+	r.setDefaultMsgStreamType()
+	r.setDefaultMsgStreamConfigs()
 }
 
 func (r *Milvus) defaultStorage() {

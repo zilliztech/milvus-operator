@@ -35,7 +35,7 @@ spec:
         pvcDeletion: true
         values:
           replicaCount: 1
-    msgStreamType: kafka
+    msgStreamType: woodpecker
     kafka:
       inCluster:
         deletionPolicy: Delete
