@@ -7949,6 +7949,7 @@ spec:
                     enum:
                     - pulsar
                     - kafka
+                    - woodpecker
                     - rocksmq
                     - natsmq
                     - custom
@@ -8067,6 +8068,33 @@ spec:
                         - Azure
                         - ""
                         type: string
+                    type: object
+                  woodpecker:
+                    properties:
+                      persistence:
+                        properties:
+                          enabled:
+                            type: boolean
+                          persistentVolumeClaim:
+                            properties:
+                              annotations:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              existingClaim:
+                                type: string
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              spec:
+                                nullable: true
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                            type: object
+                          pvcDeletion:
+                            type: boolean
+                        type: object
                     type: object
                 type: object
             type: object
