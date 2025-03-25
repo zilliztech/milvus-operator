@@ -31,13 +31,13 @@ type MilvusDependencies struct {
 	Kafka MilvusKafka `json:"kafka,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	WoodPecker MilvusBuildInMQ `json:"woodpecker,omitempty"`
+	WoodPecker MilvusBuiltInMQ `json:"woodpecker,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	RocksMQ MilvusBuildInMQ `json:"rocksmq,omitempty"`
+	RocksMQ MilvusBuiltInMQ `json:"rocksmq,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	NatsMQ MilvusBuildInMQ `json:"natsmq,omitempty"`
+	NatsMQ MilvusBuiltInMQ `json:"natsmq,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	Storage MilvusStorage `json:"storage"`
@@ -50,7 +50,7 @@ type MilvusDependencies struct {
 	CustomMsgStream Values `json:"customMsgStream,omitempty"`
 }
 
-func (m *MilvusDependencies) GetMilvusBuildInMQ() *MilvusBuildInMQ {
+func (m *MilvusDependencies) GetMilvusBuiltInMQ() *MilvusBuiltInMQ {
 	switch m.MsgStreamType {
 	case MsgStreamTypePulsar, MsgStreamTypeKafka, MsgStreamTypeCustom:
 		return nil
@@ -139,8 +139,8 @@ type MilvusStorage struct {
 	External bool `json:"external,omitempty"`
 }
 
-// MilvusBuildInMQ (rocksmq or natsmq) configuration
-type MilvusBuildInMQ struct {
+// MilvusBuiltInMQ (rocksmq or natsmq) configuration
+type MilvusBuiltInMQ struct {
 	Persistence Persistence `json:"persistence,omitempty"`
 }
 
