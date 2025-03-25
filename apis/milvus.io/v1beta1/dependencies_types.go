@@ -19,7 +19,7 @@ type MilvusDependencies struct {
 	// +kubebuilder:validation:Optional
 	Etcd MilvusEtcd `json:"etcd"`
 
-	// +kubebuilder:validation:Enum:={"pulsar", "kafka", "rocksmq", "natsmq", "custom", ""}
+	// +kubebuilder:validation:Enum:={"pulsar", "kafka", "woodpecker", "rocksmq", "natsmq", "custom", ""}
 	// +kubebuilder:validation:Optional
 	// MsgStreamType default to pulsar for cluster, rocksmq for standalone
 	MsgStreamType MsgStreamType `json:"msgStreamType,omitempty"`
@@ -29,6 +29,9 @@ type MilvusDependencies struct {
 
 	// +kubebuilder:validation:Optional
 	Kafka MilvusKafka `json:"kafka,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	WoodPecker MilvusBuildInMQ `json:"woodpecker,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	RocksMQ MilvusBuildInMQ `json:"rocksmq,omitempty"`
@@ -47,14 +50,30 @@ type MilvusDependencies struct {
 	CustomMsgStream Values `json:"customMsgStream,omitempty"`
 }
 
+func (m *MilvusDependencies) GetMilvusBuildInMQ() *MilvusBuildInMQ {
+	switch m.MsgStreamType {
+	case MsgStreamTypePulsar, MsgStreamTypeKafka, MsgStreamTypeCustom:
+		return nil
+	case MsgStreamTypeWoodPecker:
+		return &m.WoodPecker
+	case MsgStreamTypeRocksMQ:
+		return &m.RocksMQ
+	case MsgStreamTypeNatsMQ:
+		return &m.NatsMQ
+	default:
+		return nil
+	}
+}
+
 type MsgStreamType string
 
 const (
-	MsgStreamTypePulsar  MsgStreamType = "pulsar"
-	MsgStreamTypeKafka   MsgStreamType = "kafka"
-	MsgStreamTypeRocksMQ MsgStreamType = "rocksmq"
-	MsgStreamTypeNatsMQ  MsgStreamType = "natsmq"
-	MsgStreamTypeCustom  MsgStreamType = "custom"
+	MsgStreamTypePulsar     MsgStreamType = "pulsar"
+	MsgStreamTypeKafka      MsgStreamType = "kafka"
+	MsgStreamTypeWoodPecker MsgStreamType = "woodpecker"
+	MsgStreamTypeRocksMQ    MsgStreamType = "rocksmq"
+	MsgStreamTypeNatsMQ     MsgStreamType = "natsmq"
+	MsgStreamTypeCustom     MsgStreamType = "custom"
 )
 
 type MilvusEtcd struct {
