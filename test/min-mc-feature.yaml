@@ -68,7 +68,7 @@ spec:
         pvcDeletion: true
         values:
           replicaCount: 1
-    msgStreamType: pulsar
+    msgStreamType: woodpecker
     pulsar:
       inCluster:
         chartVersion: pulsar-v3

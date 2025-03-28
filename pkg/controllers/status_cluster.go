@@ -393,9 +393,9 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 	var eps = []string{}
 	var getter func() v1beta1.MilvusCondition
 	switch mc.Spec.Dep.MsgStreamType {
-	case v1beta1.MsgStreamTypeRocksMQ, v1beta1.MsgStreamTypeNatsMQ, v1beta1.MsgStreamTypeCustom:
-		// rocksmq / natsmq is built in, assume ok
-		return msgStreamReadyCondition, nil
+	case v1beta1.MsgStreamTypePulsar:
+		getter = external.NewPulsarConditionGetter(&mc).GetCondition
+		eps = []string{mc.Spec.Dep.Pulsar.Endpoint}
 	case v1beta1.MsgStreamTypeKafka:
 		kafkaConf, err := GetKafkaConfFromCR(mc)
 		if err != nil {
@@ -409,9 +409,8 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 		getter = wrapKafkaConditonGetter(ctx, r.logger, mc.Spec.Dep.Kafka, *kafkaConf)
 		eps = mc.Spec.Dep.Kafka.BrokerList
 	default:
-		// default pulsar
-		getter = external.NewPulsarConditionGetter(&mc).GetCondition
-		eps = []string{mc.Spec.Dep.Pulsar.Endpoint}
+		// default built-in mqs, assume ok
+		return msgStreamReadyCondition, nil
 	}
 	return GetCondition(getter, eps), nil
 }
