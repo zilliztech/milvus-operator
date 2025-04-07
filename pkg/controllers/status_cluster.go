@@ -17,10 +17,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/milvus-io/milvus-operator/pkg/config"
-	"github.com/milvus-io/milvus-operator/pkg/external"
-	"github.com/milvus-io/milvus-operator/pkg/util"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/external"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 //go:generate mockgen -package=controllers -source=status_cluster.go -destination=status_cluster_mock.go

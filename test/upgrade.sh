@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 echo "Deploying old operator"
-helm -n milvus-operator install --timeout 20m --wait --wait-for-jobs --set resources.requests.cpu=10m --create-namespace milvus-operator https://github.com/milvus-io/milvus-operator/releases/download/v0.5.0/milvus-operator-0.5.0.tgz
+helm -n milvus-operator install --timeout 20m --wait --wait-for-jobs --set resources.requests.cpu=10m --create-namespace milvus-operator https://github.com/zilliztech/milvus-operator/releases/download/v0.9.17/milvus-operator-0.9.17.tgz
 kubectl apply -f config/samples/demo.yaml
 echo "Deploying milvus"
 kubectl --timeout 20m wait --for=condition=MilvusReady milvus my-release

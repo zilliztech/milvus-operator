@@ -15,9 +15,9 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	milvusiov1alpha1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1alpha1"
-	milvusiov1beta1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/milvus-io/milvus-operator/pkg/config"
+	milvusiov1alpha1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1alpha1"
+	milvusiov1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/config"
 )
 
 var (

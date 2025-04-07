@@ -20,7 +20,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1beta1 "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	v1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

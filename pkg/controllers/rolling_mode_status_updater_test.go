@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

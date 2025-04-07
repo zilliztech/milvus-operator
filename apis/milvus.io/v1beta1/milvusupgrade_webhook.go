@@ -3,7 +3,7 @@ package v1beta1
 import (
 	"fmt"
 
-	"github.com/milvus-io/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/config"
 	"golang.org/x/mod/semver"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"

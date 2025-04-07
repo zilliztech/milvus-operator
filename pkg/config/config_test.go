@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/milvus-io/milvus-operator/pkg/util"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 )
 

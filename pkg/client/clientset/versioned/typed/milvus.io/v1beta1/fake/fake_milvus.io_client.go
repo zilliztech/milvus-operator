@@ -18,7 +18,7 @@ limitations under the License.
 package fake
 
 import (
-	v1beta1 "github.com/milvus-io/milvus-operator/pkg/client/clientset/versioned/typed/milvus.io/v1beta1"
+	v1beta1 "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned/typed/milvus.io/v1beta1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

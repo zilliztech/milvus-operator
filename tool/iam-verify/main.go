@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/milvus-io/milvus-operator/pkg/external/iam"
-	"github.com/milvus-io/milvus-operator/pkg/util/yamlparser"
+	"github.com/zilliztech/milvus-operator/pkg/external/iam"
+	"github.com/zilliztech/milvus-operator/pkg/util/yamlparser"
 )
 
 // iam-verify command is expected to run in the initContainer before the milvus container starts

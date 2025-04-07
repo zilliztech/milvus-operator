@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	milvusio "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	milvusio "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
