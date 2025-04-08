@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/config"
 	"github.com/zilliztech/milvus-operator/pkg/util"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestParallelGroupConciler_Run_Milvus(t *testing.T) {

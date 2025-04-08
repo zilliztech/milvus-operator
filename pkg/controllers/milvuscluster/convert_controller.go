@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	pkgErrs "github.com/pkg/errors"
 	milvusv1alpha1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1alpha1"
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
-	pkgErrs "github.com/pkg/errors"
 	errors "k8s.io/apimachinery/pkg/api/errors"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"

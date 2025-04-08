@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zilliztech/milvus-operator/pkg/config"
 	"github.com/zilliztech/milvus-operator/pkg/util"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestGroup_Go_NoErr(t *testing.T) {
