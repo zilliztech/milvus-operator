@@ -11,10 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/zilliztech/milvus-operator/pkg/util"
 	"github.com/pkg/errors"
 	pkgerr "github.com/pkg/errors"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 const (

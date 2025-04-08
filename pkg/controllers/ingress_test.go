@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/stretchr/testify/assert"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"go.uber.org/mock/gomock"
 	networkingv1 "k8s.io/api/networking/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"

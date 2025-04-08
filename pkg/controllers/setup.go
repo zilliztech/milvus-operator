@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/zilliztech/milvus-operator/pkg/config"
 	"github.com/pkg/errors"
+	"github.com/zilliztech/milvus-operator/pkg/config"
 	"helm.sh/helm/v3/pkg/cli"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"

@@ -3,8 +3,8 @@ package controllers
 import (
 	"context"
 
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

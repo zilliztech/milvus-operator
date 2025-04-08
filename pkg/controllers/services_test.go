@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/config"
 	"github.com/zilliztech/milvus-operator/pkg/util"
-	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"

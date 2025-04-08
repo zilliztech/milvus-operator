@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/stretchr/testify/assert"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"go.uber.org/mock/gomock"
 )
 
