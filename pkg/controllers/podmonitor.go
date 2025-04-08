@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 func (r *MilvusReconciler) updatePodMonitor(
@@ -25,15 +26,33 @@ func (r *MilvusReconciler) updatePodMonitor(
 	if interval == "" {
 		interval = "30s"
 	}
-	if len(podmonitor.Spec.PodMetricsEndpoints) == 0 {
-		podmonitor.Spec.PodMetricsEndpoints = []monitoringv1.PodMetricsEndpoint{
-			{
+
+	metricEndpoints := []monitoringv1.PodMetricsEndpoint{
+		{
+			HonorLabels: true,
+			Interval:    interval,
+			Path:        MetricPath,
+			Port:        MetricPortName,
+		},
+	}
+
+	helmPodMonitor := false
+	if mc.Spec.Dep.Etcd.InCluster != nil {
+		helmPodMonitor, _ = util.GetBoolValue(mc.Spec.Dep.Etcd.InCluster.Values.Data, "metrics", "podMonitor", "enabled")
+	}
+	if !mc.Spec.Dep.Etcd.External && !helmPodMonitor {
+		metricEndpoints = append(metricEndpoints,
+			monitoringv1.PodMetricsEndpoint{
 				HonorLabels: true,
 				Interval:    interval,
 				Path:        MetricPath,
-				Port:        MetricPortName,
+				Port:        EtcdMetricPortName,
 			},
-		}
+		)
+	}
+
+	if len(podmonitor.Spec.PodMetricsEndpoints) != len(metricEndpoints) {
+		podmonitor.Spec.PodMetricsEndpoints = metricEndpoints
 	}
 	for i := range podmonitor.Spec.PodMetricsEndpoints {
 		podmonitor.Spec.PodMetricsEndpoints[i].Interval = interval

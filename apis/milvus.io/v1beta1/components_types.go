@@ -163,7 +163,7 @@ type MilvusComponents struct {
 	// +kubebuilder:validation:Optional
 	DisableMetric bool `json:"disableMetric"`
 
-	// MetricInterval the interval of podmonitor metric scraping in string
+	// MetricInterval the interval of PodMonitor metric scraping in string
 	// +kubebuilder:validation:Optional
 	MetricInterval monitoringv1.Duration `json:"metricInterval"`
 
