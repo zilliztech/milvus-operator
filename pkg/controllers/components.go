@@ -17,8 +17,9 @@ import (
 
 // const name or ports
 const (
-	MetricPortName = "metrics"
-	MetricPath     = "/metrics"
+	EtcdMetricPortName = "client"
+	MetricPortName     = "metrics"
+	MetricPath         = "/metrics"
 
 	RestfulPortName = "restful"
 
