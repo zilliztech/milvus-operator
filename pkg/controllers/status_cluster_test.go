@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/milvus-io/milvus-operator/pkg/external"
-	"github.com/milvus-io/milvus-operator/pkg/util"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/external"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

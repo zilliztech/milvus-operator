@@ -18,8 +18,8 @@ limitations under the License.
 package milvus
 
 import (
-	internalinterfaces "github.com/milvus-io/milvus-operator/pkg/client/informers/externalversions/internalinterfaces"
-	v1beta1 "github.com/milvus-io/milvus-operator/pkg/client/informers/externalversions/milvus.io/v1beta1"
+	internalinterfaces "github.com/zilliztech/milvus-operator/pkg/client/informers/externalversions/internalinterfaces"
+	v1beta1 "github.com/zilliztech/milvus-operator/pkg/client/informers/externalversions/milvus.io/v1beta1"
 )
 
 // Interface provides access to each of this group's versions.

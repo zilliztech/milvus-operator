@@ -22,9 +22,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/milvus-io/milvus-operator/pkg/client/clientset/versioned"
-	internalinterfaces "github.com/milvus-io/milvus-operator/pkg/client/informers/externalversions/internalinterfaces"
-	milvusio "github.com/milvus-io/milvus-operator/pkg/client/informers/externalversions/milvus.io"
+	versioned "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned"
+	internalinterfaces "github.com/zilliztech/milvus-operator/pkg/client/informers/externalversions/internalinterfaces"
+	milvusio "github.com/zilliztech/milvus-operator/pkg/client/informers/externalversions/milvus.io"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

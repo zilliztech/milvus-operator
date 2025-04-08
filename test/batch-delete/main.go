@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	milvusio "github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1"
+	milvusio "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	ctrl "sigs.k8s.io/controller-runtime"

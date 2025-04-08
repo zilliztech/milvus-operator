@@ -1,6 +1,6 @@
 package v1beta1
 
-import "github.com/milvus-io/milvus-operator/pkg/helm/values"
+import "github.com/zilliztech/milvus-operator/pkg/helm/values"
 
 type DependencyDeletionPolicy string
 

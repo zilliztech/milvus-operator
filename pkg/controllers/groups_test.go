@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/milvus-io/milvus-operator/pkg/config"
-	"github.com/milvus-io/milvus-operator/pkg/util"
+	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 )
 
