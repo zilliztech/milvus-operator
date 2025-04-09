@@ -46,6 +46,7 @@ func (c *Clientset) MilvusV1beta1() milvusv1beta1.MilvusV1beta1Interface {
 // Discovery retrieves the DiscoveryClient
 func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 	if c == nil {
+		// this are good type
 		return nil
 	}
 	return c.DiscoveryClient
