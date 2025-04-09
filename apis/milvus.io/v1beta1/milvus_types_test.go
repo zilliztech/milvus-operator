@@ -224,11 +224,15 @@ func TestGetPersistenceConfig(t *testing.T) {
 	assert.Nil(t, m.Spec.GetPersistenceConfig())
 
 	m.Spec.Dep.MsgStreamType = MsgStreamTypeRocksMQ
-	m.Spec.Dep.NatsMQ.Persistence.Enabled = true
 	assert.Same(t, &m.Spec.Dep.RocksMQ.Persistence, m.Spec.GetPersistenceConfig())
 
+	m.Spec.Dep.NatsMQ.Persistence.Enabled = true
 	m.Spec.Dep.MsgStreamType = MsgStreamTypeNatsMQ
 	assert.Same(t, &m.Spec.Dep.NatsMQ.Persistence, m.Spec.GetPersistenceConfig())
+
+	m.Spec.Dep.WoodPecker.Persistence.Enabled = true
+	m.Spec.Dep.MsgStreamType = MsgStreamTypeWoodPecker
+	assert.Same(t, &m.Spec.Dep.WoodPecker.Persistence, m.Spec.GetPersistenceConfig())
 }
 
 func TestGetActiveConfigMap_SetActiveConfigMap(t *testing.T) {
