@@ -107,3 +107,37 @@ func TestReconciler_ReconcilePodMonitor_UpdateIfExisted(t *testing.T) {
 	err := r.ReconcilePodMonitor(ctx, m)
 	assert.NoError(t, err)
 }
+
+func TestReconciler_ReconcilePodMonitor_ExternalEtcd(t *testing.T) {
+	config.Init(util.GetGitRepoRootDir())
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	r := newMilvusReconcilerForTest(ctrl)
+	mockClient := r.Client.(*MockK8sClient)
+	ctx := context.Background()
+
+	// case create
+	m := v1beta1.Milvus{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "ns",
+			Name:      "mc",
+		},
+		Spec: v1beta1.MilvusSpec{
+			Dep: v1beta1.MilvusDependencies{
+				Etcd: v1beta1.MilvusEtcd{
+					External: true,
+				},
+			},
+		},
+	}
+	m.Default()
+
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")).Times(1)
+
+	mockClient.EXPECT().Create(gomock.Any(), gomock.Any()).Times(1)
+
+	err := r.ReconcilePodMonitor(ctx, m)
+	assert.NoError(t, err)
+}
