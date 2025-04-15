@@ -118,7 +118,7 @@ docker-prepare: build-release out/config/assets/templates
 	mkdir -p ./out/config/assets/charts/
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/etcd-6.3.3.tgz -O ./etcd.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/minio-8.0.17.tgz -O ./minio.tgz
-	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/pulsarv2-2.7.8.tgz -O ./pulsar.tgz
+	wget https://github.com/apache/pulsar-helm-chart/releases/download/pulsar-2.7.8/pulsar-2.7.8.tgz -O ./pulsar.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/pulsar-3.3.0.tgz -O ./pulsarv3.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/kafka-15.5.1.tgz -O ./kafka.tgz
 	tar -xf ./etcd.tgz -C ./out/config/assets/charts/
@@ -245,9 +245,6 @@ sit-prepare-images: sit-prepare-operator-images
 sit-load-operator-images:
 	@echo "Loading operator images"
 	kind load docker-image ${SIT_IMG} --name $(KIND_CLUSTER)
-	kind load docker-image quay.io/jetstack/cert-manager-controller:v1.5.3 --name $(KIND_CLUSTER)
-	kind load docker-image quay.io/jetstack/cert-manager-webhook:v1.5.3 --name $(KIND_CLUSTER)
-	kind load docker-image quay.io/jetstack/cert-manager-cainjector:v1.5.3 --name $(KIND_CLUSTER)
 
 sit-load-images: sit-load-operator-images
 	@echo "Loading images"
