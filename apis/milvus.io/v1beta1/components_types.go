@@ -264,6 +264,10 @@ type Component struct {
 
 type MilvusQueryNode struct {
 	Component `json:",inline"`
+	// +kubebuilder:validation:Enum=OneDeployMode;TwoDeployMode
+	// +kubebuilder:default:=TwoDeployMode
+	// +kubebuilder:validation:Optional
+	DeployMode string `json:"deployMode,omitempty"`
 }
 
 type MilvusDataNode struct {
