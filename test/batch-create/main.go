@@ -7,11 +7,12 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
-	milvusio "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	milvusio "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 var begin int = 0

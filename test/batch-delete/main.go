@@ -4,10 +4,11 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	milvusio "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"k8s.io/apimachinery/pkg/labels"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	milvusio "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 func main() {

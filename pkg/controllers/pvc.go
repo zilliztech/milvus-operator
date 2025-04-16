@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/pkg/errors"
+
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 

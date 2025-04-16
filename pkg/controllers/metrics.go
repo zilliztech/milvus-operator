@@ -4,8 +4,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
-	v1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
+
+	v1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 var (

@@ -6,8 +6,9 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 //go:generate mockgen -source=./group_runner.go -destination=./group_runner_mock.go -package=controllers

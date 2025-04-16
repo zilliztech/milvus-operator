@@ -8,9 +8,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/zilliztech/milvus-operator/pkg/helm"
-	"github.com/zilliztech/milvus-operator/pkg/helm/values"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -22,6 +19,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/helm"
+	"github.com/zilliztech/milvus-operator/pkg/helm/values"
 )
 
 //go:generate mockgen -package=controllers -source=dependencies.go -destination=dependencies_mock.go HelmReconciler

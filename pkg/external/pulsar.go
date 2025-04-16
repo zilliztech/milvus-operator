@@ -5,9 +5,10 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/apache/pulsar-client-go/pulsar/log"
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/util"
-	corev1 "k8s.io/api/core/v1"
 )
 
 type ConditionGetter interface {

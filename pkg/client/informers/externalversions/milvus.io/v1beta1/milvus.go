@@ -21,14 +21,15 @@ import (
 	"context"
 	time "time"
 
-	milvusiov1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
-	versioned "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned"
-	internalinterfaces "github.com/zilliztech/milvus-operator/pkg/client/informers/externalversions/internalinterfaces"
-	v1beta1 "github.com/zilliztech/milvus-operator/pkg/client/listers/milvus.io/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
+
+	milvusiov1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	versioned "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned"
+	internalinterfaces "github.com/zilliztech/milvus-operator/pkg/client/informers/externalversions/internalinterfaces"
+	v1beta1 "github.com/zilliztech/milvus-operator/pkg/client/listers/milvus.io/v1beta1"
 )
 
 // MilvusInformer provides access to a shared informer and lister for

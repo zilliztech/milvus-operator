@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
+
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 

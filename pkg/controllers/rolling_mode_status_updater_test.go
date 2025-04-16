@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"go.uber.org/mock/gomock"
+
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 func Test_GetExpectedTwoDeployComponents(t *testing.T) {

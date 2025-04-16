@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zilliztech/milvus-operator/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 func TestGetMilvusConditionByType(t *testing.T) {

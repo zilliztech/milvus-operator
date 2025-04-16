@@ -4,16 +4,17 @@ import (
 	"context"
 	"testing"
 
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/zilliztech/milvus-operator/pkg/config"
-	"github.com/zilliztech/milvus-operator/pkg/helm"
-	"github.com/zilliztech/milvus-operator/pkg/util"
 	"go.uber.org/mock/gomock"
 	"helm.sh/helm/v3/pkg/cli"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
+
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/helm"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 type clusterTestEnv struct {

@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1alpha1"
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1alpha1"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 func TestNamespacedName(t *testing.T) {
