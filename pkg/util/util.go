@@ -14,17 +14,12 @@ import (
 	"time"
 
 	"github.com/Masterminds/sprig"
-	"github.com/coreos/go-semver/semver"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const MqTypeConfigKey = "messageQueue"
-
-func GetSemanticVersion(version string) (*semver.Version, error) {
-	return semver.NewVersion(strings.TrimPrefix(version, "v"))
-}
 
 // GetNumberValue supports int64 / float64 in values return as float64
 // see https://datatracker.ietf.org/doc/html/rfc8259#section-6
