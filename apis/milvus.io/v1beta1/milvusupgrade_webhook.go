@@ -3,7 +3,6 @@ package v1beta1
 import (
 	"fmt"
 
-	"github.com/zilliztech/milvus-operator/pkg/config"
 	"golang.org/x/mod/semver"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -13,6 +12,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/zilliztech/milvus-operator/pkg/config"
 )
 
 // log is for logging in this package.

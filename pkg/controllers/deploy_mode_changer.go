@@ -6,11 +6,12 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 var _ DeployModeChanger = &DeployModeChangerImpl{}

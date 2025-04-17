@@ -6,8 +6,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/zilliztech/milvus-operator/pkg/util"
 	"sigs.k8s.io/yaml"
+
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 var mqConfigsToDelete = map[string]bool{

@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/zilliztech/milvus-operator/pkg/config"
 	"helm.sh/helm/v3/pkg/cli"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -13,6 +12,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	"github.com/zilliztech/milvus-operator/pkg/config"
 
 	milvusv1alpha1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1alpha1"
 	milvusv1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"

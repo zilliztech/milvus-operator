@@ -18,9 +18,10 @@ limitations under the License.
 package v1beta1
 
 import (
+	rest "k8s.io/client-go/rest"
+
 	v1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned/scheme"
-	rest "k8s.io/client-go/rest"
 )
 
 type MilvusV1beta1Interface interface {

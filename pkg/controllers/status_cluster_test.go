@@ -8,9 +8,6 @@ import (
 
 	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/zilliztech/milvus-operator/pkg/external"
-	"github.com/zilliztech/milvus-operator/pkg/util"
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +17,10 @@ import (
 	runtimectrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/external"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 func TestMilvusStatusSyncer_UpdateIngressStatus(t *testing.T) {

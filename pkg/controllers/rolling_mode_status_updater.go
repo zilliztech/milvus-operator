@@ -4,8 +4,9 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 //go:generate mockgen -package=controllers -source=rolling_mode_status_updater.go -destination=./rolling_mode_status_updater_mock.go RollingModeStatusUpdater

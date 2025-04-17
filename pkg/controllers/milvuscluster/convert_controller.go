@@ -6,14 +6,15 @@ import (
 
 	"github.com/go-logr/logr"
 	pkgErrs "github.com/pkg/errors"
-	milvusv1alpha1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1alpha1"
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	errors "k8s.io/apimachinery/pkg/api/errors"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	milvusv1alpha1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1alpha1"
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 const MCFinalizerName = "milvuscluster.milvus.io/finalizer"

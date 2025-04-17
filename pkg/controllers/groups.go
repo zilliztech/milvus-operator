@@ -7,9 +7,10 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/config"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var groupLog = logf.Log.WithName("group")

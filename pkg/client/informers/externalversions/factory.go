@@ -22,13 +22,14 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned"
-	internalinterfaces "github.com/zilliztech/milvus-operator/pkg/client/informers/externalversions/internalinterfaces"
-	milvusio "github.com/zilliztech/milvus-operator/pkg/client/informers/externalversions/milvus.io"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
+
+	versioned "github.com/zilliztech/milvus-operator/pkg/client/clientset/versioned"
+	internalinterfaces "github.com/zilliztech/milvus-operator/pkg/client/informers/externalversions/internalinterfaces"
+	milvusio "github.com/zilliztech/milvus-operator/pkg/client/informers/externalversions/milvus.io"
 )
 
 // SharedInformerOption defines the functional option type for SharedInformerFactory.
