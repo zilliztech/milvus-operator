@@ -79,10 +79,6 @@ func run() error {
 	return nil
 }
 
-func baseName() string {
-	return "batch-"
-}
-
 func getClient() (client.Client, error) {
 	conf, err := ctrl.GetConfig()
 	if err != nil {

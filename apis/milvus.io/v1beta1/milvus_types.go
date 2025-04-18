@@ -114,7 +114,7 @@ func (ms MilvusSpec) GetServiceComponent() *ServiceComponent {
 // GetMilvusVersionByImage returns the version of Milvus by ms.Com.ComponentSpec.Image
 func (ms MilvusSpec) GetMilvusVersionByImage() (semver.Version, error) {
 	// parse format: registry/namespace/image:tag
-	splited := strings.Split(ms.Com.ComponentSpec.Image, ":")
+	splited := strings.Split(ms.Com.Image, ":")
 	if len(splited) != 2 {
 		return semver.Version{}, errors.Errorf("unknown version of image[%s]", splited[0])
 	}

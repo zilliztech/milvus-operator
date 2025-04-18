@@ -301,7 +301,7 @@ func TestMilvusComponent_GetReplicas(t *testing.T) {
 	spec.Com.QueryNode = &v1beta1.MilvusQueryNode{}
 	com := QueryNode
 	replica := int32(1)
-	spec.Com.QueryNode.Component.Replicas = &replica
+	spec.Com.QueryNode.Replicas = &replica
 	assert.Equal(t, &replica, com.GetReplicas(spec))
 }
 
@@ -442,7 +442,7 @@ func TestMilvusComponent_GetComponentPort(t *testing.T) {
 
 func TestMilvusComponent_GetComponentSpec(t *testing.T) {
 	spec := newSpecCluster()
-	spec.Com.QueryNode.Component.ComponentSpec.Image = "a"
+	spec.Com.QueryNode.Image = "a"
 	com := QueryNode
 	assert.Equal(t, "a", com.GetComponentSpec(spec).Image)
 }

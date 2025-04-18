@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
 	"log"
 	"os"
 
@@ -82,7 +81,7 @@ func main() {
 		log.Fatal("marshal failed: ", err)
 	}
 
-	if err := ioutil.WriteFile(*dstPath, bs, 0644); err != nil {
+	if err := os.WriteFile(*dstPath, bs, 0644); err != nil {
 		log.Fatal("write failed: ", err)
 	}
 }
@@ -90,7 +89,7 @@ func main() {
 // readYaml
 func readYaml(path string) (map[string]interface{}, error) {
 	var data map[string]interface{}
-	bs, err := ioutil.ReadFile(path)
+	bs, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
