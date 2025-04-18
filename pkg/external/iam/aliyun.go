@@ -74,12 +74,12 @@ func (c *CredentialProvider) Retrieve() (minioCred.Value, error) {
 // according to the caller minioCred.Credentials.IsExpired(),
 // it already has a lock, so we don't need to worry about concurrency
 func (c CredentialProvider) IsExpired() bool {
-	ak, err := c.aliyunCreds.GetAccessKeyId()
+	cred, err := c.aliyunCreds.GetCredential()
 	if err != nil {
 		log.Println("failed to get access key id from aliyun credential, assume it's expired")
 		return true
 	}
-	return *ak != c.akCache
+	return *cred.AccessKeyId != c.akCache
 }
 
 // RetrieveWithCredContext implements "github.com/minio/minio-go/v7/pkg/credentials".Provider.RetrieveWithCredContext()
