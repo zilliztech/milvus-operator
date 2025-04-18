@@ -3,7 +3,7 @@ package v1beta1
 import (
 	"fmt"
 
-	"golang.org/x/mod/semver"
+	"github.com/blang/semver/v4"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -77,22 +77,21 @@ func (r MilvusUpgrade) Validate() error {
 	s := &r.Spec
 	var allErrs field.ErrorList
 	srcVer := AddPrefixV(s.SourceVersion)
-	if !semver.IsValid(srcVer) {
+	srcSemver, err := semver.ParseTolerant(srcVer)
+	if err != nil {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("sourceVersion"), srcVer, "sourceVersion is not a valid sematic version"))
 	}
 
-	if semver.Compare(srcVer, "v2.0.1") < 0 {
-		// <2.0.0 or 2.0.0-rcx
-		if semver.Compare(srcVer, "v2.0.0") < 0 || semver.Build(srcVer) != "" {
-			allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("sourceVersion"), srcVer, "sourceVersion must be greater than 2.0.0"))
-		}
+	if srcSemver.LT(semver.MustParse("2.0.0")) {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("sourceVersion"), srcVer, "sourceVersion must be greater than 2.0.0"))
 	}
 
 	targetVer := AddPrefixV(s.TargetVersion)
-	if !semver.IsValid(targetVer) {
+	targetSemver, err := semver.ParseTolerant(targetVer)
+	if err != nil {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("targetVersion"), targetVer, "targetVersion is not a valid sematic version"))
 	}
-	if semver.Compare(targetVer, "v2.2.0") < 0 {
+	if targetSemver.LT(semver.MustParse("2.2.0")) {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("targetVersion"), targetVer, "targetVersion must be greater than 2.2.0"))
 	}
 	if len(allErrs) > 0 {

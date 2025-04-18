@@ -20,15 +20,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/blang/semver/v4"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -114,13 +112,13 @@ func (ms MilvusSpec) GetServiceComponent() *ServiceComponent {
 }
 
 // GetMilvusVersionByImage returns the version of Milvus by ms.Com.ComponentSpec.Image
-func (ms MilvusSpec) GetMilvusVersionByImage() (*semver.Version, error) {
+func (ms MilvusSpec) GetMilvusVersionByImage() (semver.Version, error) {
 	// parse format: registry/namespace/image:tag
 	splited := strings.Split(ms.Com.ComponentSpec.Image, ":")
 	if len(splited) != 2 {
-		return nil, errors.Errorf("unknown version of image[%s]", splited[0])
+		return semver.Version{}, errors.Errorf("unknown version of image[%s]", splited[0])
 	}
-	return util.GetSemanticVersion(splited[1])
+	return semver.ParseTolerant(splited[1])
 }
 
 func (ms *MilvusSpec) GetPersistenceConfig() *Persistence {
