@@ -39,7 +39,7 @@ type Credential interface {
 // also implements transport
 type CredentialProvider struct {
 	// aliyunCreds doesn't provide a way to get the expire time, so we use the cache to check if it's expired
-	// when aliyunCreds.GetAccessKeyId is different from the cache, we know it's expired
+	// when the credential AccessKeyId is different from the cache, we know it's expired.
 	akCache     string
 	aliyunCreds Credential
 }
@@ -57,24 +57,16 @@ func NewCredentialProvider() (minioCred.Provider, error) {
 // according to the caller minioCred.Credentials.Get(),
 // it already has a lock, so we don't need to worry about concurrency
 func (c *CredentialProvider) Retrieve() (minioCred.Value, error) {
-	ret := minioCred.Value{}
-	ak, err := c.aliyunCreds.GetAccessKeyId()
+	cred, err := c.aliyunCreds.GetCredential()
 	if err != nil {
-		return ret, errors.Wrap(err, "failed to get access key id from aliyun credential")
+		return minioCred.Value{}, errors.Wrap(err, "failed to get aliyun credential")
 	}
-	ret.AccessKeyID = *ak
-	sk, err := c.aliyunCreds.GetAccessKeySecret()
-	if err != nil {
-		return minioCred.Value{}, errors.Wrap(err, "failed to get access key secret from aliyun credential")
-	}
-	securityToken, err := c.aliyunCreds.GetSecurityToken()
-	if err != nil {
-		return minioCred.Value{}, errors.Wrap(err, "failed to get security token from aliyun credential")
-	}
-	ret.SecretAccessKey = *sk
-	c.akCache = *ak
-	ret.SessionToken = *securityToken
-	return ret, nil
+	c.akCache = *cred.AccessKeyId
+	return minioCred.Value{
+		AccessKeyID:     *cred.AccessKeyId,
+		SecretAccessKey: *cred.AccessKeySecret,
+		SessionToken:    *cred.SecurityToken,
+	}, nil
 }
 
 // IsExpired returns if the credentials are no longer valid, and need

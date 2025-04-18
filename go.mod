@@ -7,7 +7,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
-	github.com/aliyun/credentials-go v1.4.3
+	github.com/aliyun/credentials-go v1.4.5
 	github.com/apache/pulsar-client-go v0.9.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
