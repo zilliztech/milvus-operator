@@ -1,7 +1,7 @@
 package values
 
 import (
-	"io/ioutil"
+	"os"
 
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
@@ -94,7 +94,7 @@ func (d DefaultValuesProviderImpl) GetDefaultValues(dependencyName DependencyKin
 }
 
 func readValuesFromFile(file string) (Values, error) {
-	data, err := ioutil.ReadFile(file)
+	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read file %s", file)
 	}

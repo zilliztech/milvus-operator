@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"flag"
-	"io/ioutil"
 	"os"
 	"strings"
 )
@@ -34,12 +33,12 @@ func cp(src, dst string) error {
 		return errors.New("stat source file failed: " + err.Error())
 	}
 
-	data, err := ioutil.ReadFile(src)
+	data, err := os.ReadFile(src)
 	if err != nil {
 		return errors.New("read source file failed: " + err.Error())
 	}
 
-	err = ioutil.WriteFile(dst, data, srcInfo.Mode())
+	err = os.WriteFile(dst, data, srcInfo.Mode())
 	if err != nil {
 		return errors.New("write destination file failed: " + err.Error())
 	}

@@ -83,7 +83,7 @@ func NewMilvusStatusSyncer(ctx context.Context, client client.Client, logger log
 var unhealthySyncInterval = 30 * time.Second
 
 func (r *MilvusStatusSyncer) RunIfNot() {
-	r.Once.Do(func() {
+	r.Do(func() {
 		go LoopWithInterval(r.ctx, r.syncUnealthyOrUpdating, unhealthySyncInterval, r.logger)
 		go LoopWithInterval(r.ctx, r.syncHealthyUpdated, unhealthySyncInterval*2, r.logger)
 		go LoopWithInterval(r.ctx, r.updateMetrics, unhealthySyncInterval, r.logger)
@@ -390,7 +390,7 @@ func GetKafkaConfFromCR(mc v1beta1.Milvus) (*external.CheckKafkaConfig, error) {
 
 func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 	ctx context.Context, mc v1beta1.Milvus) (v1beta1.MilvusCondition, error) {
-	var eps = []string{}
+	var eps []string
 	var getter func() v1beta1.MilvusCondition
 	switch mc.Spec.Dep.MsgStreamType {
 	case v1beta1.MsgStreamTypeRocksMQ, v1beta1.MsgStreamTypeNatsMQ, v1beta1.MsgStreamTypeCustom:

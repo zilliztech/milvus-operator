@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -35,9 +34,6 @@ import (
 	"github.com/zilliztech/milvus-operator/pkg/helm/values"
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
-
-// log is for logging in this package.
-var milvuslog = logf.Log.WithName("milvus-resource")
 
 func (r *Milvus) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).

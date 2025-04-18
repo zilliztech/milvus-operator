@@ -10,16 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
-
-func mustGetKubeconfig(t *testing.T) *rest.Config {
-	kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	assert.NoError(t, err)
-	return config
-}
 
 func mustGetK8sClient(t *testing.T) *K8sClients {
 	kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")

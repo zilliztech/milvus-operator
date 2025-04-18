@@ -1,7 +1,6 @@
 package config
 
 import (
-	"io/ioutil"
 	"os"
 
 	corev1 "k8s.io/api/core/v1"
@@ -75,12 +74,12 @@ func NewConfig(workDir string) (*Config, error) {
 
 	templateDir := workDir + TemplateRelativeDir
 
-	tmpls, err := ioutil.ReadDir(templateDir)
+	tmpls, err := os.ReadDir(templateDir)
 	if err != nil {
 		return nil, err
 	}
 	for _, tmpl := range tmpls {
-		data, err := ioutil.ReadFile(templateDir + "/" + tmpl.Name())
+		data, err := os.ReadFile(templateDir + "/" + tmpl.Name())
 		if err != nil {
 			return nil, err
 		}

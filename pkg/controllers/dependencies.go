@@ -67,7 +67,7 @@ func (l LocalHelmReconciler) NewHelmCfg(namespace string) *action.Configuration 
 	}
 
 	// cfg.Init will never return err, only panic if bad driver
-	cfg.Init(
+	_ = cfg.Init(
 		getRESTClientGetterFromClient(l.helmSettings, namespace, l.mgr),
 		namespace,
 		os.Getenv("HELM_DRIVER"),
@@ -75,20 +75,6 @@ func (l LocalHelmReconciler) NewHelmCfg(namespace string) *action.Configuration 
 	)
 
 	return cfg
-}
-
-func getRESTClientGetterWithNamespace(env *cli.EnvSettings, namespace string) genericclioptions.RESTClientGetter {
-	return &genericclioptions.ConfigFlags{
-		Namespace:        &namespace,
-		Context:          &env.KubeContext,
-		BearerToken:      &env.KubeToken,
-		APIServer:        &env.KubeAPIServer,
-		CAFile:           &env.KubeCaFile,
-		KubeConfig:       &env.KubeConfig,
-		Impersonate:      &env.KubeAsUser,
-		ImpersonateGroup: &env.KubeAsGroups,
-		Insecure:         &configFlagInsecure,
-	}
 }
 
 func getRESTClientGetterFromClient(env *cli.EnvSettings, namespace string, mgr manager.Manager) genericclioptions.RESTClientGetter {

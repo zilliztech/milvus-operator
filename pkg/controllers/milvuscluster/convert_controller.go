@@ -50,7 +50,7 @@ func (r *MilvusClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// remove old finalizer when delete
-	if !milvus.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !milvus.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(milvus, MCFinalizerName) {
 			controllerutil.RemoveFinalizer(milvus, MCFinalizerName)
 			err := r.Update(ctx, milvus)

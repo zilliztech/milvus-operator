@@ -48,8 +48,8 @@ func main() {
 	var enablePprof bool
 	var probeAddr string
 	var workDir string
-	var k8sQps int = 100
-	var k8sBurst int = 100
+	var k8sQps = 100
+	var k8sBurst = 100
 	var enableWebhook bool
 	showVersion := flag.Bool("version", false, "Show version")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")

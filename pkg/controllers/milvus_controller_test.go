@@ -92,7 +92,7 @@ func TestClusterReconciler(t *testing.T) {
 		defer ctrl.Finish()
 		m.Finalizers = []string{MilvusFinalizerName}
 		mockCheckMilvusStopRet = false
-		m.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+		m.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
 			Do(func(ctx, key, obj interface{}, opts ...any) {
@@ -114,7 +114,7 @@ func TestClusterReconciler(t *testing.T) {
 		defer ctrl.Finish()
 		mockCheckMilvusStopRet = true
 		m.Finalizers = []string{ForegroundDeletionFinalizer, MilvusFinalizerName}
-		m.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+		m.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
 			Do(func(ctx, key, obj interface{}, opts ...any) {
 				o := obj.(*v1beta1.Milvus)
@@ -149,7 +149,7 @@ func TestClusterReconciler(t *testing.T) {
 
 		mockCheckMilvusStopRet = false
 		m.Status.Status = v1beta1.StatusDeleting
-		m.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+		m.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		_, err := r.Reconcile(ctx, reconcile.Request{})
 		assert.NoError(t, err)
 
