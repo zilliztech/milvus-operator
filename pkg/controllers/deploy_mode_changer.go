@@ -7,7 +7,9 @@ import (
 
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -206,4 +208,71 @@ func formatSaveOldDeployName(mc v1beta1.Milvus, component MilvusComponent) strin
 
 func formatSaveOldReplicaSetListName(mc v1beta1.Milvus, component MilvusComponent) string {
 	return fmt.Sprintf("%s-%s-old-replicas", component.Name, mc.Name)
+}
+
+// ChangeToOneDeployMode switches QueryNode to single deployment mode
+func (c *DeployModeChangerImpl) ChangeToOneDeployMode(ctx context.Context, mc v1beta1.Milvus) error {
+	if c.component != QueryNode {
+		return nil
+	}
+	oldDeploy, err := c.util.GetOldDeploy(ctx, mc, c.component)
+	if err != nil && !kerrors.IsNotFound(err) {
+		return errors.Wrap(err, "get old deployment for ChangeToOneDeployMode")
+	}
+	if oldDeploy != nil {
+		oldDeploy.Spec.Replicas = int32Ptr(0)
+		err = c.cli.Update(ctx, oldDeploy)
+		if err != nil {
+			return errors.Wrap(err, "scale down old deployment")
+		}
+		err = c.cli.Delete(ctx, oldDeploy)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return errors.Wrap(err, "delete old deployment")
+		}
+	}
+	currentDeployName := fmt.Sprintf("%s-%s-0", c.component.Name, mc.Name)
+	currentDeploy := &appsv1.Deployment{}
+	err = c.cli.Get(ctx, client.ObjectKey{Namespace: mc.Namespace, Name: currentDeployName}, currentDeploy)
+	if kerrors.IsNotFound(err) {
+		labels := map[string]string{
+			"app":       mc.Name,
+			"component": c.component.Name,
+			fmt.Sprintf("%s-group-id", c.component.Name): "0",
+		}
+		currentDeploy = &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: mc.Namespace,
+				Name:      currentDeployName,
+				Labels:    labels,
+			},
+			Spec: appsv1.DeploymentSpec{
+				Replicas: int32Ptr(0),
+				Selector: &metav1.LabelSelector{
+					MatchLabels: labels,
+				},
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: labels,
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{Name: c.component.Name, Image: "milvusdb/milvus:latest"},
+						},
+					},
+				},
+			},
+		}
+		ctrl.SetControllerReference(&mc, currentDeploy, c.cli.Scheme())
+		err = c.util.CreateObject(ctx, currentDeploy)
+		if err != nil {
+			return errors.Wrap(err, "create current deployment with groupId=0")
+		}
+	} else if err != nil {
+		return errors.Wrap(err, "check current deployment")
+	}
+	err = c.util.MarkMilvusComponentGroupId(ctx, mc, c.component, 0)
+	if err != nil {
+		return errors.Wrap(err, "mark group id to 0")
+	}
+	return nil
 }
