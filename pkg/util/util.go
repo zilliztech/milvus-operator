@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -60,11 +60,11 @@ func DeleteValue(values map[string]interface{}, fields ...string) {
 
 // only contains types bool, int64, float64, string, []interface{}, map[string]interface{}, json.Number and nil
 func SetValue(values map[string]interface{}, v interface{}, fields ...string) {
-	unstructured.SetNestedField(values, v, fields...)
+	unstructured.SetNestedField(values, v, fields...) //nolint:errcheck
 }
 
 func SetStringSlice(values map[string]interface{}, v []string, fields ...string) {
-	unstructured.SetNestedStringSlice(values, v, fields...)
+	unstructured.SetNestedStringSlice(values, v, fields...) //nolint:errcheck
 }
 
 // MergeValues merges patch into origin, you have to make sure origin is not nil, otherwise it won't work
@@ -150,7 +150,7 @@ func HTTPGetBytes(url string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.Errorf("unexpected status code %d", resp.StatusCode)
 	}
-	ret, err := ioutil.ReadAll(resp.Body)
+	ret, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read response body")
 	}

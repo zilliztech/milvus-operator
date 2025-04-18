@@ -34,7 +34,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	milvusv1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/config"
 )
@@ -101,7 +100,7 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Finalize
-	if milvus.ObjectMeta.DeletionTimestamp.IsZero() {
+	if milvus.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(milvus, MilvusFinalizerName) {
 			controllerutil.AddFinalizer(milvus, MilvusFinalizerName)
 			err := r.Update(ctx, milvus)
@@ -202,12 +201,12 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
-func (r *MilvusReconciler) VerifyCR(ctx context.Context, milvus *v1beta1.Milvus) error {
+func (r *MilvusReconciler) VerifyCR(ctx context.Context, milvus *milvusv1beta1.Milvus) error {
 	if milvus.Status.ObservedGeneration >= milvus.Generation {
 		// already verified
 		return nil
 	}
-	err := milvus.Spec.Com.Probes.AsObject(&v1beta1.Probes{})
+	err := milvus.Spec.Com.Probes.AsObject(&milvusv1beta1.Probes{})
 	if err != nil {
 		return pkgErr.Wrap(err, "verify custom probes")
 	}
@@ -264,7 +263,7 @@ func (*MilvusPredicate) Update(e event.UpdateEvent) bool {
 	return true
 }
 
-func (r *MilvusReconciler) ReconcileLegacyValues(ctx context.Context, old, milvus *v1beta1.Milvus) error {
+func (r *MilvusReconciler) ReconcileLegacyValues(ctx context.Context, old, milvus *milvusv1beta1.Milvus) error {
 	if !milvus.LegacyNeedSyncValues() {
 		return nil
 	}
@@ -279,7 +278,7 @@ func (r *MilvusReconciler) ReconcileLegacyValues(ctx context.Context, old, milvu
 	return err
 }
 
-func (r *MilvusReconciler) syncLegacyValues(ctx context.Context, m *v1beta1.Milvus) error {
+func (r *MilvusReconciler) syncLegacyValues(ctx context.Context, m *milvusv1beta1.Milvus) error {
 	// sync etcd
 	if !m.Spec.Dep.Etcd.External {
 		releaseValues, err := r.helmReconciler.GetValues(m.Namespace, m.Name+"-etcd")
@@ -291,7 +290,7 @@ func (r *MilvusReconciler) syncLegacyValues(ctx context.Context, m *v1beta1.Milv
 
 	// sync mq
 	switch m.Spec.Dep.MsgStreamType {
-	case v1beta1.MsgStreamTypePulsar:
+	case milvusv1beta1.MsgStreamTypePulsar:
 		if !m.Spec.Dep.Pulsar.External {
 			releaseValues, err := r.helmReconciler.GetValues(m.Namespace, m.Name+"-pulsar")
 			if err != nil {
@@ -299,7 +298,7 @@ func (r *MilvusReconciler) syncLegacyValues(ctx context.Context, m *v1beta1.Milv
 			}
 			m.Spec.Dep.Pulsar.InCluster.Values.Data = releaseValues
 		}
-	case v1beta1.MsgStreamTypeKafka:
+	case milvusv1beta1.MsgStreamTypeKafka:
 		if !m.Spec.Dep.Kafka.External {
 			releaseValues, err := r.helmReconciler.GetValues(m.Namespace, m.Name+"-kafka")
 			if err != nil {

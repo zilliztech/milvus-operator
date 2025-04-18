@@ -97,7 +97,7 @@ func TestMilvusClusterReconciler_ReconcileIngress(t *testing.T) {
 			}).Return(nil)
 		mockClient.EXPECT().Update(gomock.Any(), &rendered).Return(mockErr)
 		err := r.ReconcileIngress(ctx, mc)
-		assert.Equal(t, finalizers, rendered.ObjectMeta.Finalizers)
+		assert.Equal(t, finalizers, rendered.Finalizers)
 		assert.Error(t, err)
 	})
 }

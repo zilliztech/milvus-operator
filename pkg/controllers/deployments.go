@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -11,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/pkg/errors"
 	pkgerr "github.com/pkg/errors"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -40,7 +40,7 @@ const (
 
 var (
 	DefaultConfigMapMode = corev1.ConfigMapVolumeSourceDefaultMode
-	ErrRequeue           = pkgerr.New("requeue")
+	ErrRequeue           = errors.New("requeue")
 )
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
@@ -79,7 +79,7 @@ func (r *MilvusReconciler) updateDeployment(
 	updater := newMilvusDeploymentUpdater(mc, r.Scheme, component)
 	hasTerminatingPod, err := CheckComponentHasTerminatingPod(ctx, r.Client, mc, component)
 	if err != nil {
-		return errors.Wrap(err, "check component has terminating pod")
+		return pkgerr.Wrap(err, "check component has terminating pod")
 	}
 	if hasTerminatingPod {
 		return updateDeploymentWithoutPodTemplate(deployment, updater)
@@ -148,9 +148,9 @@ func (r *MilvusReconciler) handleOldInstanceChangingMode(ctx context.Context, mc
 
 		mc.Annotations[v1beta1.PodServiceLabelAddedAnnotation] = v1beta1.TrueStr
 		if err := r.Update(ctx, &mc); err != nil {
-			return errors.Wrap(err, "update milvus annotation")
+			return pkgerr.Wrap(err, "update milvus annotation")
 		}
-		return errors.Wrap(ErrRequeue, "requeue after updated milvus annotation")
+		return pkgerr.Wrap(ErrRequeue, "requeue after updated milvus annotation")
 	}
 	return nil
 }

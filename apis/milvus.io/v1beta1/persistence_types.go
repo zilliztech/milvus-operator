@@ -46,6 +46,6 @@ type PersistentVolumeClaim struct {
 
 func (p *PersistentVolumeClaim) GetSpec() *corev1.PersistentVolumeClaimSpec {
 	ret := new(corev1.PersistentVolumeClaimSpec)
-	p.Spec.AsObject(ret)
+	p.Spec.AsObject(ret) //nolint:errcheck
 	return ret
 }

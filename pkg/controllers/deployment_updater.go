@@ -409,7 +409,7 @@ func newMilvusDeploymentUpdater(m v1beta1.Milvus, scheme *runtime.Scheme, compon
 }
 
 func (m milvusDeploymentUpdater) GetPersistenceConfig() *v1beta1.Persistence {
-	return m.Milvus.Spec.GetPersistenceConfig()
+	return m.Spec.GetPersistenceConfig()
 }
 
 func (m milvusDeploymentUpdater) GetIntanceName() string {
@@ -455,7 +455,7 @@ func (m milvusDeploymentUpdater) GetInitContainers() []corev1.Container {
 }
 
 func (m milvusDeploymentUpdater) GetDeploymentStrategy() appsv1.DeploymentStrategy {
-	if m.Milvus.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce {
+	if m.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce {
 		all := intstr.FromString("100%")
 		return appsv1.DeploymentStrategy{
 			Type: appsv1.RollingUpdateDeploymentStrategyType,
@@ -465,7 +465,7 @@ func (m milvusDeploymentUpdater) GetDeploymentStrategy() appsv1.DeploymentStrate
 			},
 		}
 	}
-	return m.component.GetDeploymentStrategy(m.Milvus.Spec.Conf.Data)
+	return m.component.GetDeploymentStrategy(m.Spec.Conf.Data)
 }
 
 func (m milvusDeploymentUpdater) GetConfCheckSum() string {
@@ -480,7 +480,7 @@ func (m milvusDeploymentUpdater) GetMergedComponentSpec() ComponentSpec {
 }
 
 func (m milvusDeploymentUpdater) GetArgs() []string {
-	var ret = []string{}
+	var ret []string
 	if len(m.GetMergedComponentSpec().Commands) > 0 {
 		ret = append([]string{RunScriptPath}, m.GetMergedComponentSpec().Commands...)
 	} else {
@@ -501,7 +501,7 @@ func (m milvusDeploymentUpdater) GetMilvus() *v1beta1.Milvus {
 }
 
 func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
-	if m.Milvus.Status.ObservedGeneration < m.Milvus.Generation {
+	if m.Status.ObservedGeneration < m.Generation {
 		return false
 	}
 	deps := m.component.GetDependencies(m.Spec)
@@ -514,5 +514,5 @@ func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 }
 
 func (m milvusDeploymentUpdater) HasHookConfig() bool {
-	return len(m.Milvus.Spec.HookConf.Data) > 0
+	return len(m.Spec.HookConf.Data) > 0
 }

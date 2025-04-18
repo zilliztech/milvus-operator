@@ -228,8 +228,8 @@ func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.M
 	if err == nil {
 		return nil
 	}
-	switch {
-	case err == ErrNotFound:
+	switch err {
+	case ErrNotFound:
 		err := c.util.MarkMilvusComponentGroupId(ctx, mc, c.component, 0)
 		if err != nil {
 			return errors.Wrapf(err, "mark milvus %s group id to %d", c.component.Name, 0)
@@ -238,7 +238,7 @@ func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.M
 		if err != nil {
 			return errors.Wrapf(err, "create %s deployment 0", c.component.Name)
 		}
-	case err == ErrNoLastDeployment:
+	case ErrNoLastDeployment:
 		return c.util.CreateDeploy(ctx, mc, nil, 1)
 	default:
 		return errors.Wrapf(err, "get %s deploys", c.component.Name)

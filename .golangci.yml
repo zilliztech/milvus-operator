@@ -1,0 +1,18 @@
+version: "2"
+formatters:
+  enable:
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/zilliztech/milvus-operator
+linters:
+  exclusions:
+    rules:
+      - linters:
+          - errcheck
+        # Taken from the default exclusions in v1.
+        text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
+      - linters:
+          - errcheck
+        path: _test.go

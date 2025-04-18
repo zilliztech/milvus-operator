@@ -297,7 +297,7 @@ func (r *MilvusUpgradeReconciler) HandleBakupMetaFailed(ctx context.Context, upg
 
 func (r *MilvusUpgradeReconciler) handlePod(ctx context.Context, upgrade *v1beta1.MilvusUpgrade, kind string, onNoPod, onSuccess, onFailure func() error) error {
 	podList := new(corev1.PodList)
-	err := r.Client.List(ctx, podList,
+	err := r.List(ctx, podList,
 		client.MatchingLabels{
 			LabelUpgrade:  upgrade.Name,
 			LabelTaskKind: kind,
@@ -327,7 +327,8 @@ func startMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.Milvus
 	components := GetComponentsBySpec(milvus.Spec)
 	for _, component := range components {
 		replica := int32(component.GetMilvusReplicas(upgrade.Status.ReplicasBeforeUpgrade))
-		component.SetReplicas(milvus.Spec, &replica)
+		// Ignore errors from SetReplicas()
+		_ = component.SetReplicas(milvus.Spec, &replica)
 	}
 	milvus.RemoveStoppedAtAnnotation()
 	err := cli.Update(ctx, milvus)
@@ -459,7 +460,8 @@ func stopMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.MilvusU
 	}
 	components := GetComponentsBySpec(milvus.Spec)
 	for _, component := range components {
-		component.SetReplicas(milvus.Spec, int32Ptr(0))
+		// Ignore errors from SetReplicas()
+		_ = component.SetReplicas(milvus.Spec, int32Ptr(0))
 	}
 	return cli.Update(ctx, milvus)
 }
