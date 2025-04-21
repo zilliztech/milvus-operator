@@ -86,7 +86,7 @@ func (clis RestClientImpl) Exec(ctx context.Context, namespace, pod, container s
 	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer
-	err = exec.Stream(remotecommand.StreamOptions{
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdout: &stdoutBuf,
 		Stderr: &stderrBuf,
 	})
