@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// VerifyAliyun allows testing of Aliyun connections.
 func VerifyAliyun(ctx context.Context, bucketName, region, address string, secure bool) error {
 	credProvider, err := NewCredentialProvider()
 	if err != nil {

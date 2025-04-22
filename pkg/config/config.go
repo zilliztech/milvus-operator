@@ -2,18 +2,18 @@ package config
 
 import (
 	"os"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
 const (
-	DefaultMilvusVersion   = "v2.5.10"
+	// DefaultMilvusVersion is the default version used when a new Milvus deployment is created.
+	DefaultMilvusVersion = "v2.5.10"
+	// DefaultMilvusBaseImage is the default Miluvs container image.
 	DefaultMilvusBaseImage = "milvusdb/milvus"
+	// DefaultMilvusImage is the default container image:version.
 	DefaultMilvusImage     = DefaultMilvusBaseImage + ":" + DefaultMilvusVersion
-	DefaultImagePullPolicy = corev1.PullIfNotPresent
-	MilvusConfigTpl        = "milvus.yaml.tmpl"
-	MilvusClusterConfigTpl = "milvus-cluster.yaml.tmpl"
-	MigrationConfigTpl     = "migration.yaml.tmpl"
+	milvusConfigTpl        = "milvus.yaml.tmpl"
+	milvusClusterConfigTpl = "milvus-cluster.yaml.tmpl"
+	migrationConfigTpl     = "migration.yaml.tmpl"
 )
 
 const (
@@ -51,15 +51,15 @@ func IsDebug() bool {
 }
 
 func GetMilvusConfigTemplate() string {
-	return defaultConfig.GetTemplate(MilvusConfigTpl)
+	return defaultConfig.GetTemplate(milvusConfigTpl)
 }
 
 func GetMilvusClusterConfigTemplate() string {
-	return defaultConfig.GetTemplate(MilvusClusterConfigTpl)
+	return defaultConfig.GetTemplate(milvusClusterConfigTpl)
 }
 
 func GetMigrationConfigTemplate() string {
-	return defaultConfig.GetTemplate(MigrationConfigTpl)
+	return defaultConfig.GetTemplate(migrationConfigTpl)
 }
 
 type Config struct {

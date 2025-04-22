@@ -320,7 +320,7 @@ func (c MilvusComponent) GetRestfulPort(spec v1beta1.MilvusSpec) int32 {
 	return 0
 }
 
-// GetSideCars returns the component sidecar conatiners
+// GetSideCars returns the component sidecar containers
 func (c MilvusComponent) GetSideCars(spec v1beta1.MilvusSpec) []corev1.Container {
 	componentField := reflect.ValueOf(spec.Com).FieldByName(c.FieldName)
 	if componentField.IsNil() {
@@ -342,7 +342,7 @@ func (c MilvusComponent) GetSideCars(spec v1beta1.MilvusSpec) []corev1.Container
 	return sidecars
 }
 
-// GetSideCars returns the component init conatiners
+// GetInitContainers returns the component init containers
 func (c MilvusComponent) GetInitContainers(spec v1beta1.MilvusSpec) []corev1.Container {
 	componentField := reflect.ValueOf(spec.Com).FieldByName(c.FieldName)
 	if componentField.IsNil() {

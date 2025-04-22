@@ -107,7 +107,7 @@ func (r *MilvusReconciler) ReconcilePodMonitor(ctx context.Context, mc v1beta1.M
 	}
 
 	if IsEqual(old, cur) {
-		//r.logger.Info("Equal", "cur", cur.Name)
+		// r.logger.Info("Equal", "cur", cur.Name)
 		return nil
 	}
 

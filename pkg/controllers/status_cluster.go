@@ -90,7 +90,7 @@ func (r *MilvusStatusSyncer) RunIfNot() {
 	})
 }
 
-// we use global variable for the convienence of testing
+// we use global variable for the convenience of testing
 var (
 	healthyCount   int
 	unhealthyCount int
@@ -340,7 +340,7 @@ func (r *MilvusStatusSyncer) UpdateIngressStatus(ctx context.Context, mc *v1beta
 		return nil
 	}
 	key := client.ObjectKeyFromObject(mc)
-	key.Name = key.Name + "-milvus"
+	key.Name += "-milvus"
 	status, err := getIngressStatus(ctx, r.Client, key)
 	if err != nil {
 		return errors.Wrap(err, "get ingress status failed")

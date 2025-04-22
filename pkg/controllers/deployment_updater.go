@@ -51,14 +51,12 @@ func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater d
 }
 
 func updateDeploymentReplicas(deployment *appsv1.Deployment, updater deploymentUpdater) {
-	//mutate replicas if HPA is not enabled
+	// mutate replicas if HPA is not enabled
 	if !updater.IsHPAEnabled() {
 		deployment.Spec.Replicas = updater.GetReplicas()
-	} else {
+	} else if getDeployReplicas(deployment) == 0 {
 		// hpa cannot scale from 0, so we set replicas to 1
-		if getDeployReplicas(deployment) == 0 {
-			deployment.Spec.Replicas = int32Ptr(1)
-		}
+		deployment.Spec.Replicas = int32Ptr(1)
 	}
 }
 
@@ -337,7 +335,7 @@ func updateSomeFieldsOnlyWhenRolling(template *corev1.PodTemplateSpec, updater d
 	updateProbes(container, updater.GetMergedComponentSpec())
 	if componentName == ProxyName || componentName == StandaloneName {
 		// When the proxy or standalone receives a SIGTERM,
-		// will stop handling new requests immediatelly
+		// will stop handling new requests immediately
 		// but it maybe still not removed from the load balancer.
 		// We add sleep 30s to hold the SIGTERM so that
 		// the load balancer controller has enough time to remove it.

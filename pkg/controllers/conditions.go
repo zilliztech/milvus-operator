@@ -96,9 +96,7 @@ type StorageConditionInfo struct {
 type checkMinIOFunc = func(args external.CheckMinIOArgs) error
 
 // checkMinIO wraps minio.New for test mock convenience
-var checkMinIO = func(args external.CheckMinIOArgs) error {
-	return external.CheckMinIO(args)
-}
+var checkMinIO = external.CheckMinIO
 
 func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Client, info StorageConditionInfo) v1beta1.MilvusCondition {
 	var accesskey, secretkey []byte
@@ -329,17 +327,17 @@ func makeComponentDeploymentMap(mc v1beta1.Milvus, deploys []appsv1.Deployment) 
 	return m
 }
 
-func GetMilvusConditionByType(conditions []v1beta1.MilvusCondition, Type v1beta1.MilvusConditionType) *v1beta1.MilvusCondition {
+func GetMilvusConditionByType(conditions []v1beta1.MilvusCondition, t v1beta1.MilvusConditionType) *v1beta1.MilvusCondition {
 	for _, condition := range conditions {
-		if condition.Type == Type {
+		if condition.Type == t {
 			return &condition
 		}
 	}
 	return nil
 }
 
-func IsMilvusConditionTrueByType(conditions []v1beta1.MilvusCondition, Type v1beta1.MilvusConditionType) bool {
-	cond := GetMilvusConditionByType(conditions, Type)
+func IsMilvusConditionTrueByType(conditions []v1beta1.MilvusCondition, t v1beta1.MilvusConditionType) bool {
+	cond := GetMilvusConditionByType(conditions, t)
 	if cond == nil {
 		return false
 	}

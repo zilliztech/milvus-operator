@@ -33,7 +33,7 @@ func reconcileIngress(ctx context.Context, logger logr.Logger,
 
 	old := &networkingv1.Ingress{}
 	key := client.ObjectKeyFromObject(crd)
-	key.Name = key.Name + "-milvus"
+	key.Name += "-milvus"
 	err := cli.Get(ctx, key, old)
 	if kerrors.IsNotFound(err) {
 		logger.Info("Create Ingress")
