@@ -34,7 +34,7 @@ func (r *MilvusReconciler) ReconcilePVCs(ctx context.Context, mil v1beta1.Milvus
 
 func (r *MilvusReconciler) syncUpdatePVC(ctx context.Context, namespacedName types.NamespacedName, milvusPVC v1beta1.PersistentVolumeClaim) error {
 	old := &corev1.PersistentVolumeClaim{}
-	err := r.Client.Get(ctx, namespacedName, old)
+	err := r.Get(ctx, namespacedName, old)
 
 	if kerrors.IsNotFound(err) {
 		new := &corev1.PersistentVolumeClaim{
@@ -64,7 +64,7 @@ func (r *MilvusReconciler) syncUpdatePVC(ctx context.Context, namespacedName typ
 		return nil
 	}
 	r.logger.Info("Update PVC", "name", new.Name, "namespace", new.Namespace)
-	err = r.Client.Update(ctx, new)
+	err = r.Update(ctx, new)
 	return errors.Wrap(err, "failed to update data pvc")
 }
 

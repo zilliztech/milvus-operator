@@ -20,8 +20,6 @@ import (
 	milvuscluster "github.com/zilliztech/milvus-operator/pkg/controllers/milvuscluster"
 )
 
-var configFlagInsecure = true
-
 type reconciler interface {
 	SetupWithManager(mgr ctrl.Manager) error
 }

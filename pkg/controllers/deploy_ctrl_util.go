@@ -261,7 +261,7 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 		return false, nil
 	}
 	// make sure all old pods are down
-	pods, err := c.K8sUtil.ListDeployPods(ctx, lastDeployment, c.component)
+	pods, err := c.ListDeployPods(ctx, lastDeployment, c.component)
 	if err != nil {
 		return false, err
 	}
@@ -497,7 +497,7 @@ func (c *DeployControllerBizUtilImpl) doScaleAction(ctx context.Context, action 
 		return nil
 	}
 	action.deploy.Spec.Replicas = int32Ptr(getDeployReplicas(action.deploy) + action.replicaChange)
-	return c.K8sUtil.UpdateAndRequeue(ctx, action.deploy)
+	return c.UpdateAndRequeue(ctx, action.deploy)
 }
 
 func (c *DeployControllerBizUtilImpl) markDeployAsCurrent(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment) error {
@@ -510,20 +510,20 @@ func (c *DeployControllerBizUtilImpl) markDeployAsCurrent(ctx context.Context, m
 }
 
 func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment) error {
-	lastDeployPods, err := c.K8sUtil.ListDeployPods(ctx, lastDeployment, c.component)
+	lastDeployPods, err := c.ListDeployPods(ctx, lastDeployment, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list last deploy pods")
 	}
-	isStable, reason := c.K8sUtil.DeploymentIsStable(lastDeployment, lastDeployPods)
+	isStable, reason := c.DeploymentIsStable(lastDeployment, lastDeployPods)
 	if !isStable {
 		return errors.Wrapf(ErrRequeue, "last deploy is not stable[%s]", reason)
 	}
 
-	currentDeployPods, err := c.K8sUtil.ListDeployPods(ctx, currentDeployment, c.component)
+	currentDeployPods, err := c.ListDeployPods(ctx, currentDeployment, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list current deploy pods")
 	}
-	isStable, reason = c.K8sUtil.DeploymentIsStable(currentDeployment, currentDeployPods)
+	isStable, reason = c.DeploymentIsStable(currentDeployment, currentDeployPods)
 	if !isStable {
 		return errors.Wrapf(ErrRequeue, "current deploy is not stable[%s]", reason)
 	}
