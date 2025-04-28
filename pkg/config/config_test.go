@@ -43,8 +43,8 @@ func TestConfig_GetTemplate(t *testing.T) {
 func TestGetMilvusConfigTemplate(t *testing.T) {
 	defaultConfig = &Config{
 		templates: map[string]string{
-			MilvusConfigTpl:        "value",
-			MilvusClusterConfigTpl: "value2",
+			milvusConfigTpl:        "value",
+			milvusClusterConfigTpl: "value2",
 		},
 	}
 	assert.Equal(t, "value2", GetMilvusClusterConfigTemplate())

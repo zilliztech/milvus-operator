@@ -334,10 +334,8 @@ func (r *Milvus) defaultComponentsReplicas() {
 		if spec.Com.QueryNode.Replicas == nil {
 			spec.Com.QueryNode.Replicas = &defaultReplicas
 		}
-	} else {
-		if spec.Com.Standalone.Replicas == nil {
-			spec.Com.Standalone.Replicas = &defaultReplicas
-		}
+	} else if spec.Com.Standalone.Replicas == nil {
+		spec.Com.Standalone.Replicas = &defaultReplicas
 	}
 }
 

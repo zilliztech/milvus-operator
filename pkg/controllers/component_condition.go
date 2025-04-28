@@ -80,7 +80,7 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 		cond.Status = corev1.ConditionFalse
 		cond.Reason = v1beta1.ReasonMilvusComponentNotHealthy
 		cond.Message = fmt.Sprintf("%s not ready, detail: %s", notReadyComponents, errDetail)
-		ctrl.LoggerFrom(ctx).Info("milvus unhealty", "reason", cond.Reason, "msg", cond.Message)
+		ctrl.LoggerFrom(ctx).Info("milvus unhealthy", "reason", cond.Reason, "msg", cond.Message)
 	}
 
 	return cond, nil
@@ -97,7 +97,7 @@ func (c ComponentConditionGetterImpl) logReasonMsgIfDependencyNotReady(ctx conte
 				msg = "condition not probed yet"
 			}
 		}
-		ctrl.LoggerFrom(ctx).Info("milvus dependency unhealty", "reason", reason, "msg", msg)
+		ctrl.LoggerFrom(ctx).Info("milvus dependency unhealthy", "reason", reason, "msg", msg)
 	}
 }
 

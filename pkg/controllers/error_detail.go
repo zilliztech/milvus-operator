@@ -165,9 +165,9 @@ func getFirstNotReadyContainerStatus(statuses []corev1.ContainerStatus) *corev1.
 var PodConditionNotSet = corev1.PodCondition{}
 
 // GetPodConditionByType returns the condition with the provided type, return ConditionNotSet if not found
-func GetPodConditionByType(conditions []corev1.PodCondition, Type corev1.PodConditionType) corev1.PodCondition {
+func GetPodConditionByType(conditions []corev1.PodCondition, t corev1.PodConditionType) corev1.PodCondition {
 	for _, condition := range conditions {
-		if condition.Type == Type {
+		if condition.Type == t {
 			return condition
 		}
 	}
@@ -176,9 +176,9 @@ func GetPodConditionByType(conditions []corev1.PodCondition, Type corev1.PodCond
 
 var DeploymentConditionNotSet = appsv1.DeploymentCondition{}
 
-func GetDeploymentConditionByType(conditions []appsv1.DeploymentCondition, Type appsv1.DeploymentConditionType) appsv1.DeploymentCondition {
+func GetDeploymentConditionByType(conditions []appsv1.DeploymentCondition, t appsv1.DeploymentConditionType) appsv1.DeploymentCondition {
 	for _, condition := range conditions {
-		if condition.Type == Type {
+		if condition.Type == t {
 			return condition
 		}
 	}

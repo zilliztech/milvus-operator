@@ -134,8 +134,7 @@ func GetChartRequest(mc v1beta1.Milvus, dep values.DependencyKind, chart string)
 	inCluster := reflect.ValueOf(mc.Spec.Dep).FieldByName(string(dep)).
 		FieldByName("InCluster").Interface().(*v1beta1.InClusterConfig)
 	chartKind := chart
-	switch inCluster.ChartVersion {
-	case values.ChartVersionPulsarV3:
+	if inCluster.ChartVersion == values.ChartVersionPulsarV3 {
 		chart = values.PulsarV3
 		chartKind = values.Pulsar
 	}

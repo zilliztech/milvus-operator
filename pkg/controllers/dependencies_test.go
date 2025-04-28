@@ -128,8 +128,8 @@ func TestLocalHelmReconciler_Reconcile(t *testing.T) {
 		mockHelm.EXPECT().GetStatus(gomock.Any(), gomock.Any()).Return(release.StatusDeployed, nil)
 		mockHelm.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(cfg *action.Configuration, request helm.ChartRequest) error {
-				intialize := request.Values["initialize"].(bool)
-				assert.False(t, intialize)
+				initialize := request.Values["initialize"].(bool)
+				assert.False(t, initialize)
 				assert.True(t, request.Values["val2"].(bool))
 				return nil
 			})

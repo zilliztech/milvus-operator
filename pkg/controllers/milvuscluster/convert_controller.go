@@ -136,10 +136,10 @@ func (r *MilvusClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *MilvusClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&milvusv1alpha1.MilvusCluster{}).
-		//Owns(&appsv1.Deployment{}).
-		//Owns(&corev1.ConfigMap{}).
-		//Owns(&corev1.Service{}).
-		//WithEventFilter(&MilvusPredicate{}).
+		// Owns(&appsv1.Deployment{}).
+		// Owns(&corev1.ConfigMap{}).
+		// Owns(&corev1.Service{}).
+		// WithEventFilter(&MilvusPredicate{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 1})
 
 	/* if config.IsDebug() {

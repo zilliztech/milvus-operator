@@ -7,6 +7,10 @@ formatters:
       local-prefixes:
         - github.com/zilliztech/milvus-operator
 linters:
+  enable:
+    - gocritic
+    - misspell
+    - revive
   exclusions:
     rules:
       - linters:
@@ -16,3 +20,9 @@ linters:
       - linters:
           - errcheck
         path: _test.go
+  settings:
+    revive:
+      rules:
+        # Disable checks for package and exported functions/vars. There are many to fix still.
+        - name: package-comments
+          disabled: true
