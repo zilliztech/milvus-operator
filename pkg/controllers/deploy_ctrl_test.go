@@ -856,7 +856,7 @@ func TestDeployControllerImpl_handleTwoDeployMode(t *testing.T) {
 	if mc.Spec.Com.QueryNode == nil {
 		mc.Spec.Com.QueryNode = &v1beta1.MilvusQueryNode{}
 	}
-	mc.Spec.Com.QueryNode.Component.Replicas = int32Ptr(1)
+	mc.Spec.Com.QueryNode.Replicas = int32Ptr(1)
 	mc.Spec.Com.QueryNode.DeployMode = "TwoDeployMode"
 
 	replicas := ReplicasValue(QueryNode.GetReplicas(mc.Spec))
@@ -888,7 +888,7 @@ func TestDeployControllerImpl_handleTwoDeployMode(t *testing.T) {
 
 	t.Run("stop mode", func(t *testing.T) {
 		m := mc
-		m.Spec.Com.QueryNode.Component.Replicas = int32Ptr(0)
+		m.Spec.Com.QueryNode.Replicas = int32Ptr(0)
 		mockBiz.EXPECT().HandleCreate(ctx, m).Return(nil)
 		mockBiz.EXPECT().IsPaused(ctx, m).Return(false)
 		mockBiz.EXPECT().HandleStop(ctx, m).Return(nil)
@@ -897,7 +897,7 @@ func TestDeployControllerImpl_handleTwoDeployMode(t *testing.T) {
 	})
 
 	t.Run("rolling failed", func(t *testing.T) {
-		mc.Spec.Com.QueryNode.Component.Replicas = int32Ptr(1)
+		mc.Spec.Com.QueryNode.Replicas = int32Ptr(1)
 		mockBiz.EXPECT().HandleCreate(ctx, mc).Return(nil)
 		mockBiz.EXPECT().IsPaused(ctx, mc).Return(false)
 		mockBiz.EXPECT().HandleRolling(ctx, mc).Return(errMock)

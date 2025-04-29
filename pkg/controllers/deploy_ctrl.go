@@ -64,16 +64,19 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		}
 		if configuredDeployMode != currentDeployMode {
 			logger.Info("deploy mode mismatch detected", "configured", configuredDeployMode, "current", currentDeployMode)
-			if configuredDeployMode == v1beta1.OneDeployMode {
+			switch configuredDeployMode {
+			case v1beta1.OneDeployMode:
 				err = biz.ChangeToOneDeployMode(ctx, mc)
 				if err != nil {
 					return errors.Wrap(err, "change to OneDeployMode")
 				}
-			} else if configuredDeployMode == v1beta1.TwoDeployMode {
+			case v1beta1.TwoDeployMode:
 				err = biz.ChangeToTwoDeployMode(ctx, mc)
 				if err != nil {
 					return errors.Wrap(err, "change to TwoDeployMode")
 				}
+			default:
+				return errors.New("invalid deploy mode")
 			}
 			err = biz.MarkDeployModeChanging(ctx, mc, true)
 			if err != nil {

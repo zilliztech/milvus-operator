@@ -262,7 +262,10 @@ func (c *DeployModeChangerImpl) ChangeToOneDeployMode(ctx context.Context, mc v1
 				},
 			},
 		}
-		ctrl.SetControllerReference(&mc, currentDeploy, c.cli.Scheme())
+		err := ctrl.SetControllerReference(&mc, currentDeploy, c.cli.Scheme())
+		if err != nil {
+			return errors.Wrap(err, "set controller reference")
+		}
 		err = c.util.CreateObject(ctx, currentDeploy)
 		if err != nil {
 			return errors.Wrap(err, "create current deployment with groupId=0")
