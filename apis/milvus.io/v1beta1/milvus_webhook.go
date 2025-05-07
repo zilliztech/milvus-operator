@@ -287,6 +287,15 @@ func (r *Milvus) DefaultComponents() {
 		if spec.Com.QueryNode == nil {
 			spec.Com.QueryNode = &MilvusQueryNode{}
 		}
+
+		if r.Spec.UseStreamingNode() {
+			if spec.Com.StreamingNode == nil {
+				spec.Com.StreamingNode = &MilvusStreamingNode{}
+			}
+			r.Spec.Com.StreamingMode = util.BoolPtr(true)
+		} else {
+			r.Spec.Com.StreamingMode = util.BoolPtr(false)
+		}
 	}
 	r.defaultComponentsReplicas()
 }

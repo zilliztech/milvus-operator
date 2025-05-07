@@ -218,6 +218,11 @@ type MilvusComponents struct {
 	// +kubebuilder:validation:Optional
 	RunAsNonRoot bool `json:"runAsNonRoot,omitempty"`
 
+	// StreamingMode whether to enable streaming mode by default
+	// +kubebuilder:validation:Optional
+	// +nullable
+	StreamingMode *bool `json:"streamingMode,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	Proxy *MilvusProxy `json:"proxy,omitempty"`
 

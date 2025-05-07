@@ -137,8 +137,29 @@ func (ms *MilvusSpec) UseMixCoord() bool {
 	return ms.Com.MixCoord != nil
 }
 
+var sermaticVersion2_5_Max = semver.MustParse("2.5.999")
+
 func (ms *MilvusSpec) UseStreamingNode() bool {
-	return ms.Com.StreamingNode != nil
+	if ms.Com.StreamingMode != nil {
+		return *ms.Com.StreamingMode
+	}
+	if ms.Com.StreamingNode != nil {
+		return true
+	}
+	image := ms.Com.Image
+	imageParts := strings.Split(image, ":")
+	if len(imageParts) != 2 {
+		return false
+	}
+	imageTag := imageParts[1]
+	sematicVersion, err := semver.ParseTolerant(imageTag)
+	if err != nil {
+		return false
+	}
+	if sematicVersion.GT(sermaticVersion2_5_Max) {
+		return true
+	}
+	return false
 }
 
 // MilvusMode defines the mode of Milvus deployment
