@@ -247,6 +247,11 @@ func (in *MilvusComponents) DeepCopyInto(out *MilvusComponents) {
 			(*out)[key] = val
 		}
 	}
+	if in.StreamingMode != nil {
+		in, out := &in.StreamingMode, &out.StreamingMode
+		*out = new(bool)
+		**out = **in
+	}
 	if in.Proxy != nil {
 		in, out := &in.Proxy, &out.Proxy
 		*out = new(MilvusProxy)
@@ -371,6 +376,7 @@ func (in *MilvusDependencies) DeepCopyInto(out *MilvusDependencies) {
 	in.Etcd.DeepCopyInto(&out.Etcd)
 	in.Pulsar.DeepCopyInto(&out.Pulsar)
 	in.Kafka.DeepCopyInto(&out.Kafka)
+	in.WoodPecker.DeepCopyInto(&out.WoodPecker)
 	in.RocksMQ.DeepCopyInto(&out.RocksMQ)
 	in.NatsMQ.DeepCopyInto(&out.NatsMQ)
 	in.Storage.DeepCopyInto(&out.Storage)

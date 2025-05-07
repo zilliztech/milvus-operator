@@ -7187,6 +7187,9 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
+                  streamingMode:
+                    nullable: true
+                    type: boolean
                   streamingNode:
                     properties:
                       affinity:
