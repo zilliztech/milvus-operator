@@ -24,7 +24,6 @@ type deploymentUpdater interface {
 	GetReplicas() *int32
 	GetSideCars() []corev1.Container
 	GetInitContainers() []corev1.Container
-	GetDeploymentStrategy() appsv1.DeploymentStrategy
 	GetConfCheckSum() string
 	GetMergedComponentSpec() ComponentSpec
 	GetArgs() []string
@@ -39,7 +38,7 @@ type deploymentUpdater interface {
 func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater deploymentUpdater) error {
 	mergedComSpec := updater.GetMergedComponentSpec()
 	deployment.Spec.Paused = mergedComSpec.Paused
-	deployment.Spec.Strategy = updater.GetDeploymentStrategy()
+	deployment.Spec.Strategy = GetDeploymentStrategy(updater.GetMilvus(), updater.GetComponent())
 	if updater.GetMilvus().IsRollingUpdateEnabled() {
 		deployment.Spec.MinReadySeconds = 30
 	}
@@ -464,6 +463,21 @@ func (m milvusDeploymentUpdater) GetDeploymentStrategy() appsv1.DeploymentStrate
 		}
 	}
 	return m.component.GetDeploymentStrategy(m.Spec.Conf.Data)
+}
+
+func GetDeploymentStrategy(milvus *v1beta1.Milvus, component MilvusComponent) appsv1.DeploymentStrategy {
+	if milvus.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce ||
+		milvus.Spec.Com.EnableManualMode {
+		all := intstr.FromString("100%")
+		return appsv1.DeploymentStrategy{
+			Type: appsv1.RollingUpdateDeploymentStrategyType,
+			RollingUpdate: &appsv1.RollingUpdateDeployment{
+				MaxSurge:       &all,
+				MaxUnavailable: &all,
+			},
+		}
+	}
+	return component.GetDeploymentStrategy(milvus.Spec.Conf.Data)
 }
 
 func (m milvusDeploymentUpdater) GetConfCheckSum() string {
