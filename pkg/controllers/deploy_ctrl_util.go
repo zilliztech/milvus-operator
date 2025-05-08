@@ -195,7 +195,7 @@ func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1bet
 	updater := newMilvusDeploymentUpdater(mc, c.cli.Scheme(), c.component)
 	// new deploy group for rolling, should be created without replica
 	deploy.Spec.Replicas = int32Ptr(0)
-	deploy.Spec.Strategy = updater.GetDeploymentStrategy()
+	deploy.Spec.Strategy = GetDeploymentStrategy(updater.GetMilvus(), updater.GetComponent())
 	comSpec := updater.GetMergedComponentSpec()
 	deploy.Spec.Paused = comSpec.Paused
 
@@ -298,6 +298,9 @@ func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v
 		return err
 	}
 	action := c.planNextScaleAction(mc, currentDeployment, lastDeployment)
+	if action != noScaleAction {
+		ctrl.LoggerFrom(ctx).Info("do scale action", "deployName", action.deploy.Name, "replicaChange", action.replicaChange, "isCurrentDeploy", action.deploy == lastDeployment)
+	}
 	return c.doScaleAction(ctx, action)
 }
 
@@ -340,6 +343,8 @@ var noScaleAction = scaleAction{}
 
 func (c *DeployControllerBizUtilImpl) planNextScaleAction(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
 	scaleKind := c.checkScaleKind(mc)
+	currentDeployment.Spec.Strategy = GetDeploymentStrategy(&mc, c.component)
+	lastDeployment.Spec.Strategy = GetDeploymentStrategy(&mc, c.component)
 	switch scaleKind {
 	case scaleKindHPA:
 		return c.planScaleForHPA(currentDeployment)
