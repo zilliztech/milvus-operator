@@ -101,9 +101,12 @@ var Finalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus)
 			deletingReleases[mc.Name+"-pulsar"] = mc.Spec.Dep.Pulsar.InCluster.PVCDeletion
 		}
 	default:
-		// rocksmq
+		builtInMQ := mc.Spec.Dep.GetMilvusBuiltInMQ()
+		if builtInMQ == nil {
+			break
+		}
 		// delete data pvc if need
-		persist := mc.Spec.Dep.RocksMQ.Persistence
+		persist := builtInMQ.Persistence
 		if persist.Enabled && persist.PVCDeletion {
 			pvcName := getPVCNameByInstName(mc.Name)
 			pvc := &corev1.PersistentVolumeClaim{}
