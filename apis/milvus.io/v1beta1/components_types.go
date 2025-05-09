@@ -166,6 +166,10 @@ type MilvusComponents struct {
 	// +kubebuilder:validation:Optional
 	MetricInterval string `json:"metricInterval"`
 
+	// Labels assigned to all metrics scraped from the targets.
+	// +kubebuilder:validation:Optional
+	MetricsLabels map[string]string `json:"metricsLabels,omitempty"`
+
 	// ToolImage specify tool image to merge milvus config to original one in image, default uses same image as milvus-operator
 	// +kubebuilder:validation:Optional
 	ToolImage string `json:"toolImage,omitempty"`

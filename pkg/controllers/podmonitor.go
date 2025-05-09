@@ -35,8 +35,24 @@ func (r *MilvusReconciler) updatePodMonitor(
 			},
 		}
 	}
+
+	addedMetricsLabels := make([]*monitoringv1.RelabelConfig, 0)
+	if len(mc.Spec.Com.MetricsLabels) > 0 {
+		for k, v := range mc.Spec.Com.MetricsLabels {
+			addedMetricsLabels = append(addedMetricsLabels, &monitoringv1.RelabelConfig{
+				Action:      "replace",
+				Replacement: v,
+				TargetLabel: k,
+			})
+		}
+	}
+
 	for i := range podmonitor.Spec.PodMetricsEndpoints {
 		podmonitor.Spec.PodMetricsEndpoints[i].Interval = interval
+
+		if len(addedMetricsLabels) > 0 {
+			podmonitor.Spec.PodMetricsEndpoints[i].MetricRelabelConfigs = addedMetricsLabels
+		}
 	}
 
 	podmonitor.Spec.NamespaceSelector = monitoringv1.NamespaceSelector{
