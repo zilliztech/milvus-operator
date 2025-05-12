@@ -167,6 +167,10 @@ type MilvusComponents struct {
 	// +kubebuilder:validation:Optional
 	MetricInterval monitoringv1.Duration `json:"metricInterval"`
 
+	// MetricLabels labels to be assigned to samples before ingestion
+	// +kubebuilder:validation:Optional
+	MetricLabels map[string]string `json:"metricLabels,omitempty"`
+
 	// ToolImage specify tool image to merge milvus config to original one in image, default uses same image as milvus-operator
 	// +kubebuilder:validation:Optional
 	ToolImage string `json:"toolImage,omitempty"`

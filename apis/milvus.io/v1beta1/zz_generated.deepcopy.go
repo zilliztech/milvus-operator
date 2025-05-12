@@ -240,6 +240,13 @@ func (in *MilvusComponents) DeepCopyInto(out *MilvusComponents) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.MetricLabels != nil {
+		in, out := &in.MetricLabels, &out.MetricLabels
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.Proxy != nil {
 		in, out := &in.Proxy, &out.Proxy
 		*out = new(MilvusProxy)

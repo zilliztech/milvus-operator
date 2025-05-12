@@ -142,3 +142,51 @@ func TestReconciler_ReconcilePodMonitor_ExternalEtcd(t *testing.T) {
 	err := r.ReconcilePodMonitor(ctx, m)
 	assert.NoError(t, err)
 }
+
+func TestReconciler_ReconcilePodMonitor_AddMetricLabels(t *testing.T) {
+	config.Init(util.GetGitRepoRootDir())
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	r := newMilvusReconcilerForTest(ctrl)
+
+	mc := v1beta1.Milvus{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+		Spec: v1beta1.MilvusSpec{
+			Com: v1beta1.MilvusComponents{
+				MetricLabels: map[string]string{
+					"test_label": "test_value",
+				},
+			},
+		},
+	}
+
+	podmonitor := &monitoringv1.PodMonitor{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.PodMonitorSpec{
+			PodMetricsEndpoints: []monitoringv1.PodMetricsEndpoint{
+				{
+					Port: MetricPortName,
+				},
+			},
+		},
+	}
+
+	err := r.updatePodMonitor(mc, podmonitor)
+	assert.NoError(t, err)
+
+	// Verify metrics relabeling configs
+	assert.Greater(t, len(podmonitor.Spec.PodMetricsEndpoints), 1)
+	assert.Equal(t, 1, len(podmonitor.Spec.PodMetricsEndpoints[0].MetricRelabelConfigs))
+
+	relabelConfig := podmonitor.Spec.PodMetricsEndpoints[0].MetricRelabelConfigs[0]
+	assert.Equal(t, "replace", relabelConfig.Action)
+	assert.Equal(t, "test_label", relabelConfig.TargetLabel)
+	assert.Equal(t, "test_value", *relabelConfig.Replacement)
+}
