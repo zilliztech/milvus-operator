@@ -1,0 +1,23 @@
+# This is a sample to deploy a milvus with metrics labels.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  components:
+    metricLabels:
+      test_label1: test_value1
+      test_label2: test_value2
+  dependencies:
+    etcd:
+      inCluster:
+        values:
+          replicaCount: 1
+    storage:
+      inCluster:
+        values:
+          mode: standalone
+          resources:
+            requests:
