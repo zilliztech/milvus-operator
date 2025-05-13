@@ -1,6 +1,6 @@
 module github.com/zilliztech/milvus-operator
 
-go 1.23.0
+go 1.24.2
 
 require (
 	cloud.google.com/go/storage v1.39.1
@@ -238,6 +238,9 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
-replace github.com/apache/pulsar-client-go => github.com/milvus-io/pulsar-client-go v0.6.10
+replace (
+	github.com/apache/pulsar-client-go => github.com/milvus-io/pulsar-client-go v0.6.10
+	github.com/golang-jwt/jwt => github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+)
 
 exclude github.com/apache/pulsar-client-go/oauth2 v0.0.0-20201120111947-b8bd55bc02bd

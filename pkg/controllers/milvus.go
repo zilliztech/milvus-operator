@@ -150,7 +150,7 @@ var Finalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus)
 		}
 
 		if len(errs) > 0 {
-			return errors.Errorf(util.JoinErrors(errs))
+			return errors.New(util.JoinErrors(errs))
 		}
 	}
 
