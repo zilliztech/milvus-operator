@@ -207,14 +207,7 @@ func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Mil
 	if cond == nil || cond.Status != corev1.ConditionTrue {
 		return true, nil
 	}
-
-	deploy, err := c.util.GetOldDeploy(ctx, mc, c.component)
-	if err != nil {
-		return false, errors.Wrap(err, "get querynode deployments")
-	}
-	newPodtemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &deploy.Spec.Template, c.component, false)
-	return c.util.IsNewRollout(ctx, deploy, newPodtemplate), nil
-
+	return false, nil
 }
 
 func (c *DeployControllerBizImpl) IsPaused(ctx context.Context, mc v1beta1.Milvus) bool {
