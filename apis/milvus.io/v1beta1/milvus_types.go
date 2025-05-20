@@ -111,6 +111,23 @@ func (ms MilvusSpec) GetServiceComponent() *ServiceComponent {
 	return &ms.Com.Standalone.ServiceComponent
 }
 
+func (ms MilvusSpec) IsVersionGreaterThan2_6() bool {
+	// parse format: registry/namespace/image:tag
+	splited := strings.Split(ms.Com.Image, ":")
+	if len(splited) != 2 {
+		return false
+	}
+	imageTag := splited[1]
+	if strings.HasPrefix(imageTag, "master-") {
+		return true
+	}
+	sematicVersion, err := semver.ParseTolerant(imageTag)
+	if err != nil {
+		return false
+	}
+	return sematicVersion.GT(sermaticVersion2_5_Max)
+}
+
 // GetMilvusVersionByImage returns the version of Milvus by ms.Com.ComponentSpec.Image
 func (ms MilvusSpec) GetMilvusVersionByImage() (semver.Version, error) {
 	// parse format: registry/namespace/image:tag
@@ -118,7 +135,8 @@ func (ms MilvusSpec) GetMilvusVersionByImage() (semver.Version, error) {
 	if len(splited) != 2 {
 		return semver.Version{}, errors.Errorf("unknown version of image[%s]", splited[0])
 	}
-	return semver.ParseTolerant(splited[1])
+	imageTag := splited[1]
+	return semver.ParseTolerant(imageTag)
 }
 
 func (ms *MilvusSpec) GetPersistenceConfig() *Persistence {
@@ -146,20 +164,7 @@ func (ms *MilvusSpec) UseStreamingNode() bool {
 	if ms.Com.StreamingNode != nil {
 		return true
 	}
-	image := ms.Com.Image
-	imageParts := strings.Split(image, ":")
-	if len(imageParts) != 2 {
-		return false
-	}
-	imageTag := imageParts[1]
-	sematicVersion, err := semver.ParseTolerant(imageTag)
-	if err != nil {
-		return false
-	}
-	if sematicVersion.GT(sermaticVersion2_5_Max) {
-		return true
-	}
-	return false
+	return ms.IsVersionGreaterThan2_6()
 }
 
 // MilvusMode defines the mode of Milvus deployment

@@ -442,7 +442,11 @@ func (r *Milvus) setDefaultMsgStreamType() {
 	if r.Spec.Dep.MsgStreamType == "" {
 		switch r.Spec.Mode {
 		case MilvusModeStandalone:
-			r.Spec.Dep.MsgStreamType = MsgStreamTypeRocksMQ
+			if r.Spec.IsVersionGreaterThan2_6() {
+				r.Spec.Dep.MsgStreamType = MsgStreamTypeWoodPecker
+			} else {
+				r.Spec.Dep.MsgStreamType = MsgStreamTypeRocksMQ
+			}
 		default:
 			r.Spec.Dep.MsgStreamType = MsgStreamTypePulsar
 		}

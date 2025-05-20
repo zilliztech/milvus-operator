@@ -243,3 +243,34 @@ func TestGetActiveConfigMap_SetActiveConfigMap(t *testing.T) {
 	mc.SetActiveConfigMap(mc.Name + "-1")
 	assert.Equal(t, mc.Name+"-1", mc.GetActiveConfigMap())
 }
+
+func TestMilvus_setDefaultMsgStreamType(t *testing.T) {
+	mc := Milvus{}
+
+	t.Run("standalone with master image use wood pecker", func(t *testing.T) {
+		mc.Spec.Mode = MilvusModeStandalone
+		mc.Spec.Com.Image = "milvusdb/milvus:master-"
+		mc.setDefaultMsgStreamType()
+		assert.Equal(t, MsgStreamTypeWoodPecker, mc.Spec.Dep.MsgStreamType)
+	})
+
+	t.Run("standalone with 2.6 image use wood pecker", func(t *testing.T) {
+		mc.Spec.Mode = MilvusModeStandalone
+		mc.Spec.Com.Image = "milvusdb/milvus:2.6.0-rc1"
+		mc.setDefaultMsgStreamType()
+		assert.Equal(t, MsgStreamTypeWoodPecker, mc.Spec.Dep.MsgStreamType)
+	})
+	t.Run("standalone with 2.5 image use rocksmq", func(t *testing.T) {
+		mc.Spec.Mode = MilvusModeStandalone
+		mc.Spec.Com.Image = "milvusdb/milvus:2.5.11"
+		mc.setDefaultMsgStreamType()
+		assert.Equal(t, MsgStreamTypeRocksMQ, mc.Spec.Dep.MsgStreamType)
+	})
+	t.Run("standalone with other image use rocksmq", func(t *testing.T) {
+		mc.Spec.Mode = MilvusModeStandalone
+		mc.Spec.Com.Image = "milvusdb/milvus:unknown"
+		mc.setDefaultMsgStreamType()
+		assert.Equal(t, MsgStreamTypeRocksMQ, mc.Spec.Dep.MsgStreamType)
+	})
+
+}
