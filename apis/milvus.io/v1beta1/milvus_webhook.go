@@ -313,6 +313,13 @@ func (r *Milvus) defaultComponentsReplicas() {
 				spec.Com.StreamingNode.Replicas = &defaultReplicas
 			}
 		}
+
+		if spec.IsVersionGreaterThan2_6() {
+			if spec.Com.MixCoord == nil {
+				spec.Com.MixCoord = &MilvusMixCoord{}
+			}
+		}
+
 		if spec.Com.MixCoord != nil {
 			if spec.Com.MixCoord.Replicas == nil {
 				spec.Com.MixCoord.Replicas = &defaultReplicas
@@ -337,9 +344,15 @@ func (r *Milvus) defaultComponentsReplicas() {
 		if spec.Com.DataNode.Replicas == nil {
 			spec.Com.DataNode.Replicas = &defaultReplicas
 		}
-		if spec.Com.IndexNode.Replicas == nil {
-			spec.Com.IndexNode.Replicas = &defaultReplicas
+
+		if spec.IsVersionGreaterThan2_6() {
+			spec.Com.IndexNode.Replicas = &defaultNoReplicas
+		} else {
+			if spec.Com.IndexNode.Replicas == nil {
+				spec.Com.IndexNode.Replicas = &defaultReplicas
+			}
 		}
+
 		if spec.Com.QueryNode.Replicas == nil {
 			spec.Com.QueryNode.Replicas = &defaultReplicas
 		}
