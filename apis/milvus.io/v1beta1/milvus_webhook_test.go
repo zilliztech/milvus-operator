@@ -133,6 +133,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 			},
 		},
 	}
+	clusterDefault.Com.StreamingMode = util.BoolPtr(false)
 	setEnableActiveStandby(&clusterDefault, true)
 	t.Run("cluster not external dep ok", func(t *testing.T) {
 		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
