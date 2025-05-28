@@ -261,7 +261,7 @@ func (c MilvusComponent) GetServiceType(spec v1beta1.MilvusSpec) corev1.ServiceT
 func (c MilvusComponent) GetServicePorts(spec v1beta1.MilvusSpec) []corev1.ServicePort {
 	servicePorts := []corev1.ServicePort{}
 	targetPort := intstr.FromString(c.GetPortName())
-	if spec.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
+	if spec.Com.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
 		targetPort = intstr.FromInt32(c.GetComponentPort(spec))
 	}
 
@@ -273,7 +273,7 @@ func (c MilvusComponent) GetServicePorts(spec v1beta1.MilvusSpec) []corev1.Servi
 	})
 
 	targetPort = intstr.FromString(MetricPortName)
-	if spec.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
+	if spec.Com.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
 		targetPort = intstr.FromInt32(MetricPort)
 	}
 	servicePorts = append(servicePorts, corev1.ServicePort{
@@ -289,7 +289,7 @@ func (c MilvusComponent) GetServicePorts(spec v1beta1.MilvusSpec) []corev1.Servi
 			if len(port.Name) > 0 {
 				targetPort = intstr.FromString(port.Name)
 			}
-			if spec.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
+			if spec.Com.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
 				targetPort = intstr.FromInt32(port.ContainerPort)
 			}
 			servicePort := corev1.ServicePort{
@@ -305,7 +305,7 @@ func (c MilvusComponent) GetServicePorts(spec v1beta1.MilvusSpec) []corev1.Servi
 	restfulPort := c.GetRestfulPort(spec)
 	if restfulPort != 0 {
 		targetPort = intstr.FromString(RestfulPortName)
-		if spec.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
+		if spec.Com.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
 			targetPort = intstr.FromInt32(restfulPort)
 		}
 		servicePorts = append(servicePorts, corev1.ServicePort{

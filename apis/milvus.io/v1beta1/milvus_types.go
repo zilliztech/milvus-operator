@@ -43,11 +43,6 @@ type MilvusSpec struct {
 	Mode MilvusMode `json:"mode,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Enum:={"string", "integer"}
-	// +kubebuilder:default:="string"
-	TargetPortType ServiceTargetPortType `json:"targetPortType,omitempty"`
-
-	// +kubebuilder:validation:Optional
 	Com MilvusComponents `json:"components,omitempty"`
 
 	// +kubebuilder:validation:Optional
