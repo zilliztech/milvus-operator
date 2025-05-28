@@ -321,7 +321,16 @@ func configVolumeByName(name string) corev1.Volume {
 	}
 }
 
-func persisentVolumeByName(name string) corev1.Volume {
+func emptyDirDataVolume() corev1.Volume {
+	return corev1.Volume{
+		Name: MilvusDataVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}
+}
+
+func persisentDataVolumeByName(name string) corev1.Volume {
 	return corev1.Volume{
 		Name: MilvusDataVolumeName,
 		VolumeSource: corev1.VolumeSource{
@@ -333,7 +342,7 @@ func persisentVolumeByName(name string) corev1.Volume {
 	}
 }
 
-func persistentVolumeMount() corev1.VolumeMount {
+func dataVolumeMount() corev1.VolumeMount {
 	return corev1.VolumeMount{
 		Name:      MilvusDataVolumeName,
 		ReadOnly:  false,

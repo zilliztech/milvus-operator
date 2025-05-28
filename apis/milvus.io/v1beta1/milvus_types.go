@@ -127,6 +127,8 @@ func (ms *MilvusSpec) GetPersistenceConfig() *Persistence {
 		return &ms.Dep.RocksMQ.Persistence
 	case MsgStreamTypeNatsMQ:
 		return &ms.Dep.NatsMQ.Persistence
+	case MsgStreamTypeWoodPecker:
+		return &ms.Dep.WoodPecker.Persistence
 	}
 	return nil
 }
