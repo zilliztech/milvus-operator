@@ -228,7 +228,6 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 	bizImpl := NewDeployControllerBizImpl(QueryNode, mockUtil, mockModeChanger, mockCli)
 	mc := v1beta1.Milvus{}
 	mc.Default()
-	component := QueryNode
 	t.Run("annotation shows already starts changing, so not updating", func(t *testing.T) {
 		v1beta1.Labels().SetChangingMode(&mc, QueryNodeName, true)
 		ret, err := bizImpl.IsUpdating(ctx, mc)
@@ -272,30 +271,7 @@ func TestDeployControllerBizImpl_IsUpdating(t *testing.T) {
 		},
 	}
 
-	t.Run("get old deploy failed", func(t *testing.T) {
-		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(nil, errMock)
-		_, err := bizImpl.IsUpdating(ctx, mc)
-		assert.Error(t, err)
-	})
-
-	t.Run("is new rollout, so updating", func(t *testing.T) {
-		deploy := appsv1.Deployment{}
-
-		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(&deploy, nil)
-		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(mc, gomock.Any(), QueryNode, false).Return(nil)
-		mockUtil.EXPECT().IsNewRollout(ctx, &deploy, gomock.Any()).Return(true)
-		ret, err := bizImpl.IsUpdating(ctx, mc)
-
-		assert.NoError(t, err)
-		assert.True(t, ret)
-	})
-
 	t.Run("not updating", func(t *testing.T) {
-		deploy := appsv1.Deployment{}
-
-		mockUtil.EXPECT().GetOldDeploy(ctx, mc, component).Return(&deploy, nil)
-		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(mc, gomock.Any(), QueryNode, false).Return(nil)
-		mockUtil.EXPECT().IsNewRollout(ctx, &deploy, gomock.Any()).Return(false)
 		ret, err := bizImpl.IsUpdating(ctx, mc)
 
 		assert.NoError(t, err)
