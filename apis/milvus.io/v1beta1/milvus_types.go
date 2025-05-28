@@ -158,13 +158,16 @@ func (ms *MilvusSpec) UseMixCoord() bool {
 var sermaticVersion2_5_Max = semver.MustParse("2.5.999")
 
 func (ms *MilvusSpec) UseStreamingNode() bool {
+	if IsVersionGreaterThan2_6(ms.Com.Image) {
+		return true
+	}
 	if ms.Com.StreamingMode != nil {
 		return *ms.Com.StreamingMode
 	}
 	if ms.Com.StreamingNode != nil {
 		return true
 	}
-	return IsVersionGreaterThan2_6(ms.Com.Image)
+	return false
 }
 
 // MilvusMode defines the mode of Milvus deployment
