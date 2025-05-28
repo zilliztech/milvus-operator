@@ -8088,6 +8088,29 @@ spec:
                         - ""
                         type: string
                     type: object
+                  tei:
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      inCluster:
+                        properties:
+                          chartVersion:
+                            type: string
+                          deletionPolicy:
+                            default: Retain
+                            enum:
+                            - Delete
+                            - Retain
+                            type: string
+                          pvcDeletion:
+                            type: boolean
+                          values:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                    type: object
                 type: object
             type: object
           status:
@@ -8898,6 +8921,29 @@ spec:
                         - Azure
                         - ""
                         type: string
+                    type: object
+                  tei:
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      inCluster:
+                        properties:
+                          chartVersion:
+                            type: string
+                          deletionPolicy:
+                            default: Retain
+                            enum:
+                            - Delete
+                            - Retain
+                            type: string
+                          pvcDeletion:
+                            type: boolean
+                          values:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
                     type: object
                 type: object
               disableMetric:
@@ -17357,6 +17403,29 @@ spec:
                         - Azure
                         - ""
                         type: string
+                    type: object
+                  tei:
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      inCluster:
+                        properties:
+                          chartVersion:
+                            type: string
+                          deletionPolicy:
+                            default: Retain
+                            enum:
+                            - Delete
+                            - Retain
+                            type: string
+                          pvcDeletion:
+                            type: boolean
+                          values:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
                     type: object
                 type: object
               hookConfig:
