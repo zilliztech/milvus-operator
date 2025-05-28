@@ -43,6 +43,11 @@ type MilvusSpec struct {
 	Mode MilvusMode `json:"mode,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum:={"string", "integer"}
+	// +kubebuilder:default:="string"
+	TargetPortType ServiceTargetPortType `json:"targetPortType,omitempty"`
+
+	// +kubebuilder:validation:Optional
 	Com MilvusComponents `json:"components,omitempty"`
 
 	// +kubebuilder:validation:Optional
@@ -145,6 +150,13 @@ type MilvusMode string
 const (
 	MilvusModeCluster    MilvusMode = "cluster"
 	MilvusModeStandalone MilvusMode = "standalone"
+)
+
+type ServiceTargetPortType string
+
+const (
+	ServiceTargetPortTypeString ServiceTargetPortType = "string"
+	ServiceTargetPortTypInteger ServiceTargetPortType = "integer"
 )
 
 // MilvusStatus defines the observed state of Milvus

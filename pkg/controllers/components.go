@@ -260,27 +260,43 @@ func (c MilvusComponent) GetServiceType(spec v1beta1.MilvusSpec) corev1.ServiceT
 // GetServicePorts returns the ports of the component service
 func (c MilvusComponent) GetServicePorts(spec v1beta1.MilvusSpec) []corev1.ServicePort {
 	servicePorts := []corev1.ServicePort{}
+	targetPort := intstr.FromString(c.GetPortName())
+	if spec.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
+		targetPort = intstr.FromInt32(c.GetComponentPort(spec))
+	}
+
 	servicePorts = append(servicePorts, corev1.ServicePort{
 		Name:       c.GetPortName(),
 		Protocol:   corev1.ProtocolTCP,
 		Port:       c.GetComponentPort(spec),
-		TargetPort: intstr.FromInt32(c.GetComponentPort(spec)),
+		TargetPort: targetPort,
 	})
+
+	targetPort = intstr.FromString(MetricPortName)
+	if spec.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
+		targetPort = intstr.FromInt32(MetricPort)
+	}
 	servicePorts = append(servicePorts, corev1.ServicePort{
 		Name:       MetricPortName,
 		Protocol:   corev1.ProtocolTCP,
 		Port:       MetricPort,
-		TargetPort: intstr.FromInt32(MetricPort),
+		TargetPort: targetPort,
 	})
 
 	sideCars := c.GetSideCars(spec)
 	for _, sideCar := range sideCars {
 		for _, port := range sideCar.Ports {
+			if len(port.Name) > 0 {
+				targetPort = intstr.FromString(port.Name)
+			}
+			if spec.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
+				targetPort = intstr.FromInt32(port.ContainerPort)
+			}
 			servicePort := corev1.ServicePort{
 				Name:       port.Name,
 				Protocol:   port.Protocol,
 				Port:       port.ContainerPort,
-				TargetPort: intstr.FromInt32(port.ContainerPort),
+				TargetPort: targetPort,
 			}
 			servicePorts = append(servicePorts, servicePort)
 		}
@@ -288,11 +304,15 @@ func (c MilvusComponent) GetServicePorts(spec v1beta1.MilvusSpec) []corev1.Servi
 
 	restfulPort := c.GetRestfulPort(spec)
 	if restfulPort != 0 {
+		targetPort = intstr.FromString(RestfulPortName)
+		if spec.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
+			targetPort = intstr.FromInt32(restfulPort)
+		}
 		servicePorts = append(servicePorts, corev1.ServicePort{
 			Name:       RestfulPortName,
 			Protocol:   corev1.ProtocolTCP,
 			Port:       restfulPort,
-			TargetPort: intstr.FromInt32(restfulPort),
+			TargetPort: targetPort,
 		})
 	}
 

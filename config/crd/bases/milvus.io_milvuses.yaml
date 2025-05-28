@@ -9127,6 +9127,12 @@ spec:
                 - cluster
                 - standalone
                 type: string
+              targetPortType:
+                default: string
+                enum:
+                - string
+                - integer
+                type: string
             type: object
           status:
             properties:
