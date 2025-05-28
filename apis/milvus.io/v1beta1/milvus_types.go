@@ -147,6 +147,13 @@ const (
 	MilvusModeStandalone MilvusMode = "standalone"
 )
 
+type ServiceTargetPortType string
+
+const (
+	ServiceTargetPortTypeString ServiceTargetPortType = "string"
+	ServiceTargetPortTypInteger ServiceTargetPortType = "integer"
+)
+
 // MilvusStatus defines the observed state of Milvus
 type MilvusStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster

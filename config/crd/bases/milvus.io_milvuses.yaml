@@ -8880,6 +8880,12 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
+                  targetPortType:
+                    default: string
+                    enum:
+                    - string
+                    - integer
+                    type: string
                   tolerations:
                     items:
                       properties:

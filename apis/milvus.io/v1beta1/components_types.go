@@ -148,6 +148,11 @@ const (
 type MilvusComponents struct {
 	ComponentSpec `json:",inline"`
 
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum:={"string", "integer"}
+	// +kubebuilder:default:="string"
+	TargetPortType ServiceTargetPortType `json:"targetPortType,omitempty"`
+
 	// ImageUpdateMode is how the milvus components' image should be updated. works only when rolling update is enabled.
 	// forceUpgrade will update all pods' image immediately, and kills the terminated pods to speed up the process
 	// +kubebuilder:validation:Enum=rollingUpgrade;rollingDowngrade;all;force
