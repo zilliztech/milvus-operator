@@ -520,15 +520,33 @@ func (m milvusDeploymentUpdater) GetMilvus() *v1beta1.Milvus {
 }
 
 func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
+	// Check if the observed generation is up to date
 	if m.Status.ObservedGeneration < m.Generation {
 		return false
 	}
-	deps := m.component.GetDependencies(m.Spec)
+
+	milvus := m.GetMilvus()
+	currImage := milvus.Annotations[v1beta1.CurrentMilvusVersionAnnotation]
+
+	// Determine dependencies based on upgrade scenario
+	var deps []MilvusComponent
+	isUpgradingTo2_6 := !v1beta1.IsVersionGreaterThan2_6(currImage) && v1beta1.IsVersionGreaterThan2_6(milvus.Spec.Com.Image)
+
+	if isUpgradingTo2_6 {
+		// Use special dependency graph for 2.6 upgrade
+		deps = upgrade26ClusterDependencyGraph.GetDependencies(m.component)
+	} else {
+		// Use normal dependency graph
+		deps = m.component.GetDependencies(m.Spec)
+	}
+
+	// Check if all dependencies are updated
 	for _, dep := range deps {
-		if !dep.IsImageUpdated(m.GetMilvus()) {
+		if !dep.IsImageUpdated(milvus) {
 			return false
 		}
 	}
+
 	return true
 }
 

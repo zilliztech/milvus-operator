@@ -227,6 +227,15 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 		}
 	}
 
+	// offline indexnode for version >= 2.6
+	if v1beta1.IsVersionGreaterThan2_6(mc.Spec.Com.Image) && mc.Spec.Com.IndexNode.Replicas != nil && *mc.Spec.Com.IndexNode.Replicas > 0 {
+		mc.Spec.Com.IndexNode.Replicas = int32Ptr(0)
+		err = r.deployCtrl.Reconcile(ctx, mc, IndexNode)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("reconcile milvus deployments errs: %w", err)
 	}

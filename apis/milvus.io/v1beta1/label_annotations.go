@@ -33,6 +33,7 @@ const (
 	// ServiceLabel is the label to indicate whether the pod is a service pod
 	ServiceLabel                         = MilvusIO + "service"
 	OldAnnotationCurrentQueryNodeGroupID = MilvusIO + "current-querynode-group-id"
+	CurrentMilvusVersionAnnotation       = MilvusIO + "current-milvus-version"
 )
 
 // +kubebuilder:object:generate=false

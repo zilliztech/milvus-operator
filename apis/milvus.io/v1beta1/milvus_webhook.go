@@ -228,6 +228,15 @@ func (r *Milvus) DefaultMeta() {
 		Labels().SetCurrentGroupIDStr(r, QueryNodeName, r.Annotations[OldAnnotationCurrentQueryNodeGroupID])
 		r.Annotations[OldAnnotationCurrentQueryNodeGroupID] = ""
 	}
+
+	// set current milvus version annotation based on Spec when milvus is ready and updated
+	milvusReadyCondition := GetMilvusConditionByType(&r.Status, MilvusReady)
+	milvusUpgradeCondition := GetMilvusConditionByType(&r.Status, MilvusUpdated)
+	if milvusReadyCondition != nil && milvusUpgradeCondition != nil &&
+		milvusReadyCondition.Status == corev1.ConditionTrue && milvusUpgradeCondition.Status == corev1.ConditionTrue &&
+		r.Status.ObservedGeneration >= r.Generation {
+		r.Annotations[CurrentMilvusVersionAnnotation] = r.Spec.Com.Image
+	}
 }
 
 func (r *Milvus) DefaultMode() {
@@ -314,7 +323,7 @@ func (r *Milvus) defaultComponentsReplicas() {
 			}
 		}
 
-		if spec.IsVersionGreaterThan2_6() {
+		if IsVersionGreaterThan2_6(spec.Com.Image) {
 			if spec.Com.MixCoord == nil {
 				spec.Com.MixCoord = &MilvusMixCoord{}
 			}
@@ -345,12 +354,8 @@ func (r *Milvus) defaultComponentsReplicas() {
 			spec.Com.DataNode.Replicas = &defaultReplicas
 		}
 
-		if spec.IsVersionGreaterThan2_6() {
-			spec.Com.IndexNode.Replicas = &defaultNoReplicas
-		} else {
-			if spec.Com.IndexNode.Replicas == nil {
-				spec.Com.IndexNode.Replicas = &defaultReplicas
-			}
+		if spec.Com.IndexNode.Replicas == nil && !IsVersionGreaterThan2_6(spec.Com.Image) {
+			spec.Com.IndexNode.Replicas = &defaultReplicas
 		}
 
 		if spec.Com.QueryNode.Replicas == nil {
@@ -455,7 +460,7 @@ func (r *Milvus) setDefaultMsgStreamType() {
 	if r.Spec.Dep.MsgStreamType == "" {
 		switch r.Spec.Mode {
 		case MilvusModeStandalone:
-			if r.Spec.IsVersionGreaterThan2_6() {
+			if IsVersionGreaterThan2_6(r.Spec.Com.Image) {
 				r.Spec.Dep.MsgStreamType = MsgStreamTypeWoodPecker
 			} else {
 				r.Spec.Dep.MsgStreamType = MsgStreamTypeRocksMQ

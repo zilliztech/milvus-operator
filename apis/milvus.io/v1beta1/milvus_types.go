@@ -111,9 +111,9 @@ func (ms MilvusSpec) GetServiceComponent() *ServiceComponent {
 	return &ms.Com.Standalone.ServiceComponent
 }
 
-func (ms MilvusSpec) IsVersionGreaterThan2_6() bool {
+func IsVersionGreaterThan2_6(image string) bool {
 	// parse format: registry/namespace/image:tag
-	splited := strings.Split(ms.Com.Image, ":")
+	splited := strings.Split(image, ":")
 	if len(splited) != 2 {
 		return false
 	}
@@ -164,7 +164,7 @@ func (ms *MilvusSpec) UseStreamingNode() bool {
 	if ms.Com.StreamingNode != nil {
 		return true
 	}
-	return ms.IsVersionGreaterThan2_6()
+	return IsVersionGreaterThan2_6(ms.Com.Image)
 }
 
 // MilvusMode defines the mode of Milvus deployment
