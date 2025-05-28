@@ -1113,6 +1113,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -1758,6 +1760,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -2502,6 +2506,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -3147,6 +3153,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -3799,6 +3807,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -4510,6 +4520,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -5155,6 +5167,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -5800,6 +5814,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -6480,6 +6496,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -7179,6 +7197,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -7827,6 +7847,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -7883,6 +7905,8 @@ spec:
                     type: boolean
                   updateToolImage:
                     type: boolean
+                  version:
+                    type: string
                   volumeMounts:
                     items:
                       properties:
@@ -8109,6 +8133,29 @@ spec:
                         - ""
                         type: string
                     type: object
+                  tei:
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      inCluster:
+                        properties:
+                          chartVersion:
+                            type: string
+                          deletionPolicy:
+                            default: Retain
+                            enum:
+                            - Delete
+                            - Retain
+                            type: string
+                          pvcDeletion:
+                            type: boolean
+                          values:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                    type: object
                   woodpecker:
                     properties:
                       persistence:
@@ -8222,6 +8269,10 @@ spec:
                   - type
                   type: object
                 type: array
+              currentImage:
+                type: string
+              currentVersion:
+                type: string
               endpoint:
                 type: string
               ingress:
@@ -8959,6 +9010,29 @@ spec:
                         - ""
                         type: string
                     type: object
+                  tei:
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      inCluster:
+                        properties:
+                          chartVersion:
+                            type: string
+                          deletionPolicy:
+                            default: Retain
+                            enum:
+                            - Delete
+                            - Retain
+                            type: string
+                          pvcDeletion:
+                            type: boolean
+                          values:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                    type: object
                   woodpecker:
                     properties:
                       persistence:
@@ -9212,6 +9286,8 @@ spec:
                       type: string
                   type: object
                 type: array
+              version:
+                type: string
               volumeMounts:
                 items:
                   properties:
@@ -9324,6 +9400,10 @@ spec:
                   - type
                   type: object
                 type: array
+              currentImage:
+                type: string
+              currentVersion:
+                type: string
               endpoint:
                 type: string
               ingress:
@@ -10470,6 +10550,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -11115,6 +11197,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -11859,6 +11943,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -12504,6 +12590,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -13156,6 +13244,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -13867,6 +13957,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -14512,6 +14604,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -15157,6 +15251,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -15837,6 +15933,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -16536,6 +16634,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -17184,6 +17284,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -17240,6 +17342,8 @@ spec:
                     type: boolean
                   updateToolImage:
                     type: boolean
+                  version:
+                    type: string
                   volumeMounts:
                     items:
                       properties:
@@ -17466,6 +17570,29 @@ spec:
                         - ""
                         type: string
                     type: object
+                  tei:
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      inCluster:
+                        properties:
+                          chartVersion:
+                            type: string
+                          deletionPolicy:
+                            default: Retain
+                            enum:
+                            - Delete
+                            - Retain
+                            type: string
+                          pvcDeletion:
+                            type: boolean
+                          values:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                    type: object
                   woodpecker:
                     properties:
                       persistence:
@@ -17589,6 +17716,10 @@ spec:
                   - type
                   type: object
                 type: array
+              currentImage:
+                type: string
+              currentVersion:
+                type: string
               endpoint:
                 type: string
               ingress:

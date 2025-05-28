@@ -5,7 +5,7 @@ TOOL_IMG ?= milvus-config-tool:dev-latest
 SIT_IMG ?= milvus-operator:sit
 VERSION ?= 1.2.6
 TOOL_VERSION ?= 1.0.0
-MILVUS_HELM_VERSION ?= milvus-4.2.48
+MILVUS_HELM_VERSION ?= milvus-4.2.50
 RELEASE_IMG ?= milvusdb/milvus-operator:v$(VERSION)
 TOOL_RELEASE_IMG ?= milvusdb/milvus-config-tool:v$(TOOL_VERSION)
 KIND_CLUSTER ?= kind
@@ -121,12 +121,14 @@ docker-prepare: build-release out/config/assets/templates
 	wget https://github.com/apache/pulsar-helm-chart/releases/download/pulsar-2.7.8/pulsar-2.7.8.tgz -O ./pulsar.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/pulsar-3.3.0.tgz -O ./pulsarv3.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/kafka-15.5.1.tgz -O ./kafka.tgz
+	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/tei-1.6.0.tgz -O ./tei.tgz
 	tar -xf ./etcd.tgz -C ./out/config/assets/charts/
 	tar -xf ./minio.tgz -C ./out/config/assets/charts/
 	tar -xf ./pulsarv3.tgz -C ./out/config/assets/
 	mv ./out/config/assets/pulsar ./out/config/assets/charts/pulsarv3
 	tar -xf ./pulsar.tgz -C ./out/config/assets/charts/
 	tar -xf ./kafka.tgz -C ./out/config/assets/charts/
+	tar -xf ./tei.tgz -C ./out/config/assets/charts/
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/values.yaml -O ./out/config/assets/charts/values.yaml
 	cp ./scripts/run.sh ./out/run.sh
 	cp ./scripts/run-helm.sh ./out/run-helm.sh

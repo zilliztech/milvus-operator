@@ -363,7 +363,22 @@ func (r *Milvus) DefaultDependencies() {
 	r.defaultEtcd()
 	r.defaultMsgStream()
 	r.defaultStorage()
+	r.defaultTei()
 	r.setDefaultValueMerged()
+}
+
+func (r *Milvus) defaultTei() {
+	if r.Spec.Dep.Tei.Enabled {
+		if r.Spec.Dep.Tei.InCluster == nil {
+			r.Spec.Dep.Tei.InCluster = &InClusterConfig{}
+		}
+		if r.Spec.Dep.Tei.InCluster.Values.Data == nil {
+			r.Spec.Dep.Tei.InCluster.Values.Data = map[string]interface{}{}
+		}
+		if r.Spec.Dep.Tei.InCluster.DeletionPolicy == "" {
+			r.Spec.Dep.Tei.InCluster.DeletionPolicy = DeletionPolicyDelete
+		}
+	}
 }
 
 func (r *Milvus) defaultEtcd() {

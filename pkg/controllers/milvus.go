@@ -45,6 +45,7 @@ func (r *MilvusReconciler) ReconcileAll(ctx context.Context, mc v1beta1.Milvus) 
 		r.ReconcileEtcd,
 		r.ReconcileMsgStream,
 		r.ReconcileMinio,
+		r.ReconcileTei,
 		r.ReconcileMilvus,
 	}
 	err := defaultGroupRunner.Run(reconcilers, ctx, mc)
@@ -129,6 +130,10 @@ var Finalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus)
 
 	if !mc.Spec.Dep.Storage.External && mc.Spec.Dep.Storage.InCluster.DeletionPolicy == v1beta1.DeletionPolicyDelete {
 		deletingReleases[mc.Name+"-minio"] = mc.Spec.Dep.Storage.InCluster.PVCDeletion
+	}
+
+	if mc.Spec.Dep.Tei.Enabled && mc.Spec.Dep.Tei.InCluster.DeletionPolicy == v1beta1.DeletionPolicyDelete {
+		deletingReleases[mc.Name+"-tei"] = mc.Spec.Dep.Tei.InCluster.PVCDeletion
 	}
 
 	if len(deletingReleases) > 0 {

@@ -3,8 +3,7 @@
 apiVersion: milvus.io/v1beta1
 kind: Milvus
 metadata:
-  name: milvus
-  namespace: mc-sit
+  name: my-release
   labels:
     app: milvus
 spec:

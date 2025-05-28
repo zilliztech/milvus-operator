@@ -42,6 +42,10 @@ type MilvusDependencies struct {
 	// +kubebuilder:validation:Optional
 	Storage MilvusStorage `json:"storage"`
 
+	// Tei for Text Embeddings Inference
+	// +optional
+	Tei MilvusTei `json:"tei,omitempty"`
+
 	// CustomMsgStream user can implements reconciler on this field
 	// milvus-operator will not check the mq status
 	// +kubebuilder:validation:Optional
@@ -189,4 +193,14 @@ type MilvusKafka struct {
 
 	// +kubebuilder:validation:Optional
 	BrokerList []string `json:"brokerList,omitempty"`
+}
+
+// MilvusTei configuration
+type MilvusTei struct {
+	// +kubebuilder:validation:Optional
+	InCluster *InClusterConfig `json:"inCluster,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	Enabled bool `json:"enabled,omitempty"`
 }

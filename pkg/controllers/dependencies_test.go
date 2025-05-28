@@ -187,4 +187,16 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 	// external ignored
 	m.Spec.Dep.Pulsar.External = true
 	assert.NoError(t, r.ReconcilePulsar(ctx, m))
+
+	t.Run("tei reconcile", func(t *testing.T) {
+		m.Spec.Dep.Tei.Enabled = true
+		m.Spec.Dep.Tei.InCluster = icc
+		mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, request helm.ChartRequest) error {
+				assert.Equal(t, request.Chart, helm.GetChartPathByName(Tei))
+				return nil
+			})
+		assert.NoError(t, r.ReconcileTei(ctx, m))
+		m.Spec.Dep.Tei.Enabled = false
+	})
 }

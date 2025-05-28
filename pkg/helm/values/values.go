@@ -22,6 +22,7 @@ const (
 	DependencyKindStorage DependencyKind = "Storage"
 	DependencyKindPulsar  DependencyKind = "Pulsar"
 	DependencyKindKafka   DependencyKind = "Kafka"
+	DependencyKindTei     DependencyKind = "Tei"
 
 	// Chart names & values sub-fields in milvus-helm
 	Etcd     = "etcd"
@@ -29,6 +30,7 @@ const (
 	Pulsar   = "pulsar"
 	PulsarV3 = "pulsarv3"
 	Kafka    = "kafka"
+	Tei      = "tei"
 )
 
 const (
@@ -88,6 +90,8 @@ func (d DefaultValuesProviderImpl) GetDefaultValues(dependencyName DependencyKin
 		return d.chartDefaultValues[Pulsar]
 	case DependencyKindKafka:
 		return d.chartDefaultValues[Kafka]
+	case DependencyKindTei:
+		return d.chartDefaultValues[Tei]
 	default:
 		return map[string]interface{}{}
 	}
