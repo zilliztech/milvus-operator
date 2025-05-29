@@ -345,7 +345,7 @@ func (r *Milvus) defaultComponentsReplicas() {
 			spec.Com.DataNode.Replicas = &defaultReplicas
 		}
 
-		if spec.Com.IndexNode.Replicas == nil && !IsVersionGreaterThan2_6(spec.Com.Image) {
+		if !IsVersionGreaterThan2_6(spec.Com.Image) && spec.Com.IndexNode.Replicas == nil {
 			spec.Com.IndexNode.Replicas = &defaultReplicas
 		}
 
