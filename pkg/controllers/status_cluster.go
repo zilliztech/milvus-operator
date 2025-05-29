@@ -288,6 +288,12 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 		return errors.Wrap(err, "handle terminating pods failed")
 	}
 
+	// set current milvus version annotation based on Spec when milvus is ready and updated
+	if IsMilvusConditionTrueByType(mc.Status.Conditions, v1beta1.MilvusReady) &&
+		IsMilvusConditionTrueByType(mc.Status.Conditions, v1beta1.MilvusUpdated) {
+		mc.Status.CurrentImage = mc.Spec.Com.Image
+	}
+
 	statusInfo := MilvusHealthStatusInfo{
 		LastState:  mc.Status.Status,
 		IsStopping: mc.Spec.IsStopping(),

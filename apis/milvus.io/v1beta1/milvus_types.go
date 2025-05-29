@@ -212,6 +212,10 @@ type MilvusStatus struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
+
+	// CurrentImage is the current image of the milvus cluster
+	// +optional
+	CurrentImage string `json:"currentImage,omitempty"`
 }
 
 // RollingMode we have changed our rolling mode several times, so we use this enum to track the version of rolling mode the milvus CR is using

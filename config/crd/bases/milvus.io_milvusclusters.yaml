@@ -8185,6 +8185,8 @@ spec:
                   - type
                   type: object
                 type: array
+              currentImage:
+                type: string
               endpoint:
                 type: string
               ingress:

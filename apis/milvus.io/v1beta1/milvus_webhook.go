@@ -228,15 +228,6 @@ func (r *Milvus) DefaultMeta() {
 		Labels().SetCurrentGroupIDStr(r, QueryNodeName, r.Annotations[OldAnnotationCurrentQueryNodeGroupID])
 		r.Annotations[OldAnnotationCurrentQueryNodeGroupID] = ""
 	}
-
-	// set current milvus version annotation based on Spec when milvus is ready and updated
-	milvusReadyCondition := GetMilvusConditionByType(&r.Status, MilvusReady)
-	milvusUpgradeCondition := GetMilvusConditionByType(&r.Status, MilvusUpdated)
-	if milvusReadyCondition != nil && milvusUpgradeCondition != nil &&
-		milvusReadyCondition.Status == corev1.ConditionTrue && milvusUpgradeCondition.Status == corev1.ConditionTrue &&
-		r.Status.ObservedGeneration >= r.Generation {
-		r.Annotations[CurrentMilvusVersionAnnotation] = r.Spec.Com.Image
-	}
 }
 
 func (r *Milvus) DefaultMode() {

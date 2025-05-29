@@ -88,6 +88,38 @@ func (r *MilvusReconciler) updateDeployment(
 	return updateDeployment(deployment, updater)
 }
 
+func (r *MilvusReconciler) DeleteDeploymentsIfExists(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
+	namespacedName := NamespacedName(mc.Namespace, component.GetDeploymentName(mc.Name))
+	deployment := &appsv1.Deployment{}
+
+	err := r.Get(ctx, namespacedName, deployment)
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			r.logger.Info("Deployment not found, skip delete",
+				"component", component.Name,
+				"name", namespacedName.Name,
+				"namespace", namespacedName.Namespace)
+			return nil
+		}
+		return pkgerr.Wrapf(err, "get deployment %s/%s failed", namespacedName.Namespace, namespacedName.Name)
+	}
+
+	r.logger.Info("Deleting deployment",
+		"component", component.Name,
+		"deployment name", deployment.Name,
+		"namespace", deployment.Namespace)
+
+	if err := r.Delete(ctx, deployment); err != nil {
+		return pkgerr.Wrapf(err, "delete deployment %s/%s failed", deployment.Namespace, deployment.Name)
+	}
+
+	r.logger.Info("Successfully deleted deployment",
+		"component", component.Name,
+		"deployment name", deployment.Name,
+		"namespace", deployment.Namespace)
+	return nil
+}
+
 func (r *MilvusReconciler) ReconcileComponentDeployment(
 	ctx context.Context, mc v1beta1.Milvus, component MilvusComponent,
 ) error {
@@ -227,20 +259,36 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 		}
 	}
 
-	// offline indexnode for version >= 2.6
-	if v1beta1.IsVersionGreaterThan2_6(mc.Spec.Com.Image) && IsMilvusDeploymentsComplete(&mc) && mc.Spec.Com.IndexNode != nil {
-		r.logger.Info("Offline indexnode", "indexnode replicas", mc.Spec.Com.IndexNode.Replicas)
-		mc.Spec.Com.IndexNode.Replicas = int32Ptr(0)
-		err = r.ReconcileComponentDeployment(ctx, mc, IndexNode)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
 	if len(errs) > 0 {
 		return fmt.Errorf("reconcile milvus deployments errs: %w", err)
 	}
 
+	err = r.cleanupIndexNodeIfNeeded(ctx, mc)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *MilvusReconciler) cleanupIndexNodeIfNeeded(ctx context.Context, mc v1beta1.Milvus) error {
+	// offline indexnode for version >= 2.6, when proxy image is updated
+	if v1beta1.IsVersionGreaterThan2_6(mc.Spec.Com.Image) && Proxy.IsImageUpdated(&mc) && mc.Spec.Com.IndexNode != nil {
+		r.logger.Info("Offline indexnode", "namespace", mc.Namespace, "name", mc.Name, "indexnode spec", mc.Spec.Com.IndexNode)
+
+		err := r.DeleteDeploymentsIfExists(ctx, mc, IndexNode)
+		if err != nil {
+			return err
+		}
+
+		mc.Spec.Com.IndexNode = nil
+		err = r.Update(ctx, &mc)
+		if err != nil {
+			return err
+		}
+
+		r.logger.Info("Succeully delete indexnode deployment and spec", "namespace", mc.Namespace, "name", mc.Name)
+	}
 	return nil
 }
 

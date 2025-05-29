@@ -249,14 +249,14 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	container.Args = updater.GetArgs()
 	env := mergedComSpec.Env
 	env = append(env, GetStorageSecretRefEnv(updater.GetSecretRef())...)
-	if updater.GetMilvus().Spec.UseStreamingNode() {
-		env = append(env,
-			corev1.EnvVar{
-				Name:  "MILVUS_STREAMING_SERVICE_ENABLED",
-				Value: "1",
-			},
-		)
-	}
+	// if updater.GetMilvus().Spec.UseStreamingNode() {
+	// 	env = append(env,
+	// 		corev1.EnvVar{
+	// 			Name:  "MILVUS_STREAMING_SERVICE_ENABLED",
+	// 			Value: "1",
+	// 		},
+	// 	)
+	// }
 	container.Env = MergeEnvVar(container.Env, env)
 	metricPort := corev1.ContainerPort{
 		Name:          MetricPortName,
@@ -525,13 +525,12 @@ func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 		return false
 	}
 
-	milvus := m.GetMilvus()
-	currImage := milvus.Annotations[v1beta1.CurrentMilvusVersionAnnotation]
-
 	// Determine dependencies based on upgrade scenario
-	var deps []MilvusComponent
-	isUpgradingTo2_6 := !v1beta1.IsVersionGreaterThan2_6(currImage) && v1beta1.IsVersionGreaterThan2_6(milvus.Spec.Com.Image)
+	milvus := m.GetMilvus()
+	isUpgradingTo2_6 := !v1beta1.IsVersionGreaterThan2_6(milvus.Status.CurrentImage) &&
+		v1beta1.IsVersionGreaterThan2_6(milvus.Spec.Com.Image)
 
+	var deps []MilvusComponent
 	if isUpgradingTo2_6 {
 		// Use special dependency graph for 2.6 upgrade
 		deps = upgrade26ClusterDependencyGraph.GetDependencies(m.component)
