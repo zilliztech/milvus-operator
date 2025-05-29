@@ -281,7 +281,7 @@ func (r *Milvus) DefaultComponents() {
 		if spec.Com.DataNode == nil {
 			spec.Com.DataNode = &MilvusDataNode{}
 		}
-		if spec.Com.IndexNode == nil {
+		if !IsVersionGreaterThan2_6(spec.Com.Image) && spec.Com.IndexNode == nil {
 			spec.Com.IndexNode = &MilvusIndexNode{}
 		}
 		if spec.Com.QueryNode == nil {
