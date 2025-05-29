@@ -54,8 +54,7 @@ func init() {
 	mixCoordClusterDependencyGraph.AddDependency(DataNode, []MilvusComponent{QueryNode})
 	mixCoordClusterDependencyGraph.AddDependency(Proxy, []MilvusComponent{DataNode})
 
-	streamingNodeClusterDependencyGraph.AddDependency(IndexNode, []MilvusComponent{})
-	streamingNodeClusterDependencyGraph.AddDependency(MixCoord, []MilvusComponent{IndexNode})
+	streamingNodeClusterDependencyGraph.AddDependency(MixCoord, []MilvusComponent{})
 	streamingNodeClusterDependencyGraph.AddDependency(StreamingNode, []MilvusComponent{MixCoord})
 	streamingNodeClusterDependencyGraph.AddDependency(QueryNode, []MilvusComponent{StreamingNode})
 	streamingNodeClusterDependencyGraph.AddDependency(DataNode, []MilvusComponent{QueryNode})
