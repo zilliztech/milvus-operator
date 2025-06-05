@@ -1,0 +1,30 @@
+# the manifest to enable streaming node for milvus cluster mode
+# ref https://milvus.io/docs/release_notes.md#Streaming-Node-Beta
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  mode: 'standalone'
+  components:
+    image: milvusdb/milvus:master-lastest
+  dependencies:
+    tei:
+      enabled: true
+      inCluster:
+        values:
+          modelId: "BAAI/bge-large-en-v1.5"    # Model ID
+          extraArgs: []                        # Additional command line arguments for TEI, such as "--max-batch-tokens=16384", "--max-client-batch-size=32", "--max-concurrent-requests=128", etc.
+          replicaCount: 1                      # Number of TEI replicas
+          image:
+            repository: ghcr.io/huggingface/text-embeddings-inference  # Image repository
+            tag: cpu-1.6                       # Image tag (CPU version)
+          resources:
+            requests:
+              cpu: "0.01"
+              memory: "100Mi"
+            limits:
+              cpu: "8"
+              memory: "16Gi"
