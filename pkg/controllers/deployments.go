@@ -273,7 +273,7 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 
 func (r *MilvusReconciler) cleanupIndexNodeIfNeeded(ctx context.Context, mc v1beta1.Milvus) error {
 	// offline indexnode for version >= 2.6, when proxy image is updated
-	if v1beta1.IsVersionGreaterThan2_6(mc.Spec.Com.Image) && Proxy.IsImageUpdated(&mc) && mc.Spec.Com.IndexNode != nil {
+	if v1beta1.IsVersionGreaterThan2_6(mc.Spec.Com.Version) && Proxy.IsImageUpdated(&mc) && mc.Spec.Com.IndexNode != nil {
 		r.logger.Info("Offline indexnode", "namespace", mc.Namespace, "name", mc.Name, "indexnode spec", mc.Spec.Com.IndexNode)
 
 		err := r.DeleteDeploymentsIfExists(ctx, mc, IndexNode)

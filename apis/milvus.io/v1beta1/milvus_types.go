@@ -111,17 +111,11 @@ func (ms MilvusSpec) GetServiceComponent() *ServiceComponent {
 	return &ms.Com.Standalone.ServiceComponent
 }
 
-func IsVersionGreaterThan2_6(image string) bool {
-	// parse format: registry/namespace/image:tag
-	splited := strings.Split(image, ":")
-	if len(splited) != 2 {
-		return false
-	}
-	imageTag := splited[1]
-	if strings.HasPrefix(imageTag, "master-") {
+func IsVersionGreaterThan2_6(version string) bool {
+	if strings.HasPrefix(version, "master-") {
 		return true
 	}
-	sematicVersion, err := semver.ParseTolerant(imageTag)
+	sematicVersion, err := semver.ParseTolerant(version)
 	if err != nil {
 		return false
 	}
@@ -137,6 +131,15 @@ func (ms MilvusSpec) GetMilvusVersionByImage() (semver.Version, error) {
 	}
 	imageTag := splited[1]
 	return semver.ParseTolerant(imageTag)
+}
+
+func (m MilvusSpec) GetMilvusTagByImage() string {
+	// parse format: registry/namespace/image:tag
+	splited := strings.Split(m.Com.Image, ":")
+	if len(splited) != 2 {
+		return ""
+	}
+	return splited[1]
 }
 
 func (ms *MilvusSpec) GetPersistenceConfig() *Persistence {
@@ -158,7 +161,7 @@ func (ms *MilvusSpec) UseMixCoord() bool {
 var sermaticVersion2_5_Max = semver.MustParse("2.5.999")
 
 func (ms *MilvusSpec) UseStreamingNode() bool {
-	if IsVersionGreaterThan2_6(ms.Com.Image) {
+	if IsVersionGreaterThan2_6(ms.Com.Version) {
 		return true
 	}
 	if ms.Com.StreamingMode != nil {
@@ -216,6 +219,10 @@ type MilvusStatus struct {
 	// CurrentImage is the current image of the milvus cluster
 	// +optional
 	CurrentImage string `json:"currentImage,omitempty"`
+
+	// CurrentVersion is the current version of the milvus cluster
+	// +optional
+	CurrentVersion string `json:"currentVersion,omitempty"`
 }
 
 // RollingMode we have changed our rolling mode several times, so we use this enum to track the version of rolling mode the milvus CR is using

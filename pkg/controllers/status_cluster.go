@@ -292,6 +292,7 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 	if IsMilvusConditionTrueByType(mc.Status.Conditions, v1beta1.MilvusReady) &&
 		IsMilvusConditionTrueByType(mc.Status.Conditions, v1beta1.MilvusUpdated) {
 		mc.Status.CurrentImage = mc.Spec.Com.Image
+		mc.Status.CurrentVersion = mc.Spec.Com.Version
 	}
 
 	statusInfo := MilvusHealthStatusInfo{

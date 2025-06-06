@@ -527,8 +527,8 @@ func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 
 	// Determine dependencies based on upgrade scenario
 	milvus := m.GetMilvus()
-	isUpgradingTo2_6 := !v1beta1.IsVersionGreaterThan2_6(milvus.Status.CurrentImage) &&
-		v1beta1.IsVersionGreaterThan2_6(milvus.Spec.Com.Image)
+	isUpgradingTo2_6 := !v1beta1.IsVersionGreaterThan2_6(milvus.Status.CurrentVersion) &&
+		v1beta1.IsVersionGreaterThan2_6(milvus.Spec.Com.Version)
 
 	var deps []MilvusComponent
 	if isUpgradingTo2_6 {

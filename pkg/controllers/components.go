@@ -132,7 +132,7 @@ func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
 	if spec.Mode != v1beta1.MilvusModeCluster {
 		return StandaloneComponents
 	}
-	if v1beta1.IsVersionGreaterThan2_6(spec.Com.Image) {
+	if v1beta1.IsVersionGreaterThan2_6(spec.Com.Version) {
 		return Milvus2_6Components
 	}
 	var ret = []MilvusComponent{}
