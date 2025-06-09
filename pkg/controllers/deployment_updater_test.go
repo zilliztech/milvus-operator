@@ -301,6 +301,8 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 	})
 
 	t.Run("streamingnode set env", func(t *testing.T) {
+		// Streaming node env setting functionality (beta version) removed in v2.17
+		t.Skip()
 		inst := env.Inst.DeepCopy()
 		inst.Spec.Com.StreamingNode = &v1beta1.MilvusStreamingNode{}
 		inst.Default()
