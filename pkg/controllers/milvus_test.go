@@ -134,24 +134,40 @@ func TestCluster_SetDefaultStatus(t *testing.T) {
 	errTest := errors.New("test")
 
 	// no status, set default failed
-	m := env.Inst
-	mockClient.EXPECT().Status().Return(mockStatusCli)
-	mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errTest)
-	err := r.SetDefaultStatus(ctx, &m)
-	assert.Error(t, err)
+	t.Run("no status, set default failed", func(t *testing.T) {
+		m := env.Inst
+		mockClient.EXPECT().Status().Return(mockStatusCli).Times(1)
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errTest)
+		err := r.SetDefaultStatus(ctx, &m)
+		assert.Error(t, err)
+	})
 
-	// no status, set default ok
-	m = env.Inst // ptr value changed, need reset
-	mockClient.EXPECT().Status().Return(mockStatusCli)
-	mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any())
-	err = r.SetDefaultStatus(ctx, &m)
-	assert.NoError(t, err)
+	t.Run("no status, set default ok", func(t *testing.T) {
+		m := env.Inst
+		mockClient.EXPECT().Status().Return(mockStatusCli)
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any())
+		err := r.SetDefaultStatus(ctx, &m)
+		assert.NoError(t, err)
+	})
 
-	// has status, not set
-	m = env.Inst // ptr value changed, need reset
-	m.Status.Status = v1beta1.StatusPending
-	err = r.SetDefaultStatus(ctx, &m)
-	assert.NoError(t, err)
+	t.Run("has status, CurrentImage and currentVersion, not set", func(t *testing.T) {
+		m := env.Inst
+		m.Status.Status = v1beta1.StatusPending
+		m.Status.CurrentImage = "milvusdb/milvus:2.6.0"
+		m.Status.CurrentVersion = "2.6.0"
+		err := r.SetDefaultStatus(ctx, &m)
+		assert.NoError(t, err)
+	})
+
+	t.Run("has status, missing currentImage, set default ok", func(t *testing.T) {
+		m := env.Inst
+		m.Status.Status = v1beta1.StatusPending
+		m.Status.CurrentImage = "milvusdb/milvus:2.6.0"
+		mockClient.EXPECT().Status().Return(mockStatusCli)
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any())
+		err := r.SetDefaultStatus(ctx, &m)
+		assert.NoError(t, err)
+	})
 }
 
 func TestCluster_ReconcileAll(t *testing.T) {
