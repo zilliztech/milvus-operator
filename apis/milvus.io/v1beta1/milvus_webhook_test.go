@@ -56,7 +56,8 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		Com: MilvusComponents{
 			ImageUpdateMode: ImageUpdateModeRollingUpgrade,
 			ComponentSpec: ComponentSpec{
-				Image: config.DefaultMilvusImage,
+				Image:   config.DefaultMilvusImage,
+				Version: config.DefaultMilvusSementicVersion,
 			},
 			Standalone: &MilvusStandalone{
 				ServiceComponent: ServiceComponent{
@@ -106,7 +107,8 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 	clusterDefault.Com = MilvusComponents{
 		ImageUpdateMode: ImageUpdateModeRollingUpgrade,
 		ComponentSpec: ComponentSpec{
-			Image: config.DefaultMilvusImage,
+			Image:   config.DefaultMilvusImage,
+			Version: config.DefaultMilvusSementicVersion,
 		},
 		RollingMode: RollingModeV2,
 		Proxy: &MilvusProxy{
@@ -357,6 +359,21 @@ func TestMilvus_validateCommon(t *testing.T) {
 		err = mc.validateCommon()
 		assert.Nil(t, err)
 	})
+
+	t.Run("validate version ok", func(t *testing.T) {
+		mc.Spec.Com.Version = config.DefaultMilvusSementicVersion
+		mc.Default()
+		err := mc.validateCommon()
+		assert.Nil(t, err)
+	})
+
+	t.Run("validate version failed", func(t *testing.T) {
+		mc.Spec.Com.Version = "bad"
+		mc.Default()
+		err := mc.validateCommon()
+		assert.Error(t, err)
+	})
+
 	t.Run("validate persist default ok", func(t *testing.T) {
 		mc.Spec.Com.EnableRollingUpdate = util.BoolPtr(false)
 		mc.Spec.Dep.MsgStreamType = ""

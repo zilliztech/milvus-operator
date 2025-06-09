@@ -93,6 +93,9 @@ func (r *Milvus) validateCommon() *field.Error {
 	if err := r.validatePersistConfig(); err != nil {
 		return err
 	}
+	if err := r.validateVersion(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -181,6 +184,20 @@ func (r *Milvus) validateExternal() field.ErrorList {
 	return allErrs
 }
 
+// validate optional version field
+func (r *Milvus) validateVersion() *field.Error {
+	spec := &r.Spec
+
+	if spec.Com.Version == "" {
+		return nil
+	}
+
+	if _, err := spec.GetSemanticVersion(); err != nil {
+		return field.Invalid(field.NewPath("spec").Child("components").Child("version"), spec.Com.Version, err.Error())
+	}
+	return nil
+}
+
 func required(mainPath *field.Path) *field.Error {
 	return field.Required(mainPath, fmt.Sprintf("%s should be configured", mainPath.String()))
 }
@@ -246,9 +263,17 @@ func (r *Milvus) noCoordSpecifiedByUser() bool {
 func (r *Milvus) DefaultComponents() {
 	spec := &r.Spec
 	setDefaultStr(&spec.Com.Image, config.DefaultMilvusImage)
-	if spec.Com.Version == "" {
-		spec.Com.Version = r.Spec.GetMilvusTagByImage()
+
+	// Set version from image tag, version field or unknown version
+	if version, err := spec.GetMilvusVersionByImage(); err == nil {
+		spec.Com.Version = version.FinalizeVersion()
+	} else if spec.Com.Version != "" {
+		version, _ := spec.GetSemanticVersion()
+		spec.Com.Version = version.FinalizeVersion()
+	} else {
+		spec.Com.Version = config.UnknownMilvusSementicVersion
 	}
+
 	if spec.Com.ImageUpdateMode == "" {
 		spec.Com.ImageUpdateMode = ImageUpdateModeRollingUpgrade
 	}

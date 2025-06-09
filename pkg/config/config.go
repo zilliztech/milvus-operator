@@ -10,10 +10,12 @@ const (
 	// DefaultMilvusBaseImage is the default Miluvs container image.
 	DefaultMilvusBaseImage = "milvusdb/milvus"
 	// DefaultMilvusImage is the default container image:version.
-	DefaultMilvusImage     = DefaultMilvusBaseImage + ":" + DefaultMilvusVersion
-	milvusConfigTpl        = "milvus.yaml.tmpl"
-	milvusClusterConfigTpl = "milvus-cluster.yaml.tmpl"
-	migrationConfigTpl     = "migration.yaml.tmpl"
+	DefaultMilvusImage           = DefaultMilvusBaseImage + ":" + DefaultMilvusVersion
+	DefaultMilvusSementicVersion = "2.5.10"
+	UnknownMilvusSementicVersion = "0.0.0"
+	milvusConfigTpl              = "milvus.yaml.tmpl"
+	milvusClusterConfigTpl       = "milvus-cluster.yaml.tmpl"
+	migrationConfigTpl           = "migration.yaml.tmpl"
 )
 
 const (
