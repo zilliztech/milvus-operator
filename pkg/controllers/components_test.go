@@ -33,6 +33,8 @@ func TestGetComponentsBySpec(t *testing.T) {
 	assert.Equal(t, MilvusComponents, GetComponentsBySpec(spec))
 	spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
 	assert.Equal(t, MixtureComponents, GetComponentsBySpec(spec))
+	spec.Com.Image = "milvusdb/milvus:v2.6.0"
+	assert.Equal(t, Milvus2_6Components, GetComponentsBySpec(spec))
 }
 
 func TestMilvusComponent_IsCoord(t *testing.T) {
