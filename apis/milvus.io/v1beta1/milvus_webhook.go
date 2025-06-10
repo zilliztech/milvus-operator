@@ -281,7 +281,7 @@ func (r *Milvus) DefaultComponents() {
 		if spec.Com.DataNode == nil {
 			spec.Com.DataNode = &MilvusDataNode{}
 		}
-		if spec.Com.IndexNode == nil {
+		if !spec.IsVersionGreaterThan2_6() && spec.Com.IndexNode == nil {
 			spec.Com.IndexNode = &MilvusIndexNode{}
 		}
 		if spec.Com.QueryNode == nil {
@@ -345,9 +345,7 @@ func (r *Milvus) defaultComponentsReplicas() {
 			spec.Com.DataNode.Replicas = &defaultReplicas
 		}
 
-		if spec.IsVersionGreaterThan2_6() {
-			spec.Com.IndexNode.Replicas = &defaultNoReplicas
-		} else {
+		if !spec.IsVersionGreaterThan2_6() {
 			if spec.Com.IndexNode.Replicas == nil {
 				spec.Com.IndexNode.Replicas = &defaultReplicas
 			}
