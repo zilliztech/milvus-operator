@@ -110,6 +110,53 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 	})
 }
 
+func TestClusterReconciler_ReconcileDeployments_DeleteIfExists(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	mockQnController := NewMockDeployController(env.Ctrl)
+	r.deployCtrl = mockQnController
+	mockClient := env.MockClient
+	ctx := env.ctx
+	mc := env.Inst
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	t.Run("delete deployment ok", func(t *testing.T) {
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				deploy := obj.(*appsv1.Deployment)
+				deploy.Name = "mc-milvus-indexnode"
+				return nil
+			})
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil)
+
+		err := r.DeleteDeploymentsIfExists(ctx, mc, IndexNode)
+		assert.NoError(t, err)
+	})
+
+	t.Run("delete deployment failed", func(t *testing.T) {
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				deploy := obj.(*appsv1.Deployment)
+				deploy.Name = "mc-milvus-indexnode"
+				return nil
+			})
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(errors.New("delete error"))
+
+		err := r.DeleteDeploymentsIfExists(ctx, mc, IndexNode)
+		assert.Error(t, err)
+	})
+
+	t.Run("delete deployment not found, skip", func(t *testing.T) {
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
+
+		err := r.DeleteDeploymentsIfExists(ctx, mc, IndexNode)
+		assert.NoError(t, err)
+	})
+}
+
 func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.checkMocks()
