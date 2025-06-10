@@ -1093,6 +1093,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -1738,6 +1740,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -2482,6 +2486,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -3127,6 +3133,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -3779,6 +3787,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -4490,6 +4500,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -5135,6 +5147,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -5780,6 +5794,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -6460,6 +6476,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -7159,6 +7177,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -7807,6 +7827,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -7857,6 +7879,8 @@ spec:
                     type: boolean
                   updateToolImage:
                     type: boolean
+                  version:
+                    type: string
                   volumeMounts:
                     items:
                       properties:
@@ -8185,6 +8209,10 @@ spec:
                   - type
                   type: object
                 type: array
+              currentImage:
+                type: string
+              currentVersion:
+                type: string
               endpoint:
                 type: string
               ingress:

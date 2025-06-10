@@ -23,12 +23,19 @@ func (r *MilvusReconciler) SetDefaultStatus(ctx context.Context, mc *v1beta1.Mil
 	if mc.Status.Status == "" {
 		mc.Status.Status = v1beta1.StatusPending
 		mc.Status.RollingMode = mc.Spec.Com.RollingMode
+		mc.Status.CurrentImage = mc.Spec.Com.Image
+		mc.Status.CurrentVersion = mc.Spec.Com.Version
 		// metrics
 		milvusStatusCollector.WithLabelValues(mc.Namespace, mc.Name).
 			Set(MilvusStatusToCode(mc.Status.Status, mc.GetAnnotations()[MaintainingAnnotation] == "true"))
 
 		err := r.Client.Status().Update(ctx, mc)
 		return errors.Wrapf(err, "set mc default status[%s/%s] failed", mc.Namespace, mc.Name)
+	} else if mc.Status.CurrentImage == "" {
+		mc.Status.CurrentImage = mc.Spec.Com.Image
+		mc.Status.CurrentVersion = mc.Spec.Com.Version
+		err := r.Client.Status().Update(ctx, mc)
+		return errors.Wrapf(err, "set mc current image and version[%s/%s] failed", mc.Namespace, mc.Name)
 	}
 	return nil
 }
