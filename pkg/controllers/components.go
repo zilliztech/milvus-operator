@@ -103,6 +103,10 @@ var (
 		RootCoord, DataCoord, QueryCoord, IndexCoord,
 	}
 
+	Milvus2_6Components = []MilvusComponent{
+		MixCoord, DataNode, StreamingNode, QueryNode, Proxy, MilvusStandalone,
+	}
+
 	// coordConfigFieldName is a map of coordinator's name to config field name
 	coordConfigFieldName = map[string]string{
 		RootCoordName:  "rootCoord",
@@ -127,6 +131,9 @@ func IsMilvusDeploymentsComplete(m *v1beta1.Milvus) bool {
 func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
 	if spec.Mode != v1beta1.MilvusModeCluster {
 		return StandaloneComponents
+	}
+	if spec.IsVersionGreaterThan2_6() {
+		return Milvus2_6Components
 	}
 	var ret = []MilvusComponent{}
 	if spec.UseMixCoord() {
