@@ -112,8 +112,21 @@ func (ms MilvusSpec) GetServiceComponent() *ServiceComponent {
 }
 
 func (ms MilvusSpec) IsVersionGreaterThan2_6() bool {
-	// parse format: registry/namespace/image:tag
-	splited := strings.Split(ms.Com.Image, ":")
+	return isImageVersionGreaterThan2_6(ms.Com.Version, ms.Com.Image)
+}
+
+func isImageVersionGreaterThan2_6(version, image string) bool {
+	if version != "" {
+		sematicVersion, err := semver.ParseTolerant(version)
+		if err != nil {
+			return false
+		}
+		return sematicVersion.GT(sermaticVersion2_5_Max)
+	}
+
+	// use tag if version is not set, parse format: registry/namespace/image:tag
+	splited := strings.Split(image, ":")
+
 	if len(splited) != 2 {
 		return false
 	}
@@ -158,13 +171,17 @@ func (ms *MilvusSpec) UseMixCoord() bool {
 var sermaticVersion2_5_Max = semver.MustParse("2.5.999")
 
 func (ms *MilvusSpec) UseStreamingNode() bool {
+	if ms.IsVersionGreaterThan2_6() {
+		return true
+	}
+
 	if ms.Com.StreamingMode != nil {
 		return *ms.Com.StreamingMode
 	}
 	if ms.Com.StreamingNode != nil {
 		return true
 	}
-	return ms.IsVersionGreaterThan2_6()
+	return false
 }
 
 // MilvusMode defines the mode of Milvus deployment
@@ -216,6 +233,14 @@ type MilvusStatus struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
+
+	// CurrentImage is the current image of the milvus cluster
+	// +optional
+	CurrentImage string `json:"currentImage,omitempty"`
+
+	// CurrentVersion is the current version of the milvus cluster
+	// +optional
+	CurrentVersion string `json:"currentVersion,omitempty"`
 }
 
 // RollingMode we have changed our rolling mode several times, so we use this enum to track the version of rolling mode the milvus CR is using
@@ -474,6 +499,10 @@ type Milvus struct {
 
 	Spec   MilvusSpec   `json:"spec,omitempty"`
 	Status MilvusStatus `json:"status,omitempty"`
+}
+
+func (m *Milvus) IsCurrentImageVersionGreaterThan2_6() bool {
+	return isImageVersionGreaterThan2_6(m.Status.CurrentVersion, m.Status.CurrentImage)
 }
 
 func (m *Milvus) IsFirstTimeStarting() bool {

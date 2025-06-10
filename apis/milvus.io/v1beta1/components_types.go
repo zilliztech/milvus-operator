@@ -58,6 +58,11 @@ type ComponentSpec struct {
 	// +kubebuilder:validation:Optional
 	Image string `json:"image,omitempty"`
 
+	// Version specifies the version of the image, users can specify their desired version
+	// The tag of image will be used if not specified
+	// +kubebuilder:validation:Optional
+	Version string `json:"version,omitempty"`
+
 	// Commands override the default commands & args of the container
 	// +kubebuilder:validation:Optional
 	Commands []string `json:"commands,omitempty"`

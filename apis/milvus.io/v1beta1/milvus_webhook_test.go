@@ -108,7 +108,8 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		ComponentSpec: ComponentSpec{
 			Image: config.DefaultMilvusImage,
 		},
-		RollingMode: RollingModeV2,
+		StreamingMode: util.BoolPtr(false),
+		RollingMode:   RollingModeV2,
 		Proxy: &MilvusProxy{
 			ServiceComponent: ServiceComponent{
 				Component: defaultComponent,
@@ -138,6 +139,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
 		mc.Spec.Mode = MilvusModeCluster
 		mc.Default()
+		assert.False(t, mc.Spec.IsVersionGreaterThan2_6())
 		assert.Equal(t, clusterDefault, mc.Spec)
 	})
 
