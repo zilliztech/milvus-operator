@@ -249,15 +249,6 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	container.Args = updater.GetArgs()
 	env := mergedComSpec.Env
 	env = append(env, GetStorageSecretRefEnv(updater.GetSecretRef())...)
-	// omit setting the streaming node environment variable that is required for the streaming node beta version
-	// if updater.GetMilvus().Spec.UseStreamingNode() {
-	// 	env = append(env,
-	// 		corev1.EnvVar{
-	// 			Name:  "MILVUS_STREAMING_SERVICE_ENABLED",
-	// 			Value: "1",
-	// 		},
-	// 	)
-	// }
 	container.Env = MergeEnvVar(container.Env, env)
 	metricPort := corev1.ContainerPort{
 		Name:          MetricPortName,
