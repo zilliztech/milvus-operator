@@ -315,4 +315,37 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		}
 		assert.True(t, envAdded)
 	})
+
+	t.Run("verify 2.6 upgrade dependency graph", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Mode = v1beta1.MilvusModeCluster
+		inst.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
+		inst.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeRollingUpgrade
+		inst.Spec.Com.Image = "milvusdb/milvus:v2.6.0"
+		inst.Status.CurrentImage = "milvusdb/milvus:v2.5.0"
+		inst.Generation = 1
+		inst.Status.ObservedGeneration = 1
+		inst.Default()
+
+		// Setup initial status with 2.5 version
+		inst.Status.ComponentsDeployStatus = map[string]v1beta1.ComponentDeployStatus{
+			MixCoordName: {
+				Image: "milvusdb/milvus:v2.5.0",
+			},
+		}
+
+		// Test MixCoord update - should not update because StreamingNode is not updated
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MixCoord)
+		assert.False(t, updater.RollingUpdateImageDependencyReady())
+
+		// Update StreamingNode to 2.6
+		inst.Status.ComponentsDeployStatus[StreamingNodeName] = v1beta1.ComponentDeployStatus{
+			Image:      "milvusdb/milvus:v2.6.0",
+			Status:     readyDeployStatus,
+			Generation: 1,
+		}
+
+		// Test MixCoord update - should update because StreamingNode is updated
+		assert.True(t, updater.RollingUpdateImageDependencyReady())
+	})
 }

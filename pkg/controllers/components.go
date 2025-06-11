@@ -378,6 +378,13 @@ func (c MilvusComponent) GetComponentSpec(spec v1beta1.MilvusSpec) v1beta1.Compo
 	return comSpec
 }
 
+func (c MilvusComponent) GetDependenciesFor2_6Upgrade(spec v1beta1.MilvusSpec) []MilvusComponent {
+	if spec.Mode != v1beta1.MilvusModeCluster {
+		return []MilvusComponent{}
+	}
+	return upgrade26ClusterDependencyGraph.GetDependencies(c)
+}
+
 func (c MilvusComponent) GetDependencies(spec v1beta1.MilvusSpec) []MilvusComponent {
 	if spec.Mode != v1beta1.MilvusModeCluster {
 		return []MilvusComponent{}
@@ -640,4 +647,10 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 	}
 
 	return dst
+}
+
+// IsUpgradingTo26 checks if this is a 2.5 to 2.6 upgrade scenario
+func (c MilvusComponent) IsUpgradingTo26(milvus *v1beta1.Milvus) bool {
+	return milvus.Spec.IsVersionGreaterThan2_6() &&
+		!milvus.IsCurrentImageVersionGreaterThan2_6()
 }
