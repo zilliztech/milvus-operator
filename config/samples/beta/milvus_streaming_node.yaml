@@ -10,9 +10,7 @@ metadata:
 spec:
   mode: 'cluster'
   components:
-    enableRollingUpdate: false # milvus 2.5.0-beta bug: not supported standby for streaming coord
-    image: milvusdb/milvus:v2.5.0-beta
-    streamingNode:
-      replicas: 1
+    enableRollingUpdate: false 
+    image: milvusdb/milvus:v2.5.11
   dependencies:
     msgStreamType: pulsar # for now only support pulsar
