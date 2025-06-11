@@ -648,9 +648,3 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 
 	return dst
 }
-
-// IsUpgradingTo26 checks if this is a 2.5 to 2.6 upgrade scenario
-func (c MilvusComponent) IsUpgradingTo26(milvus *v1beta1.Milvus) bool {
-	return milvus.Spec.IsVersionGreaterThan2_6() &&
-		!milvus.IsCurrentImageVersionGreaterThan2_6()
-}

@@ -524,21 +524,17 @@ func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 	if m.Status.ObservedGeneration < m.Generation {
 		return false
 	}
-	milvus := m.GetMilvus()
 
 	var deps []MilvusComponent
-	if m.component.IsUpgradingTo26(milvus) {
-		podTemplateLogger.WithValues(
-			"namespace", milvus.Namespace,
-			"milvus", milvus.Name,
-		).Info("using upgrading to 2.6 dependency graph", "component", m.component.Name)
+	if m.IsUpgradingTo26() {
+		podTemplateLogger.Info("using upgrading to 2.6 dependency graph", "component", m.component.Name)
 		deps = m.component.GetDependenciesFor2_6Upgrade(m.Spec)
 	} else {
 		deps = m.component.GetDependencies(m.Spec)
 	}
 
 	for _, dep := range deps {
-		if !dep.IsImageUpdated(milvus) {
+		if !dep.IsImageUpdated(m.GetMilvus()) {
 			return false
 		}
 	}
@@ -547,4 +543,10 @@ func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 
 func (m milvusDeploymentUpdater) HasHookConfig() bool {
 	return len(m.Spec.HookConf.Data) > 0
+}
+
+// IsUpgradingTo26 checks if this is to 2.6 upgrade scenario
+func (m milvusDeploymentUpdater) IsUpgradingTo26() bool {
+	return m.GetMilvus().Spec.IsVersionGreaterThan2_6() &&
+		!m.GetMilvus().IsCurrentImageVersionGreaterThan2_6()
 }
