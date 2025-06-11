@@ -60,9 +60,16 @@ func init() {
 	streamingNodeClusterDependencyGraph.AddDependency(QueryNode, []MilvusComponent{StreamingNode})
 	streamingNodeClusterDependencyGraph.AddDependency(DataNode, []MilvusComponent{QueryNode})
 	streamingNodeClusterDependencyGraph.AddDependency(Proxy, []MilvusComponent{DataNode})
+
+	upgrade26ClusterDependencyGraph.AddDependency(StreamingNode, []MilvusComponent{})
+	upgrade26ClusterDependencyGraph.AddDependency(MixCoord, []MilvusComponent{StreamingNode})
+	upgrade26ClusterDependencyGraph.AddDependency(QueryNode, []MilvusComponent{MixCoord})
+	upgrade26ClusterDependencyGraph.AddDependency(DataNode, []MilvusComponent{QueryNode})
+	upgrade26ClusterDependencyGraph.AddDependency(Proxy, []MilvusComponent{DataNode})
 }
 
 var (
 	clusterDependencyGraph, mixCoordClusterDependencyGraph = newDependencyGraphImpl(), newDependencyGraphImpl()
 	streamingNodeClusterDependencyGraph                    = newDependencyGraphImpl()
+	upgrade26ClusterDependencyGraph                        = newDependencyGraphImpl()
 )
