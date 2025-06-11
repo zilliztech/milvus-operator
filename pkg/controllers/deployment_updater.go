@@ -523,9 +523,21 @@ func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 	if m.Status.ObservedGeneration < m.Generation {
 		return false
 	}
-	deps := m.component.GetDependencies(m.Spec)
+	milvus := m.GetMilvus()
+
+	var deps []MilvusComponent
+	if m.component.IsUpgradingTo26(milvus) {
+		podTemplateLogger.WithValues(
+			"namespace", milvus.Namespace,
+			"milvus", milvus.Name,
+		).Info("using upgrading to 2.6 dependency graph", "component", m.component.Name)
+		deps = m.component.GetDependenciesFor2_6Upgrade(m.Spec)
+	} else {
+		deps = m.component.GetDependencies(m.Spec)
+	}
+
 	for _, dep := range deps {
-		if !dep.IsImageUpdated(m.GetMilvus()) {
+		if !dep.IsImageUpdated(milvus) {
 			return false
 		}
 	}
