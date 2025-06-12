@@ -111,6 +111,36 @@ func (ms MilvusSpec) GetServiceComponent() *ServiceComponent {
 	return &ms.Com.Standalone.ServiceComponent
 }
 
+func (ms MilvusSpec) IsVersionGreaterThan2_6() bool {
+	return isImageVersionGreaterThan2_6(ms.Com.Version, ms.Com.Image)
+}
+
+func isImageVersionGreaterThan2_6(version, image string) bool {
+	if version != "" {
+		semanticVersion, err := semver.ParseTolerant(version)
+		if err != nil {
+			return false
+		}
+		return semanticVersion.GT(sermanticVersion2_5_Max)
+	}
+
+	// use tag if version is not set, parse format: registry/namespace/image:tag
+	parts := strings.Split(image, ":")
+
+	if len(parts) != 2 {
+		return false
+	}
+	imageTag := parts[1]
+	if strings.HasPrefix(imageTag, "master-") {
+		return true
+	}
+	semanticVersion, err := semver.ParseTolerant(imageTag)
+	if err != nil {
+		return false
+	}
+	return semanticVersion.GT(sermanticVersion2_5_Max)
+}
+
 // GetMilvusVersionByImage returns the version of Milvus by ms.Com.ComponentSpec.Image
 func (ms MilvusSpec) GetMilvusVersionByImage() (semver.Version, error) {
 	// parse format: registry/namespace/image:tag
@@ -118,7 +148,8 @@ func (ms MilvusSpec) GetMilvusVersionByImage() (semver.Version, error) {
 	if len(splited) != 2 {
 		return semver.Version{}, errors.Errorf("unknown version of image[%s]", splited[0])
 	}
-	return semver.ParseTolerant(splited[1])
+	imageTag := splited[1]
+	return semver.ParseTolerant(imageTag)
 }
 
 func (ms *MilvusSpec) GetPersistenceConfig() *Persistence {
@@ -127,6 +158,8 @@ func (ms *MilvusSpec) GetPersistenceConfig() *Persistence {
 		return &ms.Dep.RocksMQ.Persistence
 	case MsgStreamTypeNatsMQ:
 		return &ms.Dep.NatsMQ.Persistence
+	case MsgStreamTypeWoodPecker:
+		return &ms.Dep.WoodPecker.Persistence
 	}
 	return nil
 }
@@ -135,8 +168,20 @@ func (ms *MilvusSpec) UseMixCoord() bool {
 	return ms.Com.MixCoord != nil
 }
 
+var sermanticVersion2_5_Max = semver.MustParse("2.5.999")
+
 func (ms *MilvusSpec) UseStreamingNode() bool {
-	return ms.Com.StreamingNode != nil
+	if ms.IsVersionGreaterThan2_6() {
+		return true
+	}
+
+	if ms.Com.StreamingMode != nil {
+		return *ms.Com.StreamingMode
+	}
+	if ms.Com.StreamingNode != nil {
+		return true
+	}
+	return false
 }
 
 // MilvusMode defines the mode of Milvus deployment
@@ -188,6 +233,14 @@ type MilvusStatus struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
+
+	// CurrentImage is the current image of the milvus cluster
+	// +optional
+	CurrentImage string `json:"currentImage,omitempty"`
+
+	// CurrentVersion is the current version of the milvus cluster
+	// +optional
+	CurrentVersion string `json:"currentVersion,omitempty"`
 }
 
 // RollingMode we have changed our rolling mode several times, so we use this enum to track the version of rolling mode the milvus CR is using
@@ -446,6 +499,10 @@ type Milvus struct {
 
 	Spec   MilvusSpec   `json:"spec,omitempty"`
 	Status MilvusStatus `json:"status,omitempty"`
+}
+
+func (m *Milvus) IsCurrentImageVersionGreaterThan2_6() bool {
+	return isImageVersionGreaterThan2_6(m.Status.CurrentVersion, m.Status.CurrentImage)
 }
 
 func (m *Milvus) IsFirstTimeStarting() bool {

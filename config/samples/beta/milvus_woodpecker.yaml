@@ -10,7 +10,11 @@ metadata:
 spec:
   mode: 'cluster'
   components:
-    enableRollingUpdate: false 
-    image: milvusdb/milvus:v2.5.11
+    # image not formally released yet
+    image: harbor.milvus.io/milvus/milvus:tinswzy-support_woodpecker_wal_type-36319c0-20250326
+    streamingNode:
+      replicas: 1
+    indexNode:
+      replicas: 0
   dependencies:
-    msgStreamType: pulsar # for now only support pulsar
+    msgStreamType: woodpecker

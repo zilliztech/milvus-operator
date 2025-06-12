@@ -88,6 +88,38 @@ func (r *MilvusReconciler) updateDeployment(
 	return updateDeployment(deployment, updater)
 }
 
+func (r *MilvusReconciler) DeleteDeploymentsIfExists(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
+	namespacedName := NamespacedName(mc.Namespace, component.GetDeploymentName(mc.Name))
+	deployment := &appsv1.Deployment{}
+
+	err := r.Get(ctx, namespacedName, deployment)
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			r.logger.Info("Deployment not found, skip delete",
+				"component", component.Name,
+				"name", namespacedName.Name,
+				"namespace", namespacedName.Namespace)
+			return nil
+		}
+		return pkgerr.Wrapf(err, "get deployment %s/%s failed", namespacedName.Namespace, namespacedName.Name)
+	}
+
+	r.logger.Info("Deleting deployment",
+		"component", component.Name,
+		"deployment name", deployment.Name,
+		"namespace", deployment.Namespace)
+
+	if err := r.Delete(ctx, deployment); err != nil {
+		return pkgerr.Wrapf(err, "delete deployment %s/%s failed", deployment.Namespace, deployment.Name)
+	}
+
+	r.logger.Info("Successfully deleted deployment",
+		"component", component.Name,
+		"deployment name", deployment.Name,
+		"namespace", deployment.Namespace)
+	return nil
+}
+
 func (r *MilvusReconciler) ReconcileComponentDeployment(
 	ctx context.Context, mc v1beta1.Milvus, component MilvusComponent,
 ) error {
@@ -231,6 +263,33 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 		return fmt.Errorf("reconcile milvus deployments errs: %w", err)
 	}
 
+	err = r.cleanupIndexNodeIfNeeded(ctx, mc)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// cleanupIndexNodeIfNeeded is part of the upgrade process to remove IndexNode which is no longer needed in 2.6+
+func (r *MilvusReconciler) cleanupIndexNodeIfNeeded(ctx context.Context, mc v1beta1.Milvus) error {
+	// offline indexnode for version >= 2.6, when proxy component's image has been updated
+	if mc.Spec.IsVersionGreaterThan2_6() && Proxy.IsImageUpdated(&mc) && mc.Spec.Com.IndexNode != nil {
+		r.logger.Info("Offline index node", "namespace", mc.Namespace, "name", mc.Name)
+
+		err := r.DeleteDeploymentsIfExists(ctx, mc, IndexNode)
+		if err != nil {
+			return err
+		}
+
+		mc.Spec.Com.IndexNode = nil
+		err = r.Update(ctx, &mc)
+		if err != nil {
+			return err
+		}
+
+		r.logger.Info("Successfully cleanup index node", "namespace", mc.Namespace, "name", mc.Name)
+	}
 	return nil
 }
 
@@ -321,7 +380,16 @@ func configVolumeByName(name string) corev1.Volume {
 	}
 }
 
-func persisentVolumeByName(name string) corev1.Volume {
+func emptyDirDataVolume() corev1.Volume {
+	return corev1.Volume{
+		Name: MilvusDataVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}
+}
+
+func persisentDataVolumeByName(name string) corev1.Volume {
 	return corev1.Volume{
 		Name: MilvusDataVolumeName,
 		VolumeSource: corev1.VolumeSource{
@@ -333,7 +401,7 @@ func persisentVolumeByName(name string) corev1.Volume {
 	}
 }
 
-func persistentVolumeMount() corev1.VolumeMount {
+func dataVolumeMount() corev1.VolumeMount {
 	return corev1.VolumeMount{
 		Name:      MilvusDataVolumeName,
 		ReadOnly:  false,

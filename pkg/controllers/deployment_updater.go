@@ -28,7 +28,6 @@ type deploymentUpdater interface {
 	GetMergedComponentSpec() ComponentSpec
 	GetArgs() []string
 	GetSecretRef() string
-	GetPersistenceConfig() *v1beta1.Persistence
 	GetMilvus() *v1beta1.Milvus
 	RollingUpdateImageDependencyReady() bool
 	HasHookConfig() bool
@@ -205,13 +204,20 @@ func updateUserDefinedVolumes(template *corev1.PodTemplateSpec, updater deployme
 		fillConfigMapVolumeDefaultValues(&volume)
 		userDefinedVolumes = append(userDefinedVolumes, volume)
 	}
-	if persistence := updater.GetPersistenceConfig(); persistence != nil && persistence.Enabled {
-		rocketMqPvcName := getPVCNameByInstName(updater.GetIntanceName())
-		if len(persistence.PersistentVolumeClaim.ExistingClaim) > 0 {
-			rocketMqPvcName = persistence.PersistentVolumeClaim.ExistingClaim
+	builtInMq := updater.GetMilvus().Spec.Dep.GetMilvusBuiltInMQ()
+
+	if builtInMq != nil {
+		if builtInMq.Persistence.Enabled {
+			rocketMqPvcName := getPVCNameByInstName(updater.GetIntanceName())
+			if len(builtInMq.Persistence.PersistentVolumeClaim.ExistingClaim) > 0 {
+				rocketMqPvcName = builtInMq.Persistence.PersistentVolumeClaim.ExistingClaim
+			}
+			userDefinedVolumes = append(userDefinedVolumes, persisentDataVolumeByName(rocketMqPvcName))
+		} else {
+			userDefinedVolumes = append(userDefinedVolumes, emptyDirDataVolume())
 		}
-		userDefinedVolumes = append(userDefinedVolumes, persisentVolumeByName(rocketMqPvcName))
 	}
+
 	for _, volume := range userDefinedVolumes {
 		addVolume(&template.Spec.Volumes, volume)
 	}
@@ -243,14 +249,6 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	container.Args = updater.GetArgs()
 	env := mergedComSpec.Env
 	env = append(env, GetStorageSecretRefEnv(updater.GetSecretRef())...)
-	if updater.GetMilvus().Spec.UseStreamingNode() {
-		env = append(env,
-			corev1.EnvVar{
-				Name:  "MILVUS_STREAMING_SERVICE_ENABLED",
-				Value: "1",
-			},
-		)
-	}
 	container.Env = MergeEnvVar(container.Env, env)
 	metricPort := corev1.ContainerPort{
 		Name:          MetricPortName,
@@ -313,8 +311,9 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 
 func getUserDefinedVolumeMounts(updater deploymentUpdater) []corev1.VolumeMount {
 	ret := updater.GetMergedComponentSpec().VolumeMounts
-	if persistence := updater.GetPersistenceConfig(); persistence != nil && persistence.Enabled {
-		ret = append(ret, persistentVolumeMount())
+	builtInMq := updater.GetMilvus().Spec.Dep.GetMilvusBuiltInMQ()
+	if builtInMq != nil {
+		ret = append(ret, dataVolumeMount())
 	}
 	return ret
 }
@@ -516,7 +515,15 @@ func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 	if m.Status.ObservedGeneration < m.Generation {
 		return false
 	}
-	deps := m.component.GetDependencies(m.Spec)
+
+	var deps []MilvusComponent
+	if m.IsUpgradingTo26() {
+		podTemplateLogger.Info("using upgrading to 2.6 dependency graph", "component", m.component.Name)
+		deps = m.component.GetDependenciesFor2_6Upgrade(m.Spec)
+	} else {
+		deps = m.component.GetDependencies(m.Spec)
+	}
+
 	for _, dep := range deps {
 		if !dep.IsImageUpdated(m.GetMilvus()) {
 			return false
@@ -527,4 +534,10 @@ func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 
 func (m milvusDeploymentUpdater) HasHookConfig() bool {
 	return len(m.Spec.HookConf.Data) > 0
+}
+
+// IsUpgradingTo26 checks if this is to 2.6 upgrade scenario
+func (m milvusDeploymentUpdater) IsUpgradingTo26() bool {
+	return m.GetMilvus().Spec.IsVersionGreaterThan2_6() &&
+		!m.GetMilvus().IsCurrentImageVersionGreaterThan2_6()
 }
