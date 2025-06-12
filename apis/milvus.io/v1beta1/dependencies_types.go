@@ -118,6 +118,28 @@ type MilvusStorage struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:=false
 	External bool `json:"external,omitempty"`
+
+	// SSL configuration for secure storage connections
+	// +kubebuilder:validation:Optional
+	SSL *MilvusStorageSSLConfig `json:"ssl,omitempty"`
+}
+
+// MilvusStorageSSLConfig defines SSL configuration for storage connections
+type MilvusStorageSSLConfig struct {
+	// Enable SSL/TLS for storage connections
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Reference to secret containing CA certificate for SSL verification
+	// Expected key: ca.crt
+	// +kubebuilder:validation:Optional
+	CACertificateRef string `json:"caCertificateRef,omitempty"`
+
+	// Skip SSL certificate verification (not recommended for production)
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
 }
 
 // MilvusBuildInMQ (rocksmq or natsmq) configuration

@@ -122,16 +122,46 @@ func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Clien
 	if info.Storage.Type == v1beta1.StorageTypeAzure && len(ak) == 0 {
 		ak = info.StorageAccount
 	}
+
+	// Prepare SSL configuration
+	var caCertificate []byte
+	insecureSkipVerify := false
+
+	if info.Storage.SSL != nil && info.Storage.SSL.Enabled {
+		insecureSkipVerify = info.Storage.SSL.InsecureSkipVerify
+
+		// Load CA certificate if specified
+		if info.Storage.SSL.CACertificateRef != "" {
+			caSecret := &corev1.Secret{}
+			caKey := types.NamespacedName{Namespace: info.Namespace, Name: info.Storage.SSL.CACertificateRef}
+			err := cli.Get(ctx, caKey, caSecret)
+			if err != nil {
+				if k8sErrors.IsNotFound(err) {
+					return newErrStorageCondResult(v1beta1.ReasonSecretNotExist, MessageStorageSSLCertSecretNotExist)
+				}
+				return newErrStorageCondResult(v1beta1.ReasonClientErr, MessageStorageSSLCertLoadFailed+": "+err.Error())
+			}
+
+			var exists bool
+			caCertificate, exists = caSecret.Data["ca.crt"]
+			if !exists {
+				return newErrStorageCondResult(v1beta1.ReasonClientErr, MessageStorageSSLCertKeyNotExist)
+			}
+		}
+	}
+
 	err := checkMinIO(external.CheckMinIOArgs{
-		Type:           info.Storage.Type,
-		AK:             ak,
-		SK:             string(secretkey),
-		Endpoint:       info.Storage.Endpoint,
-		Bucket:         info.Bucket,
-		UseSSL:         info.UseSSL,
-		UseIAM:         info.UseIAM,
-		IAMEndpoint:    info.IAMEndpoint,
-		UseVirtualHost: info.UseVirtualHost,
+		Type:               info.Storage.Type,
+		AK:                 ak,
+		SK:                 string(secretkey),
+		Endpoint:           info.Storage.Endpoint,
+		Bucket:             info.Bucket,
+		UseSSL:             info.UseSSL,
+		UseIAM:             info.UseIAM,
+		IAMEndpoint:        info.IAMEndpoint,
+		UseVirtualHost:     info.UseVirtualHost,
+		CACertificate:      caCertificate,
+		InsecureSkipVerify: insecureSkipVerify,
 	})
 	if err != nil {
 		return newErrStorageCondResult(v1beta1.ReasonClientErr, err.Error())

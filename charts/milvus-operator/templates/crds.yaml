@@ -8061,6 +8061,17 @@ spec:
                         type: object
                       secretRef:
                         type: string
+                      ssl:
+                        properties:
+                          caCertificateRef:
+                            type: string
+                          enabled:
+                            default: false
+                            type: boolean
+                          insecureSkipVerify:
+                            default: false
+                            type: boolean
+                        type: object
                       type:
                         default: MinIO
                         enum:
@@ -8871,6 +8882,17 @@ spec:
                         type: object
                       secretRef:
                         type: string
+                      ssl:
+                        properties:
+                          caCertificateRef:
+                            type: string
+                          enabled:
+                            default: false
+                            type: boolean
+                          insecureSkipVerify:
+                            default: false
+                            type: boolean
+                        type: object
                       type:
                         default: MinIO
                         enum:
@@ -17330,6 +17352,17 @@ spec:
                         type: object
                       secretRef:
                         type: string
+                      ssl:
+                        properties:
+                          caCertificateRef:
+                            type: string
+                          enabled:
+                            default: false
+                            type: boolean
+                          insecureSkipVerify:
+                            default: false
+                            type: boolean
+                        type: object
                       type:
                         default: MinIO
                         enum:

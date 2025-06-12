@@ -1,0 +1,74 @@
+# Milvus External MinIO SSL Configuration Sample
+# This is a minimal working example for connecting Milvus to external MinIO with SSL
+---
+# MinIO Credentials Secret (Required)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-credentials
+  namespace: milvus  # adjust to your namespace
+type: Opaque
+data:
+  accesskey: bWluaW8=      # base64 encoded "minio" - replace with your MinIO access key
+  secretkey: bWluaW8xMjM=  # base64 encoded "minio123" - replace with your MinIO secret key
+
+---
+# MinIO CA Certificate (Required for SSL)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-ca-cert
+  namespace: milvus  # adjust to your namespace
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    # Replace this with your actual MinIO CA certificate content
+    # You can get this from your MinIO server's certificate
+    -----END CERTIFICATE-----
+
+---
+# Milvus Cluster with External MinIO SSL
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-milvus
+  namespace: milvus  # adjust to your namespace
+  labels:
+    app: milvus
+spec:
+  mode: cluster
+  
+  # Dependencies configuration - used by operator for validation and connection testing
+  dependencies:
+    storage:
+      type: MinIO
+      external: true
+      endpoint: minio.minio.svc.cluster.local:443  # adjust to your MinIO endpoint
+      secretRef: minio-credentials
+      ssl:
+        enabled: true
+        caCertificateRef: minio-ca-cert
+        insecureSkipVerify: false  # set to true only for testing
+  
+  # Milvus configuration - directly passed to Milvus components
+  config:
+    common:
+      storageType: remote
+    minio:
+      useSSL: true  # Required: enable SSL for Milvus components
+      bucketName: milvus-bucket  # Optional: specify bucket name (default: a-bucket)
+      rootPath: files           # Optional: specify root path for data storage
+      ssl:
+        tlsCACert: /etc/ssl/certs/minio-ca.crt  # Required: path to CA certificate in container
+  
+  # Volume mounts for SSL certificate (Required)
+  components:
+    volumeMounts:
+    - mountPath: /etc/ssl/certs/minio-ca.crt
+      name: minio-ca-cert
+      readOnly: true
+      subPath: ca.crt
+    volumes:
+    - configMap:
+        name: minio-ca-cert
+      name: minio-ca-cert

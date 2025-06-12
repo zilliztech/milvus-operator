@@ -38,6 +38,10 @@ const (
 	MessageMilvusHealthy     = "All Milvus components are healthy"
 	MessageMilvusStopped     = "All Milvus components are stopped"
 	MessageMilvusStopping    = "All Milvus components are stopping"
+	// SSL related messages
+	MessageStorageSSLCertSecretNotExist = "SSL CA certificate secret not exist"
+	MessageStorageSSLCertKeyNotExist    = "CA certificate not found in secret, expected key: ca.crt"
+	MessageStorageSSLCertLoadFailed     = "Failed to load CA certificate"
 )
 
 var (
