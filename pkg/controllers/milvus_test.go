@@ -178,7 +178,7 @@ func TestCluster_ReconcileAll(t *testing.T) {
 	mockGroup := NewMockGroupRunner(env.Ctrl)
 	defaultGroupRunner = mockGroup
 
-	mockGroup.EXPECT().Run(gomock.Len(4), gomock.Any(), m)
+	mockGroup.EXPECT().Run(gomock.Len(5), gomock.Any(), m)
 
 	err := r.ReconcileAll(ctx, m)
 	assert.NoError(t, err)

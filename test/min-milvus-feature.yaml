@@ -159,6 +159,17 @@ spec:
                 -XX:-ResizePLAB
                 -XX:+ExitOnOutOfMemoryError
         # end pulsar values
+    tei:
+      enabled: true
+      inCluster:
+        values:
+          resources:
+            requests:
+              cpu: "0.1"
+              memory: "100Mi"
+            limits:
+              cpu: "8"
+              memory: "16Gi"
   config:
     milvus:
       log:
