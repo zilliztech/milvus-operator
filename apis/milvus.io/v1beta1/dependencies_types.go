@@ -1,7 +1,5 @@
 package v1beta1
 
-import "github.com/milvus-io/milvus-operator/pkg/helm/values"
-
 type DependencyDeletionPolicy string
 
 const (
@@ -80,7 +78,7 @@ type InClusterConfig struct {
 	// default to pulsar-v2 for backward compatibility
 	// note it's the version of chart, not pulsar
 	// +kubebuilder:validation:Optional
-	ChartVersion values.ChartVersion `json:"chartVersion,omitempty"`
+	ChartVersion string `json:"chartVersion,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum:={"Delete", "Retain"}
