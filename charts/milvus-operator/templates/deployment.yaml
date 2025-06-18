@@ -52,22 +52,66 @@ spec:
         resources: {{- toYaml .Values.resources | nindent 10 }}
         securityContext:
           allowPrivilegeEscalation: {{ .Values.allowPrivilegeEscalation }}
-        {{- if .Values.enableWebhook }}
-        volumeMounts:
-        - mountPath: /tmp/k8s-webhook-server/serving-certs
-          name: cert
-          readOnly: true
+        {{- if or .Values.enableWebhook .Values.volumeMounts }}
+      volumeMounts:
+      {{- if .Values.enableWebhook }}
+      - mountPath: /tmp/k8s-webhook-server/serving-certs
+        name: cert
+        readOnly: true
+      {{- end }}
+      {{- if .Values.volumeMounts }}
+      {{- range .Values.volumeMounts }}
+      {{- if hasKey . "name" }}
+      - name: {{ .name }}
+        mountPath: {{ .mountPath }}
+        {{- if .readOnly }}
+        readOnly: {{ .readOnly }}
         {{- end }}
+      {{- else }}
+      {{- fail "Each item in volumeMounts must have a 'name' key" }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
       imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ include "chart.serviceAccountName" . | quote }}
       terminationGracePeriodSeconds: 10
       tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
-      {{- if .Values.enableWebhook }}
+      {{- if or .Values.enableWebhook .Values.volumes }}
       volumes:
+      {{- if .Values.enableWebhook }}
       - name: cert
         secret:
           defaultMode: 420
           secretName: {{ include "chart.fullname" . }}-webhook-cert
+      {{- end }}
+      {{- if .Values.volumes }}
+      {{- range .Values.volumes }}
+      {{- if hasKey . "name" }}
+      - name: {{ .name }}
+        {{- if .secret }}
+        secret:
+          secretName: {{ .secret.secretName }}
+        {{- else if .configMap }}
+        configMap:
+          name: {{ .configMap.name }}
+        {{- else if .emptyDir }}
+        emptyDir: {{- toYaml .emptyDir | nindent 4 }}
+        {{- else if .persistentVolumeClaim }}
+        persistentVolumeClaim:
+          claimName: {{ .persistentVolumeClaim.claimName }}
+        {{- else if .hostPath }}
+        hostPath: {{- toYaml .hostPath | nindent 4 }}
+        {{- else if .nfs }}
+        nfs: {{- toYaml .nfs | nindent 4 }}
+        {{- else }}
+        {{- fail (printf "Unsupported or missing volume type for volume '%s'" .name) }}
+        {{- end }}
+      {{- else }}
+      {{- fail "Each item in volumes must have a 'name' key" }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
       {{- end }}
