@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -120,7 +121,7 @@ var Finalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus)
 			pvc := &corev1.PersistentVolumeClaim{}
 			pvc.Namespace = mc.Namespace
 			pvc.Name = pvcName
-			if err := r.Delete(ctx, pvc); err != nil {
+			if err := r.Delete(ctx, pvc); err != nil && !kerrors.IsNotFound(err) {
 				return errors.Wrap(err, "delete data pvc failed")
 			} else {
 				r.logger.Info("pvc deleted", "name", pvc.Name, "namespace", pvc.Namespace)
