@@ -12,7 +12,7 @@ resources:
   controller: true
   domain: milvus.io
   kind: MilvusCluster
-  path: github.com/milvus-io/milvus-operator/apis/milvus.io/v1alpha1
+  path: github.com/zilliztech/milvus-operator/apis/milvus.io/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true
@@ -24,7 +24,7 @@ resources:
   controller: true
   domain: milvus.io
   kind: Milvus
-  path: github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1
+  path: github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1
   version: v1beta1
   webhooks:
     defaulting: true
@@ -36,6 +36,6 @@ resources:
   controller: true
   domain: milvus.io
   kind: MilvusUpgrade
-  path: github.com/milvus-io/milvus-operator/apis/milvus.io/v1beta1
+  path: github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1
   version: v1beta1
 version: "3"
