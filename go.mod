@@ -10,7 +10,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/stretchr/testify v1.10.0
 	k8s.io/api v0.29.3
-	k8s.io/apimachinery v0.31.3
+	k8s.io/apimachinery v0.29.3
 	sigs.k8s.io/controller-runtime v0.17.2
 	sigs.k8s.io/yaml v1.4.0
 )

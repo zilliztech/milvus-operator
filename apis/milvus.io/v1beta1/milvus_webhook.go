@@ -408,7 +408,7 @@ func (r *Milvus) defaultValuesByDependency(dependency values.DependencyKind) {
 	valuesPtr := inClusterPtr.Elem().FieldByName("Values").Addr().Interface().(*Values)
 	valueData := util.DeepCopyValues(
 		values.GetDefaultValuesProvider().
-			GetDefaultValues(dependency, chartVersion))
+			GetDefaultValues(dependency, values.ChartVersion(chartVersion)))
 
 	util.MergeValues(valueData, valuesPtr.Data)
 	valuesPtr.Data = valueData
