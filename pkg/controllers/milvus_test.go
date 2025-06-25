@@ -122,6 +122,30 @@ func TestCluster_Finalize(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("delete built-in mq pvc, ignore not found error", func(t *testing.T) {
+		defer env.checkMocks()
+
+		m.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeRocksMQ
+		m.Spec.Dep.RocksMQ.Persistence.Enabled = true
+		m.Spec.Dep.RocksMQ.Persistence.PVCDeletion = true
+
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr"))
+		err := Finalize(ctx, r, m)
+		assert.NoError(t, err)
+	})
+
+	t.Run("delete built-in mq pvc, return error if not-found is not the error", func(t *testing.T) {
+		defer env.checkMocks()
+
+		m.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeRocksMQ
+		m.Spec.Dep.RocksMQ.Persistence.Enabled = true
+		m.Spec.Dep.RocksMQ.Persistence.PVCDeletion = true
+
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(k8sErrors.NewConflict(schema.GroupResource{}, "mockErr", errors.New("mockErr")))
+		err := Finalize(ctx, r, m)
+		assert.Error(t, err)
+	})
+
 }
 
 func TestCluster_SetDefaultStatus(t *testing.T) {
