@@ -122,6 +122,30 @@ func TestCluster_Finalize(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("delete built-in mq pvc, ignore not found error", func(t *testing.T) {
+		defer env.checkMocks()
+
+		m.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeRocksMQ
+		m.Spec.Dep.RocksMQ.Persistence.Enabled = true
+		m.Spec.Dep.RocksMQ.Persistence.PVCDeletion = true
+
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr"))
+		err := Finalize(ctx, r, m)
+		assert.NoError(t, err)
+	})
+
+	t.Run("delete built-in mq pvc, return error if not-found is not the error", func(t *testing.T) {
+		defer env.checkMocks()
+
+		m.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeRocksMQ
+		m.Spec.Dep.RocksMQ.Persistence.Enabled = true
+		m.Spec.Dep.RocksMQ.Persistence.PVCDeletion = true
+
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(k8sErrors.NewConflict(schema.GroupResource{}, "mockErr", errors.New("mockErr")))
+		err := Finalize(ctx, r, m)
+		assert.Error(t, err)
+	})
+
 }
 
 func TestCluster_SetDefaultStatus(t *testing.T) {
@@ -134,24 +158,38 @@ func TestCluster_SetDefaultStatus(t *testing.T) {
 	errTest := errors.New("test")
 
 	// no status, set default failed
-	m := env.Inst
-	mockClient.EXPECT().Status().Return(mockStatusCli)
-	mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errTest)
-	err := r.SetDefaultStatus(ctx, &m)
-	assert.Error(t, err)
+	t.Run("no status, set default failed", func(t *testing.T) {
+		m := env.Inst
+		mockClient.EXPECT().Status().Return(mockStatusCli).Times(1)
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errTest)
+		err := r.SetDefaultStatus(ctx, &m)
+		assert.Error(t, err)
+	})
 
-	// no status, set default ok
-	m = env.Inst // ptr value changed, need reset
-	mockClient.EXPECT().Status().Return(mockStatusCli)
-	mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any())
-	err = r.SetDefaultStatus(ctx, &m)
-	assert.NoError(t, err)
+	t.Run("no status, set default ok", func(t *testing.T) {
+		m := env.Inst
+		mockClient.EXPECT().Status().Return(mockStatusCli)
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any())
+		err := r.SetDefaultStatus(ctx, &m)
+		assert.NoError(t, err)
+	})
 
-	// has status, not set
-	m = env.Inst // ptr value changed, need reset
-	m.Status.Status = v1beta1.StatusPending
-	err = r.SetDefaultStatus(ctx, &m)
-	assert.NoError(t, err)
+	t.Run("has status, missing currentImage, set default ok", func(t *testing.T) {
+		m := env.Inst
+		m.Status.Status = v1beta1.StatusPending
+		mockClient.EXPECT().Status().Return(mockStatusCli).Times(1)
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any())
+		err := r.SetDefaultStatus(ctx, &m)
+		assert.NoError(t, err)
+	})
+
+	t.Run("has status and current image, not set", func(t *testing.T) {
+		m := env.Inst
+		m.Status.Status = v1beta1.StatusPending
+		m.Status.CurrentImage = "milvusdb/milvus:2.6.0"
+		err := r.SetDefaultStatus(ctx, &m)
+		assert.NoError(t, err)
+	})
 }
 
 func TestCluster_ReconcileAll(t *testing.T) {
@@ -164,7 +202,7 @@ func TestCluster_ReconcileAll(t *testing.T) {
 	mockGroup := NewMockGroupRunner(env.Ctrl)
 	defaultGroupRunner = mockGroup
 
-	mockGroup.EXPECT().Run(gomock.Len(4), gomock.Any(), m)
+	mockGroup.EXPECT().Run(gomock.Len(5), gomock.Any(), m)
 
 	err := r.ReconcileAll(ctx, m)
 	assert.NoError(t, err)

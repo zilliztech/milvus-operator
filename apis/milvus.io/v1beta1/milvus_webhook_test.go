@@ -108,7 +108,8 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		ComponentSpec: ComponentSpec{
 			Image: config.DefaultMilvusImage,
 		},
-		RollingMode: RollingModeV2,
+		StreamingMode: util.BoolPtr(false),
+		RollingMode:   RollingModeV2,
 		Proxy: &MilvusProxy{
 			ServiceComponent: ServiceComponent{
 				Component: defaultComponent,
@@ -138,6 +139,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
 		mc.Spec.Mode = MilvusModeCluster
 		mc.Default()
+		assert.False(t, mc.Spec.IsVersionGreaterThan2_6())
 		assert.Equal(t, clusterDefault, mc.Spec)
 	})
 
@@ -156,6 +158,15 @@ replicaCount: 1
 		mc.Default()
 		assert.Equal(t, newReplica, *mc.Spec.Com.RootCoord.Replicas)
 		assert.Equal(t, int64(1), mc.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"])
+	})
+
+	t.Run("default tei ok", func(t *testing.T) {
+		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
+		mc.Spec.Mode = MilvusModeStandalone
+		mc.Spec.Dep.Tei.Enabled = true
+		mc.defaultTei()
+		assert.NotNil(t, mc.Spec.Dep.Tei.InCluster)
+		assert.NotNil(t, mc.Spec.Dep.Tei.InCluster.Values.Data)
 	})
 
 }

@@ -86,6 +86,7 @@ func TestMilvusStatusSyncer_GetDependencyCondition(t *testing.T) {
 	milvus.Spec.Dep.Etcd.Endpoints = []string{"etcd"}
 	milvus.Spec.Dep.Kafka.BrokerList = []string{"kafka"}
 	milvus.Spec.Dep.Pulsar.Endpoint = "pulsar"
+	milvus.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypePulsar
 	t.Run("GetMinioCondition", func(t *testing.T) {
 		defer ctrl.Finish()
 		mockCli.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("test"))

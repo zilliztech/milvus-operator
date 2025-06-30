@@ -33,6 +33,7 @@ const (
 	Pulsar   = "pulsar"
 	PulsarV3 = "pulsar-v3"
 	Kafka    = "kafka"
+	Tei      = "tei"
 )
 
 // HelmReconciler reconciles Helm releases
@@ -211,11 +212,11 @@ func (r *MilvusReconciler) ReconcileMsgStream(ctx context.Context, mc v1beta1.Mi
 	switch mc.Spec.Dep.MsgStreamType {
 	case v1beta1.MsgStreamTypeKafka:
 		return r.ReconcileKafka(ctx, mc)
-	case v1beta1.MsgStreamTypeRocksMQ, v1beta1.MsgStreamTypeNatsMQ, v1beta1.MsgStreamTypeCustom:
-		// built in, do nothing
-		return nil
-	default:
+	case v1beta1.MsgStreamTypePulsar:
 		return r.ReconcilePulsar(ctx, mc)
+	default:
+		// built in mq or custom mq, do nothing
+		return nil
 	}
 }
 
@@ -242,6 +243,15 @@ func (r *MilvusReconciler) ReconcileMinio(ctx context.Context, mc v1beta1.Milvus
 		return nil
 	}
 	request := helm.GetChartRequest(mc, values.DependencyKindStorage, Minio)
+
+	return r.helmReconciler.Reconcile(ctx, request)
+}
+
+func (r *MilvusReconciler) ReconcileTei(ctx context.Context, mc v1beta1.Milvus) error {
+	if !mc.Spec.Dep.Tei.Enabled {
+		return nil
+	}
+	request := helm.GetChartRequest(mc, values.DependencyKindTei, Tei)
 
 	return r.helmReconciler.Reconcile(ctx, request)
 }

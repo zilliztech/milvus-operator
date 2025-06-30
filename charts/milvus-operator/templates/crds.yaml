@@ -1095,6 +1095,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -1740,6 +1742,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -2484,6 +2488,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -3129,6 +3135,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -3781,6 +3789,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -4492,6 +4502,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -5137,6 +5149,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -5782,6 +5796,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -6462,6 +6478,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -7161,6 +7179,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -7189,6 +7209,9 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
+                  streamingMode:
+                    nullable: true
+                    type: boolean
                   streamingNode:
                     properties:
                       affinity:
@@ -7806,6 +7829,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -7862,6 +7887,8 @@ spec:
                     type: boolean
                   updateToolImage:
                     type: boolean
+                  version:
+                    type: string
                   volumeMounts:
                     items:
                       properties:
@@ -7957,6 +7984,7 @@ spec:
                     enum:
                     - pulsar
                     - kafka
+                    - woodpecker
                     - rocksmq
                     - natsmq
                     - custom
@@ -8067,6 +8095,17 @@ spec:
                         type: object
                       secretRef:
                         type: string
+                      ssl:
+                        properties:
+                          caCertificateRef:
+                            type: string
+                          enabled:
+                            default: false
+                            type: boolean
+                          insecureSkipVerify:
+                            default: false
+                            type: boolean
+                        type: object
                       type:
                         default: MinIO
                         enum:
@@ -8075,6 +8114,56 @@ spec:
                         - Azure
                         - ""
                         type: string
+                    type: object
+                  tei:
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      inCluster:
+                        properties:
+                          chartVersion:
+                            type: string
+                          deletionPolicy:
+                            default: Retain
+                            enum:
+                            - Delete
+                            - Retain
+                            type: string
+                          pvcDeletion:
+                            type: boolean
+                          values:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                    type: object
+                  woodpecker:
+                    properties:
+                      persistence:
+                        properties:
+                          enabled:
+                            type: boolean
+                          persistentVolumeClaim:
+                            properties:
+                              annotations:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              existingClaim:
+                                type: string
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              spec:
+                                nullable: true
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                            type: object
+                          pvcDeletion:
+                            type: boolean
+                        type: object
                     type: object
                 type: object
             type: object
@@ -8162,6 +8251,10 @@ spec:
                   - type
                   type: object
                 type: array
+              currentImage:
+                type: string
+              currentVersion:
+                type: string
               endpoint:
                 type: string
               ingress:
@@ -8767,6 +8860,7 @@ spec:
                     enum:
                     - pulsar
                     - kafka
+                    - woodpecker
                     - rocksmq
                     - natsmq
                     - custom
@@ -8877,6 +8971,17 @@ spec:
                         type: object
                       secretRef:
                         type: string
+                      ssl:
+                        properties:
+                          caCertificateRef:
+                            type: string
+                          enabled:
+                            default: false
+                            type: boolean
+                          insecureSkipVerify:
+                            default: false
+                            type: boolean
+                        type: object
                       type:
                         default: MinIO
                         enum:
@@ -8885,6 +8990,56 @@ spec:
                         - Azure
                         - ""
                         type: string
+                    type: object
+                  tei:
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      inCluster:
+                        properties:
+                          chartVersion:
+                            type: string
+                          deletionPolicy:
+                            default: Retain
+                            enum:
+                            - Delete
+                            - Retain
+                            type: string
+                          pvcDeletion:
+                            type: boolean
+                          values:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                    type: object
+                  woodpecker:
+                    properties:
+                      persistence:
+                        properties:
+                          enabled:
+                            type: boolean
+                          persistentVolumeClaim:
+                            properties:
+                              annotations:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              existingClaim:
+                                type: string
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              spec:
+                                nullable: true
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                            type: object
+                          pvcDeletion:
+                            type: boolean
+                        type: object
                     type: object
                 type: object
               disableMetric:
@@ -9112,6 +9267,8 @@ spec:
                       type: string
                   type: object
                 type: array
+              version:
+                type: string
               volumeMounts:
                 items:
                   properties:
@@ -9224,6 +9381,10 @@ spec:
                   - type
                   type: object
                 type: array
+              currentImage:
+                type: string
+              currentVersion:
+                type: string
               endpoint:
                 type: string
               ingress:
@@ -10370,6 +10531,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -11015,6 +11178,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -11759,6 +11924,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -12404,6 +12571,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -13056,6 +13225,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -13767,6 +13938,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -14412,6 +14585,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -15057,6 +15232,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -15737,6 +15914,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -16436,6 +16615,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -16464,6 +16645,9 @@ spec:
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
                     type: object
+                  streamingMode:
+                    nullable: true
+                    type: boolean
                   streamingNode:
                     properties:
                       affinity:
@@ -17081,6 +17265,8 @@ spec:
                               type: string
                           type: object
                         type: array
+                      version:
+                        type: string
                       volumeMounts:
                         items:
                           properties:
@@ -17137,6 +17323,8 @@ spec:
                     type: boolean
                   updateToolImage:
                     type: boolean
+                  version:
+                    type: string
                   volumeMounts:
                     items:
                       properties:
@@ -17232,6 +17420,7 @@ spec:
                     enum:
                     - pulsar
                     - kafka
+                    - woodpecker
                     - rocksmq
                     - natsmq
                     - custom
@@ -17342,6 +17531,17 @@ spec:
                         type: object
                       secretRef:
                         type: string
+                      ssl:
+                        properties:
+                          caCertificateRef:
+                            type: string
+                          enabled:
+                            default: false
+                            type: boolean
+                          insecureSkipVerify:
+                            default: false
+                            type: boolean
+                        type: object
                       type:
                         default: MinIO
                         enum:
@@ -17350,6 +17550,56 @@ spec:
                         - Azure
                         - ""
                         type: string
+                    type: object
+                  tei:
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      inCluster:
+                        properties:
+                          chartVersion:
+                            type: string
+                          deletionPolicy:
+                            default: Retain
+                            enum:
+                            - Delete
+                            - Retain
+                            type: string
+                          pvcDeletion:
+                            type: boolean
+                          values:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                    type: object
+                  woodpecker:
+                    properties:
+                      persistence:
+                        properties:
+                          enabled:
+                            type: boolean
+                          persistentVolumeClaim:
+                            properties:
+                              annotations:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              existingClaim:
+                                type: string
+                              labels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              spec:
+                                nullable: true
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                            type: object
+                          pvcDeletion:
+                            type: boolean
+                        type: object
                     type: object
                 type: object
               hookConfig:
@@ -17447,6 +17697,10 @@ spec:
                   - type
                   type: object
                 type: array
+              currentImage:
+                type: string
+              currentVersion:
+                type: string
               endpoint:
                 type: string
               ingress:

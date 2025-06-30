@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -23,12 +24,19 @@ func (r *MilvusReconciler) SetDefaultStatus(ctx context.Context, mc *v1beta1.Mil
 	if mc.Status.Status == "" {
 		mc.Status.Status = v1beta1.StatusPending
 		mc.Status.RollingMode = mc.Spec.Com.RollingMode
+		mc.Status.CurrentImage = mc.Spec.Com.Image
+		mc.Status.CurrentVersion = mc.Spec.Com.Version
 		// metrics
 		milvusStatusCollector.WithLabelValues(mc.Namespace, mc.Name).
 			Set(MilvusStatusToCode(mc.Status.Status, mc.GetAnnotations()[MaintainingAnnotation] == "true"))
 
 		err := r.Client.Status().Update(ctx, mc)
 		return errors.Wrapf(err, "set mc default status[%s/%s] failed", mc.Namespace, mc.Name)
+	} else if mc.Status.CurrentImage == "" {
+		mc.Status.CurrentImage = mc.Spec.Com.Image
+		mc.Status.CurrentVersion = mc.Spec.Com.Version
+		err := r.Client.Status().Update(ctx, mc)
+		return errors.Wrapf(err, "set mc current image and version[%s/%s] failed", mc.Namespace, mc.Name)
 	}
 	return nil
 }
@@ -38,6 +46,7 @@ func (r *MilvusReconciler) ReconcileAll(ctx context.Context, mc v1beta1.Milvus) 
 		r.ReconcileEtcd,
 		r.ReconcileMsgStream,
 		r.ReconcileMinio,
+		r.ReconcileTei,
 		r.ReconcileMilvus,
 	}
 	err := defaultGroupRunner.Run(reconcilers, ctx, mc)
@@ -101,15 +110,18 @@ var Finalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus)
 			deletingReleases[mc.Name+"-pulsar"] = mc.Spec.Dep.Pulsar.InCluster.PVCDeletion
 		}
 	default:
-		// rocksmq
+		builtInMQ := mc.Spec.Dep.GetMilvusBuiltInMQ()
+		if builtInMQ == nil {
+			break
+		}
 		// delete data pvc if need
-		persist := mc.Spec.Dep.RocksMQ.Persistence
+		persist := builtInMQ.Persistence
 		if persist.Enabled && persist.PVCDeletion {
 			pvcName := getPVCNameByInstName(mc.Name)
 			pvc := &corev1.PersistentVolumeClaim{}
 			pvc.Namespace = mc.Namespace
 			pvc.Name = pvcName
-			if err := r.Delete(ctx, pvc); err != nil {
+			if err := r.Delete(ctx, pvc); err != nil && !kerrors.IsNotFound(err) {
 				return errors.Wrap(err, "delete data pvc failed")
 			} else {
 				r.logger.Info("pvc deleted", "name", pvc.Name, "namespace", pvc.Namespace)
@@ -119,6 +131,10 @@ var Finalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus)
 
 	if !mc.Spec.Dep.Storage.External && mc.Spec.Dep.Storage.InCluster.DeletionPolicy == v1beta1.DeletionPolicyDelete {
 		deletingReleases[mc.Name+"-minio"] = mc.Spec.Dep.Storage.InCluster.PVCDeletion
+	}
+
+	if mc.Spec.Dep.Tei.Enabled && mc.Spec.Dep.Tei.InCluster.DeletionPolicy == v1beta1.DeletionPolicyDelete {
+		deletingReleases[mc.Name+"-tei"] = mc.Spec.Dep.Tei.InCluster.PVCDeletion
 	}
 
 	if len(deletingReleases) > 0 {

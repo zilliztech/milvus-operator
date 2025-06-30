@@ -3,9 +3,9 @@
 IMG ?= milvusdb/milvus-operator:dev-latest
 TOOL_IMG ?= milvus-config-tool:dev-latest
 SIT_IMG ?= milvus-operator:sit
-VERSION ?= 1.2.6
+VERSION ?= 1.3.0-rc1
 TOOL_VERSION ?= 1.0.0
-MILVUS_HELM_VERSION ?= milvus-4.2.48
+MILVUS_HELM_VERSION ?= milvus-4.2.51
 RELEASE_IMG ?= milvusdb/milvus-operator:v$(VERSION)
 TOOL_RELEASE_IMG ?= milvusdb/milvus-config-tool:v$(TOOL_VERSION)
 KIND_CLUSTER ?= kind
@@ -121,12 +121,14 @@ docker-prepare: build-release out/config/assets/templates
 	wget https://github.com/apache/pulsar-helm-chart/releases/download/pulsar-2.7.8/pulsar-2.7.8.tgz -O ./pulsar.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/pulsar-3.3.0.tgz -O ./pulsarv3.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/kafka-15.5.1.tgz -O ./kafka.tgz
+	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/tei-1.6.0.tgz -O ./tei.tgz
 	tar -xf ./etcd.tgz -C ./out/config/assets/charts/
 	tar -xf ./minio.tgz -C ./out/config/assets/charts/
 	tar -xf ./pulsarv3.tgz -C ./out/config/assets/
 	mv ./out/config/assets/pulsar ./out/config/assets/charts/pulsarv3
 	tar -xf ./pulsar.tgz -C ./out/config/assets/charts/
 	tar -xf ./kafka.tgz -C ./out/config/assets/charts/
+	tar -xf ./tei.tgz -C ./out/config/assets/charts/
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/values.yaml -O ./out/config/assets/charts/values.yaml
 	cp ./scripts/run.sh ./out/run.sh
 	cp ./scripts/run-helm.sh ./out/run-helm.sh
@@ -234,7 +236,7 @@ sit-prepare-operator-images:
 
 sit-prepare-images: sit-prepare-operator-images
 	@echo "Preparing images"
-	docker pull milvusdb/milvus:v2.5.11
+	docker pull milvusdb/milvus:v2.6.0-rc1
 	
 	# docker pull -q apachepulsar/pulsar:2.8.2
 	docker pull -q bitnami/kafka:3.1.0-debian-10-r52
@@ -248,7 +250,7 @@ sit-load-operator-images:
 
 sit-load-images: sit-load-operator-images
 	@echo "Loading images"
-	kind load docker-image milvusdb/milvus:v2.5.11
+	kind load docker-image milvusdb/milvus:v2.6.0-rc1
 	# kind load docker-image apachepulsar/pulsar:2.8.2 --name $(KIND_CLUSTER)
 	kind load docker-image bitnami/kafka:3.1.0-debian-10-r52 --name $(KIND_CLUSTER)
 	kind load docker-image milvusdb/etcd:3.5.18-r1 --name $(KIND_CLUSTER)
@@ -257,7 +259,7 @@ sit-load-images: sit-load-operator-images
 
 sit-load-and-cleanup-images: sit-load-images
 	@echo "Clean up some big images to save disk space in github action"
-	docker rmi milvusdb/milvus:v2.5.11
+	docker rmi milvusdb/milvus:v2.6.0-rc1
 	# docker rmi apachepulsar/pulsar:2.8.2
 	docker rmi bitnami/kafka:3.1.0-debian-10-r52
 	docker rmi milvusdb/etcd:3.5.18-r1

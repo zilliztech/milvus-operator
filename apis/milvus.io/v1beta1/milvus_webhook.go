@@ -281,11 +281,20 @@ func (r *Milvus) DefaultComponents() {
 		if spec.Com.DataNode == nil {
 			spec.Com.DataNode = &MilvusDataNode{}
 		}
-		if spec.Com.IndexNode == nil {
+		if !spec.IsVersionGreaterThan2_6() && spec.Com.IndexNode == nil {
 			spec.Com.IndexNode = &MilvusIndexNode{}
 		}
 		if spec.Com.QueryNode == nil {
 			spec.Com.QueryNode = &MilvusQueryNode{}
+		}
+
+		if r.Spec.UseStreamingNode() {
+			if spec.Com.StreamingNode == nil {
+				spec.Com.StreamingNode = &MilvusStreamingNode{}
+			}
+			r.Spec.Com.StreamingMode = util.BoolPtr(true)
+		} else {
+			r.Spec.Com.StreamingMode = util.BoolPtr(false)
 		}
 	}
 	r.defaultComponentsReplicas()
@@ -304,6 +313,13 @@ func (r *Milvus) defaultComponentsReplicas() {
 				spec.Com.StreamingNode.Replicas = &defaultReplicas
 			}
 		}
+
+		if spec.IsVersionGreaterThan2_6() {
+			if spec.Com.MixCoord == nil {
+				spec.Com.MixCoord = &MilvusMixCoord{}
+			}
+		}
+
 		if spec.Com.MixCoord != nil {
 			if spec.Com.MixCoord.Replicas == nil {
 				spec.Com.MixCoord.Replicas = &defaultReplicas
@@ -328,9 +344,13 @@ func (r *Milvus) defaultComponentsReplicas() {
 		if spec.Com.DataNode.Replicas == nil {
 			spec.Com.DataNode.Replicas = &defaultReplicas
 		}
-		if spec.Com.IndexNode.Replicas == nil {
-			spec.Com.IndexNode.Replicas = &defaultReplicas
+
+		if !spec.IsVersionGreaterThan2_6() {
+			if spec.Com.IndexNode.Replicas == nil {
+				spec.Com.IndexNode.Replicas = &defaultReplicas
+			}
 		}
+
 		if spec.Com.QueryNode.Replicas == nil {
 			spec.Com.QueryNode.Replicas = &defaultReplicas
 		}
@@ -343,7 +363,22 @@ func (r *Milvus) DefaultDependencies() {
 	r.defaultEtcd()
 	r.defaultMsgStream()
 	r.defaultStorage()
+	r.defaultTei()
 	r.setDefaultValueMerged()
+}
+
+func (r *Milvus) defaultTei() {
+	if r.Spec.Dep.Tei.Enabled {
+		if r.Spec.Dep.Tei.InCluster == nil {
+			r.Spec.Dep.Tei.InCluster = &InClusterConfig{}
+		}
+		if r.Spec.Dep.Tei.InCluster.Values.Data == nil {
+			r.Spec.Dep.Tei.InCluster.Values.Data = map[string]interface{}{}
+		}
+		if r.Spec.Dep.Tei.InCluster.DeletionPolicy == "" {
+			r.Spec.Dep.Tei.InCluster.DeletionPolicy = DeletionPolicyDelete
+		}
+	}
 }
 
 func (r *Milvus) defaultEtcd() {
@@ -429,15 +464,22 @@ func (r *Milvus) defaultValuesMerged() bool {
 	return r.Annotations[DependencyValuesMergedAnnotation] == TrueStr
 }
 
-func (r *Milvus) defaultMsgStream() {
+func (r *Milvus) setDefaultMsgStreamType() {
 	if r.Spec.Dep.MsgStreamType == "" {
 		switch r.Spec.Mode {
 		case MilvusModeStandalone:
-			r.Spec.Dep.MsgStreamType = MsgStreamTypeRocksMQ
-		case MilvusModeCluster:
+			if r.Spec.IsVersionGreaterThan2_6() {
+				r.Spec.Dep.MsgStreamType = MsgStreamTypeWoodPecker
+			} else {
+				r.Spec.Dep.MsgStreamType = MsgStreamTypeRocksMQ
+			}
+		default:
 			r.Spec.Dep.MsgStreamType = MsgStreamTypePulsar
 		}
 	}
+}
+
+func (r *Milvus) setDefaultMsgStreamConfigs() {
 	switch r.Spec.Dep.MsgStreamType {
 	case MsgStreamTypeKafka:
 		if !r.Spec.Dep.Kafka.External {
@@ -476,6 +518,11 @@ func (r *Milvus) defaultMsgStream() {
 			}
 		}
 	}
+}
+
+func (r *Milvus) defaultMsgStream() {
+	r.setDefaultMsgStreamType()
+	r.setDefaultMsgStreamConfigs()
 }
 
 func (r *Milvus) defaultStorage() {

@@ -19,7 +19,7 @@ type MilvusDependencies struct {
 	// +kubebuilder:validation:Optional
 	Etcd MilvusEtcd `json:"etcd"`
 
-	// +kubebuilder:validation:Enum:={"pulsar", "kafka", "rocksmq", "natsmq", "custom", ""}
+	// +kubebuilder:validation:Enum:={"pulsar", "kafka", "woodpecker", "rocksmq", "natsmq", "custom", ""}
 	// +kubebuilder:validation:Optional
 	// MsgStreamType default to pulsar for cluster, rocksmq for standalone
 	MsgStreamType MsgStreamType `json:"msgStreamType,omitempty"`
@@ -31,13 +31,20 @@ type MilvusDependencies struct {
 	Kafka MilvusKafka `json:"kafka,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	RocksMQ MilvusBuildInMQ `json:"rocksmq,omitempty"`
+	WoodPecker MilvusBuiltInMQ `json:"woodpecker,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	NatsMQ MilvusBuildInMQ `json:"natsmq,omitempty"`
+	RocksMQ MilvusBuiltInMQ `json:"rocksmq,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	NatsMQ MilvusBuiltInMQ `json:"natsmq,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	Storage MilvusStorage `json:"storage"`
+
+	// Tei for Text Embeddings Inference
+	// +optional
+	Tei MilvusTei `json:"tei,omitempty"`
 
 	// CustomMsgStream user can implements reconciler on this field
 	// milvus-operator will not check the mq status
@@ -47,14 +54,30 @@ type MilvusDependencies struct {
 	CustomMsgStream Values `json:"customMsgStream,omitempty"`
 }
 
+func (m *MilvusDependencies) GetMilvusBuiltInMQ() *MilvusBuiltInMQ {
+	switch m.MsgStreamType {
+	case MsgStreamTypePulsar, MsgStreamTypeKafka, MsgStreamTypeCustom:
+		return nil
+	case MsgStreamTypeWoodPecker:
+		return &m.WoodPecker
+	case MsgStreamTypeRocksMQ:
+		return &m.RocksMQ
+	case MsgStreamTypeNatsMQ:
+		return &m.NatsMQ
+	default:
+		return nil
+	}
+}
+
 type MsgStreamType string
 
 const (
-	MsgStreamTypePulsar  MsgStreamType = "pulsar"
-	MsgStreamTypeKafka   MsgStreamType = "kafka"
-	MsgStreamTypeRocksMQ MsgStreamType = "rocksmq"
-	MsgStreamTypeNatsMQ  MsgStreamType = "natsmq"
-	MsgStreamTypeCustom  MsgStreamType = "custom"
+	MsgStreamTypePulsar     MsgStreamType = "pulsar"
+	MsgStreamTypeKafka      MsgStreamType = "kafka"
+	MsgStreamTypeWoodPecker MsgStreamType = "woodpecker"
+	MsgStreamTypeRocksMQ    MsgStreamType = "rocksmq"
+	MsgStreamTypeNatsMQ     MsgStreamType = "natsmq"
+	MsgStreamTypeCustom     MsgStreamType = "custom"
 )
 
 type MilvusEtcd struct {
@@ -118,10 +141,32 @@ type MilvusStorage struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:=false
 	External bool `json:"external,omitempty"`
+
+	// SSL configuration for secure storage connections
+	// +kubebuilder:validation:Optional
+	SSL *MilvusStorageSSLConfig `json:"ssl,omitempty"`
 }
 
-// MilvusBuildInMQ (rocksmq or natsmq) configuration
-type MilvusBuildInMQ struct {
+// MilvusStorageSSLConfig defines SSL configuration for storage connections
+type MilvusStorageSSLConfig struct {
+	// Enable SSL/TLS for storage connections
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Reference to secret containing CA certificate for SSL verification
+	// Expected key: ca.crt
+	// +kubebuilder:validation:Optional
+	CACertificateRef string `json:"caCertificateRef,omitempty"`
+
+	// Skip SSL certificate verification (not recommended for production)
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
+}
+
+// MilvusBuiltInMQ (rocksmq or natsmq) configuration
+type MilvusBuiltInMQ struct {
 	Persistence Persistence `json:"persistence,omitempty"`
 }
 
@@ -148,4 +193,14 @@ type MilvusKafka struct {
 
 	// +kubebuilder:validation:Optional
 	BrokerList []string `json:"brokerList,omitempty"`
+}
+
+// MilvusTei configuration
+type MilvusTei struct {
+	// +kubebuilder:validation:Optional
+	InCluster *InClusterConfig `json:"inCluster,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	Enabled bool `json:"enabled,omitempty"`
 }

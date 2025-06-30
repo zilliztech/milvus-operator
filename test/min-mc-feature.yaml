@@ -41,9 +41,9 @@ spec:
           scheme: HTTP
         periodSeconds: 10
         successThreshold: 1
-    image: milvusdb/milvus:v2.5.0-beta
+    image: milvusdb/milvus:v2.5.11
     rollingMode: 3
-    enableRollingUpdate: false # milvus 2.5.0-beta bug: not supported standby for streaming coord
+    enableRollingUpdate: false 
     runWithSubProcess: true
     runAsNonRoot: true
     dummyImage: 'my-registry/my-dummy-image'
@@ -52,8 +52,6 @@ spec:
         hosts: ['mc-sit.milvus.io']
       replicas: 1
     mixCoord:
-      replicas: 1
-    streamingNode:
       replicas: 1
     volumes:
       - emptyDir: {}
