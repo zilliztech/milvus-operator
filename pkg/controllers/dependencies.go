@@ -5,15 +5,22 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/disk"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
@@ -24,6 +31,15 @@ import (
 	"github.com/zilliztech/milvus-operator/pkg/helm"
 	"github.com/zilliztech/milvus-operator/pkg/helm/values"
 )
+
+func newDeleteOptionsOnlySts() *metav1.DeleteOptions {
+	gracePeriodSeconds := int64(0)
+	propagationPolicy := metav1.DeletePropagationOrphan
+	return &metav1.DeleteOptions{
+		GracePeriodSeconds: &gracePeriodSeconds,
+		PropagationPolicy:  &propagationPolicy,
+	}
+}
 
 //go:generate mockgen -package=controllers -source=dependencies.go -destination=dependencies_mock.go HelmReconciler
 
@@ -51,13 +67,21 @@ type LocalHelmReconciler struct {
 	helmSettings *cli.EnvSettings
 	logger       logr.Logger
 	mgr          manager.Manager
+	clientset    kubernetes.Interface
 }
 
 func MustNewLocalHelmReconciler(helmSettings *cli.EnvSettings, logger logr.Logger, mgr manager.Manager) *LocalHelmReconciler {
+	config := mgr.GetConfig()
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create Kubernetes clientset: %v", err))
+	}
+
 	return &LocalHelmReconciler{
 		helmSettings: helmSettings,
 		logger:       logger,
 		mgr:          mgr,
+		clientset:    clientset,
 	}
 }
 
@@ -184,7 +208,132 @@ func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRe
 		l.logger.Info("update helm values", "old", vals, "new", request.Values)
 	}
 
+	if strings.Contains(request.ReleaseName, Etcd) {
+		oldSize := vals["persistence"].(map[string]interface{})["size"].(string)
+		newSize := request.Values["persistence"].(map[string]interface{})["size"].(string)
+
+		if parseSize(newSize) != parseSize(oldSize) {
+			l.logger.Info("reconcile PVC", "old size:", oldSize, "new size:", newSize, "release", request.ReleaseName)
+			if err := l.reconcilePVCs(ctx, request.Namespace, request.ReleaseName, oldSize, newSize); err != nil {
+				return err
+			}
+		}
+	}
+
 	return helm.Update(cfg, request)
+}
+
+func parseSize(size string) int64 {
+	size = strings.TrimSpace(size)
+	if len(size) == 0 {
+		return 0
+	}
+
+	unit := size[len(size)-2:]
+	value, err := strconv.ParseInt(size[:len(size)-2], 10, 64)
+	if err != nil {
+		return 0
+	}
+
+	switch strings.ToLower(unit) {
+	case "ti":
+		return value * 1024 * 1024 * 1024 * 1024
+	case "gi":
+		return value * 1024 * 1024 * 1024
+	case "mi":
+		return value * 1024 * 1024
+	case "ki":
+		return value * 1024
+	default:
+		return value
+	}
+}
+
+func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, releaseName, oldSize, newSize string) error {
+	l.logger.Info("Reconciling PVCs", "namespace", namespace, "release", releaseName, "oldSize", oldSize, "newSize", newSize)
+
+	// 1. Get the old StatefulSet
+	stsName := releaseName
+	oldSts, err := l.clientset.AppsV1().StatefulSets(namespace).Get(ctx, stsName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get old StatefulSet: %v", err)
+	}
+
+	newQuantity, err := resource.ParseQuantity(newSize)
+	if err != nil {
+		return fmt.Errorf("failed to parse new size: %v", err)
+	}
+
+	// 2. Update all related PVCs
+	for i := 0; i < int(*oldSts.Spec.Replicas); i++ {
+		pvcName := fmt.Sprintf("data-%s-%d", releaseName, i)
+		pvc, err := l.clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get PVC %s: %v", pvcName, err)
+		}
+
+		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = newQuantity
+		_, err = l.clientset.CoreV1().PersistentVolumeClaims(namespace).Update(ctx, pvc, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to update PVC %s: %v", pvcName, err)
+		}
+		l.logger.Info("Updated PVC size", "pvc", pvcName, "newSize", newSize)
+	}
+
+	// 3. Recreate the StatefulSet
+	if err := l.recreateStatefulSet(ctx, namespace, stsName, oldSts, newQuantity); err != nil {
+		return err
+	}
+
+	l.logger.Info("Successfully resized PVCs and recreated StatefulSet", "namespace", namespace, "release", releaseName)
+	return nil
+}
+
+func (l *LocalHelmReconciler) recreateStatefulSet(ctx context.Context, namespace, name string, oldSts *appsv1.StatefulSet, newQuantity resource.Quantity) error {
+	// Delete the old StatefulSet
+	deleteOptions := newDeleteOptionsOnlySts()
+	err := l.clientset.AppsV1().StatefulSets(namespace).Delete(ctx, name, *deleteOptions)
+	if err != nil {
+		return fmt.Errorf("failed to delete StatefulSet: %v", err)
+	}
+
+	// Wait for the StatefulSet to be deleted
+	err = l.waitForStatefulSetDeletion(ctx, namespace, name)
+	if err != nil {
+		return fmt.Errorf("failed to wait for StatefulSet deletion: %v", err)
+	}
+
+	// Create a new StatefulSet
+	newSts := oldSts.DeepCopy()
+	newSts.ResourceVersion = ""
+	for i := range newSts.Spec.VolumeClaimTemplates {
+		newSts.Spec.VolumeClaimTemplates[i].Spec.Resources.Requests[corev1.ResourceStorage] = newQuantity
+	}
+
+	_, err = l.clientset.AppsV1().StatefulSets(namespace).Create(ctx, newSts, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create new StatefulSet: %v", err)
+	}
+
+	return nil
+}
+
+func (l *LocalHelmReconciler) waitForStatefulSetDeletion(ctx context.Context, namespace, name string) error {
+	for {
+		_, err := l.clientset.AppsV1().StatefulSets(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				return nil
+			}
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while waiting for StatefulSet deletion")
+		case <-time.After(5 * time.Second):
+			// Continue waiting
+		}
+	}
 }
 
 func (l *LocalHelmReconciler) GetValues(namespace, release string) (map[string]interface{}, error) {

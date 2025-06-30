@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 
@@ -11,6 +12,13 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -28,8 +36,11 @@ func TestLocalHelmReconciler_ReconcilePanic(t *testing.T) {
 	// Create a mock manager
 	mockManager := NewMockManager(mockCtrl)
 
+	// Create a mock rest.Config
+	mockConfig := &rest.Config{}
+
 	// Setup expectations for the manager
-	mockManager.EXPECT().GetConfig().Return(nil).AnyTimes()
+	mockManager.EXPECT().GetConfig().Return(mockConfig).AnyTimes()
 
 	ctx := context.TODO()
 	request := helm.ChartRequest{}
@@ -53,8 +64,11 @@ func TestLocalHelmReconciler_Reconcile(t *testing.T) {
 	// Create a mock manager
 	mockManager := NewMockManager(mockCtrl)
 
+	// Create a mock rest.Config
+	mockConfig := &rest.Config{}
+
 	// Setup expectations for the manager
-	mockManager.EXPECT().GetConfig().Return(nil).AnyTimes()
+	mockManager.EXPECT().GetConfig().Return(mockConfig).AnyTimes()
 
 	ctx := context.TODO()
 	request := helm.ChartRequest{}
@@ -136,6 +150,72 @@ func TestLocalHelmReconciler_Reconcile(t *testing.T) {
 		err := rec.Reconcile(ctx, request)
 		assert.NoError(t, err)
 	})
+}
+
+func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	settings := cli.New()
+	logger := ctrl.Log.WithName("test")
+	mockManager := NewMockManager(mockCtrl)
+	mockConfig := &rest.Config{}
+	mockManager.EXPECT().GetConfig().Return(mockConfig).AnyTimes()
+
+	ctx := context.TODO()
+	rec := MustNewLocalHelmReconciler(settings, logger, mockManager)
+
+	// Create a fake clientset
+	fakeClientset := fake.NewSimpleClientset()
+	rec.clientset = fakeClientset
+
+	// Create a test StatefulSet
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-etcd",
+			Namespace: "test-namespace",
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: ptr.To(int32(3)),
+		},
+	}
+	_, err := fakeClientset.AppsV1().StatefulSets("test-namespace").Create(ctx, sts, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	// Create test PVCs
+	for i := 0; i < 3; i++ {
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("data-test-etcd-%d", i),
+				Namespace: "test-namespace",
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("5Gi"),
+					},
+				},
+			},
+		}
+		_, err := fakeClientset.CoreV1().PersistentVolumeClaims("test-namespace").Create(ctx, pvc, metav1.CreateOptions{})
+		assert.NoError(t, err)
+	}
+
+	// Test reconcilePVCs
+	err = rec.reconcilePVCs(ctx, "test-namespace", "test-etcd", "5Gi", "10Gi")
+	assert.NoError(t, err)
+
+	// Verify PVCs were updated
+	for i := 0; i < 3; i++ {
+		pvc, err := fakeClientset.CoreV1().PersistentVolumeClaims("test-namespace").Get(ctx, fmt.Sprintf("data-test-etcd-%d", i), metav1.GetOptions{})
+		assert.NoError(t, err)
+		assert.Equal(t, "10Gi", pvc.Spec.Resources.Requests.Storage().String())
+	}
+
+	// Verify StatefulSet was recreated
+	_, err = fakeClientset.AppsV1().StatefulSets("test-namespace").Get(ctx, "test-etcd", metav1.GetOptions{})
+	assert.NoError(t, err)
 }
 
 func TestClusterReconciler_ReconcileDeps(t *testing.T) {
