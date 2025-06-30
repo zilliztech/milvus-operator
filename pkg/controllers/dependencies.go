@@ -208,13 +208,15 @@ func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRe
 		l.logger.Info("update helm values", "old", vals, "new", request.Values)
 	}
 
-	oldSize := vals["persistence"].(map[string]interface{})["size"].(string)
-	newSize := request.Values["persistence"].(map[string]interface{})["size"].(string)
+	if strings.Contains(request.ReleaseName, Etcd) {
+		oldSize := vals["persistence"].(map[string]interface{})["size"].(string)
+		newSize := request.Values["persistence"].(map[string]interface{})["size"].(string)
 
-	if parseSize(newSize) != parseSize(oldSize) {
-		l.logger.Info("reconcile PVC", "old size:", oldSize, "new size:", newSize, "release", request.ReleaseName)
-		if err := l.reconcilePVCs(ctx, request.Namespace, request.ReleaseName, oldSize, newSize); err != nil {
-			return err
+		if parseSize(newSize) != parseSize(oldSize) {
+			l.logger.Info("reconcile PVC", "old size:", oldSize, "new size:", newSize, "release", request.ReleaseName)
+			if err := l.reconcilePVCs(ctx, request.Namespace, request.ReleaseName, oldSize, newSize); err != nil {
+				return err
+			}
 		}
 	}
 
