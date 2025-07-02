@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -209,44 +208,27 @@ func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRe
 	}
 
 	if strings.Contains(request.ReleaseName, Etcd) {
-		oldSize := vals["persistence"].(map[string]interface{})["size"].(string)
-		newSize := request.Values["persistence"].(map[string]interface{})["size"].(string)
+		oldSizeStr := vals["persistence"].(map[string]interface{})["size"].(string)
+		newSizeStr := request.Values["persistence"].(map[string]interface{})["size"].(string)
 
-		if parseSize(newSize) != parseSize(oldSize) {
-			l.logger.Info("reconcile PVC", "old size:", oldSize, "new size:", newSize, "release", request.ReleaseName)
-			if err := l.reconcilePVCs(ctx, request.Namespace, request.ReleaseName, oldSize, newSize); err != nil {
+		oldSize, err := resource.ParseQuantity(oldSizeStr)
+		if err != nil {
+			return err
+		}
+		newSize, err := resource.ParseQuantity(newSizeStr)
+		if err != nil {
+			return err
+		}
+
+		if newSize != oldSize {
+			l.logger.Info("reconcile PVC", "old size:", oldSizeStr, "new size:", newSizeStr, "release", request.ReleaseName)
+			if err := l.reconcilePVCs(ctx, request.Namespace, request.ReleaseName, oldSizeStr, newSizeStr); err != nil {
 				return err
 			}
 		}
 	}
 
 	return helm.Update(cfg, request)
-}
-
-func parseSize(size string) int64 {
-	size = strings.TrimSpace(size)
-	if len(size) == 0 {
-		return 0
-	}
-
-	unit := size[len(size)-2:]
-	value, err := strconv.ParseInt(size[:len(size)-2], 10, 64)
-	if err != nil {
-		return 0
-	}
-
-	switch strings.ToLower(unit) {
-	case "ti":
-		return value * 1024 * 1024 * 1024 * 1024
-	case "gi":
-		return value * 1024 * 1024 * 1024
-	case "mi":
-		return value * 1024 * 1024
-	case "ki":
-		return value * 1024
-	default:
-		return value
-	}
 }
 
 func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, releaseName, oldSize, newSize string) error {
