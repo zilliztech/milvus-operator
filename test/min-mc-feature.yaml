@@ -4,6 +4,16 @@ kind: Namespace
 metadata:
   name: mc-sit
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-secret
+  namespace: mc-sit
+type: Opaque
+stringData:
+  accesskey: myaccesskey
+  secretkey: mysecretkey
+---
 apiVersion: milvus.io/v1beta1
 kind: Milvus
 metadata:
@@ -142,6 +152,7 @@ spec:
               PULSAR_MEM: >
                 -Xms64m -Xmx512m -XX:MaxDirectMemorySize=2048m
     storage:
+      secretRef: minio-secret
       inCluster:
         deletionPolicy: Delete
         pvcDeletion: true
@@ -149,6 +160,8 @@ spec:
           mode: standalone
           persistence:
             size: 20Gi
+          accessKey: myaccesskey
+          secretKey: mysecretkey
   config:
     localStorage:
       path: /milvus/data
