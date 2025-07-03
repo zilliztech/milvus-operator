@@ -48,6 +48,9 @@ func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 	if secretRef == "" {
 		return env
 	}
+	// milvus changes its env in v2.2:
+	// from MINIO_ACCESS_KEY & MINIO_SECRET_KEY to MINIO_ACCESS_KEY_ID & MINIO_SECRET_ACCESS_KEY
+	// so we need to set both envs for compatibility
 	env = append(env, corev1.EnvVar{
 		Name: "MINIO_ACCESS_KEY",
 		ValueFrom: &corev1.EnvVarSource{
@@ -58,9 +61,28 @@ func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 				Key: AccessKey,
 			},
 		},
-	})
-	env = append(env, corev1.EnvVar{
+	}, corev1.EnvVar{
+		Name: "MINIO_ACCESS_KEY_ID",
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: secretRef,
+				},
+				Key: AccessKey,
+			},
+		},
+	}, corev1.EnvVar{
 		Name: "MINIO_SECRET_KEY",
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: secretRef,
+				},
+				Key: SecretKey,
+			},
+		},
+	}, corev1.EnvVar{
+		Name: "MINIO_SECRET_ACCESS_KEY",
 		ValueFrom: &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
