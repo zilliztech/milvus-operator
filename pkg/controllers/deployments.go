@@ -40,6 +40,7 @@ const (
 
 var (
 	DefaultConfigMapMode = corev1.ConfigMapVolumeSourceDefaultMode
+	DefaultSecretMode    = corev1.SecretVolumeSourceDefaultMode
 	ErrRequeue           = errors.New("requeue")
 )
 

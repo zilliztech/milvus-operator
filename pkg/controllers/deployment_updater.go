@@ -202,6 +202,7 @@ func updateUserDefinedVolumes(template *corev1.PodTemplateSpec, updater deployme
 		var volume corev1.Volume
 		volumeValues.MustAsObj(&volume)
 		fillConfigMapVolumeDefaultValues(&volume)
+		fillSecretVolumeDefaultValues(&volume)
 		userDefinedVolumes = append(userDefinedVolumes, volume)
 	}
 	builtInMq := updater.GetMilvus().Spec.Dep.GetMilvusBuiltInMQ()
