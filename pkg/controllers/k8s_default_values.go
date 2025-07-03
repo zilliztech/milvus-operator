@@ -27,3 +27,12 @@ func fillConfigMapVolumeDefaultValues(v *corev1.Volume) {
 		v.ConfigMap.DefaultMode = int32Ptr(int(DefaultConfigMapMode))
 	}
 }
+
+func fillSecretVolumeDefaultValues(v *corev1.Volume) {
+	if v.Secret == nil {
+		return
+	}
+	if v.Secret.DefaultMode == nil {
+		v.Secret.DefaultMode = int32Ptr(int(DefaultSecretMode))
+	}
+}
