@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -54,7 +55,7 @@ const (
 // HelmReconciler reconciles Helm releases
 type HelmReconciler interface {
 	NewHelmCfg(namespace string) *action.Configuration
-	Reconcile(ctx context.Context, request helm.ChartRequest) error
+	Reconcile(ctx context.Context, request helm.ChartRequest, mc v1beta1.Milvus) error
 	GetValues(namespace, release string) (map[string]interface{}, error)
 }
 
@@ -162,7 +163,7 @@ func IsPulsarChartPath(chartPath string) bool {
 }
 
 // ReconcileHelm reconciles Helm releases
-func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRequest) error {
+func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRequest, mc v1beta1.Milvus) error {
 	cfg := l.NewHelmCfg(request.Namespace)
 
 	exist, err := helm.ReleaseExist(cfg, request.ReleaseName)
@@ -210,44 +211,64 @@ func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRe
 	if strings.Contains(request.ReleaseName, Etcd) {
 		oldSizeStr := vals["persistence"].(map[string]interface{})["size"].(string)
 		newSizeStr := request.Values["persistence"].(map[string]interface{})["size"].(string)
-
-		oldSize, err := resource.ParseQuantity(oldSizeStr)
-		if err != nil {
+		l.logger.Info("reconcile PVC", "old size:", oldSizeStr, "new size:", newSizeStr, "release", request.ReleaseName)
+		if err := l.reconcilePVCs(ctx, request.Namespace, request.ReleaseName, oldSizeStr, newSizeStr, mc); err != nil {
 			return err
-		}
-		newSize, err := resource.ParseQuantity(newSizeStr)
-		if err != nil {
-			return err
-		}
-
-		if newSize != oldSize {
-			l.logger.Info("reconcile PVC", "old size:", oldSizeStr, "new size:", newSizeStr, "release", request.ReleaseName)
-			if err := l.reconcilePVCs(ctx, request.Namespace, request.ReleaseName, oldSizeStr, newSizeStr); err != nil {
-				return err
-			}
 		}
 	}
 
 	return helm.Update(cfg, request)
 }
 
-func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, releaseName, oldSize, newSize string) error {
+func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, releaseName, oldSize, newSize string, mc v1beta1.Milvus) error {
 	l.logger.Info("Reconciling PVCs", "namespace", namespace, "release", releaseName, "oldSize", oldSize, "newSize", newSize)
 
-	// 1. Get the old StatefulSet
 	stsName := releaseName
-	oldSts, err := l.clientset.AppsV1().StatefulSets(namespace).Get(ctx, stsName, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get old StatefulSet: %v", err)
-	}
-
 	newQuantity, err := resource.ParseQuantity(newSize)
 	if err != nil {
 		return fmt.Errorf("failed to parse new size: %v", err)
 	}
 
-	// 2. Update all related PVCs
-	for i := 0; i < int(*oldSts.Spec.Replicas); i++ {
+	// Create K8sUtil instance for saving/getting objects
+	k8sUtil := NewK8sUtil(l.mgr.GetClient())
+
+	// Generate save name for the StatefulSet
+	saveName := fmt.Sprintf("saved-sts-%s", releaseName)
+
+	// Try to get the current StatefulSet
+	currentSts, err := l.clientset.AppsV1().StatefulSets(namespace).Get(ctx, stsName, metav1.GetOptions{})
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			l.logger.Info("StatefulSet not found, trying to restore from saved object", "name", stsName)
+
+			// Try to get saved StatefulSet
+			savedSts := &appsv1.StatefulSet{}
+			key := client.ObjectKey{Name: saveName, Namespace: namespace}
+			err = k8sUtil.GetSavedObject(ctx, key, savedSts)
+			if err != nil {
+				return fmt.Errorf("failed to get saved StatefulSet: %v", err)
+			}
+
+			// Create new StatefulSet from saved object
+			return l.createNewStatefulSet(ctx, namespace, stsName, savedSts, newQuantity)
+		}
+		return fmt.Errorf("failed to get StatefulSet: %v", err)
+	}
+
+	// StatefulSet exists, check if storage size needs update
+	currentStorageSize := l.getCurrentStorageSize(currentSts)
+	if currentStorageSize.Equal(newQuantity) {
+		l.logger.Info("Storage size already updated, nothing to do", "name", stsName, "size", newQuantity.String())
+		return nil
+	}
+
+	l.logger.Info("Storage size needs update, performing delete & create procedure",
+		"name", stsName,
+		"currentSize", currentStorageSize.String(),
+		"newSize", newQuantity.String())
+
+	// Update all related PVCs
+	for i := 0; i < int(*currentSts.Spec.Replicas); i++ {
 		pvcName := fmt.Sprintf("data-%s-%d", releaseName, i)
 		pvc, err := l.clientset.CoreV1().PersistentVolumeClaims(namespace).Get(ctx, pvcName, metav1.GetOptions{})
 		if err != nil {
@@ -262,42 +283,60 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 		l.logger.Info("Updated PVC size", "pvc", pvcName, "newSize", newSize)
 	}
 
-	// 3. Recreate the StatefulSet
-	if err := l.recreateStatefulSet(ctx, namespace, stsName, oldSts, newQuantity); err != nil {
-		return err
+	if len(currentSts.Spec.VolumeClaimTemplates) > 0 {
+		currentSts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests[corev1.ResourceStorage] = newQuantity
 	}
+	// Save the current StatefulSet before deletion
+	err = k8sUtil.SaveObject(ctx, mc, saveName, currentSts)
+	if err != nil {
+		return fmt.Errorf("failed to save StatefulSet: %v", err)
+	}
+	l.logger.Info("StatefulSet saved successfully", "name", stsName, "saveName", saveName)
 
-	l.logger.Info("Successfully resized PVCs and recreated StatefulSet", "namespace", namespace, "release", releaseName)
-	return nil
-}
-
-func (l *LocalHelmReconciler) recreateStatefulSet(ctx context.Context, namespace, name string, oldSts *appsv1.StatefulSet, newQuantity resource.Quantity) error {
 	// Delete the old StatefulSet
 	deleteOptions := newDeleteOptionsOnlySts()
-	err := l.clientset.AppsV1().StatefulSets(namespace).Delete(ctx, name, *deleteOptions)
+	err = l.clientset.AppsV1().StatefulSets(namespace).Delete(ctx, stsName, *deleteOptions)
 	if err != nil {
 		return fmt.Errorf("failed to delete StatefulSet: %v", err)
 	}
+	l.logger.Info("StatefulSet deleted successfully", "name", stsName)
 
 	// Wait for the StatefulSet to be deleted
-	err = l.waitForStatefulSetDeletion(ctx, namespace, name)
+	err = l.waitForStatefulSetDeletion(ctx, namespace, stsName)
 	if err != nil {
 		return fmt.Errorf("failed to wait for StatefulSet deletion: %v", err)
 	}
 
-	// Create a new StatefulSet
-	newSts := oldSts.DeepCopy()
+	// Create a new StatefulSet with updated storage size
+	return l.createNewStatefulSet(ctx, namespace, stsName, currentSts, newQuantity)
+}
+
+func (l *LocalHelmReconciler) createNewStatefulSet(ctx context.Context, namespace, name string, templateSts *appsv1.StatefulSet, newQuantity resource.Quantity) error {
+	newSts := templateSts.DeepCopy()
 	newSts.ResourceVersion = ""
+	newSts.Status = appsv1.StatefulSetStatus{}
+	// Update storage size in VolumeClaimTemplates
 	for i := range newSts.Spec.VolumeClaimTemplates {
 		newSts.Spec.VolumeClaimTemplates[i].Spec.Resources.Requests[corev1.ResourceStorage] = newQuantity
 	}
 
-	_, err = l.clientset.AppsV1().StatefulSets(namespace).Create(ctx, newSts, metav1.CreateOptions{})
+	_, err := l.clientset.AppsV1().StatefulSets(namespace).Create(ctx, newSts, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create new StatefulSet: %v", err)
 	}
 
+	l.logger.Info("New StatefulSet created successfully", "name", name, "storageSize", newQuantity.String())
 	return nil
+}
+
+func (l *LocalHelmReconciler) getCurrentStorageSize(sts *appsv1.StatefulSet) resource.Quantity {
+	if len(sts.Spec.VolumeClaimTemplates) > 0 {
+		if storageRequest, exists := sts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests[corev1.ResourceStorage]; exists {
+			return storageRequest
+		}
+	}
+	// Return zero quantity if no storage found
+	return resource.Quantity{}
 }
 
 func (l *LocalHelmReconciler) waitForStatefulSetDeletion(ctx context.Context, namespace, name string) error {
@@ -336,7 +375,7 @@ func (r *MilvusReconciler) ReconcileEtcd(ctx context.Context, mc v1beta1.Milvus)
 	}
 	request := helm.GetChartRequest(mc, values.DependencyKindEtcd, Etcd)
 
-	return r.helmReconciler.Reconcile(ctx, request)
+	return r.helmReconciler.Reconcile(ctx, request, mc)
 }
 
 func (r *MilvusReconciler) ReconcileMsgStream(ctx context.Context, mc v1beta1.Milvus) error {
@@ -357,7 +396,7 @@ func (r *MilvusReconciler) ReconcileKafka(ctx context.Context, mc v1beta1.Milvus
 	}
 	request := helm.GetChartRequest(mc, values.DependencyKindKafka, Kafka)
 
-	return r.helmReconciler.Reconcile(ctx, request)
+	return r.helmReconciler.Reconcile(ctx, request, mc)
 }
 
 func (r *MilvusReconciler) ReconcilePulsar(ctx context.Context, mc v1beta1.Milvus) error {
@@ -366,7 +405,7 @@ func (r *MilvusReconciler) ReconcilePulsar(ctx context.Context, mc v1beta1.Milvu
 	}
 	request := helm.GetChartRequest(mc, values.DependencyKindPulsar, Pulsar)
 
-	return r.helmReconciler.Reconcile(ctx, request)
+	return r.helmReconciler.Reconcile(ctx, request, mc)
 }
 
 func (r *MilvusReconciler) ReconcileMinio(ctx context.Context, mc v1beta1.Milvus) error {
@@ -375,7 +414,7 @@ func (r *MilvusReconciler) ReconcileMinio(ctx context.Context, mc v1beta1.Milvus
 	}
 	request := helm.GetChartRequest(mc, values.DependencyKindStorage, Minio)
 
-	return r.helmReconciler.Reconcile(ctx, request)
+	return r.helmReconciler.Reconcile(ctx, request, mc)
 }
 
 func (r *MilvusReconciler) ReconcileTei(ctx context.Context, mc v1beta1.Milvus) error {
@@ -384,5 +423,5 @@ func (r *MilvusReconciler) ReconcileTei(ctx context.Context, mc v1beta1.Milvus) 
 	}
 	request := helm.GetChartRequest(mc, values.DependencyKindTei, Tei)
 
-	return r.helmReconciler.Reconcile(ctx, request)
+	return r.helmReconciler.Reconcile(ctx, request, mc)
 }

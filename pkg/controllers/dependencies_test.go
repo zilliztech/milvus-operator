@@ -46,9 +46,12 @@ func TestLocalHelmReconciler_ReconcilePanic(t *testing.T) {
 	request := helm.ChartRequest{}
 	rec := MustNewLocalHelmReconciler(settings, logger, mockManager)
 
+	mc := v1beta1.Milvus{}
+	mc.Default()
+
 	// bad driver failed
 	os.Setenv("HELM_DRIVER", "bad")
-	assert.Panics(t, func() { rec.Reconcile(ctx, request) })
+	assert.Panics(t, func() { rec.Reconcile(ctx, request, mc) })
 }
 
 func TestLocalHelmReconciler_Reconcile(t *testing.T) {
@@ -75,11 +78,14 @@ func TestLocalHelmReconciler_Reconcile(t *testing.T) {
 	rec := MustNewLocalHelmReconciler(settings, logger, mockManager)
 	errTest := errors.New("test")
 
+	mc := v1beta1.Milvus{}
+	mc.Default()
+
 	t.Run("ReleaseExist failed", func(t *testing.T) {
 		mockHelm.EXPECT().
 			ReleaseExist(gomock.Any(), gomock.Any()).
 			Return(false, errTest)
-		err := rec.Reconcile(ctx, request)
+		err := rec.Reconcile(ctx, request, mc)
 		assert.Error(t, err)
 	})
 
@@ -95,7 +101,11 @@ func TestLocalHelmReconciler_Reconcile(t *testing.T) {
 				assert.True(t, request.Values["initialize"].(bool))
 				return nil
 			})
-		err := rec.Reconcile(ctx, request)
+
+		mc := v1beta1.Milvus{}
+		mc.Default()
+
+		err := rec.Reconcile(ctx, request, mc)
 		assert.NoError(t, err)
 	})
 
@@ -105,7 +115,7 @@ func TestLocalHelmReconciler_Reconcile(t *testing.T) {
 			ReleaseExist(gomock.Any(), gomock.Any()).
 			Return(true, nil)
 		mockHelm.EXPECT().GetValues(gomock.Any(), gomock.Any()).Return(nil, errTest)
-		err := rec.Reconcile(ctx, request)
+		err := rec.Reconcile(ctx, request, mc)
 		assert.Error(t, err)
 	})
 
@@ -116,7 +126,7 @@ func TestLocalHelmReconciler_Reconcile(t *testing.T) {
 			Return(true, nil)
 		mockHelm.EXPECT().GetValues(gomock.Any(), gomock.Any())
 		mockHelm.EXPECT().GetStatus(gomock.Any(), gomock.Any()).Return(release.StatusUnknown, errTest)
-		err := rec.Reconcile(ctx, request)
+		err := rec.Reconcile(ctx, request, mc)
 		assert.Error(t, err)
 	})
 
@@ -127,7 +137,7 @@ func TestLocalHelmReconciler_Reconcile(t *testing.T) {
 			Return(true, nil)
 		mockHelm.EXPECT().GetValues(gomock.Any(), gomock.Any()).Return(map[string]interface{}{}, nil)
 		mockHelm.EXPECT().GetStatus(gomock.Any(), gomock.Any()).Return(release.StatusDeployed, nil)
-		err := rec.Reconcile(ctx, request)
+		err := rec.Reconcile(ctx, request, mc)
 		assert.NoError(t, err)
 	})
 
@@ -147,7 +157,7 @@ func TestLocalHelmReconciler_Reconcile(t *testing.T) {
 				assert.True(t, request.Values["val2"].(bool))
 				return nil
 			})
-		err := rec.Reconcile(ctx, request)
+		err := rec.Reconcile(ctx, request, mc)
 		assert.NoError(t, err)
 	})
 }
@@ -201,9 +211,11 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 		_, err := fakeClientset.CoreV1().PersistentVolumeClaims("test-namespace").Create(ctx, pvc, metav1.CreateOptions{})
 		assert.NoError(t, err)
 	}
+	mc := v1beta1.Milvus{}
+	mc.Default()
 
 	// Test reconcilePVCs
-	err = rec.reconcilePVCs(ctx, "test-namespace", "test-etcd", "5Gi", "10Gi")
+	err = rec.reconcilePVCs(ctx, "test-namespace", "test-etcd", "5Gi", "10Gi", mc)
 	assert.NoError(t, err)
 
 	// Verify PVCs were updated
@@ -231,7 +243,7 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 	m.Spec.Dep.Etcd.InCluster = icc
 
 	// internal reconcile helm
-	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any()).
+	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, request helm.ChartRequest) error {
 			assert.Equal(t, request.Chart, helm.GetChartPathByName(Etcd))
 			return nil
@@ -244,7 +256,7 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 
 	m.Spec.Dep.Storage.InCluster = icc
 	// internal reconcile helm
-	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any()).
+	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, request helm.ChartRequest) error {
 			assert.Equal(t, request.Chart, helm.GetChartPathByName(Minio))
 			return nil
@@ -257,7 +269,7 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 
 	m.Spec.Dep.Pulsar.InCluster = icc
 	// internal reconcile helm
-	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any()).
+	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, request helm.ChartRequest) error {
 			assert.Equal(t, request.Chart, helm.GetChartPathByName(Pulsar))
 			return nil
@@ -271,7 +283,7 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 	t.Run("tei reconcile", func(t *testing.T) {
 		m.Spec.Dep.Tei.Enabled = true
 		m.Spec.Dep.Tei.InCluster = icc
-		mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any()).
+		mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, request helm.ChartRequest) error {
 				assert.Equal(t, request.Chart, helm.GetChartPathByName(Tei))
 				return nil
