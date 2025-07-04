@@ -16,10 +16,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
+	fakekubernetes "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/helm"
@@ -172,11 +173,15 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 	mockConfig := &rest.Config{}
 	mockManager.EXPECT().GetConfig().Return(mockConfig).AnyTimes()
 
+	// Add expectation for GetClient method
+	fakeClient := fakeclient.NewClientBuilder().Build()
+	mockManager.EXPECT().GetClient().Return(fakeClient).AnyTimes()
+
 	ctx := context.TODO()
 	rec := MustNewLocalHelmReconciler(settings, logger, mockManager)
 
 	// Create a fake clientset
-	fakeClientset := fake.NewSimpleClientset()
+	fakeClientset := fakekubernetes.NewSimpleClientset()
 	rec.clientset = fakeClientset
 
 	// Create a test StatefulSet
@@ -244,7 +249,7 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 
 	// internal reconcile helm
 	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, request helm.ChartRequest) error {
+		DoAndReturn(func(ctx context.Context, request helm.ChartRequest, mc v1beta1.Milvus) error {
 			assert.Equal(t, request.Chart, helm.GetChartPathByName(Etcd))
 			return nil
 		})
@@ -257,7 +262,7 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 	m.Spec.Dep.Storage.InCluster = icc
 	// internal reconcile helm
 	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, request helm.ChartRequest) error {
+		DoAndReturn(func(ctx context.Context, request helm.ChartRequest, mc v1beta1.Milvus) error {
 			assert.Equal(t, request.Chart, helm.GetChartPathByName(Minio))
 			return nil
 		})
@@ -270,7 +275,7 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 	m.Spec.Dep.Pulsar.InCluster = icc
 	// internal reconcile helm
 	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, request helm.ChartRequest) error {
+		DoAndReturn(func(ctx context.Context, request helm.ChartRequest, mc v1beta1.Milvus) error {
 			assert.Equal(t, request.Chart, helm.GetChartPathByName(Pulsar))
 			return nil
 		})
@@ -284,7 +289,7 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 		m.Spec.Dep.Tei.Enabled = true
 		m.Spec.Dep.Tei.InCluster = icc
 		mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, request helm.ChartRequest) error {
+			DoAndReturn(func(ctx context.Context, request helm.ChartRequest, mc v1beta1.Milvus) error {
 				assert.Equal(t, request.Chart, helm.GetChartPathByName(Tei))
 				return nil
 			})
