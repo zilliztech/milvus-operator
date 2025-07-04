@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	fakekubernetes "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
@@ -173,14 +174,23 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 	mockConfig := &rest.Config{}
 	mockManager.EXPECT().GetConfig().Return(mockConfig).AnyTimes()
 
+	// Create a scheme and register v1beta1.Milvus and other necessary types
+	scheme := runtime.NewScheme()
+	err := v1beta1.AddToScheme(scheme)
+	assert.NoError(t, err)
+	err = appsv1.AddToScheme(scheme)
+	assert.NoError(t, err)
+	err = corev1.AddToScheme(scheme)
+	assert.NoError(t, err)
+
 	// Add expectation for GetClient method
-	fakeClient := fakeclient.NewClientBuilder().Build()
+	fakeClient := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 	mockManager.EXPECT().GetClient().Return(fakeClient).AnyTimes()
 
 	ctx := context.TODO()
 	rec := MustNewLocalHelmReconciler(settings, logger, mockManager)
 
-	// Create a fake clientset
+	// Create a fake clientset with the scheme
 	fakeClientset := fakekubernetes.NewSimpleClientset()
 	rec.clientset = fakeClientset
 
@@ -194,7 +204,7 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 			Replicas: ptr.To(int32(3)),
 		},
 	}
-	_, err := fakeClientset.AppsV1().StatefulSets("test-namespace").Create(ctx, sts, metav1.CreateOptions{})
+	_, err = fakeClientset.AppsV1().StatefulSets("test-namespace").Create(ctx, sts, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
 	// Create test PVCs
@@ -213,7 +223,7 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 				},
 			},
 		}
-		_, err := fakeClientset.CoreV1().PersistentVolumeClaims("test-namespace").Create(ctx, pvc, metav1.CreateOptions{})
+		_, err = fakeClientset.CoreV1().PersistentVolumeClaims("test-namespace").Create(ctx, pvc, metav1.CreateOptions{})
 		assert.NoError(t, err)
 	}
 	mc := v1beta1.Milvus{}
