@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"os"
 	"reflect"
 	"strings"
@@ -233,7 +234,7 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 	k8sUtil := NewK8sUtil(l.mgr.GetClient())
 
 	// Generate save name for the StatefulSet
-	saveName := fmt.Sprintf("saved-sts-%s", releaseName)
+	saveName := fmt.Sprintf("%s-old-sts", releaseName)
 
 	// Try to get the current StatefulSet
 	currentSts, err := l.clientset.AppsV1().StatefulSets(namespace).Get(ctx, stsName, metav1.GetOptions{})
@@ -286,7 +287,19 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 	if len(currentSts.Spec.VolumeClaimTemplates) > 0 {
 		currentSts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests[corev1.ResourceStorage] = newQuantity
 	}
-	// Save the current StatefulSet before deletion
+
+	err = l.clientset.AppsV1().ControllerRevisions(namespace).Delete(ctx, saveName, metav1.DeleteOptions{})
+	if err != nil && !kerrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete controller revision: %v", err)
+	}
+
+	// Wait for the StatefulSet to be deleted
+	err = l.waitForControllerRevisionsDeletion(ctx, namespace, saveName)
+	if err != nil {
+		return fmt.Errorf("failed to wait for StatefulSet deletion: %v", err)
+	}
+
+	// Save the new StatefulSet before deletion sts
 	err = k8sUtil.SaveObject(ctx, mc, saveName, currentSts)
 	if err != nil {
 		return fmt.Errorf("failed to save StatefulSet: %v", err)
@@ -337,6 +350,24 @@ func (l *LocalHelmReconciler) getCurrentStorageSize(sts *appsv1.StatefulSet) res
 	}
 	// Return zero quantity if no storage found
 	return resource.Quantity{}
+}
+
+func (l *LocalHelmReconciler) waitForControllerRevisionsDeletion(ctx context.Context, namespace, name string) error {
+	for {
+		_, err := l.clientset.AppsV1().ControllerRevisions(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				return nil
+			}
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while waiting for StatefulSet deletion")
+		case <-time.After(5 * time.Second):
+			// Continue waiting
+		}
+	}
 }
 
 func (l *LocalHelmReconciler) waitForStatefulSetDeletion(ctx context.Context, namespace, name string) error {
