@@ -283,7 +283,7 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("reconcile milvus deployments errs: %w", err)
+		return fmt.Errorf("reconcile milvus %s deployments errs: %w", mc.Name, errors.Join(errs...))
 	}
 
 	err = r.cleanupIndexNodeIfNeeded(ctx, mc)
