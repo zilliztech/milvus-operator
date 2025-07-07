@@ -314,3 +314,72 @@ func Test_removeVolumeMounts(t *testing.T) {
 	assert.Equal(t, "p3", vms[0].MountPath)
 	assert.Equal(t, "p4", vms[1].MountPath)
 }
+
+func TestClusterReconciler_ReconcileDeployments_Error(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	mockQnController := NewMockDeployController(env.Ctrl)
+	r.deployCtrl = mockQnController
+	mockClient := env.MockClient
+	ctx := env.ctx
+	mc := env.Inst
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	// mock hasTerminatingPod
+	bak := CheckComponentHasTerminatingPod
+	CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus, component MilvusComponent) (bool, error) {
+		return false, nil
+	}
+	defer func() {
+		CheckComponentHasTerminatingPod = bak
+	}()
+
+	t.Run("multiple component errors are joined", func(t *testing.T) {
+		defer env.Ctrl.Finish()
+
+		firstComponentGetErrorMsg := "get first component error"
+		secondComponentGetErrorMsg := "get second component error"
+		queryNodeReconcileErrorMsg := "reconcile query node error"
+
+		// Mock List to return empty deployment list
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+
+		// Mock Get to return errors for multiple components
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			Return(errors.New(firstComponentGetErrorMsg)).
+			Times(1)
+
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			Return(errors.New(secondComponentGetErrorMsg)).
+			Times(1)
+
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "")).
+			Times(3) // Remaining components that don't exist
+
+		// Mock Create to succeed for components that don't exist
+		mockClient.EXPECT().
+			Create(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			Return(nil).
+			Times(3)
+
+		// Mock deployCtrl.Reconcile to return error for QueryNode
+		mockQnController.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(errors.New(queryNodeReconcileErrorMsg))
+
+		err := r.ReconcileDeployments(ctx, *mc.DeepCopy())
+		assert.Error(t, err)
+		errStr := err.Error()
+		assert.Contains(t, errStr, "reconcile milvus deployments errs")
+		assert.Contains(t, errStr, mc.Name)
+		assert.Contains(t, errStr, mc.Namespace)
+		assert.Contains(t, errStr, firstComponentGetErrorMsg)
+		assert.Contains(t, errStr, secondComponentGetErrorMsg)
+		assert.Contains(t, errStr, queryNodeReconcileErrorMsg)
+	})
+}
