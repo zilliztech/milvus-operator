@@ -251,7 +251,11 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 			}
 
 			// Create new StatefulSet from saved object
-			return l.createNewStatefulSet(ctx, namespace, stsName, savedSts, newQuantity)
+			err := l.createNewStatefulSet(ctx, namespace, stsName, savedSts, l.getCurrentStorageSize(savedSts))
+			if err != nil {
+				return err
+			}
+			currentSts = savedSts
 		}
 		return fmt.Errorf("failed to get StatefulSet: %v", err)
 	}
