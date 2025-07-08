@@ -256,8 +256,9 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 				return err
 			}
 			currentSts = savedSts
+		} else {
+			return fmt.Errorf("failed to get StatefulSet: %v", err)
 		}
-		return fmt.Errorf("failed to get StatefulSet: %v", err)
 	}
 
 	// StatefulSet exists, check if storage size needs update
