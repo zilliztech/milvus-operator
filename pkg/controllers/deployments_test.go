@@ -235,7 +235,7 @@ func TestGetStorageSecretRefEnv(t *testing.T) {
 	ret := GetStorageSecretRefEnv("")
 	assert.Len(t, ret, 0)
 	ret = GetStorageSecretRefEnv("secret")
-	assert.Len(t, ret, 2)
+	assert.Len(t, ret, 4)
 }
 
 func TestReconciler_handleOldInstanceChangingMode(t *testing.T) {
