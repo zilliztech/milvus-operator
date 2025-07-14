@@ -28,20 +28,14 @@ import (
 )
 
 func TestLocalHelmReconciler_ReconcilePanic(t *testing.T) {
-	t.Skip("some how this case alone can pass, but go test failed when adding this")
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
 	settings := cli.New()
 	logger := ctrl.Log.WithName("test")
 
-	// Create a mock manager
 	mockManager := NewMockManager(mockCtrl)
-
-	// Create a mock rest.Config
 	mockConfig := &rest.Config{}
-
-	// Setup expectations for the manager
 	mockManager.EXPECT().GetConfig().Return(mockConfig).AnyTimes()
 
 	ctx := context.TODO()
@@ -51,9 +45,13 @@ func TestLocalHelmReconciler_ReconcilePanic(t *testing.T) {
 	mc := v1beta1.Milvus{}
 	mc.Default()
 
-	// bad driver failed
+	// Test with invalid helm driver
 	os.Setenv("HELM_DRIVER", "bad")
 	assert.Panics(t, func() { rec.Reconcile(ctx, request, mc) })
+
+	// Test with nil manager
+	os.Setenv("HELM_DRIVER", "secrets")
+	assert.Panics(t, func() { MustNewLocalHelmReconciler(settings, logger, nil) })
 }
 
 func TestLocalHelmReconciler_Reconcile(t *testing.T) {
@@ -174,7 +172,6 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 	mockConfig := &rest.Config{}
 	mockManager.EXPECT().GetConfig().Return(mockConfig).AnyTimes()
 
-	// Create a scheme and register v1beta1.Milvus and other necessary types
 	scheme := runtime.NewScheme()
 	err := v1beta1.AddToScheme(scheme)
 	assert.NoError(t, err)
@@ -183,66 +180,107 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 	err = corev1.AddToScheme(scheme)
 	assert.NoError(t, err)
 
-	// Add expectation for GetClient method
 	fakeClient := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 	mockManager.EXPECT().GetClient().Return(fakeClient).AnyTimes()
 
 	ctx := context.TODO()
 	rec := MustNewLocalHelmReconciler(settings, logger, mockManager)
 
-	// Create a fake clientset with the scheme
-	fakeClientset := fakekubernetes.NewSimpleClientset()
-	rec.clientset = fakeClientset
+	t.Run("success case", func(t *testing.T) {
+		fakeClientset := fakekubernetes.NewSimpleClientset()
+		rec.clientset = fakeClientset
 
-	// Create a test StatefulSet
-	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-etcd",
-			Namespace: "test-namespace",
-		},
-		Spec: appsv1.StatefulSetSpec{
-			Replicas: ptr.To(int32(3)),
-		},
-	}
-	_, err = fakeClientset.AppsV1().StatefulSets("test-namespace").Create(ctx, sts, metav1.CreateOptions{})
-	assert.NoError(t, err)
-
-	// Create test PVCs
-	for i := 0; i < 3; i++ {
-		pvc := &corev1.PersistentVolumeClaim{
+		sts := &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("data-test-etcd-%d", i),
+				Name:      "test-etcd",
 				Namespace: "test-namespace",
 			},
-			Spec: corev1.PersistentVolumeClaimSpec{
-				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-				Resources: corev1.VolumeResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: resource.MustParse("5Gi"),
-					},
-				},
+			Spec: appsv1.StatefulSetSpec{
+				Replicas: ptr.To(int32(3)),
 			},
 		}
-		_, err = fakeClientset.CoreV1().PersistentVolumeClaims("test-namespace").Create(ctx, pvc, metav1.CreateOptions{})
+		_, err = fakeClientset.AppsV1().StatefulSets("test-namespace").Create(ctx, sts, metav1.CreateOptions{})
 		assert.NoError(t, err)
-	}
-	mc := v1beta1.Milvus{}
-	mc.Default()
 
-	// Test reconcilePVCs
-	err = rec.reconcilePVCs(ctx, "test-namespace", "test-etcd", "5Gi", "10Gi", mc)
-	assert.NoError(t, err)
+		for i := 0; i < 3; i++ {
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("data-test-etcd-%d", i),
+					Namespace: "test-namespace",
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("5Gi"),
+						},
+					},
+				},
+			}
+			_, err = fakeClientset.CoreV1().PersistentVolumeClaims("test-namespace").Create(ctx, pvc, metav1.CreateOptions{})
+			assert.NoError(t, err)
+		}
 
-	// Verify PVCs were updated
-	for i := 0; i < 3; i++ {
-		pvc, err := fakeClientset.CoreV1().PersistentVolumeClaims("test-namespace").Get(ctx, fmt.Sprintf("data-test-etcd-%d", i), metav1.GetOptions{})
+		mc := v1beta1.Milvus{}
+		mc.Default()
+
+		err = rec.reconcilePVCs(ctx, "test-namespace", "test-etcd", "5Gi", "10Gi", mc)
 		assert.NoError(t, err)
-		assert.Equal(t, "10Gi", pvc.Spec.Resources.Requests.Storage().String())
-	}
 
-	// Verify StatefulSet was recreated
-	_, err = fakeClientset.AppsV1().StatefulSets("test-namespace").Get(ctx, "test-etcd", metav1.GetOptions{})
-	assert.NoError(t, err)
+		for i := 0; i < 3; i++ {
+			pvc, err := fakeClientset.CoreV1().PersistentVolumeClaims("test-namespace").Get(ctx, fmt.Sprintf("data-test-etcd-%d", i), metav1.GetOptions{})
+			assert.NoError(t, err)
+			assert.Equal(t, "10Gi", pvc.Spec.Resources.Requests.Storage().String())
+		}
+
+		_, err = fakeClientset.AppsV1().StatefulSets("test-namespace").Get(ctx, "test-etcd", metav1.GetOptions{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("error getting statefulset", func(t *testing.T) {
+		fakeClientset := fakekubernetes.NewSimpleClientset()
+		rec.clientset = fakeClientset
+
+		mc := v1beta1.Milvus{}
+		mc.Default()
+
+		err = rec.reconcilePVCs(ctx, "test-namespace", "non-existent", "5Gi", "10Gi", mc)
+		assert.Error(t, err)
+	})
+
+	t.Run("error getting PVC", func(t *testing.T) {
+		fakeClientset := fakekubernetes.NewSimpleClientset()
+		rec.clientset = fakeClientset
+
+		sts := &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-etcd",
+				Namespace: "test-namespace",
+			},
+			Spec: appsv1.StatefulSetSpec{
+				Replicas: ptr.To(int32(1)),
+			},
+		}
+		_, err = fakeClientset.AppsV1().StatefulSets("test-namespace").Create(ctx, sts, metav1.CreateOptions{})
+		assert.NoError(t, err)
+
+		mc := v1beta1.Milvus{}
+		mc.Default()
+
+		err = rec.reconcilePVCs(ctx, "test-namespace", "test-etcd", "5Gi", "10Gi", mc)
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid storage size", func(t *testing.T) {
+		fakeClientset := fakekubernetes.NewSimpleClientset()
+		rec.clientset = fakeClientset
+
+		mc := v1beta1.Milvus{}
+		mc.Default()
+
+		err = rec.reconcilePVCs(ctx, "test-namespace", "test-etcd", "invalid", "10Gi", mc)
+		assert.Error(t, err)
+	})
 }
 
 func TestClusterReconciler_ReconcileDeps(t *testing.T) {
