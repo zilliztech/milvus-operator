@@ -165,6 +165,17 @@ func (c MilvusComponent) IsNode() bool {
 	return strings.HasSuffix(c.Name, "node")
 }
 
+func HasCoordsSpec(m *v1beta1.Milvus) bool {
+	return m.Spec.Com.DataCoord != nil || m.Spec.Com.QueryCoord != nil || m.Spec.Com.IndexCoord != nil || m.Spec.Com.RootCoord != nil
+}
+
+func SetCoordsNil(m *v1beta1.Milvus) {
+	m.Spec.Com.DataCoord = nil
+	m.Spec.Com.QueryCoord = nil
+	m.Spec.Com.IndexCoord = nil
+	m.Spec.Com.RootCoord = nil
+}
+
 // GetLeastReplicasRegardingHPA returns the least replicas for the component regarding HPA
 func (c MilvusComponent) GetLeastReplicasRegardingHPA(spec v1beta1.MilvusSpec) int32 {
 	replicas := ReplicasValue(c.GetReplicas(spec))
