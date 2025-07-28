@@ -252,7 +252,7 @@ func ExecKillIfTerminating(ctx context.Context, podList *corev1.PodList) error {
 		logger := ctrl.LoggerFrom(ctx)
 		containerName := pod.Labels[AppLabelComponent]
 		logger.Info("kill milvus process", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "container", containerName)
-		stdout, stderr, err := cli.Exec(ctx, pod.Namespace, pod.Name, containerName, []string{"bash", "-c", "pid=$(ps -C milvus -o pid=); kill -9 $pid"})
+		stdout, stderr, err := cli.Exec(ctx, pod.Namespace, pod.Name, containerName, []string{"bash", "-c", "pid=$(pidof milvus); kill -9 $pid"})
 		if err != nil {
 			logger.Error(err, "kill milvus process err", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "container", containerName)
 			ret = err
