@@ -70,6 +70,7 @@ spec:
   components:
     updateConfigMapOnly: true
 ```
+Since Milvus Operator v1.3.0, the `spec.components.updateConfigMapOnly` is force to be `true`, pods will not restart on ConfigMap changes.
 
 > Note: not all fields in the `milvus.yaml` can be dynamically updated. You can refer to the [Applicable configuration items](https://milvus.io/docs/dynamic_config.md#Applicable-configuration-items) for more details.
 
