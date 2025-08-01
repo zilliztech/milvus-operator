@@ -65,6 +65,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 			},
 			EnableRollingUpdate: util.BoolPtr(false),
 			RollingMode:         RollingModeV2,
+			UpdateConfigMapOnly: true,
 		},
 		Conf: Values{
 			Data: map[string]interface{}{},
@@ -104,7 +105,8 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 	clusterDefault.Dep.Etcd.InCluster.Values.Data["replicaCount"] = int64(3)
 	delete(clusterDefault.Dep.Storage.InCluster.Values.Data, "mode")
 	clusterDefault.Com = MilvusComponents{
-		ImageUpdateMode: ImageUpdateModeRollingUpgrade,
+		ImageUpdateMode:     ImageUpdateModeRollingUpgrade,
+		UpdateConfigMapOnly: true,
 		ComponentSpec: ComponentSpec{
 			Image: config.DefaultMilvusImage,
 		},
