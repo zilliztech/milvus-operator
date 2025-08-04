@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/config"
 )
 
 func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
@@ -153,6 +154,81 @@ func TestClusterReconciler_ReconcileDeployments_DeleteIfExists(t *testing.T) {
 			Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
 
 		err := r.DeleteDeploymentsIfExists(ctx, mc, IndexNode)
+		assert.NoError(t, err)
+	})
+}
+
+func TestClusterReconciler_ReconcileDeployments_CleanupCoordinatorsIfNeeded(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	mockQnController := NewMockDeployController(env.Ctrl)
+	r.deployCtrl = mockQnController
+	mockClient := env.MockClient
+	ctx := env.ctx
+	mc := env.Inst
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	mc.Status.ComponentsDeployStatus = map[string]v1beta1.ComponentDeployStatus{
+		MixCoord.Name: {
+			Image: config.DefaultMilvusImage,
+			Status: appsv1.DeploymentStatus{
+				Conditions: []appsv1.DeploymentCondition{
+					{
+						Type:   appsv1.DeploymentProgressing,
+						Status: corev1.ConditionTrue,
+						Reason: v1beta1.NewReplicaSetAvailableReason,
+					},
+				},
+			},
+		},
+	}
+
+	t.Run("cleanup existing coordinators", func(t *testing.T) {
+		defer env.Ctrl.Finish()
+		milvus := mc.DeepCopy()
+		defaultReplicas := int32(1)
+		// Set up individual coordinators that will be cleaned up
+		milvus.Spec.Com.RootCoord = &v1beta1.MilvusRootCoord{Component: v1beta1.Component{Replicas: &defaultReplicas}}
+		milvus.Spec.Com.IndexCoord = &v1beta1.MilvusIndexCoord{Component: v1beta1.Component{Replicas: &defaultReplicas}}
+		milvus.Spec.Com.DataCoord = &v1beta1.MilvusDataCoord{Component: v1beta1.Component{Replicas: &defaultReplicas}}
+		milvus.Spec.Com.QueryCoord = &v1beta1.MilvusQueryCoord{Component: v1beta1.Component{Replicas: &defaultReplicas}}
+
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				deploy := obj.(*appsv1.Deployment)
+				deploy.Name = "mc-milvus-rootcoord"
+				return nil
+			})
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				deploy := obj.(*appsv1.Deployment)
+				deploy.Name = "mc-milvus-indexcoord"
+				return nil
+			})
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				deploy := obj.(*appsv1.Deployment)
+				deploy.Name = "mc-milvus-datacoord"
+				return nil
+			})
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				deploy := obj.(*appsv1.Deployment)
+				deploy.Name = "mc-milvus-querycoord"
+				return nil
+			})
+
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil).Times(4)
+		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+		err := r.cleanupCoordinatorsIfNeeded(ctx, *milvus)
+		assert.NoError(t, err)
+	})
+
+	t.Run("no coords cleanup needed", func(t *testing.T) {
+		defer env.Ctrl.Finish()
+		milvus := mc.DeepCopy()
+		err := r.cleanupCoordinatorsIfNeeded(ctx, *milvus)
 		assert.NoError(t, err)
 	})
 }
