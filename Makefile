@@ -5,7 +5,7 @@ TOOL_IMG ?= milvus-config-tool:dev-latest
 SIT_IMG ?= milvus-operator:sit
 VERSION ?= 1.3.0-rc1-hotfix2
 TOOL_VERSION ?= 1.0.0
-MILVUS_HELM_VERSION ?= milvus-4.2.55
+MILVUS_HELM_VERSION ?= milvus-5.0.0
 RELEASE_IMG ?= milvusdb/milvus-operator:v$(VERSION)
 TOOL_RELEASE_IMG ?= milvusdb/milvus-config-tool:v$(TOOL_VERSION)
 KIND_CLUSTER ?= kind
@@ -241,7 +241,7 @@ sit-prepare-images: sit-prepare-operator-images
 	# docker pull -q apachepulsar/pulsar:2.8.2
 	docker pull -q bitnami/kafka:3.1.0-debian-10-r52
 	docker pull -q milvusdb/etcd:3.5.18-r1
-	docker pull -q minio/minio:RELEASE.2024-05-28T17-19-04Z
+	docker pull -q minio/minio:RELEASE.2024-12-18T13-15-44Z
 	docker pull -q bitnami/pymilvus:2.4.6
 
 sit-load-operator-images:
@@ -254,7 +254,7 @@ sit-load-images: sit-load-operator-images
 	# kind load docker-image apachepulsar/pulsar:2.8.2 --name $(KIND_CLUSTER)
 	kind load docker-image bitnami/kafka:3.1.0-debian-10-r52 --name $(KIND_CLUSTER)
 	kind load docker-image milvusdb/etcd:3.5.18-r1 --name $(KIND_CLUSTER)
-	kind load docker-image minio/minio:RELEASE.2024-05-28T17-19-04Z --name $(KIND_CLUSTER)
+	kind load docker-image minio/minio:RELEASE.2024-12-18T13-15-44Z --name $(KIND_CLUSTER)
 	kind load docker-image bitnami/pymilvus:2.4.6 --name $(KIND_CLUSTER)
 
 sit-load-and-cleanup-images: sit-load-images
@@ -263,7 +263,7 @@ sit-load-and-cleanup-images: sit-load-images
 	# docker rmi apachepulsar/pulsar:2.8.2
 	docker rmi bitnami/kafka:3.1.0-debian-10-r52
 	docker rmi milvusdb/etcd:3.5.18-r1
-	docker rmi minio/minio:RELEASE.2024-05-28T17-19-04Z
+	docker rmi minio/minio:RELEASE.2024-12-18T13-15-44Z
 
 sit-generate-manifest:
 	cat deploy/manifests/deployment.yaml | sed  "s#${RELEASE_IMG}#${SIT_IMG}#g" > test/test_gen.yaml
