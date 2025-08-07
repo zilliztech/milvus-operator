@@ -20,7 +20,7 @@ spec:
       serviceType: LoadBalancer
     dataNode:
       replicas: 1
-    indexNode:
+    streamingNode:
       replicas: 1
     queryNode:
       replicas: 1

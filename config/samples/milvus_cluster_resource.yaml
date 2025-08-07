@@ -8,6 +8,7 @@ metadata:
 spec:
   mode: cluster
   components:
+    image: milvusdb/milvus:v2.5.16
     resources:
       limits:
         cpu: '4'

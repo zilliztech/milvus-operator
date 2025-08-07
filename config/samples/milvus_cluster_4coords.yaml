@@ -11,6 +11,7 @@ spec:
   mode: cluster
   dependencies: {}
   components: 
+    image: milvusdb/milvus:v2.5.16
     rootCoord:
       replicas: 1
   config: {}
