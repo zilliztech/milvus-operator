@@ -45,7 +45,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 				Endpoints: []string{"mc-etcd-0.mc-etcd-headless.default:2379"},
 				InCluster: etcdStandaloneDefaultInClusterConfig,
 			},
-			MsgStreamType: MsgStreamTypeRocksMQ,
+			MsgStreamType: MsgStreamTypeWoodPecker,
 			Storage: MilvusStorage{
 				Type:      StorageTypeMinIO,
 				Endpoint:  "mc-minio.default:9000",
@@ -63,7 +63,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 					Component: defaultComponent,
 				},
 			},
-			EnableRollingUpdate: util.BoolPtr(false),
+			EnableRollingUpdate: util.BoolPtr(true),
 			RollingMode:         RollingModeV2,
 			UpdateConfigMapOnly: true,
 		},
@@ -71,6 +71,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 			Data: map[string]interface{}{},
 		},
 	}
+	setEnableActiveStandby(&standaloneDefault, true)
 
 	t.Run("standalone not external ok", func(t *testing.T) {
 		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
@@ -110,8 +111,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		ComponentSpec: ComponentSpec{
 			Image: config.DefaultMilvusImage,
 		},
-		StreamingMode: util.BoolPtr(false),
-		RollingMode:   RollingModeV2,
+		RollingMode: RollingModeV2,
 		Proxy: &MilvusProxy{
 			ServiceComponent: ServiceComponent{
 				Component: defaultComponent,
@@ -124,7 +124,8 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		DataNode: &MilvusDataNode{
 			Component: defaultComponent,
 		},
-		IndexNode: &MilvusIndexNode{
+		StreamingMode: util.BoolPtr(true),
+		StreamingNode: &MilvusStreamingNode{
 			Component: defaultComponent,
 		},
 		QueryNode: &MilvusQueryNode{
@@ -141,16 +142,13 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
 		mc.Spec.Mode = MilvusModeCluster
 		mc.Default()
-		assert.False(t, mc.Spec.IsVersionGreaterThan2_6())
+		assert.True(t, mc.Spec.IsVersionGreaterThan2_6())
 		assert.Equal(t, clusterDefault, mc.Spec)
 	})
 
 	t.Run("cluster already set default ok", func(t *testing.T) {
 		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
 		mc.Spec.Mode = MilvusModeCluster
-		newReplica := int32(2)
-		mc.Spec.Com.RootCoord = &MilvusRootCoord{}
-		mc.Spec.Com.RootCoord.Replicas = &newReplica
 		mc.Spec.Dep.Etcd.InCluster = &InClusterConfig{}
 		mc.Spec.Dep.Etcd.InCluster.Values.Data = map[string]interface{}{}
 		err := yaml.Unmarshal([]byte(`
@@ -158,7 +156,6 @@ replicaCount: 1
 `), &mc.Spec.Dep.Etcd.InCluster.Values.Data)
 		assert.NoError(t, err)
 		mc.Default()
-		assert.Equal(t, newReplica, *mc.Spec.Com.RootCoord.Replicas)
 		assert.Equal(t, int64(1), mc.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"])
 	})
 

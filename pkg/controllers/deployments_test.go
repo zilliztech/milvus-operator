@@ -285,6 +285,8 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 				switch key.Name {
 				case "mc-milvus-proxy":
 					r.updateDeployment(ctx, m, cm, Proxy)
+				case "mc-milvus-streamingnode":
+					r.updateDeployment(ctx, m, cm, StreamingNode)
 				case "mc-milvus-mixcoord":
 					r.updateDeployment(ctx, m, cm, MixCoord)
 				case "mc-milvus-datanode":
@@ -297,7 +299,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 					r.updateDeployment(ctx, m, cm, MilvusStandalone)
 				}
 				return nil
-			}).Times(len(MixtureComponents) - 1)
+			}).Times(len(Milvus2_6Components) - 1)
 
 		mockQnController.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 

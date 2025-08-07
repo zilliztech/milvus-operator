@@ -27,6 +27,7 @@ func newSpecCluster() v1beta1.MilvusSpec {
 
 func TestGetComponentsBySpec(t *testing.T) {
 	spec := newSpec()
+	spec.Com.Image = "milvusdb/milvus:v2.5.15"
 	spec.Mode = v1beta1.MilvusModeStandalone
 	assert.Equal(t, StandaloneComponents, GetComponentsBySpec(spec))
 	spec.Mode = v1beta1.MilvusModeCluster
@@ -631,6 +632,7 @@ func TestMilvusComponent_GetDependencies(t *testing.T) {
 		m := v1beta1.Milvus{}
 		m.Spec.Mode = v1beta1.MilvusModeCluster
 		m.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
+		m.Spec.Com.Image = "milvusdb/milvus:v2.5.15"
 		m.Default()
 		assert.Len(t, IndexNode.GetDependencies(m.Spec), 0)
 		assert.Equal(t, IndexNode, MixCoord.GetDependencies(m.Spec)[0])
@@ -644,6 +646,7 @@ func TestMilvusComponent_GetDependencies(t *testing.T) {
 		m.Spec.Mode = v1beta1.MilvusModeCluster
 		m.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeRollingDowngrade
 		m.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
+		m.Spec.Com.Image = "milvusdb/milvus:v2.5.15"
 		m.Default()
 		assert.Equal(t, MixCoord, IndexNode.GetDependencies(m.Spec)[0])
 		assert.Equal(t, QueryNode, MixCoord.GetDependencies(m.Spec)[0])
@@ -652,6 +655,18 @@ func TestMilvusComponent_GetDependencies(t *testing.T) {
 		assert.Len(t, Proxy.GetDependencies(m.Spec), 0)
 	})
 
+	t.Run("clusterStreamingMode", func(t *testing.T) {
+		m := v1beta1.Milvus{}
+		m.Spec.Mode = v1beta1.MilvusModeCluster
+		m.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeRollingUpgrade
+		m.Default()
+
+		assert.Equal(t, DataNode, Proxy.GetDependencies(m.Spec)[0])
+		assert.Equal(t, QueryNode, DataNode.GetDependencies(m.Spec)[0])
+		assert.Equal(t, StreamingNode, QueryNode.GetDependencies(m.Spec)[0])
+		assert.Equal(t, MixCoord, StreamingNode.GetDependencies(m.Spec)[0])
+		assert.Len(t, MixCoord.GetDependencies(m.Spec), 0)
+	})
 }
 
 func TestMilvusComponent_IsImageUpdated(t *testing.T) {
