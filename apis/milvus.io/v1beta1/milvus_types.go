@@ -95,7 +95,7 @@ func (ms MilvusSpec) IsStopping() bool {
 	if *ms.Com.DataNode.Replicas != 0 {
 		return false
 	}
-	if *ms.Com.IndexNode.Replicas != 0 {
+	if ms.Com.IndexNode != nil && *ms.Com.IndexNode.Replicas != 0 {
 		return false
 	}
 	if *ms.Com.QueryNode.Replicas != 0 {
