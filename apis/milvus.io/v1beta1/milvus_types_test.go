@@ -94,6 +94,7 @@ func TestComponentDeployStatus_GetState(t *testing.T) {
 
 func TestMilvusSpec_IsStopping(t *testing.T) {
 	m := &Milvus{}
+	m.Spec.Com.Image = "milvusdb/milvus:2.5.15"
 	m.Default()
 	t.Run("standalone not stopping", func(t *testing.T) {
 		assert.False(t, m.Spec.IsStopping())
@@ -138,6 +139,36 @@ func TestMilvusSpec_IsStopping(t *testing.T) {
 		assert.True(t, m.Spec.IsStopping())
 	})
 }
+func TestMilvusSpec_2_6_IsStopping(t *testing.T) {
+	m := &Milvus{}
+	m.Default()
+	t.Run("standalone not stopping", func(t *testing.T) {
+		assert.False(t, m.Spec.IsStopping())
+	})
+
+	replica0 := int32(0)
+	com := &m.Spec.Com
+	t.Run("standalone stopping", func(t *testing.T) {
+		com.Standalone.Replicas = &replica0
+		assert.True(t, m.Spec.IsStopping())
+	})
+
+	m.Spec.Mode = MilvusModeCluster
+	com.MixCoord = &MilvusMixCoord{}
+	m.Default()
+	log.Print(m)
+	com.Proxy.Replicas = &replica0
+	com.DataNode.Replicas = &replica0
+	com.QueryNode.Replicas = &replica0
+	t.Run("mixcoord not stopping", func(t *testing.T) {
+		assert.False(t, m.Spec.IsStopping())
+	})
+
+	com.MixCoord.Replicas = &replica0
+	t.Run("mixcoord stopping", func(t *testing.T) {
+		assert.True(t, m.Spec.IsStopping())
+	})
+}
 
 func TestGetServiceComponent(t *testing.T) {
 	m := Milvus{}
@@ -152,6 +183,7 @@ func TestGetServiceComponent(t *testing.T) {
 
 func TestIsRollingUpdateEnabled(t *testing.T) {
 	m := Milvus{}
+	m.Spec.Com.Image = "milvusdb/milvus:v2.5.15"
 	m.Default()
 	assert.False(t, m.IsRollingUpdateEnabled())
 
@@ -160,6 +192,10 @@ func TestIsRollingUpdateEnabled(t *testing.T) {
 
 	m.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
 	assert.True(t, m.IsRollingUpdateEnabled())
+
+	m26 := Milvus{}
+	m26.Default()
+	assert.True(t, m26.IsRollingUpdateEnabled())
 }
 
 func TestMilvus_IsChangingMode(t *testing.T) {
