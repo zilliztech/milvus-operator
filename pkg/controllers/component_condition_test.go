@@ -105,6 +105,7 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 
 	milvus.Spec.Mode = v1beta1.MilvusModeCluster
 	milvus.Spec.Com.RootCoord = &v1beta1.MilvusRootCoord{}
+	milvus.Spec.Com.Image = "milvusdb/milvus:2.5.15"
 	milvus.Default()
 	t.Run(("cluster all ok"), func(t *testing.T) {
 		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -177,6 +178,38 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *milvus)
 		assert.NoError(t, err)
 		assert.Equal(t, corev1.ConditionFalse, ret.Status)
+	})
+
+	ins26 := metav1.ObjectMeta{
+		Namespace: "ns26",
+		Name:      "mc26",
+		UID:       "uid26",
+	}
+	milvus26 := &v1beta1.Milvus{
+		ObjectMeta: ins26,
+	}
+	milvus26.Spec.Mode = v1beta1.MilvusModeCluster
+	milvus26.Default()
+	t.Run(("cluster mixture 2.6 ok"), func(t *testing.T) {
+		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx interface{}, list *appsv1.DeploymentList, opts interface{}) {
+				list.Items = []appsv1.Deployment{
+					{}, {}, {}, {},
+					{}, {},
+				}
+				for i := 0; i < 6; i++ {
+					list.Items[i].Labels = map[string]string{
+						AppLabelComponent: Milvus2_6Components[i].Name,
+					}
+					list.Items[i].OwnerReferences = []metav1.OwnerReference{
+						{Controller: &trueVal, UID: "uid26"},
+					}
+					list.Items[i].Status = readyDeployStatus
+				}
+			})
+		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *milvus26)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionTrue, ret.Status)
 	})
 
 }

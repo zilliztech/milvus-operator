@@ -9,6 +9,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 func TestMilvusReconciler_ReconcilePVCs(t *testing.T) {
@@ -18,6 +20,8 @@ func TestMilvusReconciler_ReconcilePVCs(t *testing.T) {
 	mockClient := env.MockClient
 	ctx := env.ctx
 	m := env.Inst
+	m.Spec.Com.Image = "milvusdb/milvus:v2.5.15"
+	m.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeRocksMQ
 	errNotFound := kerrors.NewNotFound(schema.GroupResource{}, "")
 
 	t.Run("persistence_disabled", func(t *testing.T) {
