@@ -15,7 +15,7 @@ The Milvus Operator provides an easy and solid solution to deploy and manage a f
 
 # Milvus Operator VS Helm
 
-In general, Milvus Operator is recommanded for production. Helm is recommanded for beginners.
+In general, Milvus Operator is recommended for production. Helm is recommended for beginners.
 
 Milvus Operator provides more features for production. But you need to install it in your kubernetes before you start your first Milvus instance. If you are new to Milvus and Kubernetes. Helm is easier to use and you can start your first Milvus instance in minutes. 
 
@@ -45,13 +45,13 @@ Cleanup Resources after Deletion, ✅,  -->
 |Quick Suspend Running Instance| ✅| |
 |Cleanup Resources after Deletion| ✅| |
 
-# Documentations
+# Documentation
 - [Installation](docs/installation/installation.md)
 - [Install KinD for development](docs/installation/kind-installation.md)
 - Administration Guides:
   - [Configure Milvus with Milvus Operator](docs/administration/configure-milvus.md)
   - Manage Dependencies:
-    - [Configure Meta Storge](docs/administration/manage-dependencies/meta-storage.md)
+    - [Configure Meta Storage](docs/administration/manage-dependencies/meta-storage.md)
     - [Configure Object Storage](docs/administration/manage-dependencies/object-storage.md)
     - [Configure Message Storage](docs/administration/manage-dependencies/message-storage.md)
   - [Monitor And Alert](docs/administration/monitor-and-alert.md)
@@ -81,7 +81,7 @@ Or with kubectl & raw manifests:
 kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/v1.3.0/deploy/manifests/deployment.yaml
 ```
 
-For more infomation Check [Installation Instructions](docs/installation/installation.md)
+For more information Check [Installation Instructions](docs/installation/installation.md)
 
 ## Create milvus demo instance
 ```shell
