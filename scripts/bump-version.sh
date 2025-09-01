@@ -26,7 +26,7 @@ ${SED} "s|milvus-operator/.*/deploy/manifests/deployment.yaml|milvus-operator/v$
 ${SED} "s|milvusdb/milvus:.*|milvusdb/milvus:v${MILVUS_VERSION}|g" ./Makefile
 ${SED} "s/Versions, v.* \`/Versions, v${MILVUS_VERSION} \`/g" ./README.md
 ${SED} "s/Versions| v.* \`/Versions| v${MILVUS_VERSION} \`/g" ./README.md
-${SED} "s/DefaultMilvusVersion   = \"v.*\"/DefaultMilvusVersion   = \"v${MILVUS_VERSION}\"/g" ./pkg/config/config.go
+${SED} "s/DefaultMilvusVersion = \"v.*\"/DefaultMilvusVersion = \"v${MILVUS_VERSION}\"/g" ./pkg/config/config.go
 # milvus-helm version
 ${SED} "s/^MILVUS_HELM_VERSION ?= milvus-.*/MILVUS_HELM_VERSION ?= milvus-${MILVUS_HELM_VERSION}/g" ./Makefile
 
