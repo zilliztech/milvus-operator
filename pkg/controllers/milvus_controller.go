@@ -23,6 +23,7 @@ import (
 	"github.com/go-logr/logr"
 	pkgErr "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,6 +37,7 @@ import (
 
 	milvusv1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/external"
 )
 
 const (
@@ -221,6 +223,21 @@ func (r *MilvusReconciler) VerifyCR(ctx context.Context, milvus *milvusv1beta1.M
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *MilvusReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	external.SecretReader = func(ns, name, key string) ([]byte, error) {
+		var s corev1.Secret
+		if err := mgr.GetClient().Get(context.Background(), types.NamespacedName{
+			Namespace: ns, Name: name,
+		}, &s); err != nil {
+			return nil, err
+		}
+		b, ok := s.Data[key]
+		if !ok {
+			return nil, fmt.Errorf("secret %s/%s missing key %q", ns, name, key)
+		}
+		return b, nil
+	}
+
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&milvusv1beta1.Milvus{}).
 		// For(&milvusv1alpha1.MilvusCluster{}).
