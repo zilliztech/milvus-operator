@@ -8,7 +8,7 @@ spec:
     spec:
       containers:
       - name: hello-milvus
-        image: bitnami/pymilvus:2.4.6
+        image: bitnamilegacy/pymilvus:2.4.6
         command: 
           - "python3"
         args:
