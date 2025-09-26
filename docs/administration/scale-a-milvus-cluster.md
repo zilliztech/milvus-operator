@@ -4,7 +4,7 @@ Milvus supports horizontal scaling of its components. This means you can either 
 
 This topic describes how to scale out and scale in a Milvus cluster. We assume that you have already [installed a Milvus cluster](../installation/installation.md#deploy-a-milvus-cluster-demo) before scaling. Also, we recommend familiarizing yourself with the [Milvus architecture](https://milvus.io/docs/architecture_overview.md) before you begin.  
 
-This tutorial takes scaling out three query nodes as an example. To scale out other types of nodes, replace queryNode with the corresponding node type in the command line.
+This tutorial takes scaling out three query nodes as an example. To scale out other types of nodes, replace `queryNode` with the corresponding node type in the command line.
 
 ## Scaling out
 Scaling out refers to increasing the number of nodes in a cluster. Unlike scaling up, scaling out does not require you to allocate more resources to one node in the cluster. Instead, scaling out expands the cluster horizontally by adding more nodes.
@@ -20,10 +20,9 @@ Generally, you will need to scale out the Milvus cluster you created if it is ov
 
 For now autoscaling is not supported. You need to manually scale out the cluster.
 
-
 #### Example
 
-The following example scales out the cluster to 2 proxy, 3 query nodes, 3 index nodes and 3 data nodes without changing the number of mixCoord node
+The following example scales out the cluster to 2 proxy, 3 query nodes, 3 index nodes and 3 data nodes without changing the number of `mixCoord` node
 
 ```yaml
 apiVersion: milvus.io/v1beta1
@@ -60,7 +59,7 @@ For now autoscaling is not supported. You need to manually scale in the cluster.
 
 #### Example
 
-The following example scales in the cluster by setting all components' replicas to 1.
+The following example scales in the cluster by setting all component replicas to 1.
 
 ```yaml
 apiVersion: milvus.io/v1beta1
@@ -76,9 +75,7 @@ spec:
     replicas: 1
 ```
 
-> You can also stop the milvus without delete the related resource by scaling in the components' replicas to 0. You can later quickly restart the milvus by scaling in the components' replicas to 1 or more.
-
-
+> You can also stop the Milvus cluster without deleting the related resource by scaling component replicas to 0. You can later quickly restart the Milvus cluster by scaling in the component replicas to 1 or more.
 
 ## Scale up
 Described in [Allocate Resources](./allocate-resources.md).

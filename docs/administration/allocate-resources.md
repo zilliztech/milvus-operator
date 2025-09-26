@@ -5,9 +5,9 @@ We can allocate resources for a single component or for all components in a Milv
 ## Example
 
 The following example allocates:
-- 1 CPU and 2 GiB memory for the mixCoord
-- 2 CPUs and 4 GiB memory for the proxy
-- 4 CPUs and 8 GiB memory for all other components (including the queryNodes, indexNodes and dataNodes)
+- 1 CPU and 2 GiB memory for the `mixCoord`
+- 2 CPUs and 4 GiB memory for the `proxy`
+- 4 CPUs and 8 GiB memory for all other components (including the `queryNodes`, `indexNodes` and `dataNodes`)
 
 ```yaml
 apiVersion: milvus.io/v1beta1
@@ -39,7 +39,7 @@ spec:
 
 # More samples for different scale Milvus
 
-check samples in https://github.com/zilliztech/milvus-operator/tree/main/config/samples
+Check samples in [https://github.com/zilliztech/milvus-operator/tree/main/config/samples](https://github.com/zilliztech/milvus-operator/tree/main/config/samples)
 
 # How much resources should I allocate for Milvus
 
