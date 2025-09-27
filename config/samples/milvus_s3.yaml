@@ -12,12 +12,14 @@ spec:
       bucketName: <my-bucket>
       # config the prefix of the bucket milvus will use
       rootPath: milvus/my-release
+      # config the S3 region if not us-east-1
+      region: us-west-2
       useSSL: true
   dependencies:
     storage:
       external: true
       type: S3
-      endpoint: s3.amazonaws.com:443
+      endpoint: s3.us-west-2.amazonaws.com:443
       secretRef: "my-release-s3-secret"
 ---
 apiVersion: v1
