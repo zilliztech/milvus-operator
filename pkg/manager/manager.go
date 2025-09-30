@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"strings"
 	"time"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -36,8 +37,23 @@ func init() {
 
 func NewManager(k8sQps, k8sBurst int, metricsAddr, probeAddr string, enableLeaderElection bool) (ctrl.Manager, error) {
 	syncPeriod := time.Second * time.Duration(config.SyncIntervalSec)
+	watchNamespace := config.WatchNamespace
+
+	var defaultNamespaces map[string]cache.Config
+	if watchNamespace != "" {
+		defaultNamespaces = make(map[string]cache.Config)
+		nsList := strings.Split(watchNamespace, ",")
+		for _, ns := range nsList {
+			trimmed := strings.TrimSpace(ns)
+			if trimmed != "" {
+				defaultNamespaces[trimmed] = cache.Config{}
+			}
+		}
+	}
+
 	cacheOptions := cache.Options{
-		SyncPeriod: &syncPeriod,
+		SyncPeriod:        &syncPeriod,
+		DefaultNamespaces: defaultNamespaces,
 	}
 	metricsOptions := metricsserver.Options{
 		BindAddress: metricsAddr,

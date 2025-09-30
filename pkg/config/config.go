@@ -31,6 +31,7 @@ var (
 	MaxConcurrentReconcile   = 10
 	MaxConcurrentHealthCheck = 10
 	SyncIntervalSec          = 600
+	WatchNamespace           = ""
 )
 
 func Init(workDir string) error {
