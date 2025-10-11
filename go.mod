@@ -1,6 +1,6 @@
 module github.com/zilliztech/milvus-operator
 
-go 1.24.2
+go 1.24.6
 
 require (
 	cloud.google.com/go/storage v1.39.1
