@@ -1,7 +1,7 @@
 # Authenticate User Access
 This topic describes how to manage user authentication in Milvus.
 
-Milvus supports authenticated access by username and password.
+Milvus supports authentication with username and password.
 
 ## Enable authentication in Milvus
 
