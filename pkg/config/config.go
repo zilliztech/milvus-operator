@@ -6,7 +6,7 @@ import (
 
 const (
 	// DefaultMilvusVersion is the default version used when a new Milvus deployment is created.
-	DefaultMilvusVersion = "v2.6.0"
+	DefaultMilvusVersion = "v2.6.3"
 	// DefaultMilvusBaseImage is the default Miluvs container image.
 	DefaultMilvusBaseImage = "milvusdb/milvus"
 	// DefaultMilvusImage is the default container image:version.
