@@ -1027,6 +1027,9 @@ spec:
                         replicas:
                           format: int32
                           type: integer
+                        terminatingReplicas:
+                          format: int32
+                          type: integer
                         unavailableReplicas:
                           format: int32
                           type: integer
@@ -9341,6 +9344,9 @@ spec:
                           format: int32
                           type: integer
                         replicas:
+                          format: int32
+                          type: integer
+                        terminatingReplicas:
                           format: int32
                           type: integer
                         unavailableReplicas:
