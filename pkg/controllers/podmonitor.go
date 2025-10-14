@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"maps"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -77,7 +78,9 @@ func (r *MilvusReconciler) updatePodMonitor(
 	podmonitor.Spec.NamespaceSelector = monitoringv1.NamespaceSelector{
 		MatchNames: []string{mc.Namespace},
 	}
-	podmonitor.Spec.Selector.MatchLabels = appLabels
+	matchLabels := maps.Clone(appLabels)
+	delete(matchLabels, AppLabelManagedBy)
+	podmonitor.Spec.Selector.MatchLabels = matchLabels
 	podmonitor.Spec.PodTargetLabels = []string{
 		AppLabelInstance, AppLabelName, AppLabelComponent,
 	}
