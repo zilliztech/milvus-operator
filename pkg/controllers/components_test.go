@@ -295,6 +295,19 @@ func TestMergeComponentSpec(t *testing.T) {
 		assert.Equal(t, "xxx", merged.Data["livenessProbe"])
 	})
 
+	t.Run("merge SecurityContext", func(t *testing.T) {
+		dst.SecurityContext.Data = map[string]interface{}{
+			"runAsUser": 1000,
+		}
+		merged := MergeComponentSpec(src, dst).SecurityContext
+		assert.Equal(t, int(1000), merged.Data["runAsUser"])
+
+		src.SecurityContext.Data = map[string]interface{}{
+			"runAsUser": 2000,
+		}
+		merged = MergeComponentSpec(src, dst).SecurityContext
+		assert.Equal(t, int(2000), merged.Data["runAsUser"])
+	})
 }
 
 func TestMilvusComponent_GetReplicas(t *testing.T) {
