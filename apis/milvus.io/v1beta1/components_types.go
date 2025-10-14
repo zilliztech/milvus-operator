@@ -126,6 +126,12 @@ type ComponentSpec struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +nullable
 	Probes Values `json:"probes,omitempty"`
+
+	// SecurityContext defines the pod's security context
+	// structure is same as corev1.SecurityContext, we use a Values here to avoid the CRD become too large
+	// +kubebuilder:validation:Optional
+	// +nullable
+	SecurityContext Values `json:"securityContext,omitempty"`
 }
 
 // Probes is the actual struct for the Probes field in ComponentSpec

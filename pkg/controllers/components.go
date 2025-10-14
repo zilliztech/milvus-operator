@@ -675,5 +675,9 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 		dst.Probes = src.Probes
 	}
 
+	if src.SecurityContext.Data != nil {
+		dst.SecurityContext = src.SecurityContext
+	}
+
 	return dst
 }

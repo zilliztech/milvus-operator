@@ -1090,6 +1090,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -1737,6 +1740,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -2483,6 +2489,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -3130,6 +3139,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -3784,6 +3796,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -4479,6 +4494,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       serviceAnnotations:
@@ -5144,6 +5162,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -5791,6 +5812,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -6473,6 +6497,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -6532,6 +6559,9 @@ spec:
                     type: boolean
                   schedulerName:
                     type: string
+                  securityContext:
+                    nullable: true
+                    type: object
                   serviceAccountName:
                     type: string
                   standalone:
@@ -7156,6 +7186,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       serviceAnnotations:
@@ -7824,6 +7857,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -8235,6 +8271,9 @@ spec:
                           format: int32
                           type: integer
                         replicas:
+                          format: int32
+                          type: integer
+                        terminatingReplicas:
                           format: int32
                           type: integer
                         unavailableReplicas:
@@ -9253,6 +9292,9 @@ spec:
                 type: boolean
               schedulerName:
                 type: string
+              securityContext:
+                nullable: true
+                type: object
               serviceAccountName:
                 type: string
               serviceAnnotations:
@@ -9366,6 +9408,9 @@ spec:
                           format: int32
                           type: integer
                         replicas:
+                          format: int32
+                          type: integer
+                        terminatingReplicas:
                           format: int32
                           type: integer
                         unavailableReplicas:
@@ -10527,6 +10572,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -11174,6 +11222,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -11920,6 +11971,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -12567,6 +12621,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -13221,6 +13278,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -13916,6 +13976,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       serviceAnnotations:
@@ -14581,6 +14644,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -15228,6 +15294,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -15910,6 +15979,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -15969,6 +16041,9 @@ spec:
                     type: boolean
                   schedulerName:
                     type: string
+                  securityContext:
+                    nullable: true
+                    type: object
                   serviceAccountName:
                     type: string
                   standalone:
@@ -16593,6 +16668,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       serviceAnnotations:
@@ -17261,6 +17339,9 @@ spec:
                         type: boolean
                       schedulerName:
                         type: string
+                      securityContext:
+                        nullable: true
+                        type: object
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -17682,6 +17763,9 @@ spec:
                           format: int32
                           type: integer
                         replicas:
+                          format: int32
+                          type: integer
+                        terminatingReplicas:
                           format: int32
                           type: integer
                         unavailableReplicas:
