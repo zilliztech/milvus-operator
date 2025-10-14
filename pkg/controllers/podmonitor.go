@@ -77,7 +77,9 @@ func (r *MilvusReconciler) updatePodMonitor(
 	podmonitor.Spec.NamespaceSelector = monitoringv1.NamespaceSelector{
 		MatchNames: []string{mc.Namespace},
 	}
-	podmonitor.Spec.Selector.MatchLabels = appLabels
+	matchLabels := appLabels
+	delete(matchLabels, AppLabelManagedBy)
+	podmonitor.Spec.Selector.MatchLabels = matchLabels
 	podmonitor.Spec.PodTargetLabels = []string{
 		AppLabelInstance, AppLabelName, AppLabelComponent,
 	}
