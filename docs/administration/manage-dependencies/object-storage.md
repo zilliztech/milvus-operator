@@ -17,7 +17,7 @@ You only need to edit the code template in `demo.yaml` to configure third-party 
 
 ## Internal object storage
 
-Milvus supports object storage deployed external or in-cluster. By default, Milvus Operator deploy an in-cluster MinIO for milvus. You can change its configuration or use an external object storage through the `spec.dependencies.storage` field in the `Milvus` CRD. Let's take the [demo instance as example](../../../config/samples/demo.yaml):
+Milvus supports object storage deployed external or in-cluster. By default, Milvus Operator deploy an in-cluster MinIO for Milvus. You can change its configuration or use an external object storage through the `spec.dependencies.storage` field in the `Milvus` CRD. Let's take the [demo instance as example](../../../config/samples/demo.yaml):
 
 ```yaml
 apiVersion: milvus.io/v1beta1
@@ -41,16 +41,16 @@ spec:
         pvcDeletion: true # default: false
 ```
 
-It configures the in-cluster MinIO to run in standalone mode, and set the memory limit to `100Mi`. The `deletionPolicy` field specifies the deletion policy of the in-cluster MinIO.  The `pvcDeletion` field specifies whether to delete the PVC(Persistent Volume Claim) when the in-cluster MinIO is deleted.
+It configures the in-cluster MinIO to run in standalone mode, and sets the memory limit to `100Mi`. The `deletionPolicy` field specifies the deletion policy of the in-cluster MinIO.  The `pvcDeletion` field specifies whether to delete the PVC (Persistent Volume Claim) when the in-cluster MinIO is deleted.
 
-The fields under `inCluster.values` are the same as the values in its Helm Chart, the complete configuration fields can be found in (https://github.com/zilliztech/milvus-helm/blob/master/charts/minio/values.yaml)
+The fields under `inCluster.values` are the same as the values in its Helm Chart, the complete configuration fields can be found in [zilliztech/milvus-helm/blob/master/charts/minio/values.yaml](https://github.com/zilliztech/milvus-helm/blob/master/charts/minio/values.yaml)
 
-> You can set the `deletionPolicy` to `Retain` before delete Milvus instance if you want to start the milvus later without removing the dependency service.
+> You can set the `deletionPolicy` to `Retain` before delete Milvus instance if you want to start the Milvus later without removing the dependency service.
 > Or you can set `deletionPolicy` to `Delete` and the `pvcDeletion` to `false` to only keep your data volume (PVC).
 
 ## External object storage
 
-Milvus supports any S3 compatible service as external object storage, like: external deployed MinIO, AWS S3, Google Cloud Storage(GCS), Azure Blob Storage, etc.
+Milvus supports any S3 compatible service as external object storage, for example an externally deployed MinIO, AWS S3, Google Cloud Storage(GCS), Azure Blob Storage, etc.
 
 To use an external object storage, you need to properly set fields under `spec.dependencies.storage` & `spec.config.minio` in the `Milvus` CRD. 
 
@@ -58,7 +58,7 @@ To use an external object storage, you need to properly set fields under `spec.d
 # Use AWS S3 as External object storage
 Let's take a look at the [AWS S3 example](../../../config/samples/milvus_s3.yaml)
 
-An S3 bucket can usually be accessed by a pair of Access Key and Secret Key. You can create a secret to store them in your kubernetes: 
+An S3 bucket can usually be accessed by a pair of Access Key and Secret Key. You can create a secret to store them in your kubernetes cluster: 
 
 ```yaml
 # # change the <parameters> to match your environment
@@ -105,7 +105,7 @@ spec:
 
 ## Access AWS S3 by AssumeRole
 
-Accessing AWS S3 with fixed Ak/Sk is not secure enough. You can [AssumeRole](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html) to access S3 with temporary credentials if you're using AWS EKS as your kubernetes cluster.
+Accessing AWS S3 with fixed Access Key and Secret Key is not secure and not recommended for production. Instead, refer to the [AssumeRole](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html) documentation to learn how to access S3 with temporary credentials if you're using AWS EKS as your kubernetes cluster.
 
 Suppose you have prepared a role to access AWS S3, you need to get its Arn `<my-role-arn>` (It's usually in the pattern of `arn:aws:iam::<your account id>:role/<role-name>`).
 
@@ -120,7 +120,7 @@ metadata:
     eks.amazonaws.com/role-arn: <my-role-arn>
 ```
 
-Then configure your Milvus instance to use the above `ServiceAccount ` and enable AssumeRole by setting `spec.config.minio.useIAM` to `true`. And you need to use AWS S3 regional endpoint instead of the global endpoint.
+Then configure your Milvus instance to use the above `ServiceAccount ` and enable AssumeRole by setting `spec.config.minio.useIAM` to `true`. Additionally, you need to use AWS S3 regional endpoint instead of the global endpoint.
 
 ```yaml
 apiVersion: milvus.io/v1beta1
@@ -147,9 +147,9 @@ spec:
       secretRef: "" # we don't need to specify the secret here
 ```
 
-# Use Google Cloud Storage(GCS) as External object storage
+# Use Google Cloud Storage(GCS) as external object storage
 
-The configuration very similar to AWS S3. You only need to change the endpoint to `storage.googleapis.com:443` & set `spec.config.minio.cloudProvider` to `gcp`:
+The configuration is similar to AWS S3. You only need to change the endpoint to `storage.googleapis.com:443` & set `spec.config.minio.cloudProvider` to `gcp`:
 
 ```yaml
 # # change the <parameters> to match your environment

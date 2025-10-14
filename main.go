@@ -70,6 +70,8 @@ func main() {
 	flag.IntVar(&k8sBurst, "k8s-burst", k8sQps, "The burst of k8s client")
 	flag.BoolVar(&controllers.Debug, "debug", controllers.Debug, "Enable debug")
 	flag.BoolVar(&enableWebhook, "webhook", false, "Enable webhook for support of v1alpha1 crd & validation")
+	flag.StringVar(&config.WatchNamespace, "watch-namespace", config.WatchNamespace,
+		"Comma-separated list of namespaces that controller manager is restricted to watch. If not set, default is to watch all namespaces.")
 	opts := zap.Options{}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()

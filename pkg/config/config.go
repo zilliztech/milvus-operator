@@ -6,7 +6,7 @@ import (
 
 const (
 	// DefaultMilvusVersion is the default version used when a new Milvus deployment is created.
-	DefaultMilvusVersion = "v2.6.0"
+	DefaultMilvusVersion = "v2.6.3"
 	// DefaultMilvusBaseImage is the default Miluvs container image.
 	DefaultMilvusBaseImage = "milvusdb/milvus"
 	// DefaultMilvusImage is the default container image:version.
@@ -31,6 +31,7 @@ var (
 	MaxConcurrentReconcile   = 10
 	MaxConcurrentHealthCheck = 10
 	SyncIntervalSec          = 600
+	WatchNamespace           = ""
 )
 
 func Init(workDir string) error {

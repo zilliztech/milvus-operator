@@ -292,6 +292,13 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	}
 
 	container.Resources = *mergedComSpec.Resources
+
+	if mergedComSpec.SecurityContext.Data != nil {
+		if container.SecurityContext == nil {
+			container.SecurityContext = &corev1.SecurityContext{}
+		}
+		mergedComSpec.SecurityContext.MustAsObj(&container.SecurityContext)
+	}
 }
 
 func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
