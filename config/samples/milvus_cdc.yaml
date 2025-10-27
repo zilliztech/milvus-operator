@@ -1,0 +1,13 @@
+# This is a sample to deploy a standalone milvus with cdc.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  mode: standalone
+  components:
+    image: milvusdb/milvus:v2.6.6
+    cdc:
+      replicas: 1  # Currently, CDC only supports 1 replica

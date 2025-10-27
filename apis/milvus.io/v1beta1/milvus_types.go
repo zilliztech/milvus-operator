@@ -66,6 +66,9 @@ func (ms MilvusSpec) IsStopping() bool {
 	if *ms.Com.Standalone.Replicas != 0 {
 		return false
 	}
+	if ms.UseCdc() && *ms.Com.Cdc.Replicas != 0 {
+		return false
+	}
 	if ms.Mode == MilvusModeStandalone {
 		return true
 	}
@@ -99,6 +102,9 @@ func (ms MilvusSpec) IsStopping() bool {
 		return false
 	}
 	if *ms.Com.QueryNode.Replicas != 0 {
+		return false
+	}
+	if ms.UseStreamingNode() && *ms.Com.StreamingNode.Replicas != 0 {
 		return false
 	}
 	return true
@@ -166,6 +172,10 @@ func (ms *MilvusSpec) GetPersistenceConfig() *Persistence {
 
 func (ms *MilvusSpec) UseMixCoord() bool {
 	return ms.Com.MixCoord != nil
+}
+
+func (ms *MilvusSpec) UseCdc() bool {
+	return ms.Com.Cdc != nil
 }
 
 var sermanticVersion2_5_Max = semver.MustParse("2.5.999")
@@ -351,6 +361,8 @@ type MilvusReplicas struct {
 	StreamingNode int `json:"streamingNode,omitempty"`
 	//+kubebuilder:validation:Optional
 	Standalone int `json:"standalone,omitempty"`
+	//+kubebuilder:validation:Optional
+	Cdc int `json:"cdc,omitempty"`
 }
 
 // MilvusIngress defines the ingress of MilvusCluster

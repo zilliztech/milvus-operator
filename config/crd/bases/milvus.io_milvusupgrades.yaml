@@ -113,6 +113,8 @@ spec:
                 type: boolean
               replicasBeforeUprade:
                 properties:
+                  cdc:
+                    type: integer
                   dataCoord:
                     type: integer
                   dataNode:

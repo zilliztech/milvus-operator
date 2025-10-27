@@ -358,6 +358,10 @@ func (r *Milvus) defaultComponentsReplicas() {
 	} else if spec.Com.Standalone.Replicas == nil {
 		spec.Com.Standalone.Replicas = &defaultReplicas
 	}
+
+	if spec.UseCdc() && spec.Com.Cdc.Replicas == nil {
+		spec.Com.Cdc.Replicas = &defaultReplicas
+	}
 }
 
 func (r *Milvus) DefaultDependencies() {

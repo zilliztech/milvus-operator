@@ -1,0 +1,16 @@
+# This is a sample to deploy a milvus cluster with cdc.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  mode: cluster
+  components:
+    image: milvusdb/milvus:v2.6.6
+    cdc:
+      replicas: 1  # Currently, CDC only supports 1 replica
+  config: {}
+  dependencies:
+    msgStreamType: woodpecker
