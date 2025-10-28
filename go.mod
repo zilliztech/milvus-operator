@@ -101,7 +101,7 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt v5.2.2+incompatible // indirect
+	github.com/golang-jwt/jwt v0.0.0-00010101000000-000000000000 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
@@ -230,4 +230,7 @@ replace (
 	github.com/golang-jwt/jwt => github.com/golang-jwt/jwt/v5 v5.2.3 // indirect
 )
 
-exclude github.com/apache/pulsar-client-go/oauth2 v0.0.0-20201120111947-b8bd55bc02bd
+exclude (
+	github.com/apache/pulsar-client-go/oauth2 v0.0.0-20201120111947-b8bd55bc02bd
+	github.com/golang-jwt/jwt v3.2.1+incompatible
+)
