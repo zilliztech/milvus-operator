@@ -34,6 +34,21 @@ func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Mi
 
 }
 
+// getKafkaCredentials retrieves Kafka username and password from the secret
+func (r *MilvusReconciler) getKafkaCredentials(ctx context.Context, mc v1beta1.Milvus) (string, string) {
+	if mc.Spec.Dep.Kafka.SecretRef == "" {
+		return "", ""
+	}
+	secret := &corev1.Secret{}
+	key := types.NamespacedName{Namespace: mc.Namespace, Name: mc.Spec.Dep.Kafka.SecretRef}
+	if err := r.Get(ctx, key, secret); err != nil {
+		r.logger.Error(err, "get kafka secret error")
+		return "", ""
+	}
+
+	return string(secret.Data["username"]), string(secret.Data["password"])
+}
+
 func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvus, configmap *corev1.ConfigMap) error {
 	confYaml, err := util.GetTemplatedValues(config.GetMilvusConfigTemplate(), mc)
 	if err != nil {
@@ -49,6 +64,15 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 	key, secret := r.getMinioAccessInfo(ctx, mc)
 	util.SetValue(conf, key, "minio", "accessKeyID")
 	util.SetValue(conf, secret, "minio", "secretAccessKey")
+
+	// Inject Kafka credentials if available
+	if mc.Spec.Dep.MsgStreamType == v1beta1.MsgStreamTypeKafka {
+		username, password := r.getKafkaCredentials(ctx, mc)
+		if username != "" && password != "" {
+			util.SetValue(conf, username, "kafka", "saslUsername")
+			util.SetValue(conf, password, "kafka", "saslPassword")
+		}
+	}
 
 	util.MergeValues(conf, mc.Spec.Conf.Data)
 	util.SetStringSlice(conf, mc.Spec.Dep.Etcd.Endpoints, "etcd", "endpoints")
