@@ -168,6 +168,15 @@ replicaCount: 1
 		assert.NotNil(t, mc.Spec.Dep.Tei.InCluster.Values.Data)
 	})
 
+	t.Run("default cdc ok", func(t *testing.T) {
+		mc := Milvus{ObjectMeta: metav1.ObjectMeta{Name: crName}}
+		mc.Spec.Mode = MilvusModeStandalone
+		mc.Spec.Com.Cdc = &MilvusCdc{}
+		mc.Default()
+		assert.NotNil(t, mc.Spec.Com.Cdc.Replicas)
+		assert.Equal(t, int32(1), *mc.Spec.Com.Cdc.Replicas)
+	})
+
 }
 
 func TestMilvus_Default_ExternalDepOK(t *testing.T) {

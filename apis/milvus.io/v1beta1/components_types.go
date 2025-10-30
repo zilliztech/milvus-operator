@@ -17,6 +17,7 @@ const (
 	IndexNode     ComponentType = "indexNode"
 	StreamingNode ComponentType = "streamingNode"
 	Proxy         ComponentType = "proxy"
+	Cdc           ComponentType = "cdc"
 
 	MixCoordName      = "mixcoord"
 	RootCoordName     = "rootcoord"
@@ -29,6 +30,7 @@ const (
 	ProxyName         = "proxy"
 	StandaloneName    = "standalone"
 	StreamingNodeName = "streamingnode"
+	CdcName           = "cdc"
 )
 
 var (
@@ -267,6 +269,9 @@ type MilvusComponents struct {
 
 	// +kubebuilder:validation:Optional
 	Standalone *MilvusStandalone `json:"standalone,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	Cdc *MilvusCdc `json:"cdc,omitempty"`
 }
 
 type Component struct {
@@ -331,6 +336,11 @@ type MilvusStreamingNode struct {
 
 type MilvusStandalone struct {
 	ServiceComponent `json:",inline"`
+}
+
+// Milvus CDC is a component that does the change data capture for milvus
+type MilvusCdc struct {
+	Component `json:",inline"`
 }
 
 // ServiceComponent is the milvus component that exposes service
