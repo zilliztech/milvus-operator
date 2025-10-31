@@ -130,6 +130,7 @@ type ComponentSpec struct {
 	// SecurityContext defines the pod's security context
 	// structure is same as corev1.SecurityContext, we use a Values here to avoid the CRD become too large
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
 	// +nullable
 	SecurityContext Values `json:"securityContext,omitempty"`
 }

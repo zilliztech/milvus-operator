@@ -1093,6 +1093,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -1743,6 +1744,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -2492,6 +2494,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -3142,6 +3145,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -3799,6 +3803,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -4497,6 +4502,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       serviceAnnotations:
@@ -5165,6 +5171,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -5815,6 +5822,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -6500,6 +6508,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -6562,6 +6571,7 @@ spec:
                   securityContext:
                     nullable: true
                     type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   serviceAccountName:
                     type: string
                   standalone:
@@ -7189,6 +7199,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       serviceAnnotations:
@@ -7860,6 +7871,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -9295,6 +9307,7 @@ spec:
               securityContext:
                 nullable: true
                 type: object
+                x-kubernetes-preserve-unknown-fields: true
               serviceAccountName:
                 type: string
               serviceAnnotations:
@@ -10575,6 +10588,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -11225,6 +11239,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -11974,6 +11989,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -12624,6 +12640,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -13281,6 +13298,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -13979,6 +13997,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       serviceAnnotations:
@@ -14647,6 +14666,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -15297,6 +15317,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -15982,6 +16003,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
@@ -16044,6 +16066,7 @@ spec:
                   securityContext:
                     nullable: true
                     type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   serviceAccountName:
                     type: string
                   standalone:
@@ -16671,6 +16694,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       serviceAnnotations:
@@ -17342,6 +17366,7 @@ spec:
                       securityContext:
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       serviceAccountName:
                         type: string
                       sidecars:
