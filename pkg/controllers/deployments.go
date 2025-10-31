@@ -161,6 +161,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 			return err
 		}
 
+		injectKafkaSecretsDeployment(new, &mc)
 		r.logger.Info("Create Deployment", "name", new.Name, "namespace", new.Namespace)
 		return r.Create(ctx, new)
 	} else if err != nil {
