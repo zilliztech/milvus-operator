@@ -368,6 +368,16 @@ func removeVolumeMounts(volumeMounts *[]corev1.VolumeMount, volumeName string) {
 	*volumeMounts = result
 }
 
+func removeVolumeMountsByPath(volumeMounts *[]corev1.VolumeMount, mountPath string) {
+	result := make([]corev1.VolumeMount, 0)
+	for i := range *volumeMounts {
+		if (*volumeMounts)[i].MountPath != mountPath {
+			result = append(result, (*volumeMounts)[i])
+		}
+	}
+	*volumeMounts = result
+}
+
 func addVolumeMount(volumeMounts *[]corev1.VolumeMount, volumeMount corev1.VolumeMount) {
 	volumeMountIdx := GetVolumeMountIndex(*volumeMounts, volumeMount.MountPath)
 	if volumeMountIdx < 0 {

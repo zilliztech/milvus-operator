@@ -279,7 +279,15 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	}
 
 	for _, volumeMount := range getUserDefinedVolumeMounts(updater) {
-		addVolumeMount(&container.VolumeMounts, volumeMount)
+		if isRemovalVolumeMount(volumeMount) {
+			targetMountPath := extractTargetMountPath(volumeMount)
+			removeVolumeMountsByPath(&container.VolumeMounts, targetMountPath)
+			podTemplateLogger.Info("removing volumeMount by user request",
+				"mountPath", targetMountPath,
+				"component", updater.GetComponent().Name)
+		} else {
+			addVolumeMount(&container.VolumeMounts, volumeMount)
+		}
 	}
 
 	container.ImagePullPolicy = *mergedComSpec.ImagePullPolicy
@@ -548,4 +556,14 @@ func (m milvusDeploymentUpdater) HasHookConfig() bool {
 func (m milvusDeploymentUpdater) IsUpgradingTo26() bool {
 	return m.GetMilvus().Spec.IsVersionGreaterThan2_6() &&
 		!m.GetMilvus().IsCurrentImageVersionGreaterThan2_6()
+}
+
+// isRemovalVolumeMount checks if this is a removal marker volumeMount
+func isRemovalVolumeMount(volumeMount corev1.VolumeMount) bool {
+	return volumeMount.Name == "_remove"
+}
+
+// extractTargetMountPath extracts the target mount path that needs to be removed
+func extractTargetMountPath(volumeMount corev1.VolumeMount) string {
+	return volumeMount.MountPath
 }

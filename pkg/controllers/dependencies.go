@@ -239,7 +239,7 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 	// Try to get the current StatefulSet
 	currentSts, err := l.clientset.AppsV1().StatefulSets(namespace).Get(ctx, stsName, metav1.GetOptions{})
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if kerrors.IsNotFound(err) {
 			l.logger.Info("StatefulSet not found, trying to restore from saved object", "name", stsName)
 
 			// Try to get saved StatefulSet
@@ -298,7 +298,7 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 		return fmt.Errorf("failed to delete controller revision: %v", err)
 	}
 
-	// Wait for the StatefulSet to be deleted
+	// Wait for the ControllerRevision to be deleted
 	err = l.waitForControllerRevisionsDeletion(ctx, namespace, saveName)
 	if err != nil {
 		return fmt.Errorf("failed to wait for StatefulSet deletion: %v", err)
@@ -368,7 +368,7 @@ func (l *LocalHelmReconciler) waitForControllerRevisionsDeletion(ctx context.Con
 		}
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("context cancelled while waiting for StatefulSet deletion")
+			return fmt.Errorf("context cancelled while waiting for ControllerRevision deletion")
 		case <-time.After(5 * time.Second):
 			// Continue waiting
 		}

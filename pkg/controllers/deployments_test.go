@@ -392,3 +392,118 @@ func Test_removeVolumeMounts(t *testing.T) {
 	assert.Equal(t, "p3", vms[0].MountPath)
 	assert.Equal(t, "p4", vms[1].MountPath)
 }
+
+func Test_removeVolumeMountsByPath(t *testing.T) {
+	tests := []struct {
+		name           string
+		initialMounts  []corev1.VolumeMount
+		pathToRemove   string
+		expectedMounts []corev1.VolumeMount
+		expectedLength int
+	}{
+		{
+			name: "Remove single volumeMount by path",
+			initialMounts: []corev1.VolumeMount{
+				{Name: "config", MountPath: "/etc/config"},
+				{Name: "data", MountPath: "/var/data"},
+				{Name: "logs", MountPath: "/var/logs"},
+			},
+			pathToRemove: "/etc/config",
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "data", MountPath: "/var/data"},
+				{Name: "logs", MountPath: "/var/logs"},
+			},
+			expectedLength: 2,
+		},
+		{
+			name: "Remove multiple volumeMounts with same path",
+			initialMounts: []corev1.VolumeMount{
+				{Name: "config1", MountPath: "/etc/config"},
+				{Name: "config2", MountPath: "/etc/config"}, // duplicate path
+				{Name: "data", MountPath: "/var/data"},
+			},
+			pathToRemove: "/etc/config",
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "data", MountPath: "/var/data"},
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "Remove non-existent path",
+			initialMounts: []corev1.VolumeMount{
+				{Name: "config", MountPath: "/etc/config"},
+				{Name: "data", MountPath: "/var/data"},
+			},
+			pathToRemove: "/non/existent",
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "config", MountPath: "/etc/config"},
+				{Name: "data", MountPath: "/var/data"},
+			},
+			expectedLength: 2,
+		},
+		{
+			name:           "Remove from empty list",
+			initialMounts:  []corev1.VolumeMount{},
+			pathToRemove:   "/any/path",
+			expectedMounts: []corev1.VolumeMount{},
+			expectedLength: 0,
+		},
+		{
+			name: "Remove with empty path",
+			initialMounts: []corev1.VolumeMount{
+				{Name: "config", MountPath: "/etc/config"},
+				{Name: "empty", MountPath: ""},
+			},
+			pathToRemove: "",
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "config", MountPath: "/etc/config"},
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "Case sensitive path removal",
+			initialMounts: []corev1.VolumeMount{
+				{Name: "config1", MountPath: "/etc/Config"},
+				{Name: "config2", MountPath: "/etc/config"},
+			},
+			pathToRemove: "/etc/config",
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "config1", MountPath: "/etc/Config"},
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "Remove path with special characters",
+			initialMounts: []corev1.VolumeMount{
+				{Name: "special", MountPath: "/etc/config-@#$%"},
+				{Name: "normal", MountPath: "/var/data"},
+			},
+			pathToRemove: "/etc/config-@#$%",
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "normal", MountPath: "/var/data"},
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "Remove path with whitespace",
+			initialMounts: []corev1.VolumeMount{
+				{Name: "spaced", MountPath: " /etc/config "},
+				{Name: "normal", MountPath: "/var/data"},
+			},
+			pathToRemove: " /etc/config ",
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "normal", MountPath: "/var/data"},
+			},
+			expectedLength: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vms := tt.initialMounts
+			removeVolumeMountsByPath(&vms, tt.pathToRemove)
+			assert.Len(t, vms, tt.expectedLength)
+			assert.Equal(t, tt.expectedMounts, vms)
+		})
+	}
+}
