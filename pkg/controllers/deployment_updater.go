@@ -532,6 +532,15 @@ func (m milvusDeploymentUpdater) RollingUpdateImageDependencyReady() bool {
 		return false
 	}
 
+	// update cdc image first
+	if m.component.Name == CdcName {
+		return true
+	}
+
+	if m.Spec.UseCdc() && !Cdc.IsImageUpdated(m.GetMilvus()) {
+		return false
+	}
+
 	var deps []MilvusComponent
 	if m.IsUpgradingTo26() {
 		podTemplateLogger.Info("using upgrading to 2.6 dependency graph", "component", m.component.Name)
