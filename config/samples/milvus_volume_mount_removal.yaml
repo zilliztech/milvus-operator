@@ -1,0 +1,32 @@
+# This is a sample to deploy a Milvus instance with specific volumeMounts removed.
+---
+# with volumeMount
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  components:
+    standalone:
+      volumeMounts:
+        - name: data
+          mountPath: /old-path
+
+---
+# remove volumeMount
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  components:
+    standalone:
+      volumeMounts:
+        - name: "_remove"
+          mountPath: /old-path
+        - name: data
+          mountPath: /new-path

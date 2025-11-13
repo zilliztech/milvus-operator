@@ -34,6 +34,7 @@ const (
 	ProxyName         = v1beta1.ProxyName
 	StandaloneName    = v1beta1.StandaloneName
 	StreamingNodeName = v1beta1.StreamingNodeName
+	CdcName           = v1beta1.CdcName
 	MilvusName        = "milvus"
 
 	MixCoordFieldName      = "MixCoord"
@@ -47,9 +48,11 @@ const (
 	StreamingNodeFieldName = "StreamingNode"
 	ProxyFieldName         = "Proxy"
 	StandaloneFieldName    = "Standalone"
+	CdcFieldName           = "Cdc"
 
 	MetricPort        = 9091
 	MultiplePorts     = -1
+	NoPort            = 0
 	RootCoordPort     = 53100
 	DataCoordPort     = 13333
 	QueryCoordPort    = 19531
@@ -83,6 +86,7 @@ var (
 	IndexNode     = MilvusComponent{IndexNodeName, IndexNodeFieldName, IndexNodePort}
 	StreamingNode = MilvusComponent{StreamingNodeName, StreamingNodeFieldName, StreamingNodePort}
 	Proxy         = MilvusComponent{ProxyName, ProxyFieldName, ProxyPort}
+	Cdc           = MilvusComponent{CdcName, CdcFieldName, NoPort}
 
 	// Milvus standalone
 	MilvusStandalone = MilvusComponent{StandaloneName, StandaloneFieldName, StandalonePort}
@@ -129,13 +133,21 @@ func IsMilvusDeploymentsComplete(m *v1beta1.Milvus) bool {
 
 // GetComponentsBySpec returns the components by the spec
 func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
-	if spec.Mode != v1beta1.MilvusModeCluster {
-		return StandaloneComponents
-	}
-	if spec.IsVersionGreaterThan2_6() {
-		return Milvus2_6Components
-	}
 	var ret = []MilvusComponent{}
+	if spec.UseCdc() {
+		ret = append(ret, Cdc)
+	}
+	// standalone mode
+	if spec.Mode != v1beta1.MilvusModeCluster {
+		ret = append(ret, StandaloneComponents...)
+		return ret
+	}
+	// cluster mode, version >= 2.6
+	if spec.IsVersionGreaterThan2_6() {
+		ret = append(ret, Milvus2_6Components...)
+		return ret
+	}
+	// cluster mode, version < 2.6
 	if spec.UseMixCoord() {
 		ret = append(ret, MixtureComponents...)
 	} else {

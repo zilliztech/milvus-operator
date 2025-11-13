@@ -351,4 +351,283 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		// Test MixCoord update - should update because StreamingNode is updated
 		assert.True(t, updater.RollingUpdateImageDependencyReady())
 	})
+
+	t.Run("rolling update with cdc component", func(t *testing.T) {
+		oldImage := "milvusdb/milvus:v2.6.6"
+		newImage := "milvusdb/milvus:v2.6.7"
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Mode = v1beta1.MilvusModeCluster
+		inst.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
+		inst.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeRollingUpgrade
+		inst.Spec.Com.Cdc = &v1beta1.MilvusCdc{}
+		inst.Spec.Com.Image = newImage
+		inst.Status.CurrentImage = oldImage
+		inst.Generation = 1
+		inst.Status.ObservedGeneration = 1
+		inst.Default()
+
+		inst.Status.ComponentsDeployStatus = map[string]v1beta1.ComponentDeployStatus{
+			MixCoordName: {
+				Image: oldImage,
+			},
+		}
+
+		// Test cdc update - should update because cdc is updated first
+		cdcUpdater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, Cdc)
+		assert.True(t, cdcUpdater.RollingUpdateImageDependencyReady())
+
+		// Test MixCoord update - should not update because cdc is not updated
+		mixCoordUpdater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MixCoord)
+		assert.False(t, mixCoordUpdater.RollingUpdateImageDependencyReady())
+
+		// Update cdc
+		inst.Status.ComponentsDeployStatus[CdcName] = v1beta1.ComponentDeployStatus{
+			Image:      newImage,
+			Status:     readyDeployStatus,
+			Generation: 1,
+		}
+
+		// Test MixCoord update - should update because cdc is updated
+		assert.True(t, mixCoordUpdater.RollingUpdateImageDependencyReady())
+	})
+}
+
+func Test_isRemovalVolumeMount(t *testing.T) {
+	tests := []struct {
+		name        string
+		volumeMount corev1.VolumeMount
+		expected    bool
+	}{
+		{
+			name: "Removal marker detected",
+			volumeMount: corev1.VolumeMount{
+				Name:      "_remove",
+				MountPath: "/opt/old-config",
+			},
+			expected: true,
+		},
+		{
+			name: "Normal volumeMount",
+			volumeMount: corev1.VolumeMount{
+				Name:      "config",
+				MountPath: "/opt/config",
+			},
+			expected: false,
+		},
+		{
+			name: "Empty name",
+			volumeMount: corev1.VolumeMount{
+				Name:      "",
+				MountPath: "/opt/config",
+			},
+			expected: false,
+		},
+		{
+			name: "Partial match",
+			volumeMount: corev1.VolumeMount{
+				Name:      "_remove_config",
+				MountPath: "/opt/config",
+			},
+			expected: false,
+		},
+		{
+			name: "Case sensitive - wrong case",
+			volumeMount: corev1.VolumeMount{
+				Name:      "_REMOVE",
+				MountPath: "/opt/config",
+			},
+			expected: false,
+		},
+		{
+			name: "With whitespace",
+			volumeMount: corev1.VolumeMount{
+				Name:      " _remove ",
+				MountPath: "/opt/config",
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isRemovalVolumeMount(tt.volumeMount)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func Test_extractTargetMountPath(t *testing.T) {
+	tests := []struct {
+		name         string
+		volumeMount  corev1.VolumeMount
+		expectedPath string
+	}{
+		{
+			name: "Normal path extraction",
+			volumeMount: corev1.VolumeMount{
+				Name:      "_remove",
+				MountPath: "/opt/old-config",
+			},
+			expectedPath: "/opt/old-config",
+		},
+		{
+			name: "Empty path",
+			volumeMount: corev1.VolumeMount{
+				Name:      "_remove",
+				MountPath: "",
+			},
+			expectedPath: "",
+		},
+		{
+			name: "Path with special characters",
+			volumeMount: corev1.VolumeMount{
+				Name:      "_remove",
+				MountPath: "/opt/config-@#$%^&*()",
+			},
+			expectedPath: "/opt/config-@#$%^&*()",
+		},
+		{
+			name: "Path with whitespace",
+			volumeMount: corev1.VolumeMount{
+				Name:      "_remove",
+				MountPath: " /opt/config ",
+			},
+			expectedPath: " /opt/config ",
+		},
+		{
+			name: "Relative path",
+			volumeMount: corev1.VolumeMount{
+				Name:      "_remove",
+				MountPath: "relative/path",
+			},
+			expectedPath: "relative/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractTargetMountPath(tt.volumeMount)
+			assert.Equal(t, tt.expectedPath, result)
+		})
+	}
+}
+
+func Test_updateMilvusContainer_volumeMountRemoval(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+
+	tests := []struct {
+		name                 string
+		existingVolumeMounts []corev1.VolumeMount
+		userDefinedMounts    []corev1.VolumeMount
+		expectedMounts       []corev1.VolumeMount
+		expectedLength       int
+	}{
+		{
+			name: "Remove single volumeMount",
+			existingVolumeMounts: []corev1.VolumeMount{
+				{Name: "config", MountPath: "/etc/config"},
+				{Name: "data", MountPath: "/var/data"},
+			},
+			userDefinedMounts: []corev1.VolumeMount{
+				{Name: "_remove", MountPath: "/etc/config"},
+			},
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "data", MountPath: "/var/data"},
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "Mixed removal and addition",
+			existingVolumeMounts: []corev1.VolumeMount{
+				{Name: "old-config", MountPath: "/etc/old-config"},
+				{Name: "data", MountPath: "/var/data"},
+			},
+			userDefinedMounts: []corev1.VolumeMount{
+				{Name: "_remove", MountPath: "/etc/old-config"},
+				{Name: "new-config", MountPath: "/etc/new-config"},
+			},
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "data", MountPath: "/var/data"},
+				{Name: "new-config", MountPath: "/etc/new-config"},
+			},
+			expectedLength: 2,
+		},
+		{
+			name: "Multiple removals",
+			existingVolumeMounts: []corev1.VolumeMount{
+				{Name: "config1", MountPath: "/etc/config1"},
+				{Name: "config2", MountPath: "/etc/config2"},
+				{Name: "data", MountPath: "/var/data"},
+			},
+			userDefinedMounts: []corev1.VolumeMount{
+				{Name: "_remove", MountPath: "/etc/config1"},
+				{Name: "_remove", MountPath: "/etc/config2"},
+			},
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "data", MountPath: "/var/data"},
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "Remove non-existent mount",
+			existingVolumeMounts: []corev1.VolumeMount{
+				{Name: "config", MountPath: "/etc/config"},
+			},
+			userDefinedMounts: []corev1.VolumeMount{
+				{Name: "_remove", MountPath: "/non/existent"},
+			},
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "config", MountPath: "/etc/config"},
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "Only additions, no removals",
+			existingVolumeMounts: []corev1.VolumeMount{
+				{Name: "existing", MountPath: "/etc/existing"},
+			},
+			userDefinedMounts: []corev1.VolumeMount{
+				{Name: "new-config", MountPath: "/etc/new-config"},
+			},
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "existing", MountPath: "/etc/existing"},
+				{Name: "new-config", MountPath: "/etc/new-config"},
+			},
+			expectedLength: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a container with existing volumeMounts
+			container := corev1.Container{
+				Name:         "milvus-container",
+				VolumeMounts: tt.existingVolumeMounts,
+			}
+
+			// Simulate the volumeMount processing logic from updateMilvusContainer
+			for _, volumeMount := range tt.userDefinedMounts {
+				if isRemovalVolumeMount(volumeMount) {
+					targetMountPath := extractTargetMountPath(volumeMount)
+					removeVolumeMountsByPath(&container.VolumeMounts, targetMountPath)
+				} else {
+					// Simulate addVolumeMount logic - just append if not exists
+					found := false
+					for _, existing := range container.VolumeMounts {
+						if existing.MountPath == volumeMount.MountPath {
+							found = true
+							break
+						}
+					}
+					if !found {
+						container.VolumeMounts = append(container.VolumeMounts, volumeMount)
+					}
+				}
+			}
+
+			assert.Len(t, container.VolumeMounts, tt.expectedLength)
+			assert.Equal(t, tt.expectedMounts, container.VolumeMounts)
+		})
+	}
 }

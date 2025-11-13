@@ -160,12 +160,31 @@ func TestMilvusSpec_2_6_IsStopping(t *testing.T) {
 	com.Proxy.Replicas = &replica0
 	com.DataNode.Replicas = &replica0
 	com.QueryNode.Replicas = &replica0
+	com.StreamingNode.Replicas = &replica0
 	t.Run("mixcoord not stopping", func(t *testing.T) {
 		assert.False(t, m.Spec.IsStopping())
 	})
 
 	com.MixCoord.Replicas = &replica0
 	t.Run("mixcoord stopping", func(t *testing.T) {
+		assert.True(t, m.Spec.IsStopping())
+	})
+}
+
+func TestMilvusSpec_Cdc_Stopping(t *testing.T) {
+	m := &Milvus{}
+	m.Spec.Com.Cdc = &MilvusCdc{}
+	m.Default()
+
+	replica0 := int32(0)
+	com := &m.Spec.Com
+	com.Standalone.Replicas = &replica0
+	t.Run("cdc not stopping", func(t *testing.T) {
+		assert.False(t, m.Spec.IsStopping())
+	})
+
+	com.Cdc.Replicas = &replica0
+	t.Run("cdc stopping", func(t *testing.T) {
 		assert.True(t, m.Spec.IsStopping())
 	})
 }

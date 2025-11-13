@@ -38,6 +38,24 @@ func TestGetComponentsBySpec(t *testing.T) {
 	assert.Equal(t, Milvus2_6Components, GetComponentsBySpec(spec))
 }
 
+func TestGetComponentsWithCdcBySpec(t *testing.T) {
+	// standlone
+	spec := newSpec()
+	spec.Com.Image = "milvusdb/milvus:v2.6.6"
+	spec.Com.Cdc = &v1beta1.MilvusCdc{}
+	spec.Com.Cdc.Replicas = int32Ptr(1)
+
+	standaloneWithCdcComponents := append([]MilvusComponent{}, StandaloneComponents...)
+	standaloneWithCdcComponents = append(standaloneWithCdcComponents, Cdc)
+	assert.ElementsMatch(t, standaloneWithCdcComponents, GetComponentsBySpec(spec))
+
+	// cluster
+	spec.Mode = v1beta1.MilvusModeCluster
+	clusterWithCdcComponents := append([]MilvusComponent{}, Milvus2_6Components...)
+	clusterWithCdcComponents = append(clusterWithCdcComponents, Cdc)
+	assert.ElementsMatch(t, clusterWithCdcComponents, GetComponentsBySpec((spec)))
+}
+
 func TestMilvusComponent_IsCoord(t *testing.T) {
 	assert.False(t, QueryNode.IsCoord())
 	assert.True(t, QueryCoord.IsCoord())
