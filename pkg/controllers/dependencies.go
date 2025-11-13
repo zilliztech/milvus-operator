@@ -210,8 +210,39 @@ func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRe
 	}
 
 	if strings.Contains(request.ReleaseName, Etcd) {
-		oldSizeStr := vals["persistence"].(map[string]interface{})["size"].(string)
-		newSizeStr := request.Values["persistence"].(map[string]interface{})["size"].(string)
+		oldPersistence := vals["persistence"]
+		if oldPersistence == nil {
+			return fmt.Errorf("old opersistence is nil")
+		}
+		oldPersistenceMap, ok := oldPersistence.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("old persistence is not a map")
+		}
+		oldSize := oldPersistenceMap["size"]
+		if oldSize == nil {
+			return fmt.Errorf("old persistence size is nil")
+		}
+		oldSizeStr, ok := oldSize.(string)
+		if !ok {
+			return fmt.Errorf("old persistence size is not a string")
+		}
+
+		newPersistence := request.Values["persistence"]
+		if newPersistence == nil {
+			return fmt.Errorf("new persistence is nil")
+		}
+		newPersistenceMap, ok := newPersistence.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("new persistence is not a map")
+		}
+		newSize := newPersistenceMap["size"]
+		if newSize == nil {
+			return fmt.Errorf("new persistence size is nil")
+		}
+		newSizeStr, ok := newSize.(string)
+		if !ok {
+			return fmt.Errorf("new persistence size is not a string")
+		}
 		l.logger.Info("reconcile PVC", "old size:", oldSizeStr, "new size:", newSizeStr, "release", request.ReleaseName)
 		if err := l.reconcilePVCs(ctx, request.Namespace, request.ReleaseName, oldSizeStr, newSizeStr, mc); err != nil {
 			return err
