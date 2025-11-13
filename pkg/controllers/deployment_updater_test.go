@@ -351,6 +351,45 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		// Test MixCoord update - should update because StreamingNode is updated
 		assert.True(t, updater.RollingUpdateImageDependencyReady())
 	})
+
+	t.Run("rolling update with cdc component", func(t *testing.T) {
+		oldImage := "milvusdb/milvus:v2.6.6"
+		newImage := "milvusdb/milvus:v2.6.7"
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Mode = v1beta1.MilvusModeCluster
+		inst.Spec.Com.EnableRollingUpdate = util.BoolPtr(true)
+		inst.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeRollingUpgrade
+		inst.Spec.Com.Cdc = &v1beta1.MilvusCdc{}
+		inst.Spec.Com.Image = newImage
+		inst.Status.CurrentImage = oldImage
+		inst.Generation = 1
+		inst.Status.ObservedGeneration = 1
+		inst.Default()
+
+		inst.Status.ComponentsDeployStatus = map[string]v1beta1.ComponentDeployStatus{
+			MixCoordName: {
+				Image: oldImage,
+			},
+		}
+
+		// Test cdc update - should update because cdc is updated first
+		cdcUpdater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, Cdc)
+		assert.True(t, cdcUpdater.RollingUpdateImageDependencyReady())
+
+		// Test MixCoord update - should not update because cdc is not updated
+		mixCoordUpdater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MixCoord)
+		assert.False(t, mixCoordUpdater.RollingUpdateImageDependencyReady())
+
+		// Update cdc
+		inst.Status.ComponentsDeployStatus[CdcName] = v1beta1.ComponentDeployStatus{
+			Image:      newImage,
+			Status:     readyDeployStatus,
+			Generation: 1,
+		}
+
+		// Test MixCoord update - should update because cdc is updated
+		assert.True(t, mixCoordUpdater.RollingUpdateImageDependencyReady())
+	})
 }
 
 func Test_isRemovalVolumeMount(t *testing.T) {
