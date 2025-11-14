@@ -314,7 +314,7 @@ spec:
           replicaCount: 1
 ```
 
-A complete fields doc can be found at https://artifacthub.io/packages/helm/bitnami/etcd/6.3.3.
+A complete fields doc can be found at https://artifacthub.io/packages/helm/bitnami/etcd/8.12.0.
 
 
 #### Dependency Storage
