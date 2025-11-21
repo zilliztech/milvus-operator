@@ -133,10 +133,10 @@ func isImageVersionGreaterThan2_6(version, image string) bool {
 	// use tag if version is not set, parse format: registry/namespace/image:tag
 	parts := strings.Split(image, ":")
 
-	if len(parts) != 2 {
+	if len(parts) < 2 {
 		return false
 	}
-	imageTag := parts[1]
+	imageTag := parts[len(parts)-1]
 	if strings.HasPrefix(imageTag, "master-") {
 		return true
 	}
