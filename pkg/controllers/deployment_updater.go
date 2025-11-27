@@ -100,7 +100,7 @@ func updatePodTemplate(
 	if updater.GetMilvus().Spec.Com.RunAsNonRoot {
 		template.Spec.SecurityContext = &corev1.PodSecurityContext{
 			RunAsNonRoot: &updater.GetMilvus().Spec.Com.RunAsNonRoot,
-			RunAsUser:    int64Ptr(1000),
+			RunAsUser:    int64Ptr(999),
 		}
 	}
 

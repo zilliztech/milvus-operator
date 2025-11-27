@@ -405,7 +405,7 @@ func renderInitContainer(container *corev1.Container, toolImage string) *corev1.
 	}
 	container.SecurityContext = &corev1.SecurityContext{
 		RunAsNonRoot: boolPtr(true),
-		RunAsUser:    int64Ptr(1000),
+		RunAsUser:    int64Ptr(999),
 	}
 	fillContainerDefaultValues(container)
 	return container
