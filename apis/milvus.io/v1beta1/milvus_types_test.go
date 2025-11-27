@@ -341,3 +341,29 @@ func TestMilvus_setDefaultMsgStreamType(t *testing.T) {
 	})
 
 }
+
+func TestIsImageVersionGreaterThan2_6(t *testing.T) {
+	t.Run("image with more than one colon is less than 2.6", func(t *testing.T) {
+		assert.False(t, isImageVersionGreaterThan2_6("", "10.20.12.8:5000/milvusdb/milvus:v2.5.0"))
+	})
+
+	t.Run("image with more than one colon is greater than 2.6", func(t *testing.T) {
+		assert.True(t, isImageVersionGreaterThan2_6("", "10.20.12.8:5000/milvusdb/milvus:v2.6.0"))
+	})
+
+	t.Run("tag version is less than 2.6", func(t *testing.T) {
+		assert.False(t, isImageVersionGreaterThan2_6("", "milvusdb/milvus:v2.5.0"))
+	})
+
+	t.Run("tag version is greater than 2.6", func(t *testing.T) {
+		assert.True(t, isImageVersionGreaterThan2_6("", "milvusdb/milvus:v2.6.0"))
+	})
+
+	t.Run("version is less than 2.6", func(t *testing.T) {
+		assert.False(t, isImageVersionGreaterThan2_6("v2.5.0", "milvusdb/milvus:20250209-200000"))
+	})
+
+	t.Run("version is greater than 2.6", func(t *testing.T) {
+		assert.True(t, isImageVersionGreaterThan2_6("v2.6.1", "milvusdb/milvus:20250809-100000"))
+	})
+}
