@@ -195,3 +195,9 @@ tolerations: []
 #   }
 # }`
 affinity: {}
+
+# extraArgs -- Additional arguments to pass to the controller container
+extraArgs: []
+#  - --debug
+#  - --k8s-qps=50
+#  - --watche-namespace=test-namespace1,test-namespace2
