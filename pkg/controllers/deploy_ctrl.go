@@ -296,6 +296,11 @@ func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.
 		return nil
 	}
 
+	if ReplicasValue(c.component.GetReplicas(mc.Spec)) == 0 {
+		// cannot rollout when target replicas is 0, ignore rollout
+		return nil
+	}
+
 	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
 		if getDeployReplicas(currentDeploy) > 0 {
 			// if current deployment already has replicas, we need to update the other deployment
