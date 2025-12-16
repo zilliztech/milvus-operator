@@ -170,7 +170,14 @@ func (c *K8sUtilImpl) ListDeployPods(ctx context.Context, deploy *appsv1.Deploym
 	if err != nil {
 		return nil, errors.Wrap(err, "list pods")
 	}
-	return pods.Items, nil
+	ret := []corev1.Pod{}
+	for _, pod := range pods.Items {
+		if pod.Status.Reason == "Evicted" || pod.Status.Phase == "Unknown" {
+			continue
+		}
+		ret = append(ret, pod)
+	}
+	return ret, nil
 }
 
 func (c *K8sUtilImpl) DeploymentIsStable(deploy *appsv1.Deployment, allPods []corev1.Pod) (isStable bool, reason string) {
