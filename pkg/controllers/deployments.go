@@ -10,6 +10,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pkgerr "github.com/pkg/errors"
@@ -114,11 +115,12 @@ func (r *MilvusReconciler) updateDeployment(
 func (r *MilvusReconciler) DeleteDeploymentsIfExists(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
 	namespacedName := NamespacedName(mc.Namespace, component.GetDeploymentName(mc.Name))
 	deployment := &appsv1.Deployment{}
+	logger := ctrl.LoggerFrom(ctx)
 
 	err := r.Get(ctx, namespacedName, deployment)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			r.logger.Info("Deployment not found, skip delete",
+			logger.Info("Deployment not found, skip delete",
 				"component", component.Name,
 				"name", namespacedName.Name,
 				"namespace", namespacedName.Namespace)
@@ -127,7 +129,7 @@ func (r *MilvusReconciler) DeleteDeploymentsIfExists(ctx context.Context, mc v1b
 		return pkgerr.Wrapf(err, "get deployment %s/%s failed", namespacedName.Namespace, namespacedName.Name)
 	}
 
-	r.logger.Info("Deleting deployment",
+	logger.Info("Deleting deployment",
 		"component", component.Name,
 		"deployment name", deployment.Name,
 		"namespace", deployment.Namespace)
@@ -136,7 +138,7 @@ func (r *MilvusReconciler) DeleteDeploymentsIfExists(ctx context.Context, mc v1b
 		return pkgerr.Wrapf(err, "delete deployment %s/%s failed", deployment.Namespace, deployment.Name)
 	}
 
-	r.logger.Info("Successfully deleted deployment",
+	logger.Info("Successfully deleted deployment",
 		"component", component.Name,
 		"deployment name", deployment.Name,
 		"namespace", deployment.Namespace)
@@ -161,7 +163,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 			return err
 		}
 
-		r.logger.Info("Create Deployment", "name", new.Name, "namespace", new.Namespace)
+		ctrl.LoggerFrom(ctx).Info("Create Deployment")
 		return r.Create(ctx, new)
 	} else if err != nil {
 		return err
@@ -182,7 +184,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 	}
 
 	diff := util.DiffStr(old, cur)
-	r.logger.Info("Update Deployment", "name", cur.Name, "namespace", cur.Namespace, "diff", string(diff))
+	ctrl.LoggerFrom(ctx).Info("Update Deployment", "diff", string(diff))
 	return r.Update(ctx, cur)
 }
 
@@ -308,7 +310,8 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 func (r *MilvusReconciler) cleanupIndexNodeIfNeeded(ctx context.Context, mc v1beta1.Milvus) error {
 	// offline indexnode for version >= 2.6, when proxy component's image has been updated
 	if mc.Spec.IsVersionGreaterThan2_6() && Proxy.IsImageUpdated(&mc) && mc.Spec.Com.IndexNode != nil {
-		r.logger.Info("Offline index node", "namespace", mc.Namespace, "name", mc.Name)
+		logger := ctrl.LoggerFrom(ctx)
+		logger.Info("Offline index node")
 
 		err := r.DeleteDeploymentsIfExists(ctx, mc, IndexNode)
 		if err != nil {
@@ -321,7 +324,7 @@ func (r *MilvusReconciler) cleanupIndexNodeIfNeeded(ctx context.Context, mc v1be
 			return err
 		}
 
-		r.logger.Info("Successfully cleanup index node", "namespace", mc.Namespace, "name", mc.Name)
+		logger.Info("Successfully cleanup index node")
 	}
 	return nil
 }
@@ -329,7 +332,8 @@ func (r *MilvusReconciler) cleanupIndexNodeIfNeeded(ctx context.Context, mc v1be
 // cleanupCoordinatorsIfNeeded is part of the upgrade process to remove non mixcoord coordinators which are no longer needed in mixcoord mode
 func (r *MilvusReconciler) cleanupCoordinatorsIfNeeded(ctx context.Context, mc v1beta1.Milvus) error {
 	if mc.Spec.UseMixCoord() && MixCoord.IsImageUpdated(&mc) && HasCoordsSpec(&mc) {
-		r.logger.Info("Offline non mixcoord coordinators", "namespace", mc.Namespace, "name", mc.Name)
+		logger := ctrl.LoggerFrom(ctx)
+		logger.Info("Offline non mixcoord coordinators")
 
 		for _, coord := range MilvusCoords {
 			err := r.DeleteDeploymentsIfExists(ctx, mc, coord)
@@ -343,7 +347,7 @@ func (r *MilvusReconciler) cleanupCoordinatorsIfNeeded(ctx context.Context, mc v
 		if err != nil {
 			return err
 		}
-		r.logger.Info("Successfully cleanup non mixcoord coordinators", "namespace", mc.Namespace, "name", mc.Name)
+		logger.Info("Successfully cleanup non mixcoord coordinators")
 	}
 
 	return nil
