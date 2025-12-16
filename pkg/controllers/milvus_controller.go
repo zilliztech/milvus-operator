@@ -78,12 +78,12 @@ type MilvusReconciler struct {
 func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.statusSyncer.RunIfNot()
 	globalCommonInfo.InitIfNot(r.Client)
-	logger := r.logger.WithValues("milvus", req.NamespacedName)
+	logger := ctrl.LoggerFrom(ctx)
 	ctx = ctrl.LoggerInto(ctx, logger)
 	if !config.IsDebug() {
 		defer func() {
 			if err := recover(); err != nil {
-				r.logger.Error(err.(error), "reconcile panic captured")
+				logger.Error(err.(error), "reconcile panic captured")
 			}
 		}()
 	}
@@ -164,7 +164,7 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if !IsEqual(old.Spec, milvus.Spec) {
 		diff, _ := diffObject(old, milvus)
-		r.logger.Info("SetDefault: " + string(diff))
+		logger.Info("SetDefault: " + string(diff))
 		err := r.Update(ctx, milvus)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -183,10 +183,10 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if err := r.ReconcileAll(ctx, *milvus); err != nil {
 		if pkgErr.Is(err, ErrRequeue) {
-			r.logger.Info("requeue", "err", err.Error())
+			logger.Info("requeue", "err", err.Error())
 			return ctrl.Result{RequeueAfter: unhealthySyncInterval / 2}, nil
 		}
-		r.logger.Info("reconcileAll", "err", err.Error())
+		logger.Info("reconcileAll", "err", err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -273,7 +273,7 @@ func (r *MilvusReconciler) ReconcileLegacyValues(ctx context.Context, old, milvu
 		return err
 	}
 	diff, _ := diffObject(old, milvus)
-	r.logger.Info("SyncValues: " + string(diff))
+	ctrl.LoggerFrom(ctx).Info("SyncValues: " + string(diff))
 	err = r.Update(ctx, milvus)
 	return err
 }

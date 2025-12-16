@@ -29,8 +29,6 @@ type DeployControllerImpl struct {
 	rollingModeStatusUpdater RollingModeStatusUpdater
 }
 
-var deployCtrlLogger = ctrl.Log.WithName("deploy-ctrl")
-
 // NewDeployController returns a DeployController
 func NewDeployController(
 	bizFactory DeployControllerBizFactory,
@@ -44,8 +42,7 @@ func NewDeployController(
 }
 
 func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
-	logger := deployCtrlLogger.WithValues("milvus", mc.Name, "component", component.Name)
-	ctx = ctrl.LoggerInto(ctx, logger)
+	logger := ctrl.LoggerFrom(ctx).WithName("deploy-ctrl").WithValues("component", component.Name)
 	err := c.rollingModeStatusUpdater.Update(ctx, &mc)
 	if err != nil {
 		return errors.Wrap(err, "update milvus rolling mode status")

@@ -309,7 +309,8 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 		return nil
 	}
 
-	r.logger.Info("update status", "diff", util.DiffStr(beginStatus, &mc.Status))
+	logger := ctrl.LoggerFrom(ctx)
+	logger.Info("update status", "diff", util.DiffStr(beginStatus, &mc.Status))
 	return r.Status().Update(ctx, mc)
 }
 
