@@ -464,7 +464,7 @@ func TestDeployControllerBizUtilImpl_LastRolloutFinished(t *testing.T) {
 
 }
 
-func TestDeployControllerBizUtilImpl_IsNewRollout(t *testing.T) {
+func TestDeployControllerBizUtilImpl_IsPodTemplateChanged(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	mockcli := NewMockK8sClient(mockCtrl)
@@ -488,7 +488,7 @@ func TestDeployControllerBizUtilImpl_IsNewRollout(t *testing.T) {
 		currentDeploy.Spec.Template.Labels = map[string]string{}
 		newPodTemplate := currentDeploy.Spec.Template.DeepCopy()
 		currentDeploy.Spec.Template.Labels = currentDeploy.Labels
-		ret := bizUtil.IsNewRollout(ctx, currentDeploy, newPodTemplate)
+		ret := bizUtil.IsPodTemplateChanged(ctx, currentDeploy, newPodTemplate)
 		assert.False(t, ret)
 	})
 
@@ -499,7 +499,7 @@ func TestDeployControllerBizUtilImpl_IsNewRollout(t *testing.T) {
 		newPodTemplate := currentDeploy.Spec.Template.DeepCopy()
 		currentDeploy.Spec.Template.Labels = currentDeploy.Labels
 		newPodTemplate.Spec.Containers = []corev1.Container{{}, {}}
-		ret := bizUtil.IsNewRollout(ctx, currentDeploy, newPodTemplate)
+		ret := bizUtil.IsPodTemplateChanged(ctx, currentDeploy, newPodTemplate)
 		assert.True(t, ret)
 	})
 }

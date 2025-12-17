@@ -34,7 +34,7 @@ type DeployControllerBizUtil interface {
 
 	ShouldRollback(ctx context.Context, currentDeploy, lastDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
 	LastRolloutFinished(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) (bool, error)
-	IsNewRollout(ctx context.Context, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
+	IsPodTemplateChanged(ctx context.Context, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
 	// ScaleDeployments scales 2 deployments to proper replicas, it assumes currentDeployment & lastDeployment not nil
 	ScaleDeployments(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error
 	// PrepareNewRollout prepare a new rollout, it assumes currentDeployment not nil
@@ -211,16 +211,10 @@ func (c *DeployControllerBizUtilImpl) ShouldRollback(ctx context.Context, curren
 	if lastDeploy == nil {
 		return false
 	}
-	labelHelper := v1beta1.Labels()
-	podTemplateCopy := podTemplate.DeepCopy()
-	groupIdStr := labelHelper.GetLabelGroupID(c.component.Name, currentDeploy)
-	labelHelper.SetGroupIDStr(c.component.Name, podTemplateCopy.Labels, groupIdStr)
-	if IsEqual(currentDeploy.Spec.Template, *podTemplateCopy) {
+	if c.isPodTemplateEqual(currentDeploy, podTemplate) {
 		return false
 	}
-	groupIdStr = labelHelper.GetLabelGroupID(c.component.Name, lastDeploy)
-	labelHelper.SetGroupIDStr(c.component.Name, podTemplateCopy.Labels, groupIdStr)
-	return IsEqual(lastDeploy.Spec.Template, *podTemplateCopy)
+	return c.isPodTemplateEqual(lastDeploy, podTemplate)
 }
 
 func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) (bool, error) {
@@ -256,7 +250,6 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	)
 	logger := ctrl.LoggerFrom(ctx)
 	if !deploymentShowsRolloutFinished {
-		logger := ctrl.LoggerFrom(ctx)
 		logger.Info("rollout not finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.Name), "reason", reasons[failedIndex])
 		return false, nil
 	}
@@ -273,18 +266,17 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	return false, c.UpdateAndRequeue(ctx, &mc)
 }
 
-func (c *DeployControllerBizUtilImpl) IsNewRollout(ctx context.Context, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool {
+func (c *DeployControllerBizUtilImpl) IsPodTemplateChanged(ctx context.Context, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool {
+	return !c.isPodTemplateEqual(currentDeployment, podTemplate)
+}
+
+func (c *DeployControllerBizUtilImpl) isPodTemplateEqual(currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool {
 	labelHelper := v1beta1.Labels()
 	currentTemplateCopy := currentDeployment.Spec.Template.DeepCopy()
 	podTemplateCopy := podTemplate.DeepCopy()
 	labelHelper.SetGroupIDStr(c.component.Name, currentTemplateCopy.Labels, "")
 	labelHelper.SetGroupIDStr(c.component.Name, podTemplateCopy.Labels, "")
-	isNewRollout := !IsEqual(currentTemplateCopy, podTemplateCopy)
-	if isNewRollout {
-		diff := util.DiffStr(currentTemplateCopy, podTemplateCopy)
-		ctrl.LoggerFrom(ctx).Info("new rollout", "diff", diff, "currentDeployment", currentDeployment.Name)
-	}
-	return isNewRollout
+	return IsEqual(currentTemplateCopy, podTemplateCopy)
 }
 
 // ScaleDeployments to current deploymement, we assume both current & last deploy is not nil
