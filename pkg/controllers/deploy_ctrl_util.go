@@ -528,21 +528,31 @@ func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context
 }
 
 func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) error {
-	logger := ctrl.LoggerFrom(ctx)
+	logger := ctrl.LoggerFrom(ctx).WithName("prepare new rollout")
 	labelHelper := v1beta1.Labels()
 	currentGroupIdStr := labelHelper.GetLabelGroupID(c.component.Name, currentDeployment)
-	logger.Info("prepare new rollout stage 1: updateDeployTemplate", "deployGroupId", currentGroupIdStr, "podTemplateDiff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
-	currentDeployment.Spec.Template = *podTemplate
-	labelHelper.SetGroupIDStr(c.component.Name, currentDeployment.Spec.Template.Labels, currentGroupIdStr)
+	logger.Info("stage 1: updateDeployTemplate")
+	updatePodTemplateTwoDeployMode(ctx, c.component, currentDeployment, podTemplate)
 	c.RenewDeployAnnotation(ctx, mc, currentDeployment)
 	err := c.cli.Update(ctx, currentDeployment)
 	if err != nil {
 		return errors.Wrap(err, "updateDeployTemplate failed")
 	}
-	logger.Info("prepare new rollout stage 2: setRolling", "currentGroupId", currentGroupIdStr)
+	logger.Info("stage 2: setRolling", "currentGroupId", currentGroupIdStr)
 	labelHelper.SetCurrentGroupIDStr(&mc, c.component.Name, currentGroupIdStr)
 	labelHelper.SetComponentRolling(&mc, c.component.Name, true)
 	return c.UpdateAndRequeue(ctx, &mc)
+}
+
+// updatePodTemplateTwoDeployMode is for two-deployment mode, it also sets back groupId label
+// for one-deployment mode, use updatePodTemplate
+func updatePodTemplateTwoDeployMode(ctx context.Context, component MilvusComponent, currentDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) {
+	logger := ctrl.LoggerFrom(ctx)
+	labelHelper := v1beta1.Labels()
+	currentGroupIdStr := labelHelper.GetLabelGroupID(component.Name, currentDeployment)
+	logger.Info("updatePodTemplate", "groupId", currentGroupIdStr, "diff", util.DiffStr(currentDeployment.Spec.Template, *podTemplate))
+	currentDeployment.Spec.Template = *podTemplate
+	labelHelper.SetGroupIDStr(component.Name, currentDeployment.Spec.Template.Labels, currentGroupIdStr)
 }
 
 // RenewDeployAnnotation returns true if annotation is updated

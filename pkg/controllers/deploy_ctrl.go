@@ -325,16 +325,20 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 	if currentDeploy == nil {
 		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
 	}
+	logger := ctrl.LoggerFrom(ctx).WithName("manual-mode").WithValues("component", c.component.Name)
+	ctx = ctrl.LoggerInto(ctx, logger)
 	// should not update deploy with replicas if it's in manual mode
 	if getDeployReplicas(currentDeploy) != 0 {
 		return nil
 	}
 	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, true)
+	needUpdate := c.util.RenewDeployAnnotation(ctx, mc, currentDeploy)
 	if c.util.IsPodTemplateChanged(ctx, currentDeploy, podTemplate) {
-		return c.util.PrepareNewRollout(ctx, mc, currentDeploy, podTemplate)
+		needUpdate = true
+		updatePodTemplateTwoDeployMode(ctx, c.component, currentDeploy, podTemplate)
 	}
-	if c.util.RenewDeployAnnotation(ctx, mc, currentDeploy) {
-		return c.util.UpdateAndRequeue(ctx, currentDeploy)
+	if !needUpdate {
+		return nil
 	}
-	return nil
+	return c.util.UpdateAndRequeue(ctx, currentDeploy)
 }
