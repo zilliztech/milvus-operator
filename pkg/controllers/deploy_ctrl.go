@@ -302,7 +302,7 @@ func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.
 		return nil
 	}
 
-	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
+	if c.util.IsPodTemplateChanged(ctx, currentDeploy, podTemplate) {
 		if getDeployReplicas(currentDeploy) > 0 {
 			// if current deployment already has replicas, we need to update the other deployment
 			// lastRolloutFinished promises that the last deployment has 0 replicas
@@ -327,7 +327,7 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 		return nil
 	}
 	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, true)
-	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
+	if c.util.IsPodTemplateChanged(ctx, currentDeploy, podTemplate) {
 		return c.util.PrepareNewRollout(ctx, mc, currentDeploy, podTemplate)
 	}
 	if c.util.RenewDeployAnnotation(ctx, mc, currentDeploy) {
