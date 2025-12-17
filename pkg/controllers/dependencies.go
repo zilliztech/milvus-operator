@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -172,11 +173,12 @@ func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRe
 		return err
 	}
 
+	logger := ctrl.LoggerFrom(ctx)
 	if !exist {
 		if request.Chart == helm.GetChartPathByName(Pulsar) {
 			request.Values["initialize"] = true
 		}
-		l.logger.Info("helm install values", "values", request.Values)
+		logger.Info("helm install values", "values", request.Values)
 		return helm.Install(cfg, request)
 	}
 
@@ -204,9 +206,9 @@ func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRe
 		request.Values["initialize"] = false
 	}
 
-	l.logger.Info("update helm", "namespace", request.Namespace, "release", request.ReleaseName, "needUpdate", needUpdate, "deepEqual", deepEqual)
+	logger.Info("update helm", "namespace", request.Namespace, "release", request.ReleaseName, "needUpdate", needUpdate, "deepEqual", deepEqual)
 	if !deepEqual {
-		l.logger.Info("update helm values", "old", vals, "new", request.Values)
+		logger.Info("update helm values", "old", vals, "new", request.Values)
 	}
 
 	if strings.Contains(request.ReleaseName, Etcd) {
@@ -243,7 +245,7 @@ func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRe
 		if !ok {
 			return fmt.Errorf("new persistence size is not a string")
 		}
-		l.logger.Info("reconcile PVC", "old size:", oldSizeStr, "new size:", newSizeStr, "release", request.ReleaseName)
+		logger.Info("reconcile PVC", "old size:", oldSizeStr, "new size:", newSizeStr, "release", request.ReleaseName)
 		if err := l.reconcilePVCs(ctx, request.Namespace, request.ReleaseName, oldSizeStr, newSizeStr, mc); err != nil {
 			return err
 		}
@@ -253,7 +255,8 @@ func (l LocalHelmReconciler) Reconcile(ctx context.Context, request helm.ChartRe
 }
 
 func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, releaseName, oldSize, newSize string, mc v1beta1.Milvus) error {
-	l.logger.Info("Reconciling PVCs", "namespace", namespace, "release", releaseName, "oldSize", oldSize, "newSize", newSize)
+	logger := ctrl.LoggerFrom(ctx)
+	logger.Info("Reconciling PVCs", "namespace", namespace, "release", releaseName, "oldSize", oldSize, "newSize", newSize)
 
 	stsName := releaseName
 	newQuantity, err := resource.ParseQuantity(newSize)
@@ -271,7 +274,7 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 	currentSts, err := l.clientset.AppsV1().StatefulSets(namespace).Get(ctx, stsName, metav1.GetOptions{})
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			l.logger.Info("StatefulSet not found, trying to restore from saved object", "name", stsName)
+			logger.Info("StatefulSet not found, trying to restore from saved object", "name", stsName)
 
 			// Try to get saved StatefulSet
 			savedSts := &appsv1.StatefulSet{}
@@ -295,11 +298,11 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 	// StatefulSet exists, check if storage size needs update
 	currentStorageSize := l.getCurrentStorageSize(currentSts)
 	if currentStorageSize.Equal(newQuantity) {
-		l.logger.Info("Storage size already updated, nothing to do", "name", stsName, "size", newQuantity.String())
+		logger.Info("Storage size already updated, nothing to do", "name", stsName, "size", newQuantity.String())
 		return nil
 	}
 
-	l.logger.Info("Storage size needs update, performing delete & create procedure",
+	logger.Info("Storage size needs update, performing delete & create procedure",
 		"name", stsName,
 		"currentSize", currentStorageSize.String(),
 		"newSize", newQuantity.String())
@@ -317,7 +320,7 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 		if err != nil {
 			return fmt.Errorf("failed to update PVC %s: %v", pvcName, err)
 		}
-		l.logger.Info("Updated PVC size", "pvc", pvcName, "newSize", newSize)
+		logger.Info("Updated PVC size", "pvc", pvcName, "newSize", newSize)
 	}
 
 	if len(currentSts.Spec.VolumeClaimTemplates) > 0 {
@@ -340,7 +343,7 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 	if err != nil {
 		return fmt.Errorf("failed to save StatefulSet: %v", err)
 	}
-	l.logger.Info("StatefulSet saved successfully", "name", stsName, "saveName", saveName)
+	logger.Info("StatefulSet saved successfully", "name", stsName, "saveName", saveName)
 
 	// Delete the old StatefulSet
 	deleteOptions := newDeleteOptionsOnlySts()
@@ -348,7 +351,7 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 	if err != nil {
 		return fmt.Errorf("failed to delete StatefulSet: %v", err)
 	}
-	l.logger.Info("StatefulSet deleted successfully", "name", stsName)
+	logger.Info("StatefulSet deleted successfully", "name", stsName)
 
 	// Wait for the StatefulSet to be deleted
 	err = l.waitForStatefulSetDeletion(ctx, namespace, stsName)
@@ -374,7 +377,7 @@ func (l *LocalHelmReconciler) createNewStatefulSet(ctx context.Context, namespac
 		return fmt.Errorf("failed to create new StatefulSet: %v", err)
 	}
 
-	l.logger.Info("New StatefulSet created successfully", "name", name, "storageSize", newQuantity.String())
+	ctrl.LoggerFrom(ctx).Info("New StatefulSet created successfully", "name", name, "storageSize", newQuantity.String())
 	return nil
 }
 

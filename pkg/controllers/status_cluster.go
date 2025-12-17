@@ -208,6 +208,10 @@ func (r *MilvusStatusSyncer) syncHealthyUpdated() error {
 }
 
 func (r *MilvusStatusSyncer) UpdateStatusRoutine(ctx context.Context, mc *v1beta1.Milvus) error {
+	// add namespace/name to logger for periodic status sync
+	logger := ctrl.LoggerFrom(ctx).WithValues("namespace", mc.Namespace, "name", mc.Name)
+	ctx = ctrl.LoggerInto(ctx, logger)
+
 	// ignore if default status not set
 	if !IsSetDefaultDone(mc) {
 		return nil
@@ -309,7 +313,7 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 		return nil
 	}
 
-	r.logger.Info("update status", "diff", util.DiffStr(beginStatus, &mc.Status))
+	ctrl.LoggerFrom(ctx).Info("update status", "diff", util.DiffStr(beginStatus, &mc.Status))
 	return r.Status().Update(ctx, mc)
 }
 
@@ -338,7 +342,7 @@ func (r *MilvusStatusSyncer) handleTerminatingPods(ctx context.Context, mc *v1be
 			err := ExecKillIfTerminating(ctx, terminatingPodList)
 			if err != nil {
 				// not fatal, so we just print it
-				r.logger.Error(err, "kill terminating pod failed")
+				ctrl.LoggerFrom(ctx).Error(err, "kill terminating pod failed")
 			}
 		}
 	}
