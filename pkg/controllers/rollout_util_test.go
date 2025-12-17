@@ -226,6 +226,30 @@ func TestK8sUtilImpl_ListDeployPods(t *testing.T) {
 		_, err := k8sUtilImpl.ListDeployPods(ctx, deploy, DataNode)
 		assert.Error(t, err)
 	})
+
+	t.Run("filter evicted pods", func(t *testing.T) {
+		podList := corev1.PodList{
+			Items: []corev1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "running-pod"},
+					Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "evicted-pod"},
+					Status:     corev1.PodStatus{Reason: "Evicted", Phase: corev1.PodFailed},
+				},
+			},
+		}
+		mockK8sCli.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(deploy.Namespace), client.MatchingLabels(deploy.Spec.Selector.MatchLabels)).
+			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+				*(list.(*corev1.PodList)) = podList
+				return nil
+			})
+		ret, err := k8sUtilImpl.ListDeployPods(ctx, deploy, DataNode)
+		assert.NoError(t, err)
+		assert.Len(t, ret, 1)
+		assert.Equal(t, "running-pod", ret[0].Name)
+	})
 }
 
 func TestK8sUtilImpl_DeploymentIsStable(t *testing.T) {
