@@ -129,7 +129,7 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 	if len(items) < 1 {
 		return nil, nil, ErrNotFound
 	}
-	// len(items) == 2
+	// len(items) = 1 or 2
 	var current, last *appsv1.Deployment
 	for i := range items {
 		if componentDeployIsCurrentGroup(mc, c.component, items[i]) {
