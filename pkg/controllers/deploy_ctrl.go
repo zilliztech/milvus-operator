@@ -249,7 +249,16 @@ func (c *DeployControllerBizImpl) HandleStop(ctx context.Context, mc v1beta1.Mil
 		return errors.Wrap(err, "stop current deployment")
 	}
 	err = c.stopDeployIfNot(ctx, lastDeploy)
-	return errors.Wrap(err, "stop last deployment")
+	if err != nil {
+		return errors.Wrap(err, "stop last deployment")
+	}
+	if !v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
+		return nil
+	}
+	// mark rolling finished
+	v1beta1.Labels().SetComponentRolling(&mc, c.component.Name, false)
+	ctrl.LoggerFrom(ctx).Info("component stopped, mark rolling finished", "component", c.component.Name)
+	return c.cli.Update(ctx, &mc)
 }
 
 func (c *DeployControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy *appsv1.Deployment) error {
