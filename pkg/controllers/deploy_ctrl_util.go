@@ -297,17 +297,12 @@ func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v
 }
 
 func (c *DeployControllerBizUtilImpl) checkCanScaleNow(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
-	isForceUpdate := mc.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce
-	if isForceUpdate {
+	scaleKind := c.checkScaleKind(mc, lastDeployment)
+	if scaleKind != scaleKindRollout {
 		return nil
 	}
-	if v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
-		err := c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
-		if err != nil {
-			return errors.Wrap(err, "check deployments stable")
-		}
-	}
-	return nil
+	err := c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
+	return errors.Wrap(err, "check deployments stable")
 }
 
 func (c *DeployControllerBizUtilImpl) planScaleForForceUpgrade(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
@@ -334,7 +329,7 @@ type scaleAction struct {
 var noScaleAction = scaleAction{}
 
 func (c *DeployControllerBizUtilImpl) planNextScaleAction(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
-	scaleKind := c.checkScaleKind(mc)
+	scaleKind := c.checkScaleKind(mc, lastDeployment)
 	currentDeployment.Spec.Strategy = GetDeploymentStrategy(&mc, c.component)
 	lastDeployment.Spec.Strategy = GetDeploymentStrategy(&mc, c.component)
 	switch scaleKind {
@@ -358,7 +353,7 @@ const (
 	scaleKindForce
 )
 
-func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus) scaleKind {
+func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus, lastDeploy *appsv1.Deployment) scaleKind {
 	if mc.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce {
 		return scaleKindForce
 	}
@@ -367,7 +362,7 @@ func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus) scaleKin
 	if isHpa {
 		return scaleKindHPA
 	}
-	if v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
+	if getDeployReplicas(lastDeploy) > 0 {
 		return scaleKindRollout
 	}
 	return scaleKindNormal
