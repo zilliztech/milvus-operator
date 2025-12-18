@@ -246,7 +246,16 @@ func (c *DeployControllerBizImpl) HandleStop(ctx context.Context, mc v1beta1.Mil
 		return errors.Wrap(err, "stop current deployment")
 	}
 	err = c.stopDeployIfNot(ctx, lastDeploy)
-	return errors.Wrap(err, "stop last deployment")
+	if err != nil {
+		return errors.Wrap(err, "stop last deployment")
+	}
+	if !v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
+		return nil
+	}
+	// mark rolling finished
+	v1beta1.Labels().SetComponentRolling(&mc, c.component.Name, false)
+	ctrl.LoggerFrom(ctx).Info("component stopped, mark rolling finished", "component", c.component.Name)
+	return c.cli.Update(ctx, &mc)
 }
 
 func (c *DeployControllerBizImpl) stopDeployIfNot(ctx context.Context, deploy *appsv1.Deployment) error {
@@ -293,7 +302,7 @@ func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.
 		return nil
 	}
 
-	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
+	if c.util.IsPodTemplateChanged(ctx, currentDeploy, podTemplate) {
 		if getDeployReplicas(currentDeploy) > 0 {
 			// if current deployment already has replicas, we need to update the other deployment
 			// lastRolloutFinished promises that the last deployment has 0 replicas
@@ -313,16 +322,20 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 	if currentDeploy == nil {
 		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
 	}
+	logger := ctrl.LoggerFrom(ctx).WithName("manual-mode").WithValues("component", c.component.Name)
+	ctx = ctrl.LoggerInto(ctx, logger)
 	// should not update deploy with replicas if it's in manual mode
 	if getDeployReplicas(currentDeploy) != 0 {
 		return nil
 	}
 	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, true)
-	if c.util.IsNewRollout(ctx, currentDeploy, podTemplate) {
-		return c.util.PrepareNewRollout(ctx, mc, currentDeploy, podTemplate)
+	needUpdate := c.util.RenewDeployAnnotation(ctx, mc, currentDeploy)
+	if c.util.IsPodTemplateChanged(ctx, currentDeploy, podTemplate) {
+		needUpdate = true
+		updatePodTemplateTwoDeployMode(ctx, c.component, currentDeploy, podTemplate)
 	}
-	if c.util.RenewDeployAnnotation(ctx, mc, currentDeploy) {
-		return c.util.UpdateAndRequeue(ctx, currentDeploy)
+	if !needUpdate {
+		return nil
 	}
-	return nil
+	return c.util.UpdateAndRequeue(ctx, currentDeploy)
 }

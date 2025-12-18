@@ -460,7 +460,7 @@ func TestDeployControllerBizImpl_HandleRolling(t *testing.T) {
 		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(mc, gomock.Any(), QueryNode, false).Return(nil)
 		mockUtil.EXPECT().ShouldRollback(ctx, &deploy, nil, nil).Return(false)
 		mockUtil.EXPECT().LastRolloutFinished(ctx, mc, &deploy, nil).Return(true, nil)
-		mockUtil.EXPECT().IsNewRollout(ctx, &deploy, nil).Return(false)
+		mockUtil.EXPECT().IsPodTemplateChanged(ctx, &deploy, nil).Return(false)
 		err := bizImpl.HandleRolling(ctx, mc)
 		assert.NoError(t, err)
 	})
@@ -498,7 +498,7 @@ func TestDeployControllerBizImpl_HandleRolling(t *testing.T) {
 		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(mc, gomock.Any(), QueryNode, false).Return(nil)
 		mockUtil.EXPECT().ShouldRollback(ctx, &deploy, &deploy2, nil).Return(false)
 		mockUtil.EXPECT().LastRolloutFinished(ctx, mc, &deploy, &deploy2).Return(true, nil)
-		mockUtil.EXPECT().IsNewRollout(ctx, &deploy, nil).Return(true)
+		mockUtil.EXPECT().IsPodTemplateChanged(ctx, &deploy, nil).Return(true)
 		mockUtil.EXPECT().PrepareNewRollout(ctx, mc, &deploy, gomock.Any()).Return(ErrRequeue)
 		err := bizImpl.HandleRolling(ctx, mc)
 		assert.Error(t, err)
@@ -529,13 +529,27 @@ func TestDeployControllerBizImpl_HandleManualMode(t *testing.T) {
 	})
 
 	deploy := &appsv1.Deployment{}
+	deploy.Labels = map[string]string{}
 	deploy.Spec.Replicas = int32Ptr(0)
-	t.Run("no rolling, renew deploy annotation, update requeue", func(t *testing.T) {
+	t.Run("renew deploy annotation, no template change, update requeue", func(t *testing.T) {
 		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(deploy, nil, nil)
 		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(mc, gomock.Any(), QueryNode, true).Return(nil)
-		mockUtil.EXPECT().IsNewRollout(ctx, deploy, nil).Return(false)
-		mockUtil.EXPECT().RenewDeployAnnotation(ctx, mc, deploy).Return(true)
-		mockUtil.EXPECT().UpdateAndRequeue(ctx, deploy).Return(ErrRequeue)
+		mockUtil.EXPECT().RenewDeployAnnotation(gomock.Any(), mc, deploy).Return(true)
+		mockUtil.EXPECT().IsPodTemplateChanged(gomock.Any(), deploy, nil).Return(false)
+		mockUtil.EXPECT().UpdateAndRequeue(gomock.Any(), deploy).Return(ErrRequeue)
+		err := bizImpl.HandleManualMode(ctx, mc)
+		assert.Error(t, err)
+		assert.Equal(t, ErrRequeue, err)
+	})
+
+	podTemplate := &corev1.PodTemplateSpec{}
+	podTemplate.Labels = map[string]string{}
+	t.Run("renew deploy annotation, template changed", func(t *testing.T) {
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(deploy, nil, nil)
+		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(mc, gomock.Any(), QueryNode, true).Return(podTemplate)
+		mockUtil.EXPECT().RenewDeployAnnotation(gomock.Any(), mc, deploy).Return(true)
+		mockUtil.EXPECT().IsPodTemplateChanged(gomock.Any(), deploy, podTemplate).Return(true)
+		mockUtil.EXPECT().UpdateAndRequeue(gomock.Any(), deploy).Return(ErrRequeue)
 		err := bizImpl.HandleManualMode(ctx, mc)
 		assert.Error(t, err)
 		assert.Equal(t, ErrRequeue, err)
