@@ -23,10 +23,8 @@ func (r *MilvusReconciler) CleanupDeploymentClusterToStandalone(ctx context.Cont
 	// List all deployments with the instance label
 	deploymentList := &appsv1.DeploymentList{}
 	opts := &client.ListOptions{
-		Namespace: mc.Namespace,
-		LabelSelector: labels.SelectorFromSet(map[string]string{
-			AppLabelInstance: mc.Name,
-		}),
+		Namespace:     mc.Namespace,
+		LabelSelector: labels.SelectorFromSet(NewAppLabels(mc.Name)),
 	}
 
 	if err := r.List(ctx, deploymentList, opts); err != nil {
