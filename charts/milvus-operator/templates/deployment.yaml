@@ -5,6 +5,7 @@ metadata:
   name: {{ include "chart.fullname" . | quote }}
   namespace: {{ .Release.Namespace | quote }}
 spec:
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels: {{- include "chart.selectorLabels" . | nindent 6 }}
   template:
