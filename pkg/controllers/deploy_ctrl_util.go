@@ -381,7 +381,7 @@ func (c *DeployControllerBizUtilImpl) planScaleForHPA(ctx context.Context, mc v1
 
 	// During rolling update, scale down old deployment once new one is ready
 	if isRolling && lastDeployReplicas > 0 {
-		// Wait until current deployment has at least as many ready replicas as old deploymen
+		// Wait until current deployment has at least as many ready replicas as old deployment
 		if currentDeployment.Status.ReadyReplicas >= int32(lastDeployReplicas) {
 			ctrl.LoggerFrom(ctx).Info("scaling down old deployment during HPA rolling update",
 				"oldDeployment", lastDeployment.Name,
