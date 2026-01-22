@@ -133,7 +133,6 @@ func updateNetworkSettings(template *corev1.PodTemplateSpec, updater deploymentU
 
 func updatePodMeta(template *corev1.PodTemplateSpec, appLabels map[string]string, updater deploymentUpdater) {
 	mergedComSpec := updater.GetMergedComponentSpec()
-	spec := updater.GetMilvus().Spec
 	if template.Labels == nil {
 		template.Labels = map[string]string{}
 	}
@@ -143,7 +142,8 @@ func updatePodMeta(template *corev1.PodTemplateSpec, appLabels map[string]string
 		template.Annotations = map[string]string{}
 	}
 	template.Annotations = MergeAnnotations(template.Annotations, mergedComSpec.PodAnnotations)
-	if !spec.Com.UpdateConfigMapOnly {
+	m := updater.GetMilvus()
+	if !m.IsUpdateConfigMapOnly() {
 		template.Annotations[AnnotationCheckSum] = updater.GetConfCheckSum()
 	}
 }
