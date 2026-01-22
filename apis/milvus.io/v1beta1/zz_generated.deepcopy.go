@@ -264,6 +264,11 @@ func (in *MilvusComponents) DeepCopyInto(out *MilvusComponents) {
 			(*out)[key] = val
 		}
 	}
+	if in.UpdateConfigMapOnly != nil {
+		in, out := &in.UpdateConfigMapOnly, &out.UpdateConfigMapOnly
+		*out = new(bool)
+		**out = **in
+	}
 	if in.StreamingMode != nil {
 		in, out := &in.StreamingMode, &out.StreamingMode
 		*out = new(bool)
