@@ -557,6 +557,13 @@ func (m *Milvus) IsRollingUpdateEnabled() bool {
 	return m.Spec.Com.EnableRollingUpdate != nil && *m.Spec.Com.EnableRollingUpdate
 }
 
+func (m *Milvus) IsUpdateConfigMapOnly() bool {
+	if m.Spec.Com.UpdateConfigMapOnly == nil {
+		return true
+	}
+	return *m.Spec.Com.UpdateConfigMapOnly
+}
+
 // +kubebuilder:object:root=true
 // MilvusList contains a list of Milvus
 type MilvusList struct {

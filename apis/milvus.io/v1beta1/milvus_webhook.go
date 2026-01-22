@@ -297,7 +297,9 @@ func (r *Milvus) DefaultComponents() {
 			r.Spec.Com.StreamingMode = util.BoolPtr(false)
 		}
 	}
-	r.Spec.Com.UpdateConfigMapOnly = true
+	if r.Spec.Com.UpdateConfigMapOnly == nil {
+		r.Spec.Com.UpdateConfigMapOnly = util.BoolPtr(true)
+	}
 	r.defaultComponentsReplicas()
 }
 

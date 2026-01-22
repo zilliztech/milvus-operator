@@ -206,7 +206,8 @@ type MilvusComponents struct {
 
 	// UpdateConfigMapOnly when enabled, will not rollout pods. By default pods will be restarted when configmap changed
 	// +kubebuilder:validation:Optional
-	UpdateConfigMapOnly bool `json:"updateConfigMapOnly,omitempty"`
+	// +nullable
+	UpdateConfigMapOnly *bool `json:"updateConfigMapOnly,omitempty"`
 
 	// RollingMode is the rolling mode for milvus components, default to 2
 	// +kubebuilder:validation:Optional
