@@ -372,9 +372,9 @@ func (c *DeployControllerBizUtilImpl) planScaleForHPA(ctx context.Context, mc v1
 	currentDeployReplicas := getDeployReplicas(currentDeployment)
 	lastDeployReplicas := getDeployReplicas(lastDeployment)
 
-	// Bootstrap current deployment from 0 (HPA can't scale from 0)
+	// Bootstrap current deployment to set it to the last deployment's replicas.
 	if currentDeployReplicas == 0 {
-		return scaleAction{deploy: currentDeployment, replicaChange: 1}
+		return scaleAction{deploy: currentDeployment, replicaChange: lastDeployReplicas}
 	}
 
 	isRolling := v1beta1.Labels().IsComponentRolling(mc, c.component.Name)
