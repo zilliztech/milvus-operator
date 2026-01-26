@@ -638,6 +638,10 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 		dst.Tolerations = src.Tolerations
 	}
 
+	if len(src.TopologySpreadConstraints) > 0 {
+		dst.TopologySpreadConstraints = src.TopologySpreadConstraints
+	}
+
 	if src.Resources != nil {
 		dst.Resources = src.Resources
 	}

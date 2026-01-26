@@ -97,6 +97,9 @@ type ComponentSpec struct {
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
+
+	// +kubebuilder:validation:Optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 
 	// +kubebuilder:validation:Optional
