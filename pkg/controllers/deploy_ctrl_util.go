@@ -373,7 +373,8 @@ func (c *DeployControllerBizUtilImpl) planScaleForHPA(ctx context.Context, mc v1
 	lastDeployReplicas := getDeployReplicas(lastDeployment)
 
 	// Bootstrap current deployment to set it to the last deployment's replicas.
-	if currentDeployReplicas == 0 {
+	// should keep trying, if not reach the target number
+	if currentDeployment.Spec.Replicas < int32(lastDeployReplicas) {
 		return scaleAction{deploy: currentDeployment, replicaChange: lastDeployReplicas}
 	}
 
