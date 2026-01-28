@@ -736,8 +736,11 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
 		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
 		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(nil)
 		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
 		assert.NoError(t, err)
+		// Current deploy should be scaled up to 3
+		assert.Equal(t, int32(3), *currentDeploy.Spec.Replicas)
 		// Old deployment should NOT be scaled down yet
 		assert.Equal(t, int32(3), *lastDeploy.Spec.Replicas)
 	})
