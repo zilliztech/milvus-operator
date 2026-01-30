@@ -189,6 +189,7 @@ func updateScheduleSpec(template *corev1.PodTemplateSpec, updater deploymentUpda
 	}
 	template.Spec.Affinity = mergedComSpec.Affinity
 	template.Spec.Tolerations = mergedComSpec.Tolerations
+	template.Spec.TopologySpreadConstraints = mergedComSpec.TopologySpreadConstraints
 	template.Spec.NodeSelector = mergedComSpec.NodeSelector
 	template.Spec.ImagePullSecrets = mergedComSpec.ImagePullSecrets
 	template.Spec.ServiceAccountName = mergedComSpec.ServiceAccountName
