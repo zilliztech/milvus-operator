@@ -40,9 +40,13 @@ const (
 )
 
 var (
-	DefaultConfigMapMode = corev1.ConfigMapVolumeSourceDefaultMode
-	DefaultSecretMode    = corev1.SecretVolumeSourceDefaultMode
-	ErrRequeue           = errors.New("requeue")
+	DefaultConfigMapMode   = corev1.ConfigMapVolumeSourceDefaultMode
+	DefaultSecretMode      = corev1.SecretVolumeSourceDefaultMode
+	ErrRequeue             = errors.New("requeue")
+	defaultSecurityContext = &corev1.SecurityContext{
+		RunAsNonRoot: boolPtr(true),
+		RunAsUser:    int64Ptr(1000),
+	}
 )
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
@@ -411,16 +415,13 @@ func renderInitContainer(container *corev1.Container, updater deploymentUpdater)
 		configVolumeMount,
 		toolVolumeMount,
 	}
-	if mergedComSpec.SecurityContext.Data != nil {
-		if container.SecurityContext == nil {
-			container.SecurityContext = &corev1.SecurityContext{}
-		}
+
+	isEmptyMergedSecurityContext := len(mergedComSpec.SecurityContext.Data) == 0
+	if container.SecurityContext == nil || isEmptyMergedSecurityContext {
+		container.SecurityContext = defaultSecurityContext
+	}
+	if !isEmptyMergedSecurityContext {
 		mergedComSpec.SecurityContext.MustAsObj(&container.SecurityContext)
-	} else {
-		container.SecurityContext = &corev1.SecurityContext{
-			RunAsNonRoot: boolPtr(true),
-			RunAsUser:    int64Ptr(1000),
-		}
 	}
 
 	fillContainerDefaultValues(container)
