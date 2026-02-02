@@ -289,7 +289,7 @@ func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v
 	if err != nil {
 		return err
 	}
-	action := c.planNextScaleAction(mc, currentDeployment, lastDeployment)
+	action := c.planNextScaleAction(ctx, mc, currentDeployment, lastDeployment)
 	if action != noScaleAction {
 		ctrl.LoggerFrom(ctx).Info("do scale action", "deployName", action.deploy.Name, "replicaChange", action.replicaChange, "isCurrentDeploy", action.deploy == lastDeployment)
 	}
@@ -328,13 +328,13 @@ type scaleAction struct {
 
 var noScaleAction = scaleAction{}
 
-func (c *DeployControllerBizUtilImpl) planNextScaleAction(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
+func (c *DeployControllerBizUtilImpl) planNextScaleAction(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
 	scaleKind := c.checkScaleKind(mc, lastDeployment)
 	currentDeployment.Spec.Strategy = GetDeploymentStrategy(&mc, c.component)
 	lastDeployment.Spec.Strategy = GetDeploymentStrategy(&mc, c.component)
 	switch scaleKind {
 	case scaleKindHPA:
-		return c.planScaleForHPA(currentDeployment)
+		return c.planScaleForHPA(ctx, mc, currentDeployment, lastDeployment)
 	case scaleKindRollout:
 		return c.planScaleForRollout(mc, currentDeployment, lastDeployment)
 	case scaleKindForce:
@@ -368,12 +368,36 @@ func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus, lastDepl
 	return scaleKindNormal
 }
 
-// planScaleForHPA assumes epectedReplicas < 0
-func (c *DeployControllerBizUtilImpl) planScaleForHPA(currentDeployment *appsv1.Deployment) scaleAction {
+func (c *DeployControllerBizUtilImpl) planScaleForHPA(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
 	currentDeployReplicas := getDeployReplicas(currentDeployment)
-	if currentDeployReplicas == 0 {
-		return scaleAction{deploy: currentDeployment, replicaChange: 1}
+	lastDeployReplicas := getDeployReplicas(lastDeployment)
+
+	// Bootstrap current deployment to set it to the last deployment's replicas.
+	// should keep trying, if not reach the target number.
+	if int32(currentDeployReplicas) < int32(lastDeployReplicas) {
+		return scaleAction{deploy: currentDeployment, replicaChange: (lastDeployReplicas - currentDeployReplicas)}
 	}
+
+	isRolling := v1beta1.Labels().IsComponentRolling(mc, c.component.Name)
+
+	// During rolling update, scale down old deployment once new one is ready
+	if isRolling && lastDeployReplicas > 0 {
+		// Wait until current deployment has at least as many ready replicas as old deployment
+		if currentDeployment.Status.ReadyReplicas >= int32(lastDeployReplicas) {
+			ctrl.LoggerFrom(ctx).Info("scaling down old deployment during HPA rolling update",
+				"oldDeployment", lastDeployment.Name,
+				"oldReplicas", lastDeployReplicas,
+				"currentDeployment", currentDeployment.Name,
+				"currentReadyReplicas", currentDeployment.Status.ReadyReplicas)
+			return scaleAction{deploy: lastDeployment, replicaChange: -lastDeployReplicas}
+		}
+
+		ctrl.LoggerFrom(ctx).V(1).Info("waiting for current deployment to have enough ready replicas",
+			"currentDeployment", currentDeployment.Name,
+			"currentReadyReplicas", currentDeployment.Status.ReadyReplicas,
+			"requiredReplicas", lastDeployReplicas)
+	}
+
 	return noScaleAction
 }
 

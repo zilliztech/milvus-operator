@@ -699,6 +699,52 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		assert.Equal(t, int32(1), *currentDeploy.Spec.Replicas)
 	})
 
+	t.Run("hpa rolling update, scale down old deployment when current ready", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		mc.Spec.Com.DataNode.Replicas = int32Ptr(-1)
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Replicas = int32Ptr(3)
+		currentDeploy.Spec.Replicas = int32Ptr(5)
+		currentDeploy.Status.ReadyReplicas = 3 // Equal to old deployment replicas
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		mockutil.EXPECT().UpdateAndRequeue(ctx, gomock.Any()).Return(ErrRequeue)
+		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
+		assert.True(t, errors.Is(err, ErrRequeue))
+		// Old deployment should be scaled down to 0 all at once
+		assert.Equal(t, int32(0), *lastDeploy.Spec.Replicas)
+	})
+
+	t.Run("hpa rolling update, wait for current ready before scale down", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		mc.Spec.Com.DataNode.Replicas = int32Ptr(-1)
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Replicas = int32Ptr(3)
+		currentDeploy.Spec.Replicas = int32Ptr(2)
+		currentDeploy.Status.ReadyReplicas = 2 // Less than old deployment replicas
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
+		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(nil)
+		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
+		assert.NoError(t, err)
+		// Current deploy should be scaled up to 3
+		assert.Equal(t, int32(3), *currentDeploy.Spec.Replicas)
+		// Old deployment should NOT be scaled down yet
+		assert.Equal(t, int32(3), *lastDeploy.Spec.Replicas)
+	})
+
 	t.Run("rollout finished", func(t *testing.T) {
 		mockCtrl.Finish()
 		mc := *milvus.DeepCopy()
@@ -1378,6 +1424,7 @@ func TestDeployControllerBizUtilImpl_planNextScaleAction(t *testing.T) {
 	}
 	mc := v1beta1.Milvus{}
 	mc.Spec.Com.Standalone = &v1beta1.MilvusStandalone{}
+	ctx := context.Background()
 
 	currentDeploy := new(appsv1.Deployment)
 	lastDeploy := new(appsv1.Deployment)
@@ -1388,7 +1435,7 @@ func TestDeployControllerBizUtilImpl_planNextScaleAction(t *testing.T) {
 		mc.Spec.Com.ImageUpdateMode = v1beta1.ImageUpdateModeForce
 		*expected = int32Ptr(3)
 		*currentReplicas = int32Ptr(0)
-		action := bizUtil.planNextScaleAction(mc, currentDeploy, lastDeploy)
+		action := bizUtil.planNextScaleAction(ctx, mc, currentDeploy, lastDeploy)
 		assert.Equal(t, scaleAction{
 			deploy:        currentDeploy,
 			replicaChange: 3,
@@ -1400,7 +1447,7 @@ func TestDeployControllerBizUtilImpl_planNextScaleAction(t *testing.T) {
 		*expected = int32Ptr(3)
 		*currentReplicas = int32Ptr(3)
 		*lastReplicas = int32Ptr(3)
-		action := bizUtil.planNextScaleAction(mc, currentDeploy, lastDeploy)
+		action := bizUtil.planNextScaleAction(ctx, mc, currentDeploy, lastDeploy)
 		assert.Equal(t, scaleAction{
 			deploy:        lastDeploy,
 			replicaChange: -3,
@@ -1412,7 +1459,7 @@ func TestDeployControllerBizUtilImpl_planNextScaleAction(t *testing.T) {
 		*expected = int32Ptr(3)
 		*currentReplicas = int32Ptr(3)
 		*lastReplicas = int32Ptr(0)
-		action := bizUtil.planNextScaleAction(mc, currentDeploy, lastDeploy)
+		action := bizUtil.planNextScaleAction(ctx, mc, currentDeploy, lastDeploy)
 		assert.Equal(t, noScaleAction, action)
 	})
 }

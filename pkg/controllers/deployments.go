@@ -297,6 +297,11 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 		return fmt.Errorf("reconcile milvus deployments errs: %w", errors.Join(errs...))
 	}
 
+	err = r.CleanupDeploymentClusterToStandalone(ctx, mc)
+	if err != nil {
+		return err
+	}
+
 	err = r.cleanupIndexNodeIfNeeded(ctx, mc)
 	if err != nil {
 		return err
