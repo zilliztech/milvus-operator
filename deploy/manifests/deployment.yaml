@@ -11,10 +11,10 @@ metadata:
   name: "milvus-operator"
   namespace: "milvus-operator"
   labels:
-    helm.sh/chart: milvus-operator-1.3.5
+    helm.sh/chart: milvus-operator-1.3.6
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "1.3.5"
+    app.kubernetes.io/version: "1.3.6"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: milvus-operator/templates/crds.yaml
@@ -1113,6 +1113,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -1768,6 +1822,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -2417,6 +2525,60 @@ spec:
                               type: integer
                             value:
                               type: string
+                          type: object
+                        type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
                           type: object
                         type: array
                       version:
@@ -3169,6 +3331,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -3818,6 +4034,60 @@ spec:
                               type: integer
                             value:
                               type: string
+                          type: object
+                        type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
                           type: object
                         type: array
                       version:
@@ -4476,6 +4746,60 @@ spec:
                               type: integer
                             value:
                               type: string
+                          type: object
+                        type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
                           type: object
                         type: array
                       version:
@@ -5195,6 +5519,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -5846,6 +6224,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -6495,6 +6927,60 @@ spec:
                               type: integer
                             value:
                               type: string
+                          type: object
+                        type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
                           type: object
                         type: array
                       version:
@@ -7181,6 +7667,60 @@ spec:
                               type: integer
                             value:
                               type: string
+                          type: object
+                        type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
                           type: object
                         type: array
                       version:
@@ -7892,6 +8432,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -8546,6 +9140,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -8600,7 +9248,62 @@ spec:
                     type: array
                   toolImage:
                     type: string
+                  topologySpreadConstraints:
+                    items:
+                      properties:
+                        labelSelector:
+                          properties:
+                            matchExpressions:
+                              items:
+                                properties:
+                                  key:
+                                    type: string
+                                  operator:
+                                    type: string
+                                  values:
+                                    items:
+                                      type: string
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                required:
+                                - key
+                                - operator
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            matchLabels:
+                              additionalProperties:
+                                type: string
+                              type: object
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        matchLabelKeys:
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        maxSkew:
+                          format: int32
+                          type: integer
+                        minDomains:
+                          format: int32
+                          type: integer
+                        nodeAffinityPolicy:
+                          type: string
+                        nodeTaintsPolicy:
+                          type: string
+                        topologyKey:
+                          type: string
+                        whenUnsatisfiable:
+                          type: string
+                      required:
+                      - maxSkew
+                      - topologyKey
+                      - whenUnsatisfiable
+                      type: object
+                    type: array
                   updateConfigMapOnly:
+                    nullable: true
                     type: boolean
                   updateToolImage:
                     type: boolean
@@ -9992,6 +10695,60 @@ spec:
                       type: string
                   type: object
                 type: array
+              topologySpreadConstraints:
+                items:
+                  properties:
+                    labelSelector:
+                      properties:
+                        matchExpressions:
+                          items:
+                            properties:
+                              key:
+                                type: string
+                              operator:
+                                type: string
+                              values:
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                            - key
+                            - operator
+                            type: object
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          type: object
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    matchLabelKeys:
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    maxSkew:
+                      format: int32
+                      type: integer
+                    minDomains:
+                      format: int32
+                      type: integer
+                    nodeAffinityPolicy:
+                      type: string
+                    nodeTaintsPolicy:
+                      type: string
+                    topologyKey:
+                      type: string
+                    whenUnsatisfiable:
+                      type: string
+                  required:
+                  - maxSkew
+                  - topologyKey
+                  - whenUnsatisfiable
+                  type: object
+                type: array
               version:
                 type: string
               volumeMounts:
@@ -11259,6 +12016,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -11914,6 +12725,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -12563,6 +13428,60 @@ spec:
                               type: integer
                             value:
                               type: string
+                          type: object
+                        type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
                           type: object
                         type: array
                       version:
@@ -13315,6 +14234,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -13964,6 +14937,60 @@ spec:
                               type: integer
                             value:
                               type: string
+                          type: object
+                        type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
                           type: object
                         type: array
                       version:
@@ -14622,6 +15649,60 @@ spec:
                               type: integer
                             value:
                               type: string
+                          type: object
+                        type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
                           type: object
                         type: array
                       version:
@@ -15341,6 +16422,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -15992,6 +17127,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -16641,6 +17830,60 @@ spec:
                               type: integer
                             value:
                               type: string
+                          type: object
+                        type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
                           type: object
                         type: array
                       version:
@@ -17327,6 +18570,60 @@ spec:
                               type: integer
                             value:
                               type: string
+                          type: object
+                        type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
                           type: object
                         type: array
                       version:
@@ -18038,6 +19335,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -18692,6 +20043,60 @@ spec:
                               type: string
                           type: object
                         type: array
+                      topologySpreadConstraints:
+                        items:
+                          properties:
+                            labelSelector:
+                              properties:
+                                matchExpressions:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      operator:
+                                        type: string
+                                      values:
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            matchLabelKeys:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            maxSkew:
+                              format: int32
+                              type: integer
+                            minDomains:
+                              format: int32
+                              type: integer
+                            nodeAffinityPolicy:
+                              type: string
+                            nodeTaintsPolicy:
+                              type: string
+                            topologyKey:
+                              type: string
+                            whenUnsatisfiable:
+                              type: string
+                          required:
+                          - maxSkew
+                          - topologyKey
+                          - whenUnsatisfiable
+                          type: object
+                        type: array
                       version:
                         type: string
                       volumeMounts:
@@ -18746,7 +20151,62 @@ spec:
                     type: array
                   toolImage:
                     type: string
+                  topologySpreadConstraints:
+                    items:
+                      properties:
+                        labelSelector:
+                          properties:
+                            matchExpressions:
+                              items:
+                                properties:
+                                  key:
+                                    type: string
+                                  operator:
+                                    type: string
+                                  values:
+                                    items:
+                                      type: string
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                required:
+                                - key
+                                - operator
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            matchLabels:
+                              additionalProperties:
+                                type: string
+                              type: object
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        matchLabelKeys:
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        maxSkew:
+                          format: int32
+                          type: integer
+                        minDomains:
+                          format: int32
+                          type: integer
+                        nodeAffinityPolicy:
+                          type: string
+                        nodeTaintsPolicy:
+                          type: string
+                        topologyKey:
+                          type: string
+                        whenUnsatisfiable:
+                          type: string
+                      required:
+                      - maxSkew
+                      - topologyKey
+                      - whenUnsatisfiable
+                      type: object
+                    type: array
                   updateConfigMapOnly:
+                    nullable: true
                     type: boolean
                   updateToolImage:
                     type: boolean
@@ -19579,10 +21039,10 @@ kind: Service
 metadata:
   labels:
     service-kind: metrics
-    helm.sh/chart: milvus-operator-1.3.5
+    helm.sh/chart: milvus-operator-1.3.6
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "1.3.5"
+    app.kubernetes.io/version: "1.3.6"
     app.kubernetes.io/managed-by: Helm
   name: 'milvus-operator-metrics-service'
   namespace: "milvus-operator"
@@ -19600,10 +21060,10 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    helm.sh/chart: milvus-operator-1.3.5
+    helm.sh/chart: milvus-operator-1.3.6
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "1.3.5"
+    app.kubernetes.io/version: "1.3.6"
     app.kubernetes.io/managed-by: Helm
   name: 'milvus-operator-webhook-service'
   namespace: "milvus-operator"
@@ -19622,14 +21082,15 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: milvus-operator-1.3.5
+    helm.sh/chart: milvus-operator-1.3.6
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "1.3.5"
+    app.kubernetes.io/version: "1.3.6"
     app.kubernetes.io/managed-by: Helm
   name: "milvus-operator"
   namespace: "milvus-operator"
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: milvus-operator
@@ -19655,7 +21116,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: 'milvusdb/milvus-operator:v1.3.5'
+        image: 'milvusdb/milvus-operator:v1.3.6'
         imagePullPolicy: "IfNotPresent"
         livenessProbe:
           httpGet:
