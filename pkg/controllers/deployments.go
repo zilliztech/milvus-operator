@@ -153,15 +153,20 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 	old := &appsv1.Deployment{}
 	err := r.Get(ctx, namespacedName, old)
 	if kerrors.IsNotFound(err) {
+		// Render cert paths into Spec.Conf BEFORE building manifests/ConfigMaps.
+		renderKafkaCertPaths(&mc)
 		new := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      component.GetDeploymentName(mc.Name),
 				Namespace: mc.Namespace,
 			},
 		}
+
 		if err := r.updateDeployment(ctx, mc, new, component); err != nil {
 			return err
 		}
+
+		injectKafkaSecretsDeployment(new, &mc)
 
 		ctrl.LoggerFrom(ctx).Info("Create Deployment")
 		return r.Create(ctx, new)
@@ -175,6 +180,10 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 	}
 
 	cur := old.DeepCopy()
+
+	// Render cert paths into Spec.Conf BEFORE recomputing desired Deployment.
+	renderKafkaCertPaths(&mc)
+
 	if err := r.updateDeployment(ctx, mc, cur, component); err != nil {
 		return err
 	}

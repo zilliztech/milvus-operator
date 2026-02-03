@@ -95,6 +95,8 @@ type StorageConditionInfo struct {
 
 type checkMinIOFunc = func(args external.CheckMinIOArgs) error
 
+var _ checkMinIOFunc // keep alias referenced for linters
+
 // checkMinIO wraps minio.New for test mock convenience
 var checkMinIO = external.CheckMinIO
 
