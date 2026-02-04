@@ -217,6 +217,8 @@ func updateUserDefinedVolumes(template *corev1.PodTemplateSpec, updater deployme
 		} else {
 			userDefinedVolumes = append(userDefinedVolumes, emptyDirDataVolume())
 		}
+	} else {
+		userDefinedVolumes = append(userDefinedVolumes, emptyDirDataVolume())
 	}
 
 	for _, volume := range userDefinedVolumes {
