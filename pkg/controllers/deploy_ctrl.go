@@ -48,6 +48,51 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return errors.Wrap(err, "update milvus rolling mode status")
 	}
 	biz := c.bizFactory.GetBiz(component)
+	// Reconcile QueryNode deploy mode
+	if component == QueryNode {
+		// Parse and compare deploy mode
+		configuredDeployMode, err := parseDeployMode(mc.Spec.Com.QueryNode)
+		if err != nil {
+			return errors.Wrap(err, "parse deploy mode")
+		}
+		currentDeployMode, err := biz.CheckDeployMode(ctx, mc)
+		if err != nil {
+			return errors.Wrap(err, "check deploy mode")
+		}
+		if configuredDeployMode != currentDeployMode {
+			logger.Info("deploy mode mismatch detected", "configured", configuredDeployMode, "current", currentDeployMode)
+			switch configuredDeployMode {
+			case v1beta1.OneDeployMode:
+				err = biz.ChangeToOneDeployMode(ctx, mc)
+				if err != nil {
+					return errors.Wrap(err, "change to OneDeployMode")
+				}
+			case v1beta1.TwoDeployMode:
+				err = biz.ChangeToTwoDeployMode(ctx, mc)
+				if err != nil {
+					return errors.Wrap(err, "change to TwoDeployMode")
+				}
+			default:
+				return errors.New("invalid deploy mode")
+			}
+			err = biz.MarkDeployModeChanging(ctx, mc, true)
+			if err != nil {
+				return err
+			}
+			return errors.New("requeue after deploy mode change")
+		}
+		err = biz.MarkDeployModeChanging(ctx, mc, false)
+		if err != nil {
+			return err
+		}
+		return c.handleTwoDeployMode(ctx, mc, biz)
+	}
+
+	err = c.rollingModeStatusUpdater.Update(ctx, &mc)
+	if err != nil {
+		return errors.Wrap(err, "update milvus rolling mode status")
+	}
+	biz = c.bizFactory.GetBiz(component)
 	deployMode, err := biz.CheckDeployMode(ctx, mc)
 	if err != nil {
 		return errors.Wrap(err, "check deploy mode")
@@ -135,6 +180,7 @@ type DeployControllerBiz interface {
 type DeployModeChanger interface {
 	MarkDeployModeChanging(ctx context.Context, mc v1beta1.Milvus, changing bool) error
 	ChangeToTwoDeployMode(ctx context.Context, mc v1beta1.Milvus) error
+	ChangeToOneDeployMode(ctx context.Context, mc v1beta1.Milvus) error
 }
 
 var _ DeployControllerBiz = &DeployControllerBizImpl{}
@@ -166,7 +212,28 @@ func (c *DeployControllerBizImpl) CheckDeployMode(ctx context.Context, mc v1beta
 		}
 		fallthrough
 	default:
-		// check in cluster
+		// continue
+	}
+	// Check QueryNode cluster state
+	if c.component == QueryNode {
+		mode, err := c.checkDeployModeInCluster(ctx, mc)
+		if err == nil {
+			return mode, nil
+		}
+		if kerrors.IsNotFound(err) {
+			return v1beta1.TwoDeployMode, nil
+		}
+		if err != nil {
+			return v1beta1.DeployModeUnknown, errors.Wrap(err, "check deploy mode in cluster")
+		}
+	}
+	// Prioritize configured QueryNode mode
+	if c.component == QueryNode && mc.Spec.Com.QueryNode != nil && mc.Spec.Com.QueryNode.DeployMode != "" {
+		configuredDeployMode, err := parseDeployMode(mc.Spec.Com.QueryNode)
+		if err != nil {
+			return v1beta1.DeployModeUnknown, errors.Wrap(err, "parse deploy mode in CheckDeployMode")
+		}
+		return configuredDeployMode, nil
 	}
 	if v1beta1.Labels().IsChangingMode(mc, c.component.Name) {
 		return v1beta1.OneDeployMode, nil
@@ -338,4 +405,99 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 		return nil
 	}
 	return c.util.UpdateAndRequeue(ctx, currentDeploy)
+}
+
+// ParseDeployMode converts QueryNode DeployMode to ComponentDeployMode
+func parseDeployMode(queryNode *v1beta1.MilvusQueryNode) (v1beta1.ComponentDeployMode, error) {
+	if queryNode == nil || queryNode.DeployMode == "" {
+		return v1beta1.TwoDeployMode, nil
+	}
+	switch queryNode.DeployMode {
+	case "OneDeployMode":
+		return v1beta1.OneDeployMode, nil
+	case "TwoDeployMode":
+		return v1beta1.TwoDeployMode, nil
+	default:
+		return v1beta1.DeployModeUnknown, errors.Errorf("invalid DeployMode: %s, must be OneDeployMode or TwoDeployMode", queryNode.DeployMode)
+	}
+}
+
+// ChangeToOneDeployMode switches QueryNode to single deployment mode
+func (c *DeployControllerBizImpl) ChangeToOneDeployMode(ctx context.Context, mc v1beta1.Milvus) error {
+	if c.component != QueryNode {
+		return nil
+	}
+	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "get querynode deploys for ChangeToOneDeployMode")
+	}
+	if currentDeploy != nil && lastDeploy != nil {
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		err = c.cli.Update(ctx, lastDeploy)
+		if err != nil {
+			return errors.Wrap(err, "scale down last deployment")
+		}
+		err = c.cli.Delete(ctx, lastDeploy)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return errors.Wrap(err, "delete last deployment")
+		}
+	}
+	if currentDeploy != nil {
+		err = c.util.MarkMilvusComponentGroupId(ctx, mc, c.component, 0)
+		if err != nil {
+			return errors.Wrap(err, "mark group id to 0")
+		}
+	}
+	return nil
+}
+
+// ChangeToTwoDeployMode switches QueryNode to dual deployment mode
+func (c *DeployControllerBizImpl) ChangeToTwoDeployMode(ctx context.Context, mc v1beta1.Milvus) error {
+	if c.component != QueryNode {
+		return nil
+	}
+	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "get querynode deploys for ChangeToTwoDeployMode")
+	}
+	if currentDeploy != nil && lastDeploy != nil {
+		return nil
+	}
+	if currentDeploy != nil && lastDeploy == nil {
+		err = c.util.CreateDeploy(ctx, mc, nil, 1)
+		if err != nil {
+			return errors.Wrap(err, "create second deployment")
+		}
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		err = c.cli.Update(ctx, currentDeploy)
+		if err != nil {
+			return errors.Wrap(err, "scale down current deployment")
+		}
+	}
+	return nil
+}
+
+// handleTwoDeployMode manages QueryNode in dual deployment mode
+func (c *DeployControllerImpl) handleTwoDeployMode(ctx context.Context, mc v1beta1.Milvus, biz DeployControllerBiz) error {
+	if err := biz.HandleCreate(ctx, mc); err != nil {
+		return errors.Wrap(err, "handle create")
+	}
+	if biz.IsPaused(ctx, mc) {
+		return nil
+	}
+	if mc.Spec.Com.EnableManualMode {
+		return biz.HandleManualMode(ctx, mc)
+	}
+	if ReplicasValue(QueryNode.GetReplicas(mc.Spec)) == 0 {
+		return biz.HandleStop(ctx, mc)
+	}
+	err := biz.HandleRolling(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "handle rolling")
+	}
+	err = biz.HandleScaling(ctx, mc)
+	if err != nil {
+		return errors.Wrap(err, "handle scaling")
+	}
+	return nil
 }
