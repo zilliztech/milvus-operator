@@ -162,6 +162,7 @@ func TestBuildHPA(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.checkMocks()
 	r := env.Reconciler
+	ctx := env.ctx
 	mc := env.Inst
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
 	mc.Default()
@@ -171,7 +172,8 @@ func TestBuildHPA(t *testing.T) {
 			MaxReplicas: 10,
 		}
 
-		hpa := r.buildHPA(mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		hpa, err := r.buildHPA(ctx, mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		assert.NoError(t, err)
 
 		assert.Equal(t, "mc-milvus-proxy-hpa", hpa.Name)
 		assert.Equal(t, "ns", hpa.Namespace)
@@ -189,7 +191,8 @@ func TestBuildHPA(t *testing.T) {
 			MaxReplicas: 15,
 		}
 
-		hpa := r.buildHPA(mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		hpa, err := r.buildHPA(ctx, mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		assert.NoError(t, err)
 
 		assert.Equal(t, int32(3), *hpa.Spec.MinReplicas)
 		assert.Equal(t, int32(15), hpa.Spec.MaxReplicas)
@@ -214,7 +217,8 @@ func TestBuildHPA(t *testing.T) {
 			},
 		}
 
-		hpa := r.buildHPA(mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		hpa, err := r.buildHPA(ctx, mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		assert.NoError(t, err)
 
 		assert.Len(t, hpa.Spec.Metrics, 1)
 	})
@@ -480,6 +484,7 @@ func TestPlanScaleForHPA_RolloutCapacity(t *testing.T) {
 
 	env := newTestEnv(t)
 	defer env.checkMocks()
+	ctx := env.ctx
 
 	mc := env.Inst.DeepCopy()
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
@@ -502,7 +507,7 @@ func TestPlanScaleForHPA_RolloutCapacity(t *testing.T) {
 		lastDeploy := &appsv1.Deployment{}
 		lastDeploy.Spec.Replicas = int32Ptr(10) // HPA scaled this up
 
-		action := util.planScaleForHPA(*mc, currentDeploy, lastDeploy)
+		action := util.planScaleForHPA(ctx, *mc, currentDeploy, lastDeploy)
 
 		// Should scale current deployment to 10 (not just minReplicas=2)
 		assert.Equal(t, currentDeploy, action.deploy)
@@ -516,7 +521,7 @@ func TestPlanScaleForHPA_RolloutCapacity(t *testing.T) {
 		lastDeploy := &appsv1.Deployment{}
 		lastDeploy.Spec.Replicas = int32Ptr(10)
 
-		action := util.planScaleForHPA(*mc, currentDeploy, lastDeploy)
+		action := util.planScaleForHPA(ctx, *mc, currentDeploy, lastDeploy)
 
 		// Should scale current deployment to 10 (need 5 more)
 		assert.Equal(t, currentDeploy, action.deploy)
@@ -530,7 +535,7 @@ func TestPlanScaleForHPA_RolloutCapacity(t *testing.T) {
 		lastDeploy := &appsv1.Deployment{}
 		lastDeploy.Spec.Replicas = int32Ptr(10)
 
-		action := util.planScaleForHPA(*mc, currentDeploy, lastDeploy)
+		action := util.planScaleForHPA(ctx, *mc, currentDeploy, lastDeploy)
 
 		// Current has enough capacity, scale down last
 		assert.Equal(t, lastDeploy, action.deploy)
@@ -545,7 +550,7 @@ func TestPlanScaleForHPA_RolloutCapacity(t *testing.T) {
 		lastDeploy := &appsv1.Deployment{}
 		lastDeploy.Spec.Replicas = int32Ptr(1) // less than minReplicas=2
 
-		action := util.planScaleForHPA(*mc, currentDeploy, lastDeploy)
+		action := util.planScaleForHPA(ctx, *mc, currentDeploy, lastDeploy)
 
 		// Should scale to minReplicas=2 (not 1)
 		assert.Equal(t, currentDeploy, action.deploy)
@@ -559,7 +564,7 @@ func TestPlanScaleForHPA_RolloutCapacity(t *testing.T) {
 		lastDeploy := &appsv1.Deployment{}
 		lastDeploy.Spec.Replicas = int32Ptr(0) // Scaled down
 
-		action := util.planScaleForHPA(*mc, currentDeploy, lastDeploy)
+		action := util.planScaleForHPA(ctx, *mc, currentDeploy, lastDeploy)
 
 		// No action needed, HPA manages current deployment
 		assert.Equal(t, noScaleAction, action)
@@ -572,7 +577,7 @@ func TestPlanScaleForHPA_RolloutCapacity(t *testing.T) {
 		lastDeploy := &appsv1.Deployment{}
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 
-		action := util.planScaleForHPA(*mc, currentDeploy, lastDeploy)
+		action := util.planScaleForHPA(ctx, *mc, currentDeploy, lastDeploy)
 
 		// Scale to minReplicas
 		assert.Equal(t, currentDeploy, action.deploy)

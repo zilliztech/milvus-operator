@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/pkg/errors"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -30,6 +31,12 @@ func (r *MilvusReconciler) reconcileComponentHPA(ctx context.Context, mc v1beta1
 		return r.deleteHPAIfExists(ctx, mc, component)
 	}
 
+	// Validate minReplicas <= maxReplicas
+	if hpaSpec.MinReplicas != nil && *hpaSpec.MinReplicas > hpaSpec.MaxReplicas {
+		return errors.Errorf("invalid HPA spec for component %s: minReplicas (%d) must not exceed maxReplicas (%d)",
+			component.Name, *hpaSpec.MinReplicas, hpaSpec.MaxReplicas)
+	}
+
 	// Special handling for QueryNode with 2-deployment mode or RollingModeV3
 	if component == QueryNode || mc.Spec.Com.RollingMode == v1beta1.RollingModeV3 {
 		return r.reconcileTwoDeployHPA(ctx, mc, component, hpaSpec)
@@ -55,13 +62,14 @@ func (r *MilvusReconciler) reconcileTwoDeployHPA(ctx context.Context, mc v1beta1
 	}
 
 	// Get the current deployment name based on group ID
-	currentGroupId := v1beta1.Labels().GetCurrentGroupId(&mc, component.Name)
-	var deploymentName string
-	if currentGroupId == "" || currentGroupId == "0" {
-		deploymentName = getHPADeploymentName(mc, component, 0)
-	} else {
-		deploymentName = getHPADeploymentName(mc, component, 1)
+	currentGroupIdStr := v1beta1.Labels().GetCurrentGroupId(&mc, component.Name)
+	groupId := 0
+	if currentGroupIdStr != "" {
+		if parsed, err := strconv.Atoi(currentGroupIdStr); err == nil {
+			groupId = parsed
+		}
 	}
+	deploymentName := getHPADeploymentName(mc, component, groupId)
 
 	return r.createOrUpdateHPA(ctx, mc, component, hpaSpec, deploymentName)
 }
@@ -92,11 +100,14 @@ func (r *MilvusReconciler) createOrUpdateHPA(ctx context.Context, mc v1beta1.Mil
 	logger := ctrl.LoggerFrom(ctx)
 
 	// Build the desired HPA
-	desiredHPA := r.buildHPA(mc, component, hpaSpec, deploymentName)
+	desiredHPA, err := r.buildHPA(ctx, mc, component, hpaSpec, deploymentName)
+	if err != nil {
+		return errors.Wrap(err, "build HPA")
+	}
 
 	// Check if HPA already exists
 	existing := &autoscalingv2.HorizontalPodAutoscaler{}
-	err := r.Get(ctx, NamespacedName(mc.Namespace, hpaName), existing)
+	err = r.Get(ctx, NamespacedName(mc.Namespace, hpaName), existing)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			// Create new HPA
@@ -117,7 +128,7 @@ func (r *MilvusReconciler) createOrUpdateHPA(ctx context.Context, mc v1beta1.Mil
 }
 
 // buildHPA constructs the HPA resource from the spec
-func (r *MilvusReconciler) buildHPA(mc v1beta1.Milvus, component MilvusComponent, hpaSpec *v1beta1.HPASpec, deploymentName string) *autoscalingv2.HorizontalPodAutoscaler {
+func (r *MilvusReconciler) buildHPA(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent, hpaSpec *v1beta1.HPASpec, deploymentName string) (*autoscalingv2.HorizontalPodAutoscaler, error) {
 	minReplicas := int32(1)
 	if hpaSpec.MinReplicas != nil {
 		minReplicas = *hpaSpec.MinReplicas
@@ -142,13 +153,12 @@ func (r *MilvusReconciler) buildHPA(mc v1beta1.Milvus, component MilvusComponent
 
 	// Set owner reference
 	if err := ctrl.SetControllerReference(&mc, hpa, r.Scheme); err != nil {
-		// Log the error but continue - HPA can still work without owner reference
-		ctrl.LoggerFrom(context.Background()).Error(err, "Failed to set controller reference for HPA")
+		return nil, errors.Wrap(err, "set controller reference for HPA")
 	}
 
 	// Convert metrics from Values to autoscaling metrics
 	if len(hpaSpec.Metrics) > 0 {
-		hpa.Spec.Metrics = r.convertMetrics(hpaSpec.Metrics)
+		hpa.Spec.Metrics = r.convertMetrics(ctx, hpaSpec.Metrics)
 	}
 
 	// Convert behavior from Values to autoscaling behavior
@@ -156,17 +166,20 @@ func (r *MilvusReconciler) buildHPA(mc v1beta1.Milvus, component MilvusComponent
 		hpa.Spec.Behavior = r.convertBehavior(hpaSpec.Behavior)
 	}
 
-	return hpa
+	return hpa, nil
 }
 
 // convertMetrics converts []v1beta1.Values to []autoscalingv2.MetricSpec
-func (r *MilvusReconciler) convertMetrics(metrics []v1beta1.Values) []autoscalingv2.MetricSpec {
+func (r *MilvusReconciler) convertMetrics(ctx context.Context, metrics []v1beta1.Values) []autoscalingv2.MetricSpec {
+	logger := ctrl.LoggerFrom(ctx)
 	result := make([]autoscalingv2.MetricSpec, 0, len(metrics))
-	for _, m := range metrics {
+	for i, m := range metrics {
 		var metric autoscalingv2.MetricSpec
-		if err := m.AsObject(&metric); err == nil {
-			result = append(result, metric)
+		if err := m.AsObject(&metric); err != nil {
+			logger.Error(err, "failed to convert HPA metric, skipping", "metricIndex", i)
+			continue
 		}
+		result = append(result, metric)
 	}
 	return result
 }
