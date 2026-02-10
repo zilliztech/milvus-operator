@@ -211,6 +211,28 @@ func (c MilvusComponent) GetReplicas(spec v1beta1.MilvusSpec) *int32 {
 	return replicas
 }
 
+// GetHPASpec returns the HPA spec for the component
+func (c MilvusComponent) GetHPASpec(spec v1beta1.MilvusSpec) *v1beta1.HPASpec {
+	componentField := reflect.ValueOf(spec.Com).FieldByName(c.FieldName)
+	if componentField.IsNil() {
+		return nil
+	}
+	hpa, _ := componentField.Elem().
+		FieldByName("Component").
+		FieldByName("HPA").Interface().(*v1beta1.HPASpec)
+	return hpa
+}
+
+// IsHPAEnabled returns true if HPA is enabled for the component
+func (c MilvusComponent) IsHPAEnabled(spec v1beta1.MilvusSpec) bool {
+	return c.GetHPASpec(spec) != nil
+}
+
+// GetHPAName returns the name of the HPA for the component
+func (c MilvusComponent) GetHPAName(instanceName string) string {
+	return fmt.Sprintf("%s-milvus-%s-hpa", instanceName, c.Name)
+}
+
 // GetReplicas returns the replicas for the component
 func (c MilvusComponent) SetReplicas(spec v1beta1.MilvusSpec, replicas *int32) error {
 	componentField := reflect.ValueOf(spec.Com).FieldByName(c.FieldName)

@@ -334,7 +334,7 @@ func (c *DeployControllerBizUtilImpl) planNextScaleAction(ctx context.Context, m
 	lastDeployment.Spec.Strategy = GetDeploymentStrategy(&mc, c.component)
 	switch scaleKind {
 	case scaleKindHPA:
-		return c.planScaleForHPA(ctx, mc, currentDeployment, lastDeployment)
+		return c.planScaleForHPA(mc, currentDeployment, lastDeployment)
 	case scaleKindRollout:
 		return c.planScaleForRollout(mc, currentDeployment, lastDeployment)
 	case scaleKindForce:
@@ -357,6 +357,11 @@ func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus, lastDepl
 	if mc.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce {
 		return scaleKindForce
 	}
+	// Check HPA spec first (new approach)
+	if c.component.IsHPAEnabled(mc.Spec) {
+		return scaleKindHPA
+	}
+	// Fallback to replicas = -1 convention (backward compatibility)
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
 	isHpa := expectedReplicas < 0
 	if isHpa {
@@ -368,34 +373,40 @@ func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus, lastDepl
 	return scaleKindNormal
 }
 
-func (c *DeployControllerBizUtilImpl) planScaleForHPA(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
+// planScaleForHPA plans scaling action when HPA is enabled
+// During rollouts, ensures new deployment matches old deployment's capacity before scaling down
+// This prevents capacity loss when HPA has scaled up the old deployment
+func (c *DeployControllerBizUtilImpl) planScaleForHPA(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
 	currentDeployReplicas := getDeployReplicas(currentDeployment)
 	lastDeployReplicas := getDeployReplicas(lastDeployment)
 
-	// Bootstrap current deployment to set it to the last deployment's replicas.
-	// should keep trying, if not reach the target number.
-	if int32(currentDeployReplicas) < int32(lastDeployReplicas) {
-		return scaleAction{deploy: currentDeployment, replicaChange: (lastDeployReplicas - currentDeployReplicas)}
+	// Get minReplicas from HPA spec if available
+	minReplicas := 1
+	if hpaSpec := c.component.GetHPASpec(mc.Spec); hpaSpec != nil && hpaSpec.MinReplicas != nil {
+		minReplicas = int(*hpaSpec.MinReplicas)
 	}
 
-	isRolling := v1beta1.Labels().IsComponentRolling(mc, c.component.Name)
-
-	// During rolling update, scale down old deployment once new one is ready
-	if isRolling && lastDeployReplicas > 0 {
-		// Wait until current deployment has at least as many ready replicas as old deployment
-		if currentDeployment.Status.ReadyReplicas >= int32(lastDeployReplicas) {
-			ctrl.LoggerFrom(ctx).Info("scaling down old deployment during HPA rolling update",
-				"oldDeployment", lastDeployment.Name,
-				"oldReplicas", lastDeployReplicas,
-				"currentDeployment", currentDeployment.Name,
-				"currentReadyReplicas", currentDeployment.Status.ReadyReplicas)
-			return scaleAction{deploy: lastDeployment, replicaChange: -lastDeployReplicas}
+	// During rollout: scale up current deployment to match last deployment's capacity first
+	if lastDeployReplicas > 0 {
+		// Target replicas should be at least minReplicas or lastDeployReplicas (whichever is greater)
+		// This ensures we maintain capacity during rollout even if HPA scaled up the old deployment
+		targetReplicas := minReplicas
+		if lastDeployReplicas > targetReplicas {
+			targetReplicas = lastDeployReplicas
 		}
 
-		ctrl.LoggerFrom(ctx).V(1).Info("waiting for current deployment to have enough ready replicas",
-			"currentDeployment", currentDeployment.Name,
-			"currentReadyReplicas", currentDeployment.Status.ReadyReplicas,
-			"requiredReplicas", lastDeployReplicas)
+		// Scale up current deployment if it doesn't have enough replicas
+		if currentDeployReplicas < targetReplicas {
+			return scaleAction{deploy: currentDeployment, replicaChange: targetReplicas - currentDeployReplicas}
+		}
+		// Current deployment has enough capacity, scale down last deployment one at a time
+		return scaleAction{deploy: lastDeployment, replicaChange: -1}
+	}
+
+	// Normal HPA mode (no rollout): just ensure current deployment has at least minReplicas
+	// HPA will handle scaling beyond minReplicas based on load
+	if currentDeployReplicas == 0 {
+		return scaleAction{deploy: currentDeployment, replicaChange: minReplicas}
 	}
 
 	return noScaleAction

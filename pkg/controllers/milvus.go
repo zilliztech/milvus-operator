@@ -65,6 +65,7 @@ func (r *MilvusReconciler) ReconcileMilvus(ctx context.Context, mc v1beta1.Milvu
 	comReconcilers := []Func{
 		r.ReconcilePVCs,
 		r.ReconcileDeployments,
+		r.ReconcileHPAs,
 		r.ReconcileServices,
 		r.ReconcileIngress,
 		r.ReconcilePodMonitor,
