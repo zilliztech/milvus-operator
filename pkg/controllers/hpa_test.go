@@ -10,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -209,14 +210,40 @@ func TestDeleteHPAIfExists(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("HPA exists - delete it", func(t *testing.T) {
+	t.Run("HPA exists and controlled by this instance - delete it", func(t *testing.T) {
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
 			Do(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) {
 				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 				hpa.Name = key.Name
 				hpa.Namespace = key.Namespace
+				// Set owner reference to this Milvus instance
+				trueVal := true
+				hpa.OwnerReferences = []metav1.OwnerReference{
+					{
+						APIVersion:         "milvus.io/v1beta1",
+						Kind:               "Milvus",
+						Name:               mc.Name,
+						UID:                mc.UID,
+						Controller:         &trueVal,
+						BlockOwnerDeletion: &trueVal,
+					},
+				}
 			})
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any())
+
+		err := r.deleteHPAIfExists(ctx, mc, Proxy)
+		assert.NoError(t, err)
+	})
+
+	t.Run("HPA exists but not controlled by this instance - skip deletion", func(t *testing.T) {
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) {
+				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+				hpa.Name = key.Name
+				hpa.Namespace = key.Namespace
+				// No owner references - external HPA
+			})
+		// No Delete call expected
 
 		err := r.deleteHPAIfExists(ctx, mc, Proxy)
 		assert.NoError(t, err)
@@ -237,6 +264,18 @@ func TestDeleteHPAIfExists(t *testing.T) {
 				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 				hpa.Name = key.Name
 				hpa.Namespace = key.Namespace
+				// Set owner reference to this Milvus instance
+				trueVal := true
+				hpa.OwnerReferences = []metav1.OwnerReference{
+					{
+						APIVersion:         "milvus.io/v1beta1",
+						Kind:               "Milvus",
+						Name:               mc.Name,
+						UID:                mc.UID,
+						Controller:         &trueVal,
+						BlockOwnerDeletion: &trueVal,
+					},
+				}
 			})
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(errHPATest)
 
@@ -1037,13 +1076,13 @@ func TestPlanScaleForHPA_NoHPASpec_LegacyMode(t *testing.T) {
 	})
 }
 
-func TestGetHPADeploymentName(t *testing.T) {
+func TestFormatComponentDeployName_HPA(t *testing.T) {
 	mc := v1beta1.Milvus{}
 	mc.Name = "my-milvus"
 
-	assert.Equal(t, "my-milvus-milvus-querynode-0", getHPADeploymentName(mc, QueryNode, 0))
-	assert.Equal(t, "my-milvus-milvus-querynode-1", getHPADeploymentName(mc, QueryNode, 1))
-	assert.Equal(t, "my-milvus-milvus-proxy-0", getHPADeploymentName(mc, Proxy, 0))
+	assert.Equal(t, "my-milvus-milvus-querynode-0", formatComponentDeployName(mc, QueryNode, 0))
+	assert.Equal(t, "my-milvus-milvus-querynode-1", formatComponentDeployName(mc, QueryNode, 1))
+	assert.Equal(t, "my-milvus-milvus-proxy-0", formatComponentDeployName(mc, Proxy, 0))
 }
 
 func TestPlanScaleForHPA_RolloutCapacity(t *testing.T) {
@@ -1098,18 +1137,33 @@ func TestPlanScaleForHPA_RolloutCapacity(t *testing.T) {
 		assert.Equal(t, 5, action.replicaChange)
 	})
 
-	t.Run("current has 10, last has 10 - scale down last", func(t *testing.T) {
+	t.Run("current has 10, last has 10, all ready - scale down last", func(t *testing.T) {
 		currentDeploy := &appsv1.Deployment{}
 		currentDeploy.Spec.Replicas = int32Ptr(10)
+		currentDeploy.Status.ReadyReplicas = 10
 
 		lastDeploy := &appsv1.Deployment{}
 		lastDeploy.Spec.Replicas = int32Ptr(10)
 
 		action := util.planScaleForHPA(ctx, *mc, currentDeploy, lastDeploy)
 
-		// Current has enough capacity, scale down last
+		// Current has enough ready capacity, scale down last
 		assert.Equal(t, lastDeploy, action.deploy)
 		assert.Equal(t, -1, action.replicaChange)
+	})
+
+	t.Run("current has 10 desired but only 5 ready - wait for readiness", func(t *testing.T) {
+		currentDeploy := &appsv1.Deployment{}
+		currentDeploy.Spec.Replicas = int32Ptr(10)
+		currentDeploy.Status.ReadyReplicas = 5 // Not all ready yet
+
+		lastDeploy := &appsv1.Deployment{}
+		lastDeploy.Spec.Replicas = int32Ptr(10)
+
+		action := util.planScaleForHPA(ctx, *mc, currentDeploy, lastDeploy)
+
+		// Should wait, not scale down yet
+		assert.Equal(t, noScaleAction, action)
 	})
 
 	t.Run("last has fewer replicas than minReplicas - use minReplicas", func(t *testing.T) {

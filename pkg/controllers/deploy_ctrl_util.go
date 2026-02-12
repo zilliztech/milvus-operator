@@ -402,9 +402,20 @@ func (c *DeployControllerBizUtilImpl) planScaleForHPA(ctx context.Context, mc v1
 				"currentReplicas", currentDeployReplicas, "targetReplicas", targetReplicas)
 			return scaleAction{deploy: currentDeployment, replicaChange: targetReplicas - currentDeployReplicas}
 		}
-		// Current deployment has enough capacity, scale down last deployment one at a time
+		// Current deployment has enough desired replicas; ensure enough are Ready before scaling down
+		readyReplicas := int(currentDeployment.Status.ReadyReplicas)
+		if readyReplicas < targetReplicas {
+			logger.Info("HPA rollout: waiting for current deployment readiness before scaling down last deployment",
+				"currentReplicas", currentDeployReplicas,
+				"readyReplicas", readyReplicas,
+				"targetReplicas", targetReplicas,
+				"lastDeployReplicas", lastDeployReplicas)
+			return noScaleAction
+		}
+
+		// Current deployment has enough ready capacity, scale down last deployment one at a time
 		logger.Info("HPA rollout: scaling down last deployment",
-			"lastDeployReplicas", lastDeployReplicas, "currentDeployReplicas", currentDeployReplicas)
+			"lastDeployReplicas", lastDeployReplicas, "currentDeployReplicas", currentDeployReplicas, "readyReplicas", readyReplicas)
 		return scaleAction{deploy: lastDeployment, replicaChange: -1}
 	}
 

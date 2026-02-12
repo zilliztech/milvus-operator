@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -69,12 +68,13 @@ func (r *MilvusReconciler) reconcileTwoDeployHPA(ctx context.Context, mc v1beta1
 			groupId = parsed
 		}
 	}
-	deploymentName := getHPADeploymentName(mc, component, groupId)
+	deploymentName := formatComponentDeployName(mc, component, groupId)
 
 	return r.createOrUpdateHPA(ctx, mc, component, hpaSpec, deploymentName)
 }
 
-// deleteHPAIfExists deletes the HPA if it exists
+// deleteHPAIfExists deletes the HPA if it exists and is controlled by this Milvus instance.
+// External HPAs (e.g. user-managed HPAs in legacy replicas=-1 mode) are left untouched.
 func (r *MilvusReconciler) deleteHPAIfExists(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
 	hpaName := component.GetHPAName(mc.Name)
 	hpa := &autoscalingv2.HorizontalPodAutoscaler{}
@@ -85,6 +85,12 @@ func (r *MilvusReconciler) deleteHPAIfExists(ctx context.Context, mc v1beta1.Mil
 			return nil
 		}
 		return errors.Wrap(err, "get HPA")
+	}
+
+	// Only delete HPAs that are controlled by this Milvus instance
+	if !metav1.IsControlledBy(hpa, &mc) {
+		ctrl.LoggerFrom(ctx).Info("HPA exists but is not controlled by this Milvus instance, skipping deletion", "name", hpaName)
+		return nil
 	}
 
 	ctrl.LoggerFrom(ctx).Info("Deleting HPA", "name", hpaName)
@@ -221,9 +227,4 @@ func (r *MilvusReconciler) hpaSpecNeedsUpdate(existing, desired *autoscalingv2.H
 	}
 
 	return false
-}
-
-// getHPADeploymentName returns the deployment name to target for HPA based on group ID
-func getHPADeploymentName(mc v1beta1.Milvus, component MilvusComponent, groupId int) string {
-	return fmt.Sprintf("%s-milvus-%s-%d", mc.Name, component.Name, groupId)
 }
