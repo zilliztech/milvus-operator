@@ -3,7 +3,7 @@
 #
 # Two approaches are supported:
 # 1. Native HPA spec (recommended) - Define HPA configuration directly in the component spec
-# 2. Legacy replicas: -1 - Use this to let external HPA controller manage replicas
+# 2. replicas: -1 - Use this to let an external HPA or other controller manage replicas
 #
 # Note: When using native HPA spec, the operator will create and manage HPA resources automatically.
 # For QueryNode in 2-deployment rolling mode, HPA is temporarily deleted during rollouts.
@@ -57,12 +57,12 @@ spec:
               value: 1
               periodSeconds: 60
     dataNode:
-      # Legacy approach: set replicas to -1 to let external HPA controller manage scaling
+      # Set replicas to -1 to let an external HPA or other controller manage scaling
       # This requires creating a separate HPA resource (see below)
       replicas: -1
 ---
 # Example of external HPA resource for dataNode (when using replicas: -1)
-# This approach is for backward compatibility with existing setups
+# Use this when you want full control over the HPA resource yourself
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
