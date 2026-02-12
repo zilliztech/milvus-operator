@@ -170,15 +170,14 @@ func updateInitContainers(template *corev1.PodTemplateSpec, updater deploymentUp
 
 func updateConfigContainer(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
 	configContainerIdx := GetContainerIndex(template.Spec.InitContainers, configContainerName)
-	spec := updater.GetMilvus().Spec
 	if configContainerIdx < 0 {
 		var container = new(corev1.Container)
 		if len(template.Spec.InitContainers) < 1 {
 			template.Spec.InitContainers = []corev1.Container{}
 		}
-		template.Spec.InitContainers = append(template.Spec.InitContainers, *renderInitContainer(container, spec.Com.ToolImage))
+		template.Spec.InitContainers = append(template.Spec.InitContainers, *renderInitContainer(container, updater))
 	} else {
-		renderInitContainer(&template.Spec.InitContainers[configContainerIdx], spec.Com.ToolImage)
+		renderInitContainer(&template.Spec.InitContainers[configContainerIdx], updater)
 	}
 }
 
