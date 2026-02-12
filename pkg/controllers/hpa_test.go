@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
+
+var errHPATest = fmt.Errorf("test error")
 
 func TestReconcileHPAs(t *testing.T) {
 	env := newTestEnv(t)
@@ -32,6 +35,20 @@ func TestReconcileHPAs(t *testing.T) {
 
 		err := r.ReconcileHPAs(ctx, mc)
 		assert.NoError(t, err)
+	})
+
+	t.Run("error propagated from component HPA", func(t *testing.T) {
+		minReplicas := int32(20)
+		mc.Spec.Com.Standalone = &v1beta1.MilvusStandalone{}
+		mc.Spec.Com.Standalone.HPA = &v1beta1.HPASpec{
+			MinReplicas: &minReplicas,
+			MaxReplicas: 5, // minReplicas > maxReplicas
+		}
+		mc.Default()
+
+		err := r.ReconcileHPAs(ctx, mc)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "minReplicas")
 	})
 }
 
@@ -76,6 +93,20 @@ func TestReconcileComponentHPA(t *testing.T) {
 
 		err := r.reconcileComponentHPA(ctx, mc, Proxy)
 		assert.NoError(t, err)
+	})
+
+	t.Run("validation error - minReplicas exceeds maxReplicas", func(t *testing.T) {
+		minReplicas := int32(20)
+		mc.Spec.Com.Proxy = &v1beta1.MilvusProxy{}
+		mc.Spec.Com.Proxy.HPA = &v1beta1.HPASpec{
+			MinReplicas: &minReplicas,
+			MaxReplicas: 5,
+		}
+		mc.Default()
+
+		err := r.reconcileComponentHPA(ctx, mc, Proxy)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "minReplicas (20) must not exceed maxReplicas (5)")
 	})
 }
 
@@ -125,6 +156,40 @@ func TestReconcileTwoDeployHPA(t *testing.T) {
 		err := r.reconcileTwoDeployHPA(ctx, mc, QueryNode, hpaSpec)
 		assert.NoError(t, err)
 	})
+
+	t.Run("not rolling - non-numeric group ID defaults to 0", func(t *testing.T) {
+		v1beta1.Labels().SetComponentRolling(&mc, QueryNode.Name, false)
+		// Set a non-numeric group ID to trigger strconv.Atoi error path
+		v1beta1.Labels().SetCurrentGroupIDStr(&mc, QueryNode.Name, "invalid")
+
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(kerrors.NewNotFound(schema.GroupResource{}, "not-found"))
+		mockClient.EXPECT().Create(gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) {
+				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+				// Should default to group 0 when parsing fails
+				assert.Equal(t, "mc-milvus-querynode-0", hpa.Spec.ScaleTargetRef.Name)
+			})
+
+		err := r.reconcileTwoDeployHPA(ctx, mc, QueryNode, hpaSpec)
+		assert.NoError(t, err)
+	})
+
+	t.Run("not rolling - empty group ID defaults to 0", func(t *testing.T) {
+		v1beta1.Labels().SetComponentRolling(&mc, QueryNode.Name, false)
+		v1beta1.Labels().SetCurrentGroupIDStr(&mc, QueryNode.Name, "")
+
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(kerrors.NewNotFound(schema.GroupResource{}, "not-found"))
+		mockClient.EXPECT().Create(gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) {
+				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+				assert.Equal(t, "mc-milvus-querynode-0", hpa.Spec.ScaleTargetRef.Name)
+			})
+
+		err := r.reconcileTwoDeployHPA(ctx, mc, QueryNode, hpaSpec)
+		assert.NoError(t, err)
+	})
 }
 
 func TestDeleteHPAIfExists(t *testing.T) {
@@ -155,6 +220,29 @@ func TestDeleteHPAIfExists(t *testing.T) {
 
 		err := r.deleteHPAIfExists(ctx, mc, Proxy)
 		assert.NoError(t, err)
+	})
+
+	t.Run("Get error (not NotFound) - return error", func(t *testing.T) {
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(errHPATest)
+
+		err := r.deleteHPAIfExists(ctx, mc, Proxy)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "get HPA")
+	})
+
+	t.Run("Delete error - return error", func(t *testing.T) {
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) {
+				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+				hpa.Name = key.Name
+				hpa.Namespace = key.Namespace
+			})
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(errHPATest)
+
+		err := r.deleteHPAIfExists(ctx, mc, Proxy)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "delete HPA")
 	})
 }
 
@@ -474,6 +562,488 @@ func TestUpdateDeploymentReplicas_WithHPA(t *testing.T) {
 		assert.NotNil(t, updater.GetHPASpec())
 		assert.Equal(t, int32(3), *updater.GetHPASpec().MinReplicas)
 	})
+}
+
+func TestCreateOrUpdateHPA(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	mockClient := env.MockClient
+	ctx := env.ctx
+	mc := env.Inst
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	hpaSpec := &v1beta1.HPASpec{
+		MaxReplicas: 10,
+	}
+
+	t.Run("Get error (not NotFound) - return error", func(t *testing.T) {
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(errHPATest)
+
+		err := r.createOrUpdateHPA(ctx, mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "get HPA")
+	})
+
+	t.Run("existing HPA needs update - update it", func(t *testing.T) {
+		existingMinReplicas := int32(1)
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) {
+				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+				hpa.Name = key.Name
+				hpa.Namespace = key.Namespace
+				hpa.Spec.ScaleTargetRef = autoscalingv2.CrossVersionObjectReference{
+					Name: "old-deployment-name", // Different from desired
+				}
+				hpa.Spec.MinReplicas = &existingMinReplicas
+				hpa.Spec.MaxReplicas = 10
+			})
+		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) {
+				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+				assert.Equal(t, "mc-milvus-proxy", hpa.Spec.ScaleTargetRef.Name)
+			})
+
+		err := r.createOrUpdateHPA(ctx, mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		assert.NoError(t, err)
+	})
+
+	t.Run("existing HPA up to date - no update", func(t *testing.T) {
+		desiredMinReplicas := int32(1)
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) {
+				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+				hpa.Name = key.Name
+				hpa.Namespace = key.Namespace
+				hpa.Spec.ScaleTargetRef = autoscalingv2.CrossVersionObjectReference{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
+					Name:       "mc-milvus-proxy",
+				}
+				hpa.Spec.MinReplicas = &desiredMinReplicas
+				hpa.Spec.MaxReplicas = 10
+			})
+		// No Update call expected
+
+		err := r.createOrUpdateHPA(ctx, mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		assert.NoError(t, err)
+	})
+}
+
+func TestConvertMetrics(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	ctx := env.ctx
+
+	t.Run("valid metric", func(t *testing.T) {
+		metrics := []v1beta1.Values{
+			{
+				Data: map[string]interface{}{
+					"type": "Resource",
+					"resource": map[string]interface{}{
+						"name": "cpu",
+						"target": map[string]interface{}{
+							"type":               "Utilization",
+							"averageUtilization": 70,
+						},
+					},
+				},
+			},
+		}
+		result := r.convertMetrics(ctx, metrics)
+		assert.Len(t, result, 1)
+	})
+
+	t.Run("invalid metric skipped with type mismatch", func(t *testing.T) {
+		metrics := []v1beta1.Values{
+			{
+				// resource should be an object, but providing a string causes unmarshal error
+				Data: map[string]interface{}{
+					"type":     "Resource",
+					"resource": "not-an-object",
+				},
+			},
+			{
+				Data: map[string]interface{}{
+					"type": "Resource",
+					"resource": map[string]interface{}{
+						"name": "cpu",
+						"target": map[string]interface{}{
+							"type":               "Utilization",
+							"averageUtilization": 80,
+						},
+					},
+				},
+			},
+		}
+		result := r.convertMetrics(ctx, metrics)
+		// The first metric should be skipped due to type mismatch error
+		// The second valid one should be included
+		assert.Len(t, result, 1)
+	})
+
+	t.Run("empty metrics", func(t *testing.T) {
+		result := r.convertMetrics(ctx, []v1beta1.Values{})
+		assert.Empty(t, result)
+	})
+}
+
+func TestConvertBehavior(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+
+	t.Run("valid behavior", func(t *testing.T) {
+		behavior := v1beta1.Values{
+			Data: map[string]interface{}{
+				"scaleDown": map[string]interface{}{
+					"stabilizationWindowSeconds": 300,
+				},
+			},
+		}
+		result := r.convertBehavior(behavior)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("invalid behavior data - return nil", func(t *testing.T) {
+		behavior := v1beta1.Values{
+			Data: map[string]interface{}{
+				// scaleDown expects an object, providing a string causes unmarshal error
+				"scaleDown": "not-an-object",
+			},
+		}
+		result := r.convertBehavior(behavior)
+		assert.Nil(t, result)
+	})
+}
+
+func TestBuildHPA_WithBehavior(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	ctx := env.ctx
+	mc := env.Inst
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	t.Run("HPA with behavior", func(t *testing.T) {
+		hpaSpec := &v1beta1.HPASpec{
+			MaxReplicas: 10,
+			Behavior: v1beta1.Values{
+				Data: map[string]interface{}{
+					"scaleDown": map[string]interface{}{
+						"stabilizationWindowSeconds": 300,
+					},
+				},
+			},
+		}
+
+		hpa, err := r.buildHPA(ctx, mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		assert.NoError(t, err)
+		assert.NotNil(t, hpa.Spec.Behavior)
+	})
+
+	t.Run("HPA with metrics and behavior", func(t *testing.T) {
+		hpaSpec := &v1beta1.HPASpec{
+			MaxReplicas: 10,
+			Metrics: []v1beta1.Values{
+				{
+					Data: map[string]interface{}{
+						"type": "Resource",
+						"resource": map[string]interface{}{
+							"name": "cpu",
+							"target": map[string]interface{}{
+								"type":               "Utilization",
+								"averageUtilization": 70,
+							},
+						},
+					},
+				},
+			},
+			Behavior: v1beta1.Values{
+				Data: map[string]interface{}{
+					"scaleUp": map[string]interface{}{
+						"stabilizationWindowSeconds": 60,
+					},
+				},
+			},
+		}
+
+		hpa, err := r.buildHPA(ctx, mc, Proxy, hpaSpec, "mc-milvus-proxy")
+		assert.NoError(t, err)
+		assert.Len(t, hpa.Spec.Metrics, 1)
+		assert.NotNil(t, hpa.Spec.Behavior)
+	})
+}
+
+func TestHPASpecNeedsUpdate_MinReplicasNilMismatch(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+
+	minReplicas := int32(1)
+
+	t.Run("existing nil, desired not nil - needs update", func(t *testing.T) {
+		existing := &autoscalingv2.HorizontalPodAutoscaler{
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+				ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+					Name: "test-deploy",
+				},
+				MinReplicas: nil,
+				MaxReplicas: 10,
+			},
+		}
+		desired := &autoscalingv2.HorizontalPodAutoscaler{
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+				ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+					Name: "test-deploy",
+				},
+				MinReplicas: &minReplicas,
+				MaxReplicas: 10,
+			},
+		}
+		assert.True(t, r.hpaSpecNeedsUpdate(existing, desired))
+	})
+
+	t.Run("existing not nil, desired nil - needs update", func(t *testing.T) {
+		existing := &autoscalingv2.HorizontalPodAutoscaler{
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+				ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+					Name: "test-deploy",
+				},
+				MinReplicas: &minReplicas,
+				MaxReplicas: 10,
+			},
+		}
+		desired := &autoscalingv2.HorizontalPodAutoscaler{
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+				ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+					Name: "test-deploy",
+				},
+				MinReplicas: nil,
+				MaxReplicas: 10,
+			},
+		}
+		assert.True(t, r.hpaSpecNeedsUpdate(existing, desired))
+	})
+}
+
+func TestUpdateDeploymentReplicas_HPAEnabled_ReplicasNonZero(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+
+	t.Run("HPA enabled, replicas already > 0 - should not change replicas", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Spec.Mode = v1beta1.MilvusModeCluster
+		mc.Spec.Com.Proxy = &v1beta1.MilvusProxy{}
+		minReplicas := int32(3)
+		mc.Spec.Com.Proxy.HPA = &v1beta1.HPASpec{
+			MinReplicas: &minReplicas,
+			MaxReplicas: 10,
+		}
+		mc.Default()
+
+		updater := newMilvusDeploymentUpdater(*mc, env.Reconciler.Scheme, Proxy)
+		deployment := &appsv1.Deployment{}
+		deployment.Spec.Replicas = int32Ptr(5) // Already running with 5 replicas
+
+		originalReplicas := *deployment.Spec.Replicas
+		updateDeploymentReplicas(deployment, updater)
+
+		// HPA is managing, should not change replicas
+		assert.Equal(t, originalReplicas, *deployment.Spec.Replicas)
+	})
+
+	t.Run("HPA enabled, replicas at 0 - should scale to minReplicas", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Spec.Mode = v1beta1.MilvusModeCluster
+		mc.Spec.Com.Proxy = &v1beta1.MilvusProxy{}
+		minReplicas := int32(3)
+		mc.Spec.Com.Proxy.HPA = &v1beta1.HPASpec{
+			MinReplicas: &minReplicas,
+			MaxReplicas: 10,
+		}
+		mc.Default()
+
+		updater := newMilvusDeploymentUpdater(*mc, env.Reconciler.Scheme, Proxy)
+		deployment := &appsv1.Deployment{}
+		deployment.Spec.Replicas = int32Ptr(0) // Scaled to 0
+
+		updateDeploymentReplicas(deployment, updater)
+
+		// Should scale to minReplicas since HPA can't scale from 0
+		assert.Equal(t, int32(3), *deployment.Spec.Replicas)
+	})
+
+	t.Run("HPA enabled (legacy replicas=-1), no HPA spec, at 0 - should scale to 1", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Spec.Mode = v1beta1.MilvusModeCluster
+		mc.Spec.Com.Proxy = &v1beta1.MilvusProxy{}
+		mc.Spec.Com.Proxy.Replicas = int32Ptr(-1)
+		mc.Default()
+
+		updater := newMilvusDeploymentUpdater(*mc, env.Reconciler.Scheme, Proxy)
+		deployment := &appsv1.Deployment{}
+		deployment.Spec.Replicas = int32Ptr(0)
+
+		updateDeploymentReplicas(deployment, updater)
+
+		// Should default to minReplicas=1 since no HPA spec
+		assert.Equal(t, int32(1), *deployment.Spec.Replicas)
+	})
+
+	t.Run("HPA disabled - should set replicas from spec", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Spec.Mode = v1beta1.MilvusModeCluster
+		mc.Spec.Com.Proxy = &v1beta1.MilvusProxy{}
+		mc.Spec.Com.Proxy.Replicas = int32Ptr(5)
+		mc.Default()
+
+		updater := newMilvusDeploymentUpdater(*mc, env.Reconciler.Scheme, Proxy)
+		deployment := &appsv1.Deployment{}
+		deployment.Spec.Replicas = int32Ptr(3)
+
+		updateDeploymentReplicas(deployment, updater)
+
+		assert.Equal(t, int32(5), *deployment.Spec.Replicas)
+	})
+}
+
+func TestReconcileStandardHPA(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	mockClient := env.MockClient
+	ctx := env.ctx
+	mc := env.Inst
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	t.Run("standard HPA creates HPA targeting regular deployment", func(t *testing.T) {
+		minReplicas := int32(2)
+		hpaSpec := &v1beta1.HPASpec{
+			MinReplicas: &minReplicas,
+			MaxReplicas: 10,
+		}
+
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(kerrors.NewNotFound(schema.GroupResource{}, "not-found"))
+		mockClient.EXPECT().Create(gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) {
+				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+				assert.Equal(t, "mc-milvus-proxy", hpa.Spec.ScaleTargetRef.Name)
+			})
+
+		err := r.reconcileStandardHPA(ctx, mc, Proxy, hpaSpec)
+		assert.NoError(t, err)
+	})
+}
+
+func TestHPASpecNeedsUpdate_MetricsAndBehavior(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+
+	minReplicas := int32(1)
+
+	t.Run("different metrics - needs update", func(t *testing.T) {
+		existing := &autoscalingv2.HorizontalPodAutoscaler{
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+				ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+					Name: "test-deploy",
+				},
+				MinReplicas: &minReplicas,
+				MaxReplicas: 10,
+				Metrics: []autoscalingv2.MetricSpec{
+					{
+						Type: autoscalingv2.ResourceMetricSourceType,
+					},
+				},
+			},
+		}
+		desired := &autoscalingv2.HorizontalPodAutoscaler{
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+				ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+					Name: "test-deploy",
+				},
+				MinReplicas: &minReplicas,
+				MaxReplicas: 10,
+				Metrics:     nil, // Different: no metrics
+			},
+		}
+
+		assert.True(t, r.hpaSpecNeedsUpdate(existing, desired))
+	})
+
+	t.Run("different behavior - needs update", func(t *testing.T) {
+		stabilizationWindow := int32(300)
+		existing := &autoscalingv2.HorizontalPodAutoscaler{
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+				ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+					Name: "test-deploy",
+				},
+				MinReplicas: &minReplicas,
+				MaxReplicas: 10,
+				Behavior: &autoscalingv2.HorizontalPodAutoscalerBehavior{
+					ScaleDown: &autoscalingv2.HPAScalingRules{
+						StabilizationWindowSeconds: &stabilizationWindow,
+					},
+				},
+			},
+		}
+		desired := &autoscalingv2.HorizontalPodAutoscaler{
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+				ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+					Name: "test-deploy",
+				},
+				MinReplicas: &minReplicas,
+				MaxReplicas: 10,
+				Behavior:    nil, // Different: no behavior
+			},
+		}
+
+		assert.True(t, r.hpaSpecNeedsUpdate(existing, desired))
+	})
+}
+
+func TestPlanScaleForHPA_NoHPASpec_LegacyMode(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	ctx := env.ctx
+
+	mc := env.Inst.DeepCopy()
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Spec.Com.QueryNode = &v1beta1.MilvusQueryNode{}
+	mc.Spec.Com.QueryNode.Replicas = int32Ptr(-1) // Legacy HPA mode, no HPA spec
+	mc.Default()
+
+	util := NewDeployControllerBizUtil(QueryNode, env.Reconciler.Client, nil)
+
+	t.Run("legacy mode - defaults minReplicas to 1", func(t *testing.T) {
+		currentDeploy := &appsv1.Deployment{}
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+
+		lastDeploy := &appsv1.Deployment{}
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+
+		action := util.planScaleForHPA(ctx, *mc, currentDeploy, lastDeploy)
+
+		// Should bootstrap to default minReplicas=1
+		assert.Equal(t, currentDeploy, action.deploy)
+		assert.Equal(t, 1, action.replicaChange)
+	})
+}
+
+func TestGetHPADeploymentName(t *testing.T) {
+	mc := v1beta1.Milvus{}
+	mc.Name = "my-milvus"
+
+	assert.Equal(t, "my-milvus-milvus-querynode-0", getHPADeploymentName(mc, QueryNode, 0))
+	assert.Equal(t, "my-milvus-milvus-querynode-1", getHPADeploymentName(mc, QueryNode, 1))
+	assert.Equal(t, "my-milvus-milvus-proxy-0", getHPADeploymentName(mc, Proxy, 0))
 }
 
 func TestPlanScaleForHPA_RolloutCapacity(t *testing.T) {
