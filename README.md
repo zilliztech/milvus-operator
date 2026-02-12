@@ -30,8 +30,9 @@ Better Managed Rolling Upgrade, ✅,
 Dynamic Configuration Reload , ✅, 
 Health Check Metrics , ✅, 
 Diagnose Message When Unhealthy, ✅, 
-Quick Suspending Instance, ✅, 
-Cleanup Resources after Deletion, ✅,  -->
+Quick Suspending Instance, ✅,
+Cleanup Resources after Deletion, ✅,
+Native HPA Autoscaling, ✅,  -->
 
 |Advantages| Milvus Operator| Milvus Helm|
 |---|---|---|
@@ -44,6 +45,7 @@ Cleanup Resources after Deletion, ✅,  -->
 |Diagnose Message When Unhealthy| ✅| |
 |Quick Suspend Running Instance| ✅| |
 |Cleanup Resources after Deletion| ✅| |
+|Native HPA Autoscaling| ✅| |
 
 # Documentation
 - [Installation](docs/installation/installation.md)
