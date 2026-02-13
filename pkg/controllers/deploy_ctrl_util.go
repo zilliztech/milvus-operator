@@ -335,6 +335,8 @@ func (c *DeployControllerBizUtilImpl) planNextScaleAction(ctx context.Context, m
 	switch scaleKind {
 	case scaleKindHPA:
 		return c.planScaleForHPA(ctx, mc, currentDeployment, lastDeployment)
+	case scaleKindExternalHPA:
+		return c.planScaleForExternalHPA(ctx, mc, currentDeployment, lastDeployment)
 	case scaleKindRollout:
 		return c.planScaleForRollout(mc, currentDeployment, lastDeployment)
 	case scaleKindForce:
@@ -350,6 +352,7 @@ const (
 	scaleKindNormal scaleKind = iota
 	scaleKindRollout
 	scaleKindHPA
+	scaleKindExternalHPA
 	scaleKindForce
 )
 
@@ -365,7 +368,7 @@ func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus, lastDepl
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
 	isHpa := expectedReplicas < 0
 	if isHpa {
-		return scaleKindHPA
+		return scaleKindExternalHPA
 	}
 	if getDeployReplicas(lastDeploy) > 0 {
 		return scaleKindRollout
@@ -424,6 +427,41 @@ func (c *DeployControllerBizUtilImpl) planScaleForHPA(ctx context.Context, mc v1
 	if currentDeployReplicas == 0 {
 		logger.Info("HPA: bootstrapping current deployment to minReplicas", "minReplicas", minReplicas)
 		return scaleAction{deploy: currentDeployment, replicaChange: minReplicas}
+	}
+
+	return noScaleAction
+}
+
+// planScaleForExternalHPA preserves the original scaling logic for users with external (user-managed) HPAs
+// using the replicas=-1 convention. This avoids changing behavior for existing users.
+func (c *DeployControllerBizUtilImpl) planScaleForExternalHPA(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
+	currentDeployReplicas := getDeployReplicas(currentDeployment)
+	lastDeployReplicas := getDeployReplicas(lastDeployment)
+
+	// Bootstrap current deployment to set it to the last deployment's replicas.
+	// should keep trying, if not reach the target number.
+	if int32(currentDeployReplicas) < int32(lastDeployReplicas) {
+		return scaleAction{deploy: currentDeployment, replicaChange: (lastDeployReplicas - currentDeployReplicas)}
+	}
+
+	isRolling := v1beta1.Labels().IsComponentRolling(mc, c.component.Name)
+
+	// During rolling update, scale down old deployment once new one is ready
+	if isRolling && lastDeployReplicas > 0 {
+		// Wait until current deployment has at least as many ready replicas as old deployment
+		if currentDeployment.Status.ReadyReplicas >= int32(lastDeployReplicas) {
+			ctrl.LoggerFrom(ctx).Info("scaling down old deployment during HPA rolling update",
+				"oldDeployment", lastDeployment.Name,
+				"oldReplicas", lastDeployReplicas,
+				"currentDeployment", currentDeployment.Name,
+				"currentReadyReplicas", currentDeployment.Status.ReadyReplicas)
+			return scaleAction{deploy: lastDeployment, replicaChange: -lastDeployReplicas}
+		}
+
+		ctrl.LoggerFrom(ctx).V(1).Info("waiting for current deployment to have enough ready replicas",
+			"currentDeployment", currentDeployment.Name,
+			"currentReadyReplicas", currentDeployment.Status.ReadyReplicas,
+			"requiredReplicas", lastDeployReplicas)
 	}
 
 	return noScaleAction

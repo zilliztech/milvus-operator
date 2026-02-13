@@ -1048,7 +1048,7 @@ func TestHPASpecNeedsUpdate_MetricsAndBehavior(t *testing.T) {
 	})
 }
 
-func TestPlanScaleForHPA_NoHPASpec_LegacyMode(t *testing.T) {
+func TestPlanScaleForExternalHPA_LegacyMode(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.checkMocks()
 	ctx := env.ctx
@@ -1061,18 +1061,66 @@ func TestPlanScaleForHPA_NoHPASpec_LegacyMode(t *testing.T) {
 
 	util := NewDeployControllerBizUtil(QueryNode, env.Reconciler.Client, nil)
 
-	t.Run("legacy mode - defaults minReplicas to 1", func(t *testing.T) {
+	t.Run("legacy mode - both at 0, no action", func(t *testing.T) {
 		currentDeploy := &appsv1.Deployment{}
 		currentDeploy.Spec.Replicas = int32Ptr(0)
 
 		lastDeploy := &appsv1.Deployment{}
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 
-		action := util.planScaleForHPA(ctx, *mc, currentDeploy, lastDeploy)
+		action := util.planScaleForExternalHPA(ctx, *mc, currentDeploy, lastDeploy)
 
-		// Should bootstrap to default minReplicas=1
+		// External HPA: no bootstrapping, defers to external HPA
+		assert.Equal(t, noScaleAction, action)
+	})
+
+	t.Run("legacy mode - bootstrap current to match last", func(t *testing.T) {
+		currentDeploy := &appsv1.Deployment{}
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+
+		lastDeploy := &appsv1.Deployment{}
+		lastDeploy.Spec.Replicas = int32Ptr(5)
+
+		action := util.planScaleForExternalHPA(ctx, *mc, currentDeploy, lastDeploy)
+
 		assert.Equal(t, currentDeploy, action.deploy)
-		assert.Equal(t, 1, action.replicaChange)
+		assert.Equal(t, 5, action.replicaChange)
+	})
+
+	t.Run("legacy mode - rolling, current ready, scale down last all at once", func(t *testing.T) {
+		v1beta1.Labels().SetComponentRolling(mc, QueryNode.Name, true)
+
+		currentDeploy := &appsv1.Deployment{}
+		currentDeploy.Spec.Replicas = int32Ptr(5)
+		currentDeploy.Status.ReadyReplicas = 5
+
+		lastDeploy := &appsv1.Deployment{}
+		lastDeploy.Spec.Replicas = int32Ptr(5)
+
+		action := util.planScaleForExternalHPA(ctx, *mc, currentDeploy, lastDeploy)
+
+		// Should scale down all at once (original behavior)
+		assert.Equal(t, lastDeploy, action.deploy)
+		assert.Equal(t, -5, action.replicaChange)
+
+		v1beta1.Labels().SetComponentRolling(mc, QueryNode.Name, false)
+	})
+
+	t.Run("legacy mode - rolling, current not ready, wait", func(t *testing.T) {
+		v1beta1.Labels().SetComponentRolling(mc, QueryNode.Name, true)
+
+		currentDeploy := &appsv1.Deployment{}
+		currentDeploy.Spec.Replicas = int32Ptr(5)
+		currentDeploy.Status.ReadyReplicas = 3
+
+		lastDeploy := &appsv1.Deployment{}
+		lastDeploy.Spec.Replicas = int32Ptr(5)
+
+		action := util.planScaleForExternalHPA(ctx, *mc, currentDeploy, lastDeploy)
+
+		assert.Equal(t, noScaleAction, action)
+
+		v1beta1.Labels().SetComponentRolling(mc, QueryNode.Name, false)
 	})
 }
 
