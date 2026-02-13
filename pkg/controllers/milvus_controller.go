@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -36,6 +37,7 @@ import (
 
 	milvusv1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/config"
+	external "github.com/zilliztech/milvus-operator/pkg/external"
 )
 
 const (
@@ -231,6 +233,27 @@ func (r *MilvusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: config.MaxConcurrentReconcile,
 		})
+
+	external.SecretReader = func(ns, name, key string) ([]byte, error) {
+		if ns == "" || name == "" || key == "" {
+			return nil, fmt.Errorf("secret ref incomplete (ns=%q name=%q key=%q)", ns, name, key)
+		}
+		var s corev1.Secret
+		// Using a non-cancelled context at setup time is fine; reads happen later during reconcile.
+		if err := mgr.GetClient().Get(context.TODO(), types.NamespacedName{
+			Namespace: ns, Name: name,
+		}, &s); err != nil {
+			return nil, fmt.Errorf("get secret %s/%s: %w", ns, name, err)
+		}
+		b, ok := s.Data[key]
+		if !ok {
+			return nil, fmt.Errorf("secret %s/%s missing key %q", ns, name, key)
+		}
+		if len(b) == 0 {
+			return nil, fmt.Errorf("secret %s/%s key %q is empty", ns, name, key)
+		}
+		return b, nil
+	}
 
 	/* if config.IsDebug() {
 		builder.WithEventFilter(DebugPredicate())
