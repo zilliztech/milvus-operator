@@ -278,6 +278,29 @@ type MilvusComponents struct {
 	Cdc *MilvusCdc `json:"cdc,omitempty"`
 }
 
+// HPASpec defines the HPA configuration for a component
+type HPASpec struct {
+	// MinReplicas is the minimum number of replicas (default: 1)
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Optional
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+
+	// MaxReplicas is the maximum number of replicas
+	// +kubebuilder:validation:Minimum=1
+	MaxReplicas int32 `json:"maxReplicas"`
+
+	// Metrics contains the specifications for scaling metrics
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Metrics []Values `json:"metrics,omitempty"`
+
+	// Behavior configures the scaling behavior
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +nullable
+	Behavior Values `json:"behavior,omitempty"`
+}
+
 type Component struct {
 	ComponentSpec `json:",inline"`
 
@@ -285,6 +308,10 @@ type Component struct {
 	// +kubebuilder:validation:Minimum=-1
 	// when replicas is -1, it means the replicas should be managed by HPA
 	Replicas *int32 `json:"replicas,omitempty"`
+
+	// HPA defines the Horizontal Pod Autoscaler configuration
+	// +kubebuilder:validation:Optional
+	HPA *HPASpec `json:"hpa,omitempty"`
 
 	// SideCars is same as []corev1.Container, we use a Values here to avoid the CRD become too large
 	// +kubebuilder:validation:Optional
