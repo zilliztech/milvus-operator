@@ -210,13 +210,17 @@ func updateUserDefinedVolumes(template *corev1.PodTemplateSpec, updater deployme
 	}
 	builtInMq := updater.GetMilvus().Spec.Dep.GetMilvusBuiltInMQ()
 
-	if builtInMq != nil && builtInMq.Persistence.Enabled {
-		rocketMqPvcName := getPVCNameByInstName(updater.GetIntanceName())
-		if len(builtInMq.Persistence.PersistentVolumeClaim.ExistingClaim) > 0 {
-			rocketMqPvcName = builtInMq.Persistence.PersistentVolumeClaim.ExistingClaim
+	if builtInMq != nil {
+		if builtInMq.Persistence.Enabled {
+			rocketMqPvcName := getPVCNameByInstName(updater.GetIntanceName())
+			if len(builtInMq.Persistence.PersistentVolumeClaim.ExistingClaim) > 0 {
+				rocketMqPvcName = builtInMq.Persistence.PersistentVolumeClaim.ExistingClaim
+			}
+			userDefinedVolumes = append(userDefinedVolumes, persisentDataVolumeByName(rocketMqPvcName))
+		} else {
+			userDefinedVolumes = append(userDefinedVolumes, emptyDirDataVolume())
 		}
-		userDefinedVolumes = append(userDefinedVolumes, persisentDataVolumeByName(rocketMqPvcName))
-	} else {
+	} else if updater.GetMilvus().Spec.Com.RunAsNonRoot {
 		userDefinedVolumes = append(userDefinedVolumes, emptyDirDataVolume())
 	}
 
@@ -328,7 +332,10 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 
 func getUserDefinedVolumeMounts(updater deploymentUpdater) []corev1.VolumeMount {
 	ret := updater.GetMergedComponentSpec().VolumeMounts
-	ret = append(ret, dataVolumeMount())
+	builtInMq := updater.GetMilvus().Spec.Dep.GetMilvusBuiltInMQ()
+	if builtInMq != nil || updater.GetMilvus().Spec.Com.RunAsNonRoot {
+		ret = append(ret, dataVolumeMount())
+	}
 	return ret
 }
 
