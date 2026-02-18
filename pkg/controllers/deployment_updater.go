@@ -10,6 +10,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -99,8 +100,10 @@ func updatePodTemplate(
 
 	if updater.GetMilvus().Spec.Com.RunAsNonRoot {
 		template.Spec.SecurityContext = &corev1.PodSecurityContext{
-			RunAsNonRoot: &updater.GetMilvus().Spec.Com.RunAsNonRoot,
-			RunAsUser:    int64Ptr(1000),
+			RunAsNonRoot:        &updater.GetMilvus().Spec.Com.RunAsNonRoot,
+			RunAsUser:           int64Ptr(1000),
+			FSGroup:             int64Ptr(1000),
+			FSGroupChangePolicy: ptr.To(corev1.FSGroupChangeOnRootMismatch),
 		}
 	}
 
