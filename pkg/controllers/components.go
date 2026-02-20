@@ -538,7 +538,8 @@ func GetDefaultReadinessProbe() *corev1.Probe {
 		SuccessThreshold: 1,
 	}
 }
-func (c MilvusComponent) GetDeploymentStrategy(configs map[string]interface{}) appsv1.DeploymentStrategy {
+func (c MilvusComponent) GetDeploymentStrategy(ms *v1beta1.MilvusSpec) appsv1.DeploymentStrategy {
+	configs := ms.Conf.Data
 	var useRollingUpdate bool
 	switch {
 	case c.IsCoord() && c.Name != MixCoordName:
@@ -559,12 +560,21 @@ func (c MilvusComponent) GetDeploymentStrategy(configs map[string]interface{}) a
 	}
 
 	if useRollingUpdate {
+		rollingUpdate := &appsv1.RollingUpdateDeployment{
+			MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 0},
+			MaxSurge:       &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
+		}
+		if spec := c.GetComponentSpec(*ms); spec.RollingUpdate != nil {
+			if spec.RollingUpdate.MaxUnavailable != nil {
+				rollingUpdate.MaxUnavailable = spec.RollingUpdate.MaxUnavailable
+			}
+			if spec.RollingUpdate.MaxSurge != nil {
+				rollingUpdate.MaxSurge = spec.RollingUpdate.MaxSurge
+			}
+		}
 		return appsv1.DeploymentStrategy{
-			Type: appsv1.RollingUpdateDeploymentStrategyType,
-			RollingUpdate: &appsv1.RollingUpdateDeployment{
-				MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 0},
-				MaxSurge:       &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
-			},
+			Type:          appsv1.RollingUpdateDeploymentStrategyType,
+			RollingUpdate: rollingUpdate,
 		}
 	}
 	return appsv1.DeploymentStrategy{
@@ -695,5 +705,13 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 		dst.SecurityContext = src.SecurityContext
 	}
 
+	if src.RollingUpdate != nil {
+		if src.RollingUpdate.MaxSurge != nil {
+			dst.RollingUpdate.MaxSurge = src.RollingUpdate.MaxSurge
+		}
+		if src.RollingUpdate.MaxUnavailable != nil {
+			dst.RollingUpdate.MaxUnavailable = src.RollingUpdate.MaxUnavailable
+		}
+	}
 	return dst
 }

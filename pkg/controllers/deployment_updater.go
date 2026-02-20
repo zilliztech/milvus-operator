@@ -478,7 +478,7 @@ func (m milvusDeploymentUpdater) GetDeploymentStrategy() appsv1.DeploymentStrate
 			},
 		}
 	}
-	return m.component.GetDeploymentStrategy(m.Spec.Conf.Data)
+	return m.component.GetDeploymentStrategy(&m.Spec)
 }
 
 func GetDeploymentStrategy(milvus *v1beta1.Milvus, component MilvusComponent) appsv1.DeploymentStrategy {
@@ -493,7 +493,7 @@ func GetDeploymentStrategy(milvus *v1beta1.Milvus, component MilvusComponent) ap
 			},
 		}
 	}
-	return component.GetDeploymentStrategy(milvus.Spec.Conf.Data)
+	return component.GetDeploymentStrategy(&milvus.Spec)
 }
 
 func (m milvusDeploymentUpdater) GetConfCheckSum() string {
