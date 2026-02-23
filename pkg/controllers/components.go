@@ -706,6 +706,9 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 	}
 
 	if src.RollingUpdate != nil {
+		if dst.RollingUpdate == nil {
+			dst.RollingUpdate = &appsv1.RollingUpdateDeployment{}
+		}
 		if src.RollingUpdate.MaxSurge != nil {
 			dst.RollingUpdate.MaxSurge = src.RollingUpdate.MaxSurge
 		}
