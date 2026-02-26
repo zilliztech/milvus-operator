@@ -431,23 +431,31 @@ func (r *Milvus) defaultEtcd() {
 }
 
 // make sure r.Spec.Dep.$(dependency).InCluster not nil
+// This function merges default values with user-provided values on every CR create/update.
+// New default fields are automatically added, while existing user values are preserved.
 func (r *Milvus) defaultValuesByDependency(dependency values.DependencyKind) {
 	if r.isLegacy() {
 		r.setDefaultValueMerged()
-	}
-	if r.defaultValuesMerged() {
 		return
 	}
+
 	inClusterPtr := reflect.ValueOf(r.Spec.Dep).FieldByName(string(dependency)).
 		FieldByName("InCluster")
 	chartVersion := inClusterPtr.Interface().(*InClusterConfig).ChartVersion
 
 	valuesPtr := inClusterPtr.Elem().FieldByName("Values").Addr().Interface().(*Values)
+
+	// Load default values as base
 	valueData := util.DeepCopyValues(
 		values.GetDefaultValuesProvider().
 			GetDefaultValues(dependency, chartVersion))
 
+	// User's spec values override defaults
 	util.MergeValues(valueData, valuesPtr.Data)
+
+	// Apply field migrations for breaking changes
+	migrateDepFields(valueData, dependency)
+
 	valuesPtr.Data = valueData
 }
 
@@ -467,6 +475,12 @@ func (r *Milvus) setDefaultValueMerged() {
 	r.Annotations[DependencyValuesMergedAnnotation] = TrueStr
 }
 
+// Deprecated: defaultValuesMerged is no longer used.
+// The DependencyValuesMergedAnnotation no longer controls merge behavior.
+// Default values are now merged on every CR create/update.
+// See docs/design/dependency-values-reset-reuse.md for details.
+//
+//nolint:unused
 func (r *Milvus) defaultValuesMerged() bool {
 	return r.Annotations[DependencyValuesMergedAnnotation] == TrueStr
 }

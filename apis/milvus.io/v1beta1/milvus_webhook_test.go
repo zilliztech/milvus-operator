@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/zilliztech/milvus-operator/pkg/config"
+	"github.com/zilliztech/milvus-operator/pkg/helm/values"
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
@@ -390,5 +391,72 @@ func TestMilvus_validateCommon(t *testing.T) {
 		}
 		err := mc.validateCommon()
 		assert.Error(t, err)
+	})
+}
+
+func TestDefaultValuesByDependency(t *testing.T) {
+	t.Run("legacy CR skips merge logic", func(t *testing.T) {
+		mc := &Milvus{}
+		mc.Name = "test-legacy"
+		mc.Namespace = "default"
+		mc.Labels = map[string]string{OperatorVersionLabel: LegacyVersion}
+		mc.Annotations = make(map[string]string)
+		mc.Spec.Dep.Etcd.InCluster = &InClusterConfig{
+			Values: Values{Data: map[string]interface{}{"replicaCount": int64(5)}},
+		}
+
+		mc.defaultValuesByDependency(values.DependencyKindEtcd)
+
+		// user value preserved
+		assert.Equal(t, int64(5), mc.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"])
+		// no defaults merged for legacy CR
+		_, hasImage := mc.Spec.Dep.Etcd.InCluster.Values.Data["image"]
+		assert.False(t, hasImage, "legacy CR should not have defaults merged")
+		// annotation set
+		assert.Equal(t, TrueStr, mc.Annotations[DependencyValuesMergedAnnotation])
+	})
+
+	t.Run("non-legacy CR merges defaults and preserves user values", func(t *testing.T) {
+		mc := &Milvus{}
+		mc.Name = "test-non-legacy"
+		mc.Namespace = "default"
+		mc.Labels = map[string]string{OperatorVersionLabel: "v1.0.0"}
+		mc.Annotations = make(map[string]string)
+		mc.Spec.Dep.Etcd.InCluster = &InClusterConfig{
+			Values: Values{Data: map[string]interface{}{"replicaCount": int64(5)}},
+		}
+
+		mc.defaultValuesByDependency(values.DependencyKindEtcd)
+
+		// user value preserved after merge
+		assert.Equal(t, int64(5), mc.Spec.Dep.Etcd.InCluster.Values.Data["replicaCount"])
+		// values data should not be nil
+		assert.NotNil(t, mc.Spec.Dep.Etcd.InCluster.Values.Data)
+	})
+
+	t.Run("migration applies after merge", func(t *testing.T) {
+		mc := &Milvus{}
+		mc.Name = "test-migration"
+		mc.Namespace = "default"
+		mc.Labels = map[string]string{OperatorVersionLabel: "v1.0.0"}
+		mc.Annotations = make(map[string]string)
+		// user has old field auth.rbac.enabled
+		mc.Spec.Dep.Etcd.InCluster = &InClusterConfig{
+			Values: Values{Data: map[string]interface{}{
+				"auth": map[string]interface{}{
+					"rbac": map[string]interface{}{
+						"enabled": true,
+					},
+				},
+			}},
+		}
+
+		mc.defaultValuesByDependency(values.DependencyKindEtcd)
+
+		// old field preserved
+		rbac := mc.Spec.Dep.Etcd.InCluster.Values.Data["auth"].(map[string]interface{})["rbac"].(map[string]interface{})
+		assert.Equal(t, true, rbac["enabled"])
+		// new field migrated from old
+		assert.Equal(t, true, rbac["create"])
 	})
 }
