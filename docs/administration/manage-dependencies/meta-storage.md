@@ -28,6 +28,31 @@ Fields used to configure an external etcd service include:
 # Internal etcd
 By default, Milvus Operator deploy an in-cluster etcd for milvus. Usually we need to configure the etcd's resources and replicas.
 
+## Etcd Chart Version
+
+The operator supports two etcd chart versions. Use `spec.dependencies.etcd.inCluster.chartVersion` to specify:
+
+| Value | Chart Version | Notes |
+|-------|---------------|-------|
+| `etcd-v6` | 6.3.3 | Legacy version |
+| `etcd-v8` | 8.12.0 | Default for new deployments |
+
+**Breaking change from v6 to v8:** The RBAC config field changed from `auth.rbac.enabled` to `auth.rbac.create`, and v8 enables RBAC by default.
+
+If you previously disabled RBAC in v6, upgrading to v8 requires:
+
+```yaml
+spec:
+  dependencies:
+    etcd:
+      inCluster:
+        chartVersion: "etcd-v8"
+        values:
+          auth:
+            rbac:
+              create: false  # New field name (replaces 'enabled')
+```
+
 ## Example
 
 ```yaml
