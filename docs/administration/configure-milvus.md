@@ -4,6 +4,40 @@ This document describes how to configure Milvus components with Milvus Operator.
 
 Before you start, you should have a basic understanding of Custom Resources (CR) in Kubernetes. If not, please refer to the [Kubernetes CRD doc](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).
 
+## Milvus Version Recognition
+
+Starting from Milvus 2.6, there are some component changes:
+- **StreamingNode** is introduced as a new component
+- **IndexNode** is removed
+- Multiple coordinators are merged into a single **MixCoord**
+
+The Milvus Operator automatically recognizes the Milvus version from `spec.components.image` tag and manages component changes accordingly (e.g., during upgrades from 2.5 to 2.6).
+
+The image tag is expected to follow [Semantic Versioning (semver)](https://semver.org/spec/v2.0.0.html) specification. For example:
+
+```yaml
+spec:
+  components:
+    image: milvusdb/milvus:v2.6.11
+```
+
+The operator will parse the tag and recognize the version as `2.6.11`.
+
+### Using Custom or Private Images
+
+If you are using a custom or private image where the tag does not follow semver convention (e.g., `my-registry/milvus:latest` or `my-registry/milvus:custom-build`), the operator cannot automatically detect the version. In this case, you should explicitly specify the version using `spec.components.version`:
+
+```yaml
+spec:
+  components:
+    image: my-registry/milvus:custom-build
+    version: v2.6.11
+```
+
+The `version` field also follows semver rules (e.g., `v2.6.11`, `2.6.11`).
+
+> **Tip**: You may use [semver-check](https://jubianchi.github.io/semver-check/#/) to verify whether your version string is semver-compliant.
+
 ## The milvus.yaml
 
 Usually, a Milvus component reads its configuration through a configuration file, which is often referred to as `milvus.yaml`.
