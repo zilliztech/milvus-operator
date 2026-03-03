@@ -15,6 +15,8 @@ type ChartVersion string
 const (
 	ChartVersionPulsarV2 ChartVersion = "pulsar-v2"
 	ChartVersionPulsarV3 ChartVersion = "pulsar-v3"
+	ChartVersionEtcdV6   ChartVersion = "etcd-v6"
+	ChartVersionEtcdV8   ChartVersion = "etcd-v8"
 )
 
 const (
@@ -26,6 +28,8 @@ const (
 
 	// Chart names & values sub-fields in milvus-helm
 	Etcd     = "etcd"
+	EtcdV6   = "etcdv6" // etcd chart 6.3.3 directory
+	EtcdV8   = "etcdv8" // etcd chart 8.12.0 directory
 	Minio    = "minio"
 	Pulsar   = "pulsar"
 	PulsarV3 = "pulsarv3"

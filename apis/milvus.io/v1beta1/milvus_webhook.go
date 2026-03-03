@@ -396,6 +396,15 @@ func (r *Milvus) defaultEtcd() {
 		if r.Spec.Dep.Etcd.InCluster.Values.Data == nil {
 			r.Spec.Dep.Etcd.InCluster.Values.Data = map[string]interface{}{}
 		}
+
+		// Set ChartVersion for new deployments only
+		// For existing deployments, leave empty - will be filled during reconciliation
+		if r.Spec.Dep.Etcd.InCluster.ChartVersion == "" {
+			if r.IsFirstTimeStarting() {
+				r.Spec.Dep.Etcd.InCluster.ChartVersion = values.ChartVersionEtcdV8
+			}
+		}
+
 		etcdReplicaCountNumber, etcdReplicaCountValid := util.GetNumberValue(r.Spec.Dep.Etcd.InCluster.Values.Data, "replicaCount")
 		var etcdReplicaCount int
 		if !etcdReplicaCountValid {
