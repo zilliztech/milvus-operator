@@ -25,6 +25,7 @@ import (
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/helm"
+	"github.com/zilliztech/milvus-operator/pkg/helm/values"
 )
 
 func TestLocalHelmReconciler_ReconcilePanic(t *testing.T) {
@@ -295,11 +296,12 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 	icc := new(v1beta1.InClusterConfig)
 
 	m.Spec.Dep.Etcd.InCluster = icc
+	m.Spec.Dep.Etcd.InCluster.ChartVersion = values.ChartVersionEtcdV8
 
 	// internal reconcile helm
 	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, request helm.ChartRequest, mc v1beta1.Milvus) error {
-			assert.Equal(t, request.Chart, helm.GetChartPathByName(Etcd))
+			assert.Equal(t, request.Chart, helm.GetChartPathByName(values.EtcdV8))
 			return nil
 		})
 	assert.NoError(t, r.ReconcileEtcd(ctx, m))
@@ -345,4 +347,71 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 		assert.NoError(t, r.ReconcileTei(ctx, m))
 		m.Spec.Dep.Tei.Enabled = false
 	})
+}
+
+func TestEnsureEtcdChartVersion(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	ctx := env.ctx
+	mockHelm := NewMockHelmReconciler(env.Ctrl)
+	r.helmReconciler = mockHelm
+
+	t.Run("external etcd skipped", func(t *testing.T) {
+		mc := v1beta1.Milvus{}
+		mc.Default()
+		mc.Spec.Dep.Etcd.External = true
+		assert.NoError(t, r.ensureEtcdChartVersion(ctx, &mc))
+	})
+
+	t.Run("nil InCluster error", func(t *testing.T) {
+		mc := v1beta1.Milvus{}
+		mc.Default()
+		mc.Spec.Dep.Etcd.InCluster = nil
+		err := r.ensureEtcdChartVersion(ctx, &mc)
+		assert.EqualError(t, err, "etcd inCluster config is required when etcd is not external")
+	})
+
+	t.Run("ChartVersion already set no error", func(t *testing.T) {
+		mc := v1beta1.Milvus{}
+		mc.Default()
+		mc.Spec.Dep.Etcd.InCluster.ChartVersion = values.ChartVersionEtcdV6
+		assert.NoError(t, r.ensureEtcdChartVersion(ctx, &mc))
+		assert.Equal(t, values.ChartVersionEtcdV6, mc.Spec.Dep.Etcd.InCluster.ChartVersion)
+	})
+
+	// Version detection tests
+	runDetectTest := func(name, chartVer string, expect values.ChartVersion, errContains string) {
+		t.Run(name, func(t *testing.T) {
+			mockHelmClient := helm.NewMockClient(env.Ctrl)
+			helm.SetDefaultClient(mockHelmClient)
+			mockHelm.EXPECT().NewHelmCfg(gomock.Any()).Return(&action.Configuration{})
+			mockHelmClient.EXPECT().ReleaseExist(gomock.Any(), "test-etcd").Return(chartVer != "", nil)
+			if chartVer != "" {
+				mockHelmClient.EXPECT().GetChartVersion(gomock.Any(), "test-etcd").Return(chartVer, nil)
+			}
+			if errContains == "" {
+				env.MockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+			}
+
+			mc := v1beta1.Milvus{}
+			mc.Default()
+			mc.Name = "test"
+			mc.Spec.Dep.Etcd.InCluster.ChartVersion = ""
+			err := r.ensureEtcdChartVersion(ctx, &mc)
+
+			if errContains != "" {
+				assert.ErrorContains(t, err, errContains)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, expect, mc.Spec.Dep.Etcd.InCluster.ChartVersion)
+			}
+		})
+	}
+
+	runDetectTest("not exist defaults v8", "", values.ChartVersionEtcdV8, "")
+	runDetectTest("detects v6", "6.3.3", values.ChartVersionEtcdV6, "")
+	runDetectTest("detects v8", "8.12.0", values.ChartVersionEtcdV8, "")
+	runDetectTest("unsupported version", "5.0.0", "", "unsupported")
+	runDetectTest("invalid semver", "invalid", "", "failed to parse")
 }

@@ -33,6 +33,7 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 
 	etcdStandaloneDefaultInClusterConfig := defaultInClusterConfig.DeepCopy()
 	etcdStandaloneDefaultInClusterConfig.Values.Data["replicaCount"] = int64(1)
+	etcdStandaloneDefaultInClusterConfig.ChartVersion = "etcd-v8"
 	minioStandAloneDefaultInClusterConfig := defaultInClusterConfig.DeepCopy()
 	minioStandAloneDefaultInClusterConfig.Values.Data["mode"] = "standalone"
 
@@ -103,6 +104,8 @@ func TestMilvus_Default_NotExternal(t *testing.T) {
 		"mc-etcd-1.mc-etcd-headless.default:2379",
 		"mc-etcd-2.mc-etcd-headless.default:2379",
 	}
+
+	clusterDefault.Dep.Etcd.InCluster.ChartVersion = "etcd-v8"
 	clusterDefault.Dep.Etcd.InCluster.Values.Data["replicaCount"] = int64(3)
 	delete(clusterDefault.Dep.Storage.InCluster.Values.Data, "mode")
 	clusterDefault.Com = MilvusComponents{
