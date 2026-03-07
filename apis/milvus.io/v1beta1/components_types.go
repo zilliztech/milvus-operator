@@ -2,6 +2,7 @@ package v1beta1
 
 import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -138,6 +139,11 @@ type ComponentSpec struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +nullable
 	SecurityContext Values `json:"securityContext,omitempty"`
+
+	// 쿠버네티스 표준 DeploymentStrategy를 그대로 사용
+	// +kubebuilder:validation:Optional
+	// +nullable
+	RollingUpdate *appsv1.RollingUpdateDeployment `json:"rollingUpdate,omitempty"`
 }
 
 // Probes is the actual struct for the Probes field in ComponentSpec

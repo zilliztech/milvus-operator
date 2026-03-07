@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -519,6 +520,14 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 	deployTemplate := new(appsv1.Deployment)
 	deployTemplate.Labels = map[string]string{
 		AppLabelComponent: DataNodeName,
+	}
+	// default rolling update strategy, make sure scale one by one when rolling
+	deployTemplate.Spec.Strategy = appsv1.DeploymentStrategy{
+		Type: appsv1.RollingUpdateDeploymentStrategyType,
+		RollingUpdate: &appsv1.RollingUpdateDeployment{
+			MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 0},
+			MaxSurge:       &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
+		},
 	}
 	t.Run("get deployment groupId failed", func(t *testing.T) {
 		mockCtrl.Finish()
