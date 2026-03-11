@@ -116,13 +116,17 @@ out/config/assets/templates:
 
 docker-prepare: build-release out/config/assets/templates
 	mkdir -p ./out/config/assets/charts/
-	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/etcd-8.12.0.tgz -O ./etcd.tgz
+	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/etcd-8.12.0.tgz -O ./etcdv8.tgz
+	wget https://charts.bitnami.com/bitnami/etcd-6.3.3.tgz -O ./etcdv6.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/minio-8.0.17.tgz -O ./minio.tgz
 	wget https://github.com/apache/pulsar-helm-chart/releases/download/pulsar-2.7.8/pulsar-2.7.8.tgz -O ./pulsar.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/pulsar-3.3.0.tgz -O ./pulsarv3.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/kafka-15.5.1.tgz -O ./kafka.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/tei-1.6.0.tgz -O ./tei.tgz
-	tar -xf ./etcd.tgz -C ./out/config/assets/charts/
+	tar -xf ./etcdv8.tgz -C ./out/config/assets/
+	mv ./out/config/assets/etcd ./out/config/assets/charts/etcdv8
+	tar -xf ./etcdv6.tgz -C ./out/config/assets/
+	mv ./out/config/assets/etcd ./out/config/assets/charts/etcdv6
 	tar -xf ./minio.tgz -C ./out/config/assets/charts/
 	tar -xf ./pulsarv3.tgz -C ./out/config/assets/
 	mv ./out/config/assets/pulsar ./out/config/assets/charts/pulsarv3

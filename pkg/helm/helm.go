@@ -126,6 +126,19 @@ func (d *LocalClient) Uninstall(cfg *action.Configuration, releaseName string) e
 	return nil
 }
 
+// GetChartVersion returns the chart version of a Helm release
+func (d *LocalClient) GetChartVersion(cfg *action.Configuration, releaseName string) (string, error) {
+	client := action.NewStatus(cfg)
+	rel, err := client.Run(releaseName)
+	if err != nil {
+		return "", err
+	}
+	if rel.Chart == nil || rel.Chart.Metadata == nil {
+		return "", errors.New("chart metadata not found in release")
+	}
+	return rel.Chart.Metadata.Version, nil
+}
+
 func GetChartPathByName(chart string) string {
 	return "config/assets/charts/" + chart
 }
@@ -134,10 +147,27 @@ func GetChartRequest(mc v1beta1.Milvus, dep values.DependencyKind, chart string)
 	inCluster := reflect.ValueOf(mc.Spec.Dep).FieldByName(string(dep)).
 		FieldByName("InCluster").Interface().(*v1beta1.InClusterConfig)
 	chartKind := chart
-	if inCluster.ChartVersion == values.ChartVersionPulsarV3 {
-		chart = values.PulsarV3
-		chartKind = values.Pulsar
+
+	// Handle Pulsar versions
+	if dep == values.DependencyKindPulsar {
+		if inCluster.ChartVersion == values.ChartVersionPulsarV3 {
+			chart = values.PulsarV3
+			chartKind = values.Pulsar
+		}
 	}
+
+	// Handle Etcd versions
+	if dep == values.DependencyKindEtcd {
+		switch inCluster.ChartVersion {
+		case values.ChartVersionEtcdV6:
+			chart = values.EtcdV6
+		case values.ChartVersionEtcdV8:
+			chart = values.EtcdV8
+		default:
+			chart = values.EtcdV8 // Default to v8 for new deployments
+		}
+	}
+
 	return ChartRequest{
 		ReleaseName: mc.Name + "-" + chartKind,
 		Namespace:   mc.Namespace,

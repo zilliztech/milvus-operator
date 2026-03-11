@@ -438,6 +438,11 @@ func (c *DeployControllerBizUtilImpl) planScaleForExternalHPA(ctx context.Contex
 	currentDeployReplicas := getDeployReplicas(currentDeployment)
 	lastDeployReplicas := getDeployReplicas(lastDeployment)
 
+	// On initial bootstrap current and last deployment both have 0 replicas.
+	if currentDeployReplicas == 0 && lastDeployReplicas == 0 {
+		return scaleAction{deploy: currentDeployment, replicaChange: 1}
+	}
+
 	// Bootstrap current deployment to set it to the last deployment's replicas.
 	// should keep trying, if not reach the target number.
 	if int32(currentDeployReplicas) < int32(lastDeployReplicas) {

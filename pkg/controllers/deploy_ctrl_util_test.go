@@ -659,6 +659,22 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("hpa bootstrap from 0 replicas scales current to 1", func(t *testing.T) {
+		mockCtrl.Finish()
+		mc := *milvus.DeepCopy()
+		mc.Spec.Com.DataNode.Replicas = int32Ptr(-1)
+		currentDeploy := deployTemplate.DeepCopy()
+		v1beta1.Labels().SetGroupIDStr(DataNodeName, currentDeploy.Labels, "1")
+		currentDeploy.Spec.Replicas = int32Ptr(0)
+		lastDeploy := deployTemplate.DeepCopy()
+		lastDeploy.Spec.Replicas = int32Ptr(0)
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(ErrRequeue)
+		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
+		assert.True(t, errors.Is(err, ErrRequeue))
+		assert.Equal(t, int32(1), *currentDeploy.Spec.Replicas)
+	})
+
 	v1beta1.Labels().SetComponentRolling(&milvus, DataNodeName, true)
 	t.Run("last deploy scale in", func(t *testing.T) {
 		mockCtrl.Finish()
