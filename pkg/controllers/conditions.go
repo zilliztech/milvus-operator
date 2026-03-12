@@ -48,17 +48,9 @@ var (
 		return func() v1beta1.MilvusCondition { return GetKafkaCondition(ctx, logger, p, cfg) }
 	}
 	wrapEtcdConditionGetter = func(ctx context.Context, m *v1beta1.Milvus, endpoints []string) func() v1beta1.MilvusCondition {
-		sslEnabled, _ := util.GetBoolValue(m.Spec.Conf.Data, "etcd", "ssl", "enabled")
+		authCfg, sslEnabled := GetEtcdAuthConfigFromMilvus(m)
 		if sslEnabled {
 			return external.NewTCPDialConditionGetter(v1beta1.EtcdReady, endpoints).GetCondition
-		}
-		authEnabled, _ := util.GetBoolValue(m.Spec.Conf.Data, "etcd", "auth", "enabled")
-		userName, _ := util.GetStringValue(m.Spec.Conf.Data, "etcd", "auth", "userName")
-		password, _ := util.GetStringValue(m.Spec.Conf.Data, "etcd", "auth", "password")
-		authCfg := EtcdAuthConfig{
-			Enabled:  authEnabled,
-			Username: userName,
-			Password: password,
 		}
 		return func() v1beta1.MilvusCondition { return GetEtcdCondition(ctx, authCfg, endpoints) }
 	}
@@ -216,6 +208,17 @@ type EtcdAuthConfig struct {
 	Enabled  bool
 	Username string
 	Password string
+}
+
+// GetEtcdAuthConfigFromMilvus extracts etcd auth configuration from Milvus CR
+// Returns auth config and whether SSL is enabled
+func GetEtcdAuthConfigFromMilvus(m *v1beta1.Milvus) (authCfg EtcdAuthConfig, sslEnabled bool) {
+	conf := m.Spec.Conf.Data
+	sslEnabled, _ = util.GetBoolValue(conf, "etcd", "ssl", "enabled")
+	authCfg.Enabled, _ = util.GetBoolValue(conf, "etcd", "auth", "enabled")
+	authCfg.Username, _ = util.GetStringValue(conf, "etcd", "auth", "userName")
+	authCfg.Password, _ = util.GetStringValue(conf, "etcd", "auth", "password")
+	return
 }
 
 func GetEndpointsHealth(ctx context.Context, authConfig EtcdAuthConfig, endpoints []string) map[string]EtcdEndPointHealth {
