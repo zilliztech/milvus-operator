@@ -1544,3 +1544,137 @@ func TestDeployControllerBizUtilImpl_RenewDeployAnnotation(t *testing.T) {
 	})
 
 }
+
+func TestDeployControllerBizUtilImpl_getMilvusServiceEndpoint(t *testing.T) {
+	bizUtil := &DeployControllerBizUtilImpl{}
+
+	t.Run("standard deployment name", func(t *testing.T) {
+		deploy := &appsv1.Deployment{}
+		deploy.Name = "my-milvus-milvus-querynode"
+		deploy.Namespace = "default"
+		deploy.Labels = map[string]string{AppLabelInstance: "my-milvus"}
+		endpoint := bizUtil.getMilvusServiceEndpoint(deploy)
+		assert.Equal(t, "my-milvus-milvus.default.svc:19530", endpoint)
+	})
+
+	t.Run("simple instance name", func(t *testing.T) {
+		deploy := &appsv1.Deployment{}
+		deploy.Name = "test-milvus-proxy"
+		deploy.Namespace = "milvus-ns"
+		deploy.Labels = map[string]string{AppLabelInstance: "test"}
+		endpoint := bizUtil.getMilvusServiceEndpoint(deploy)
+		assert.Equal(t, "test-milvus.milvus-ns.svc:19530", endpoint)
+	})
+
+	t.Run("instance name with hyphens", func(t *testing.T) {
+		deploy := &appsv1.Deployment{}
+		deploy.Name = "my-app-milvus-standalone"
+		deploy.Namespace = "production"
+		deploy.Labels = map[string]string{AppLabelInstance: "my-app"}
+		endpoint := bizUtil.getMilvusServiceEndpoint(deploy)
+		assert.Equal(t, "my-app-milvus.production.svc:19530", endpoint)
+	})
+}
+
+func TestDeployControllerBizUtilImpl_syncPodsDeletionCost(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockcli := NewMockK8sClient(mockCtrl)
+	mockutil := NewMockK8sUtil(mockCtrl)
+	bizUtil := NewDeployControllerBizUtil(QueryNode, mockcli, mockutil)
+
+	ctx := context.Background()
+
+	t.Run("pod in recycle without annotation - should add", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
+		}
+		recycleSet := map[string]struct{}{"pod-1": {}}
+
+		mockcli.EXPECT().Update(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			pod := obj.(*corev1.Pod)
+			assert.Equal(t, RecyclePodDeletionCost, pod.Annotations[PodDeletionCostAnnotation])
+			return nil
+		})
+
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.NoError(t, err)
+	})
+
+	t.Run("pod not in recycle with annotation - should remove", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "pod-1",
+					Annotations: map[string]string{PodDeletionCostAnnotation: RecyclePodDeletionCost},
+				},
+			},
+		}
+		recycleSet := map[string]struct{}{}
+
+		mockcli.EXPECT().Update(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			pod := obj.(*corev1.Pod)
+			_, exists := pod.Annotations[PodDeletionCostAnnotation]
+			assert.False(t, exists)
+			return nil
+		})
+
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.NoError(t, err)
+	})
+
+	t.Run("pod in recycle with annotation - should skip", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "pod-1",
+					Annotations: map[string]string{PodDeletionCostAnnotation: RecyclePodDeletionCost},
+				},
+			},
+		}
+		recycleSet := map[string]struct{}{"pod-1": {}}
+
+		// No Update call expected
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.NoError(t, err)
+	})
+
+	t.Run("pod not in recycle without annotation - should skip", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
+		}
+		recycleSet := map[string]struct{}{}
+
+		// No Update call expected
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.NoError(t, err)
+	})
+
+	t.Run("pod update failure - should return error", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
+		}
+		recycleSet := map[string]struct{}{"pod-1": {}}
+
+		mockcli.EXPECT().Update(ctx, gomock.Any()).Return(errMock)
+
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.Error(t, err)
+	})
+
+	t.Run("multiple pods mixed scenarios", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}}, // in recycle, no annotation -> add
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-2", Annotations: map[string]string{PodDeletionCostAnnotation: RecyclePodDeletionCost}}}, // not in recycle, has annotation -> remove
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-3", Annotations: map[string]string{PodDeletionCostAnnotation: RecyclePodDeletionCost}}}, // in recycle, has annotation -> skip
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-4"}}, // not in recycle, no annotation -> skip
+		}
+		recycleSet := map[string]struct{}{"pod-1": {}, "pod-3": {}}
+
+		// Expect 2 updates: pod-1 (add) and pod-2 (remove)
+		mockcli.EXPECT().Update(ctx, gomock.Any()).Times(2).Return(nil)
+
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.NoError(t, err)
+	})
+}

@@ -517,8 +517,90 @@ func (c *DeployControllerBizUtilImpl) doScaleAction(ctx context.Context, action 
 	if action.replicaChange == 0 {
 		return nil
 	}
+
+	// If scaling down, try to prioritize recycling pods
+	if action.replicaChange < 0 {
+		if err := c.markRecyclePodsWithLowDeletionCost(ctx, action.deploy); err != nil {
+			return errors.Wrap(err, "mark recycle pods with low deletion cost")
+		}
+	}
+
 	action.deploy.Spec.Replicas = int32Ptr(getDeployReplicas(action.deploy) + action.replicaChange)
 	return c.UpdateAndRequeue(ctx, action.deploy)
+}
+
+// markRecyclePodsWithLowDeletionCost syncs pod deletion cost annotations based on __recycle_resource_group state
+func (c *DeployControllerBizUtilImpl) markRecyclePodsWithLowDeletionCost(ctx context.Context, deploy *appsv1.Deployment) error {
+	client, err := NewMilvusClient(ctx, c.getMilvusServiceEndpoint(deploy))
+	if err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "failed to create milvus client")
+		return errors.Wrap(err, "create milvus client")
+	}
+	defer client.Close()
+
+	rgInfo, err := client.DescribeResourceGroup(ctx, RecycleResourceGroupName)
+	if err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "failed to describe recycle resource group")
+		return errors.Wrap(err, "describe recycle resource group")
+	}
+	ctrl.LoggerFrom(ctx).Info("describe recycle resource group",
+		"name", rgInfo.Name,
+		"numAvailableNode", rgInfo.NumAvailableNode,
+		"nodeCount", len(rgInfo.Nodes))
+
+	pods, err := c.ListDeployPods(ctx, deploy, c.component)
+	if err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "failed to list deploy pods")
+		return errors.Wrap(err, "list deploy pods")
+	}
+	ctrl.LoggerFrom(ctx).Info("list deploy pods", "podCount", len(pods))
+
+	// Build recycle hostname set
+	recycleSet := make(map[string]struct{})
+	for _, node := range rgInfo.Nodes {
+		if node.Hostname != "" {
+			recycleSet[node.Hostname] = struct{}{}
+		}
+	}
+
+	return c.syncPodsDeletionCost(ctx, pods, recycleSet)
+}
+
+// syncPodsDeletionCost syncs pod deletion cost annotations based on recycle set
+func (c *DeployControllerBizUtilImpl) syncPodsDeletionCost(ctx context.Context, pods []corev1.Pod, recycleSet map[string]struct{}) error {
+	logger := ctrl.LoggerFrom(ctx)
+	logger.Info("syncing pods deletion cost", "recycleSet", recycleSet)
+	for i := range pods {
+		pod := &pods[i]
+		_, inRecycle := recycleSet[pod.Name]
+		logger.Info("pod", "name", pod.Name, "inRecycle", inRecycle)
+		_, hasAnnotation := pod.Annotations[PodDeletionCostAnnotation]
+
+		switch {
+		case inRecycle && !hasAnnotation: // need to add
+			if pod.Annotations == nil {
+				pod.Annotations = make(map[string]string)
+			}
+			pod.Annotations[PodDeletionCostAnnotation] = RecyclePodDeletionCost
+		case !inRecycle && hasAnnotation: // need to remove
+			delete(pod.Annotations, PodDeletionCostAnnotation)
+		default:
+			continue
+		}
+
+		if err := c.cli.Update(ctx, pod); err != nil {
+			return errors.Wrapf(err, "update pod %s", pod.Name)
+		}
+		logger.Info("synced pod deletion cost", "pod", pod.Name, "inRecycle", inRecycle)
+	}
+	return nil
+}
+
+// getMilvusServiceEndpoint returns the Milvus service endpoint for a deployment
+func (c *DeployControllerBizUtilImpl) getMilvusServiceEndpoint(deploy *appsv1.Deployment) string {
+	instanceName := deploy.Labels[AppLabelInstance]
+	serviceName := fmt.Sprintf("%s-milvus", instanceName)
+	return fmt.Sprintf("%s.%s.svc:%d", serviceName, deploy.Namespace, MilvusPort)
 }
 
 func (c *DeployControllerBizUtilImpl) markDeployAsCurrent(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment) error {
