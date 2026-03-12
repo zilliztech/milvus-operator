@@ -42,7 +42,7 @@ func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater d
 		deployment.Spec.MinReadySeconds = 30
 	}
 	deployment.Spec.ProgressDeadlineSeconds = int32Ptr(oneMonthSeconds)
-	if !updater.GetMilvus().Spec.Com.EnableManualMode {
+	if !updater.GetMilvus().Spec.Com.EnableManualMode && !mergedComSpec.Paused {
 		updateDeploymentReplicas(deployment, updater)
 	}
 	return nil

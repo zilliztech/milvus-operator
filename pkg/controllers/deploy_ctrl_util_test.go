@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
@@ -1543,4 +1544,189 @@ func TestDeployControllerBizUtilImpl_RenewDeployAnnotation(t *testing.T) {
 		assert.True(t, renewed)
 	})
 
+}
+
+func TestDeployControllerBizUtilImpl_syncPodsDeletionCost(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockcli := NewMockK8sClient(mockCtrl)
+	mockutil := NewMockK8sUtil(mockCtrl)
+	bizUtil := NewDeployControllerBizUtil(QueryNode, mockcli, mockutil)
+
+	ctx := context.Background()
+
+	t.Run("pod in recycle without annotation - should add", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
+		}
+		recycleSet := map[string]struct{}{"pod-1": {}}
+
+		mockcli.EXPECT().Update(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			pod := obj.(*corev1.Pod)
+			assert.Equal(t, RecyclePodDeletionCost, pod.Annotations[PodDeletionCostAnnotation])
+			return nil
+		})
+
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.NoError(t, err)
+	})
+
+	t.Run("pod not in recycle with annotation - should remove", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "pod-1",
+					Annotations: map[string]string{PodDeletionCostAnnotation: RecyclePodDeletionCost},
+				},
+			},
+		}
+		recycleSet := map[string]struct{}{}
+
+		mockcli.EXPECT().Update(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			pod := obj.(*corev1.Pod)
+			_, exists := pod.Annotations[PodDeletionCostAnnotation]
+			assert.False(t, exists)
+			return nil
+		})
+
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.NoError(t, err)
+	})
+
+	t.Run("pod in recycle with annotation - should skip", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "pod-1",
+					Annotations: map[string]string{PodDeletionCostAnnotation: RecyclePodDeletionCost},
+				},
+			},
+		}
+		recycleSet := map[string]struct{}{"pod-1": {}}
+
+		// No Update call expected
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.NoError(t, err)
+	})
+
+	t.Run("pod not in recycle without annotation - should skip", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
+		}
+		recycleSet := map[string]struct{}{}
+
+		// No Update call expected
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.NoError(t, err)
+	})
+
+	t.Run("pod update failure - should return error", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
+		}
+		recycleSet := map[string]struct{}{"pod-1": {}}
+
+		mockcli.EXPECT().Update(ctx, gomock.Any()).Return(errMock)
+
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.Error(t, err)
+	})
+
+	t.Run("multiple pods mixed scenarios", func(t *testing.T) {
+		pods := []corev1.Pod{
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}}, // in recycle, no annotation -> add
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-2", Annotations: map[string]string{PodDeletionCostAnnotation: RecyclePodDeletionCost}}}, // not in recycle, has annotation -> remove
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-3", Annotations: map[string]string{PodDeletionCostAnnotation: RecyclePodDeletionCost}}}, // in recycle, has annotation -> skip
+			{ObjectMeta: metav1.ObjectMeta{Name: "pod-4"}}, // not in recycle, no annotation -> skip
+		}
+		recycleSet := map[string]struct{}{"pod-1": {}, "pod-3": {}}
+
+		// Expect 2 updates: pod-1 (add) and pod-2 (remove)
+		mockcli.EXPECT().Update(ctx, gomock.Any()).Times(2).Return(nil)
+
+		err := bizUtil.syncPodsDeletionCost(ctx, pods, recycleSet)
+		assert.NoError(t, err)
+	})
+}
+
+// TestDeployControllerBizUtilImpl_ScaleDeployments_QueryNodeScaleDown covers doScaleAction
+// when component is QueryNode and replicaChange < 0 (mark recycle pods then scale down).
+func TestDeployControllerBizUtilImpl_ScaleDeployments_QueryNodeScaleDown(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockcli := NewMockK8sClient(mockCtrl)
+	mockutil := NewMockK8sUtil(mockCtrl)
+	bizUtil := NewDeployControllerBizUtil(QueryNode, mockcli, mockutil)
+
+	ctx := context.Background()
+	milvus := v1beta1.Milvus{}
+	milvus.Namespace = "ns1"
+	milvus.Spec.Mode = v1beta1.MilvusModeCluster
+	milvus.Default()
+	milvus.Spec.Com.QueryNode.Replicas = int32Ptr(1)
+
+	deployTemplate := &appsv1.Deployment{}
+	deployTemplate.Labels = map[string]string{
+		AppLabelComponent: QueryNodeName,
+	}
+	v1beta1.Labels().SetGroupIDStr(QueryNodeName, deployTemplate.Labels, "1")
+
+	lastDeploy := &appsv1.Deployment{}
+	lastDeploy.Spec.Replicas = int32Ptr(0)
+
+	t.Run("etcd failure blocks scale-down", func(t *testing.T) {
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(2)
+		stubs := gostub.Stub(&getRecyclePodNamesFunc, func(context.Context, *v1beta1.Milvus) ([]string, error) {
+			return nil, errMock
+		})
+		defer stubs.Reset()
+
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, milvus, QueryNode, 1).Return(nil)
+		err := bizUtil.ScaleDeployments(ctx, milvus, currentDeploy, lastDeploy)
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, errMock) || errors.Is(errors.Unwrap(err), errMock))
+		// Replicas must not be updated when marking recycle pods fails
+		assert.Equal(t, int32(2), *currentDeploy.Spec.Replicas)
+	})
+
+	t.Run("QueryNode scale-down with no recycle pods proceeds", func(t *testing.T) {
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(2)
+		stubs := gostub.Stub(&getRecyclePodNamesFunc, func(context.Context, *v1beta1.Milvus) ([]string, error) {
+			return nil, nil
+		})
+		defer stubs.Reset()
+
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, milvus, QueryNode, 1).Return(nil)
+		mockutil.EXPECT().UpdateAndRequeue(ctx, gomock.Any()).Return(ErrRequeue)
+		err := bizUtil.ScaleDeployments(ctx, milvus, currentDeploy, lastDeploy)
+		assert.True(t, errors.Is(err, ErrRequeue))
+		assert.Equal(t, int32(1), *currentDeploy.Spec.Replicas)
+	})
+
+	t.Run("QueryNode scale-down with recycle pods marks then scales", func(t *testing.T) {
+		currentDeploy := deployTemplate.DeepCopy()
+		currentDeploy.Spec.Replicas = int32Ptr(2)
+		stubs := gostub.Stub(&getRecyclePodNamesFunc, func(context.Context, *v1beta1.Milvus) ([]string, error) {
+			return []string{"milvus-querynode-0"}, nil
+		})
+		defer stubs.Reset()
+
+		pods := []corev1.Pod{
+			{ObjectMeta: metav1.ObjectMeta{Name: "milvus-querynode-0"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "milvus-querynode-1"}},
+		}
+		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, milvus, QueryNode, 1).Return(nil)
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, QueryNode).Return(pods, nil)
+		mockcli.EXPECT().Update(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			pod := obj.(*corev1.Pod)
+			assert.Equal(t, RecyclePodDeletionCost, pod.Annotations[PodDeletionCostAnnotation])
+			return nil
+		})
+		mockutil.EXPECT().UpdateAndRequeue(ctx, gomock.Any()).Return(ErrRequeue)
+		err := bizUtil.ScaleDeployments(ctx, milvus, currentDeploy, lastDeploy)
+		assert.True(t, errors.Is(err, ErrRequeue))
+		assert.Equal(t, int32(1), *currentDeploy.Spec.Replicas)
+	})
 }

@@ -293,7 +293,7 @@ func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v
 	if action != noScaleAction {
 		ctrl.LoggerFrom(ctx).Info("do scale action", "deployName", action.deploy.Name, "replicaChange", action.replicaChange, "isCurrentDeploy", action.deploy == lastDeployment)
 	}
-	return c.doScaleAction(ctx, action)
+	return c.doScaleAction(ctx, action, mc)
 }
 
 func (c *DeployControllerBizUtilImpl) checkCanScaleNow(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
@@ -513,12 +513,84 @@ func (c *DeployControllerBizUtilImpl) planScaleForNormalState(mc v1beta1.Milvus,
 	}
 }
 
-func (c *DeployControllerBizUtilImpl) doScaleAction(ctx context.Context, action scaleAction) error {
+func (c *DeployControllerBizUtilImpl) doScaleAction(ctx context.Context, action scaleAction, mc v1beta1.Milvus) error {
 	if action.replicaChange == 0 {
 		return nil
 	}
+
+	// If scaling down QueryNode, try to prioritize recycling pods
+	if action.replicaChange < 0 && c.component == QueryNode {
+		if err := c.markRecyclePodsWithLowDeletionCost(ctx, action.deploy, mc); err != nil {
+			return errors.Wrap(err, "mark recycle pods with low deletion cost")
+		}
+	}
+
 	action.deploy.Spec.Replicas = int32Ptr(getDeployReplicas(action.deploy) + action.replicaChange)
 	return c.UpdateAndRequeue(ctx, action.deploy)
+}
+
+// getRecyclePodNamesFunc is used for querying recycle pod names; stubbable in tests.
+var getRecyclePodNamesFunc = GetRecyclePodNames
+
+// markRecyclePodsWithLowDeletionCost syncs pod deletion cost annotations based on __recycle_resource_group state
+func (c *DeployControllerBizUtilImpl) markRecyclePodsWithLowDeletionCost(ctx context.Context, deploy *appsv1.Deployment, mc v1beta1.Milvus) error {
+	logger := ctrl.LoggerFrom(ctx)
+
+	// Query recycle pods from etcd (handles SSL check internally)
+	recyclePodNames, err := getRecyclePodNamesFunc(ctx, &mc)
+	if err != nil {
+		logger.Error(err, "failed to get recycle pods from etcd")
+		return errors.Wrap(err, "get recycle pods from etcd")
+	}
+	if len(recyclePodNames) == 0 {
+		logger.Info("no recycle pods found in etcd, skip marking deletion cost")
+		return nil
+	}
+
+	pods, err := c.ListDeployPods(ctx, deploy, c.component)
+	if err != nil {
+		logger.Error(err, "failed to list deploy pods")
+		return errors.Wrap(err, "list deploy pods")
+	}
+	logger.Info("list deploy pods", "podCount", len(pods))
+
+	// Build recycle pod name set
+	recycleSet := make(map[string]struct{})
+	for _, name := range recyclePodNames {
+		recycleSet[name] = struct{}{}
+	}
+
+	return c.syncPodsDeletionCost(ctx, pods, recycleSet)
+}
+
+// syncPodsDeletionCost syncs pod deletion cost annotations based on recycle set
+func (c *DeployControllerBizUtilImpl) syncPodsDeletionCost(ctx context.Context, pods []corev1.Pod, recycleSet map[string]struct{}) error {
+	logger := ctrl.LoggerFrom(ctx)
+	logger.Info("syncing pods deletion cost", "recycleSet", recycleSet)
+	for i := range pods {
+		pod := &pods[i]
+		_, inRecycle := recycleSet[pod.Name]
+		logger.Info("pod", "name", pod.Name, "inRecycle", inRecycle)
+		_, hasAnnotation := pod.Annotations[PodDeletionCostAnnotation]
+
+		switch {
+		case inRecycle && !hasAnnotation: // need to add
+			if pod.Annotations == nil {
+				pod.Annotations = make(map[string]string)
+			}
+			pod.Annotations[PodDeletionCostAnnotation] = RecyclePodDeletionCost
+		case !inRecycle && hasAnnotation: // need to remove
+			delete(pod.Annotations, PodDeletionCostAnnotation)
+		default:
+			continue
+		}
+
+		if err := c.cli.Update(ctx, pod); err != nil {
+			return errors.Wrapf(err, "update pod %s", pod.Name)
+		}
+		logger.Info("synced pod deletion cost", "pod", pod.Name, "inRecycle", inRecycle)
+	}
+	return nil
 }
 
 func (c *DeployControllerBizUtilImpl) markDeployAsCurrent(ctx context.Context, mc v1beta1.Milvus, currentDeployment *appsv1.Deployment) error {
