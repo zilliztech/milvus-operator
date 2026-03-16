@@ -13,6 +13,7 @@ spec:
     targetPort: metrics
   selector: 
     {{- include "chart.selectorLabels" . | nindent 4 }}
+{{- if .Values.enableWebhook }}
 ---
 apiVersion: v1
 kind: Service
@@ -29,3 +30,4 @@ spec:
     name: https
   selector:
     {{- include "chart.selectorLabels" . | nindent 4 }}
+{{- end }}
