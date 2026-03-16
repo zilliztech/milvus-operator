@@ -444,10 +444,21 @@ func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, cur
 	currentReplicas := lastDeployReplicas + currentDeployReplicas
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
 
-	surgeStep, _ := intstr.GetScaledValueFromIntOrPercent(currentDeployment.Spec.Strategy.RollingUpdate.MaxSurge, expectedReplicas, true)
-	unavailableStep, _ := intstr.GetScaledValueFromIntOrPercent(currentDeployment.Spec.Strategy.RollingUpdate.MaxUnavailable, expectedReplicas, false)
-	if unavailableStep < 1 {
-		unavailableStep = 1
+	// Default surge/unavailable steps: surge=1 allows one extra pod, unavailable=1 allows one pod down
+	surgeStep := 1
+	unavailableStep := 1
+	if currentDeployment.Spec.Strategy.Type == appsv1.RollingUpdateDeploymentStrategyType &&
+		currentDeployment.Spec.Strategy.RollingUpdate != nil {
+		if currentDeployment.Spec.Strategy.RollingUpdate.MaxSurge != nil {
+			if v, err := intstr.GetScaledValueFromIntOrPercent(currentDeployment.Spec.Strategy.RollingUpdate.MaxSurge, expectedReplicas, true); err == nil && v >= 1 {
+				surgeStep = v
+			}
+		}
+		if currentDeployment.Spec.Strategy.RollingUpdate.MaxUnavailable != nil {
+			if v, err := intstr.GetScaledValueFromIntOrPercent(currentDeployment.Spec.Strategy.RollingUpdate.MaxUnavailable, expectedReplicas, false); err == nil && v >= 1 {
+				unavailableStep = v
+			}
+		}
 	}
 
 	if compareDeployResourceLimitEqual(currentDeployment, lastDeployment) {
