@@ -140,7 +140,8 @@ type ComponentSpec struct {
 	// +nullable
 	SecurityContext Values `json:"securityContext,omitempty"`
 
-	// 쿠버네티스 표준 DeploymentStrategy를 그대로 사용
+	// RollingUpdate specifies the standard Kubernetes Deployment rollingUpdate parameters
+	// and is only used when the operator selects a RollingUpdate strategy.
 	// +kubebuilder:validation:Optional
 	// +nullable
 	RollingUpdate *appsv1.RollingUpdateDeployment `json:"rollingUpdate,omitempty"`
