@@ -298,11 +298,26 @@ func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v
 
 func (c *DeployControllerBizUtilImpl) checkCanScaleNow(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
 	scaleKind := c.checkScaleKind(mc, lastDeployment)
-	if scaleKind != scaleKindRollout {
+	if scaleKind == scaleKindForce {
 		return nil
 	}
-	err := c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
-	return errors.Wrap(err, "check deployments stable")
+	// rollout: check both current and last deployments are stable
+	if scaleKind == scaleKindRollout {
+		return errors.Wrap(
+			c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment),
+			"check deployments stable",
+		)
+	}
+	// normal & HPA: check current deployment is stable before scaling
+	currentDeployPods, err := c.ListDeployPods(ctx, currentDeployment, c.component)
+	if err != nil {
+		return errors.Wrap(err, "list current deploy pods")
+	}
+	isStable, reason := c.DeploymentIsStable(currentDeployment, currentDeployPods)
+	if !isStable {
+		return errors.Wrapf(ErrRequeue, "current deploy is not stable[%s]", reason)
+	}
+	return nil
 }
 
 func (c *DeployControllerBizUtilImpl) planScaleForForceUpgrade(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
