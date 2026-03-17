@@ -1,4 +1,12 @@
-# This is a sample to deploy a standalone milvus in milvus-operator's default configurations.
+# This sample shows how to enable HPA (Horizontal Pod Autoscaler) for Milvus components.
+# HPA allows automatic scaling of pods based on CPU/memory utilization or custom metrics.
+#
+# Two approaches are supported:
+# 1. Native HPA spec (recommended) - Define HPA configuration directly in the component spec
+# 2. replicas: -1 - Use this to let an external HPA or other controller manage replicas
+#
+# Note: When using native HPA spec, the operator will create and manage HPA resources automatically.
+# For QueryNode in 2-deployment rolling mode, HPA is temporarily deleted during rollouts.
 apiVersion: milvus.io/v1beta1
 kind: Milvus
 metadata:
@@ -7,20 +15,63 @@ spec:
   mode: cluster
   components:
     proxy:
-      # set replicas to -1 will stop operator from scaling the component
-      # thus handover the scaling responsibility to HPA
+      # Native HPA configuration (recommended approach)
+      hpa:
+        minReplicas: 2
+        maxReplicas: 10
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+    queryNode:
+      # Native HPA with multiple metrics
+      hpa:
+        minReplicas: 2
+        maxReplicas: 20
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 60
+        - type: Resource
+          resource:
+            name: memory
+            target:
+              type: Utilization
+              averageUtilization: 70
+        behavior:
+          scaleUp:
+            policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 30
+          scaleDown:
+            stabilizationWindowSeconds: 300
+            policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+    dataNode:
+      # Set replicas to -1 to let an external HPA or other controller manage scaling
+      # This requires creating a separate HPA resource (see below)
       replicas: -1
 ---
-# for more info see: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
+# Example of external HPA resource for dataNode (when using replicas: -1)
+# Use this when you want full control over the HPA resource yourself
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: my-release-milvus-proxy-hpa
+  name: my-release-milvus-datanode-hpa
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: my-release-milvus-proxy
+    name: my-release-milvus-datanode
   minReplicas: 2
   maxReplicas: 10
   metrics:

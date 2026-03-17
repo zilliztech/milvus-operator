@@ -18,7 +18,7 @@ Generally, you will need to scale out the Milvus cluster you created if it is ov
 - Massive volumes of large datasets need to be processed.
 - High availability of the Milvus service needs to be ensured.
 
-For now autoscaling is not supported. You need to manually scale out the cluster.
+You can also enable autoscaling with the native HPA support — see [Autoscaling with HPA](#autoscaling-with-hpa) below.
 
 #### Example
 
@@ -55,7 +55,7 @@ Scaling in refers to decreasing the number of nodes in a cluster. Generally, you
 - Higher speed for indexing is not required.
 - The size of the dataset to be processed is small.
 
-For now autoscaling is not supported. You need to manually scale in the cluster.
+You can also use HPA to handle scale-in automatically — see [Autoscaling with HPA](#autoscaling-with-hpa) below.
 
 #### Example
 
@@ -76,6 +76,40 @@ spec:
 ```
 
 > You can also stop the Milvus cluster without deleting the related resource by scaling component replicas to 0. You can later quickly restart the Milvus cluster by scaling in the component replicas to 1 or more.
+
+## Autoscaling with HPA
+
+The operator supports native Horizontal Pod Autoscaler (HPA) configuration directly in the Milvus CR. When enabled, the operator creates and manages HPA resources for the specified components.
+
+Add an `hpa` block to any component to enable autoscaling:
+
+```yaml
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+spec:
+  mode: cluster
+  components:
+    queryNode:
+      replicas: 2
+      hpa:
+        minReplicas: 2
+        maxReplicas: 10
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+```
+
+The `hpa` field supports `minReplicas`, `maxReplicas`, `metrics`, and `behavior` — matching the standard Kubernetes [HPA spec](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/). The operator handles the HPA lifecycle, including safe deletion during rolling updates for components like queryNode.
+
+For a full example with multiple metrics, scale behavior, and the `replicas: -1` approach for external replica control, see [config/samples/hpa.yaml](../../config/samples/hpa.yaml).
+
+> **Note:** Make sure your components have resource `requests` set, since HPA needs them to calculate utilization-based metrics.
 
 ## Scale up
 Described in [Allocate Resources](./allocate-resources.md).
