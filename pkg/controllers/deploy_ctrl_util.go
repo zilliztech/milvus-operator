@@ -298,24 +298,29 @@ func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v
 
 func (c *DeployControllerBizUtilImpl) checkCanScaleNow(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
 	scaleKind := c.checkScaleKind(mc, lastDeployment)
-	if scaleKind == scaleKindForce {
+	switch scaleKind {
+	case scaleKindForce:
 		return nil
-	}
-	// rollout: check both current and last deployments are stable
-	if scaleKind == scaleKindRollout {
+	case scaleKindRollout, scaleKindHPA:
+		// rollout & HPA: check both current and last deployments are stable
 		return errors.Wrap(
 			c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment),
 			"check deployments stable",
 		)
+	default:
+		// normal: check current deployment is stable before scaling
+		return c.checkDeploymentStable(ctx, currentDeployment, "current")
 	}
-	// normal & HPA: check current deployment is stable before scaling
-	currentDeployPods, err := c.ListDeployPods(ctx, currentDeployment, c.component)
+}
+
+func (c *DeployControllerBizUtilImpl) checkDeploymentStable(ctx context.Context, deploy *appsv1.Deployment, name string) error {
+	pods, err := c.ListDeployPods(ctx, deploy, c.component)
 	if err != nil {
-		return errors.Wrap(err, "list current deploy pods")
+		return errors.Wrapf(err, "list %s deploy pods", name)
 	}
-	isStable, reason := c.DeploymentIsStable(currentDeployment, currentDeployPods)
+	isStable, reason := c.DeploymentIsStable(deploy, pods)
 	if !isStable {
-		return errors.Wrapf(ErrRequeue, "current deploy is not stable[%s]", reason)
+		return errors.Wrapf(ErrRequeue, "%s deploy is not stable[%s]", name, reason)
 	}
 	return nil
 }

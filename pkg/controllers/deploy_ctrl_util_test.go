@@ -551,6 +551,9 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		currentDeploy.Spec.Replicas = int32Ptr(2)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		// checkDeploymentStable needs ListDeployPods and DeploymentIsStable
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return([]corev1.Pod{}, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, []corev1.Pod{}).Return(true, "")
 		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(ErrRequeue)
 		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
@@ -567,6 +570,9 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		currentDeploy.Spec.Replicas = int32Ptr(1)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		// checkDeploymentStable needs ListDeployPods and DeploymentIsStable
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return([]corev1.Pod{}, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, []corev1.Pod{}).Return(true, "")
 		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(ErrRequeue)
 		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
@@ -670,6 +676,11 @@ func TestDeployControllerBizUtilImpl_ScaleDeployements(t *testing.T) {
 		lastDeploy := deployTemplate.DeepCopy()
 		lastDeploy.Spec.Replicas = int32Ptr(0)
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, DataNode, 1).Return(nil)
+		// HPA mode: checkDeploymentsStable needs ListDeployPods and DeploymentIsStable for both deployments
+		mockutil.EXPECT().ListDeployPods(ctx, lastDeploy, DataNode).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(lastDeploy, pods).Return(true, "")
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, DataNode).Return(currentPods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, currentPods).Return(true, "")
 		mockutil.EXPECT().UpdateAndRequeue(ctx, currentDeploy).Return(ErrRequeue)
 		err := bizUtil.ScaleDeployments(ctx, mc, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
@@ -1683,6 +1694,9 @@ func TestDeployControllerBizUtilImpl_ScaleDeployments_QueryNodeScaleDown(t *test
 		defer stubs.Reset()
 
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, milvus, QueryNode, 1).Return(nil)
+		// checkDeploymentStable needs ListDeployPods and DeploymentIsStable
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, QueryNode).Return([]corev1.Pod{}, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, []corev1.Pod{}).Return(true, "")
 		err := bizUtil.ScaleDeployments(ctx, milvus, currentDeploy, lastDeploy)
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, errMock) || errors.Is(errors.Unwrap(err), errMock))
@@ -1699,6 +1713,9 @@ func TestDeployControllerBizUtilImpl_ScaleDeployments_QueryNodeScaleDown(t *test
 		defer stubs.Reset()
 
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, milvus, QueryNode, 1).Return(nil)
+		// checkDeploymentStable needs ListDeployPods and DeploymentIsStable
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, QueryNode).Return([]corev1.Pod{}, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, []corev1.Pod{}).Return(true, "")
 		mockutil.EXPECT().UpdateAndRequeue(ctx, gomock.Any()).Return(ErrRequeue)
 		err := bizUtil.ScaleDeployments(ctx, milvus, currentDeploy, lastDeploy)
 		assert.True(t, errors.Is(err, ErrRequeue))
@@ -1718,6 +1735,10 @@ func TestDeployControllerBizUtilImpl_ScaleDeployments_QueryNodeScaleDown(t *test
 			{ObjectMeta: metav1.ObjectMeta{Name: "milvus-querynode-1"}},
 		}
 		mockutil.EXPECT().MarkMilvusComponentGroupId(ctx, milvus, QueryNode, 1).Return(nil)
+		// checkDeploymentStable needs ListDeployPods and DeploymentIsStable
+		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, QueryNode).Return(pods, nil)
+		mockutil.EXPECT().DeploymentIsStable(currentDeploy, pods).Return(true, "")
+		// syncPodsDeletionCost also needs ListDeployPods
 		mockutil.EXPECT().ListDeployPods(ctx, currentDeploy, QueryNode).Return(pods, nil)
 		mockcli.EXPECT().Update(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 			pod := obj.(*corev1.Pod)
