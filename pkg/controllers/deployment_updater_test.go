@@ -337,19 +337,24 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 			},
 		}
 
-		// Test MixCoord update - should not update because StreamingNode is not updated
+		// Test MixCoord update - should update first (no dependencies during 2.6 upgrade)
 		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MixCoord)
-		assert.False(t, updater.RollingUpdateImageDependencyReady())
+		assert.True(t, updater.RollingUpdateImageDependencyReady())
 
-		// Update StreamingNode to 2.6
-		inst.Status.ComponentsDeployStatus[StreamingNodeName] = v1beta1.ComponentDeployStatus{
+		// Test StreamingNode update - should not update because MixCoord is not updated yet
+		streamingUpdater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, StreamingNode)
+		assert.False(t, streamingUpdater.RollingUpdateImageDependencyReady())
+
+		// Update MixCoord to 2.6
+		inst.Status.ComponentsDeployStatus[MixCoordName] = v1beta1.ComponentDeployStatus{
 			Image:      "milvusdb/milvus:v2.6.0",
 			Status:     readyDeployStatus,
 			Generation: 1,
 		}
 
-		// Test MixCoord update - should update because StreamingNode is updated
-		assert.True(t, updater.RollingUpdateImageDependencyReady())
+		// Test StreamingNode update - should update now because MixCoord is updated
+		streamingUpdater = newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, StreamingNode)
+		assert.True(t, streamingUpdater.RollingUpdateImageDependencyReady())
 	})
 
 	t.Run("rolling update with cdc component", func(t *testing.T) {
