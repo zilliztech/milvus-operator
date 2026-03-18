@@ -43,6 +43,16 @@ spec:
         successThreshold: 1
     rollingMode: 3
     runWithSubProcess: true
+    runAsNonRoot: true
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      runAsNonRoot: true
+      runAsUser: 1000
+      seccompProfile:
+        type: Unconfined
     dummyImage: 'my-registry/my-dummy-image'
     standalone:
       ingress:
