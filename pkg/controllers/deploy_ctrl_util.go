@@ -291,7 +291,7 @@ func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v
 	}
 	action := c.planNextScaleAction(ctx, mc, currentDeployment, lastDeployment)
 	if action != noScaleAction {
-		ctrl.LoggerFrom(ctx).Info("do scale action", "deployName", action.deploy.Name, "replicaChange", action.replicaChange, "isCurrentDeploy", action.deploy == lastDeployment)
+		ctrl.LoggerFrom(ctx).Info("do scale action", "deployName", action.deploy.Name, "replicaChange", action.replicaChange, "isCurrentDeploy", action.deploy == currentDeployment)
 	}
 	return c.doScaleAction(ctx, action, mc)
 }
