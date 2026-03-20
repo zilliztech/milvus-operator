@@ -9,7 +9,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -442,32 +443,46 @@ func compareDeployResourceLimitEqual(currentDeployment, lastDeployment *appsv1.D
 
 // planScaleForRollout, if not hpa ,return nil
 func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
-	currentDeployReplicas := getDeployReplicas(currentDeployment)
 	lastDeployReplicas := getDeployReplicas(lastDeployment)
+	currentDeployReplicas := getDeployReplicas(currentDeployment)
 
-	currentReplicas := currentDeployReplicas + lastDeployReplicas
+	currentReplicas := lastDeployReplicas + currentDeployReplicas
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
-	if compareDeployResourceLimitEqual(currentDeployment, lastDeployment) {
-		switch {
-		case currentReplicas > expectedReplicas:
-			if lastDeployReplicas > 0 {
-				// continue rollout by scale in last deployment
-				return scaleAction{deploy: lastDeployment, replicaChange: -1}
+
+	// Default surge/unavailable steps: surge=1 allows one extra pod, unavailable=1 allows one pod down
+	surgeStep := 1
+	unavailableStep := 1
+	if currentDeployment.Spec.Strategy.Type == appsv1.RollingUpdateDeploymentStrategyType &&
+		currentDeployment.Spec.Strategy.RollingUpdate != nil {
+		if currentDeployment.Spec.Strategy.RollingUpdate.MaxSurge != nil {
+			if v, err := intstr.GetScaledValueFromIntOrPercent(currentDeployment.Spec.Strategy.RollingUpdate.MaxSurge, expectedReplicas, true); err == nil && v >= 1 {
+				surgeStep = v
 			}
-			// scale in is not allowed during a rollout
-			return noScaleAction
-		case currentReplicas == expectedReplicas:
+		}
+		if currentDeployment.Spec.Strategy.RollingUpdate.MaxUnavailable != nil {
+			if v, err := intstr.GetScaledValueFromIntOrPercent(currentDeployment.Spec.Strategy.RollingUpdate.MaxUnavailable, expectedReplicas, false); err == nil && v >= 1 {
+				unavailableStep = v
+			}
+		}
+	}
+
+	if compareDeployResourceLimitEqual(currentDeployment, lastDeployment) {
+		if currentReplicas == expectedReplicas {
 			if lastDeployReplicas == 0 {
 				// stable state
 				return noScaleAction
 			}
-			// continue rollout by scale out last deployment
-			return scaleAction{deploy: currentDeployment, replicaChange: 1}
-		default:
-			// case currentReplicas < expectedReplicas
-			// scale out
-			return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentReplicas}
+		} else if currentReplicas > expectedReplicas {
+			if lastDeployReplicas > 0 {
+				// continue rollout by scale in last deployment
+				return scaleAction{deploy: lastDeployment, replicaChange: -min(unavailableStep, lastDeployReplicas)}
+			}
+			// scale in is not allowed during a rollout
+			return noScaleAction
 		}
+		// case currentReplicas < expectedReplicas
+		// scale out
+		return scaleAction{deploy: currentDeployment, replicaChange: min(surgeStep, expectedReplicas-currentDeployReplicas)}
 	} else {
 		// Resource is changed.
 		// If the lastDeployReplicas have not been scaled down to 0, we need to first scale up the currentDeployReplicas to the maximum value among the expectedReplicas or the lastDeployReplicas.
@@ -483,11 +498,11 @@ func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, cur
 				return scaleAction{deploy: currentDeployment, replicaChange: lastDeployReplicas - currentDeployReplicas}
 			}
 			// continue rollout by scale in last deployment
-			return scaleAction{deploy: lastDeployment, replicaChange: -1}
+			return scaleAction{deploy: lastDeployment, replicaChange: -min(unavailableStep, lastDeployReplicas)}
 		}
 		if currentDeployReplicas > expectedReplicas {
 			// scale current deploy replica to expected
-			return scaleAction{deploy: currentDeployment, replicaChange: -1}
+			return scaleAction{deploy: currentDeployment, replicaChange: -min(unavailableStep, currentDeployReplicas-expectedReplicas)}
 		} else if currentDeployReplicas < expectedReplicas {
 			// scale current deploy replica to expected
 			// This branch seems unlikely to occur.

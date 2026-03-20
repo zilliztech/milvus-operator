@@ -184,7 +184,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 	}
 
 	diff := util.DiffStr(old, cur)
-	ctrl.LoggerFrom(ctx).Info("Update Deployment", "diff", string(diff))
+	ctrl.LoggerFrom(ctx).Info("Update Deployment", "diff", diff)
 	return r.Update(ctx, cur)
 }
 
