@@ -12,6 +12,7 @@ type Client interface {
 	GetStatus(cfg *action.Configuration, releaseName string) (release.Status, error)
 	GetValues(cfg *action.Configuration, releaseName string) (map[string]interface{}, error)
 	ReleaseExist(cfg *action.Configuration, releaseName string) (bool, error)
+	GetChartVersion(cfg *action.Configuration, releaseName string) (string, error)
 	Upgrade(cfg *action.Configuration, request ChartRequest) error
 	Update(cfg *action.Configuration, request ChartRequest) error
 	Install(cfg *action.Configuration, request ChartRequest) error
@@ -36,6 +37,10 @@ func GetValues(cfg *action.Configuration, releaseName string) (map[string]interf
 
 func ReleaseExist(cfg *action.Configuration, releaseName string) (bool, error) {
 	return defaultClient.ReleaseExist(cfg, releaseName)
+}
+
+func GetChartVersion(cfg *action.Configuration, releaseName string) (string, error) {
+	return defaultClient.GetChartVersion(cfg, releaseName)
 }
 
 func Upgrade(cfg *action.Configuration, request ChartRequest) error {
