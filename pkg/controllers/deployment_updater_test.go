@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/util"
@@ -133,6 +135,36 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		err = updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Equal(t, DefaultOperatorImageInfo.Image, deployment.Spec.Template.Spec.InitContainers[0].Image)
+	})
+
+	t.Run("update configContainer securityContext when UpdateToolImage is true", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Com.UpdateToolImage = true
+		inst.Spec.GetServiceComponent().Commands = []string{"milvus", "run", "mycomponent"}
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		deployment := sampleDeployment.DeepCopy()
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Equal(t, defaultSecurityContext, deployment.Spec.Template.Spec.InitContainers[0].SecurityContext)
+
+		newSecurityContext := &corev1.SecurityContext{
+			RunAsUser:                ptr.To(int64(1000)),
+			RunAsNonRoot:             util.BoolPtr(true),
+			AllowPrivilegeEscalation: util.BoolPtr(false),
+			SeccompProfile: &corev1.SeccompProfile{
+				Type: corev1.SeccompProfileTypeRuntimeDefault,
+			},
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
+		}
+		newSecurityContextUnstructured, err := runtime.DefaultUnstructuredConverter.ToUnstructured(newSecurityContext)
+		assert.NoError(t, err)
+
+		inst.Spec.GetServiceComponent().SecurityContext.Data = newSecurityContextUnstructured
+		err = updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Equal(t, newSecurityContext, deployment.Spec.Template.Spec.InitContainers[0].SecurityContext)
 	})
 
 	t.Run("update configContainer when podTemplate updated", func(t *testing.T) {
