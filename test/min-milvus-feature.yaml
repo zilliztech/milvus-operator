@@ -43,6 +43,8 @@ spec:
         successThreshold: 1
     rollingMode: 3
     runWithSubProcess: true
+    cdc:
+      replicas: 1
     dummyImage: 'my-registry/my-dummy-image'
     standalone:
       ingress:

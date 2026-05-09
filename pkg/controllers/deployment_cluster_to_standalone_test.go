@@ -95,11 +95,6 @@ func TestMilvusReconciler_ReconcileDeploymentClusterToStandalone(t *testing.T) {
 				newDeployment("mc-milvus-proxy", Proxy.Name, false, int32Ptr(1)),
 			}))
 
-		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
-			DoAndReturn(mockListDeployments([]appsv1.Deployment{
-				newDeployment("mc-milvus-standalone", MilvusStandalone.Name, false, nil),
-			}))
-
 		err := r.CleanupDeploymentClusterToStandalone(ctx, *mc)
 		assert.NoError(t, err)
 	})
@@ -110,14 +105,9 @@ func TestMilvusReconciler_ReconcileDeploymentClusterToStandalone(t *testing.T) {
 
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
 			DoAndReturn(mockListDeployments([]appsv1.Deployment{
-				newDeployment("mc-milvus-standalone", MilvusStandalone.Name, false, nil),
+				newDeployment("mc-milvus-standalone", MilvusStandalone.Name, true, nil),
 				newDeployment("mc-milvus-proxy", Proxy.Name, false, int32Ptr(1)),
 				newDeployment("mc-milvus-datanode", DataNode.Name, false, int32Ptr(2)),
-			}))
-
-		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
-			DoAndReturn(mockListDeployments([]appsv1.Deployment{
-				newDeployment("mc-milvus-standalone", MilvusStandalone.Name, true, nil),
 			}))
 
 		deletedDeployments := make(map[string]bool)
@@ -143,9 +133,6 @@ func TestMilvusReconciler_ReconcileDeploymentClusterToStandalone(t *testing.T) {
 				newDeployment("mc-milvus-proxy", Proxy.Name, false, nil),
 			}))
 
-		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
-			DoAndReturn(mockListDeployments([]appsv1.Deployment{}))
-
 		err := r.CleanupDeploymentClusterToStandalone(ctx, *mc)
 		assert.NoError(t, err)
 	})
@@ -156,15 +143,9 @@ func TestMilvusReconciler_ReconcileDeploymentClusterToStandalone(t *testing.T) {
 
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
 			DoAndReturn(mockListDeployments([]appsv1.Deployment{
-				newDeployment("mc-milvus-standalone-0", MilvusStandalone.Name, false, nil),
-				newDeployment("mc-milvus-standalone-1", MilvusStandalone.Name, false, nil),
-				newDeployment("mc-milvus-proxy", Proxy.Name, false, int32Ptr(1)),
-			}))
-
-		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
-			DoAndReturn(mockListDeployments([]appsv1.Deployment{
 				newDeployment("mc-milvus-standalone-0", MilvusStandalone.Name, true, nil),
 				newDeployment("mc-milvus-standalone-1", MilvusStandalone.Name, true, nil),
+				newDeployment("mc-milvus-proxy", Proxy.Name, false, int32Ptr(1)),
 			}))
 
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).
@@ -178,22 +159,73 @@ func TestMilvusReconciler_ReconcileDeploymentClusterToStandalone(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("standalone mode - 2 deployment mode with one not ready should skip", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Spec.Mode = v1beta1.MilvusModeStandalone
+
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
+			DoAndReturn(mockListDeployments([]appsv1.Deployment{
+				newDeployment("mc-milvus-standalone-0", MilvusStandalone.Name, true, nil),
+				newDeployment("mc-milvus-standalone-1", MilvusStandalone.Name, false, nil),
+				newDeployment("mc-milvus-proxy", Proxy.Name, false, int32Ptr(1)),
+			}))
+
+		err := r.CleanupDeploymentClusterToStandalone(ctx, *mc)
+		assert.NoError(t, err)
+	})
+
+	t.Run("standalone with cdc - cdc deployment should not be deleted", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Spec.Mode = v1beta1.MilvusModeStandalone
+		mc.Spec.Com.Cdc = &v1beta1.MilvusCdc{}
+		mc.Spec.Com.Cdc.Replicas = int32Ptr(1)
+
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
+			DoAndReturn(mockListDeployments([]appsv1.Deployment{
+				newDeployment("mc-milvus-standalone", MilvusStandalone.Name, true, nil),
+				newDeployment("mc-milvus-cdc", Cdc.Name, true, nil),
+				newDeployment("mc-milvus-proxy", Proxy.Name, false, int32Ptr(1)),
+			}))
+
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx interface{}, obj interface{}, opts ...interface{}) error {
+				deploy := obj.(*appsv1.Deployment)
+				assert.Equal(t, "mc-milvus-proxy", deploy.Name)
+				return nil
+			})
+
+		err := r.CleanupDeploymentClusterToStandalone(ctx, *mc)
+		assert.NoError(t, err)
+	})
+
+	t.Run("standalone with cdc - cdc not ready should skip cleanup", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Spec.Mode = v1beta1.MilvusModeStandalone
+		mc.Spec.Com.Cdc = &v1beta1.MilvusCdc{}
+		mc.Spec.Com.Cdc.Replicas = int32Ptr(1)
+
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
+			DoAndReturn(mockListDeployments([]appsv1.Deployment{
+				newDeployment("mc-milvus-standalone", MilvusStandalone.Name, true, nil),
+				newDeployment("mc-milvus-cdc", Cdc.Name, false, nil),
+				newDeployment("mc-milvus-proxy", Proxy.Name, false, int32Ptr(1)),
+			}))
+
+		err := r.CleanupDeploymentClusterToStandalone(ctx, *mc)
+		assert.NoError(t, err)
+	})
+
 	t.Run("standalone mode - multiple deployments of same component should all be deleted", func(t *testing.T) {
 		mc := env.Inst.DeepCopy()
 		mc.Spec.Mode = v1beta1.MilvusModeStandalone
 
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
 			DoAndReturn(mockListDeployments([]appsv1.Deployment{
-				newDeployment("mc-milvus-standalone", MilvusStandalone.Name, false, nil),
+				newDeployment("mc-milvus-standalone", MilvusStandalone.Name, true, nil),
 				newDeployment("mc-milvus-querynode-0", QueryNode.Name, false, int32Ptr(1)),
 				newDeployment("mc-milvus-querynode-1", QueryNode.Name, false, int32Ptr(1)),
 				newDeployment("mc-milvus-datanode-0", DataNode.Name, false, int32Ptr(2)),
 				newDeployment("mc-milvus-datanode-1", DataNode.Name, false, int32Ptr(2)),
-			}))
-
-		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
-			DoAndReturn(mockListDeployments([]appsv1.Deployment{
-				newDeployment("mc-milvus-standalone", MilvusStandalone.Name, true, nil),
 			}))
 
 		deletedDeployments := make(map[string]bool)
