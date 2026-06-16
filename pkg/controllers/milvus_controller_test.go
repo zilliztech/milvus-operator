@@ -20,12 +20,16 @@ import (
 
 var mockCheckMilvusStopRet = false
 var mockCheckMilvusStopErr error = nil
+var mockCheckMilvusStopCalls int
 var mockCheckMilvusStop = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (bool, error) {
+	mockCheckMilvusStopCalls++
 	return mockCheckMilvusStopRet, mockCheckMilvusStopErr
 }
 
 var mockFinalizeRet error
+var mockFinalizeCalls int
 var mockFinalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus) error {
+	mockFinalizeCalls++
 	return mockFinalizeRet
 }
 
@@ -110,10 +114,44 @@ func TestClusterReconciler(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("delete orphan keeps resources", func(t *testing.T) {
+		defer ctrl.Finish()
+		mockCheckMilvusStopCalls = 0
+		mockFinalizeCalls = 0
+		mockCheckMilvusStopRet = false
+		mockCheckMilvusStopErr = nil
+		mockFinalizeRet = nil
+		m.Finalizers = []string{metav1.FinalizerOrphanDependents, MilvusFinalizerName}
+		m.Status.Status = ""
+		m.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx, key, obj interface{}, opts ...any) {
+				o := obj.(*v1beta1.Milvus)
+				*o = m
+			}).
+			Return(nil)
+
+		mockClient.EXPECT().Status().Return(mockStatusCli)
+		mockStatusCli.EXPECT().Update(gomock.Any(), gomock.Any()).Times(1)
+
+		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Do(
+			func(ctx, obj interface{}, opts ...interface{}) {
+				u := obj.(*v1beta1.Milvus)
+				assert.Equal(t, []string{metav1.FinalizerOrphanDependents}, u.Finalizers)
+			},
+		).Return(nil)
+
+		_, err := r.Reconcile(ctx, reconcile.Request{})
+		assert.NoError(t, err)
+		assert.Equal(t, 0, mockCheckMilvusStopCalls)
+		assert.Equal(t, 0, mockFinalizeCalls)
+	})
+
 	t.Run("delete foreground deletion", func(t *testing.T) {
 		defer ctrl.Finish()
 		mockCheckMilvusStopRet = true
-		m.Finalizers = []string{ForegroundDeletionFinalizer, MilvusFinalizerName}
+		m.Finalizers = []string{metav1.FinalizerDeleteDependents, MilvusFinalizerName}
 		m.DeletionTimestamp = &metav1.Time{Time: time.Now()}
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
 			Do(func(ctx, key, obj interface{}, opts ...any) {
@@ -129,7 +167,7 @@ func TestClusterReconciler(t *testing.T) {
 			func(ctx, obj interface{}, opts ...interface{}) {
 				// finalizer should be removed
 				u := obj.(*v1beta1.Milvus)
-				assert.Equal(t, []string{ForegroundDeletionFinalizer}, u.Finalizers)
+				assert.Equal(t, []string{metav1.FinalizerDeleteDependents}, u.Finalizers)
 			},
 		).Return(nil)
 
@@ -139,7 +177,7 @@ func TestClusterReconciler(t *testing.T) {
 
 	t.Run("milvus not stopped or check failed", func(t *testing.T) {
 		defer ctrl.Finish()
-		m.Finalizers = []string{ForegroundDeletionFinalizer, MilvusFinalizerName}
+		m.Finalizers = []string{metav1.FinalizerDeleteDependents, MilvusFinalizerName}
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).
 			Do(func(ctx, key, obj interface{}, opts ...any) {
 				o := obj.(*v1beta1.Milvus)

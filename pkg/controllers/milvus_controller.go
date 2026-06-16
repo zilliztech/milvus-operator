@@ -39,10 +39,9 @@ import (
 )
 
 const (
-	MilvusFinalizerName         = "milvus.milvus.io/finalizer"
-	ForegroundDeletionFinalizer = "foregroundDeletion"
-	PauseReconcileAnnotation    = "milvus.io/pause-reconcile"
-	MaintainingAnnotation       = "milvus.io/maintaining"
+	MilvusFinalizerName      = "milvus.milvus.io/finalizer"
+	PauseReconcileAnnotation = "milvus.io/pause-reconcile"
+	MaintainingAnnotation    = "milvus.io/maintaining"
 )
 
 // MilvusReconciler reconciles a Milvus object
@@ -117,12 +116,23 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 
+		if controllerutil.ContainsFinalizer(milvus, metav1.FinalizerOrphanDependents) {
+			logger.Info("orphan deleting milvus: skip foreground deletion and cleanup")
+			if controllerutil.ContainsFinalizer(milvus, MilvusFinalizerName) {
+				milvusStatusCollector.DeleteLabelValues(milvus.Namespace, milvus.Name)
+				controllerutil.RemoveFinalizer(milvus, MilvusFinalizerName)
+				err := r.Update(ctx, milvus)
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, nil
+		}
+
 		stopped, err := CheckMilvusStopped(ctx, r.Client, *milvus)
 		if !stopped || err != nil {
 			if err != nil {
 				logger.Error(err, "deleting milvus: check milvus stopped failed")
 			} else {
-				if !controllerutil.ContainsFinalizer(milvus, ForegroundDeletionFinalizer) {
+				if !controllerutil.ContainsFinalizer(milvus, metav1.FinalizerDeleteDependents) {
 					// delete self again with foreground deletion
 					logger.Info("change background delete to foreground")
 					if err := r.Delete(ctx, milvus, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
