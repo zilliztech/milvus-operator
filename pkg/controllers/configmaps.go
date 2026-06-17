@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -78,6 +79,24 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 		// delete other mq config to make milvus use rocksmq
 		delete(conf, "pulsar")
 		delete(conf, "kafka")
+	case v1beta1.MsgStreamTypeWoodPecker:
+		// external woodpecker LogStore (service mode); when unset, woodpecker runs
+		// embedded inside milvus over external etcd + object storage. Only the
+		// quorum buffer pool topology is rendered here; quorum sizing stays a
+		// milvus/woodpecker config-file concern and is not set by the operator.
+		if mc.Spec.Dep.WoodPecker.External {
+			// milvus reads quorumBufferPools as a JSON string (builder.go setQuorumConfig)
+			poolsJSON, err := json.Marshal(mc.Spec.Dep.WoodPecker.QuorumBufferPools)
+			if err != nil {
+				return errors.Wrap(err, "marshal woodpecker quorumBufferPools")
+			}
+			util.SetValue(conf, "service", "woodpecker", "storage", "type")
+			util.SetValue(conf, string(poolsJSON), "woodpecker", "client", "quorum", "quorumBufferPools")
+		}
+		// delete other mq config to make milvus use woodpecker
+		delete(conf, "pulsar")
+		delete(conf, "kafka")
+		delete(conf, "rocksmq")
 	default:
 		// we use mq.type to handle it
 	}

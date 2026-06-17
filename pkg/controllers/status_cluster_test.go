@@ -127,6 +127,24 @@ func TestMilvusStatusSyncer_GetDependencyCondition(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, corev1.ConditionTrue, ret.Status)
 	})
+	t.Run("GetMsgStreamCondition_woodpecker_embedded", func(t *testing.T) {
+		defer ctrl.Finish()
+		milvus.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeWoodPecker
+		ret, err := s.GetMsgStreamCondition(ctx, milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionTrue, ret.Status)
+	})
+	t.Run("GetMsgStreamCondition_woodpecker_external", func(t *testing.T) {
+		defer ctrl.Finish()
+		milvus.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeWoodPecker
+		milvus.Spec.Dep.WoodPecker.External = true
+		milvus.Spec.Dep.WoodPecker.QuorumBufferPools = []v1beta1.WoodpeckerBufferPool{
+			{Name: "p1", Seeds: []string{"woodpecker"}},
+		}
+		ret, err := s.GetMsgStreamCondition(ctx, milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionFalse, ret.Status)
+	})
 }
 
 var updatedCondition = v1beta1.MilvusCondition{

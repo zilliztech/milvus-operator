@@ -159,15 +159,11 @@ func (ms MilvusSpec) GetMilvusVersionByImage() (semver.Version, error) {
 }
 
 func (ms *MilvusSpec) GetPersistenceConfig() *Persistence {
-	switch ms.Dep.MsgStreamType {
-	case MsgStreamTypeRocksMQ:
-		return &ms.Dep.RocksMQ.Persistence
-	case MsgStreamTypeNatsMQ:
-		return &ms.Dep.NatsMQ.Persistence
-	case MsgStreamTypeWoodPecker:
-		return &ms.Dep.WoodPecker.Persistence
+	builtInMQ := ms.Dep.GetMilvusBuiltInMQ()
+	if builtInMQ == nil {
+		return nil
 	}
-	return nil
+	return &builtInMQ.Persistence
 }
 
 func (ms *MilvusSpec) UseMixCoord() bool {

@@ -31,7 +31,7 @@ type MilvusDependencies struct {
 	Kafka MilvusKafka `json:"kafka,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	WoodPecker MilvusBuiltInMQ `json:"woodpecker,omitempty"`
+	WoodPecker MilvusWoodpecker `json:"woodpecker,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	RocksMQ MilvusBuiltInMQ `json:"rocksmq,omitempty"`
@@ -59,7 +59,12 @@ func (m *MilvusDependencies) GetMilvusBuiltInMQ() *MilvusBuiltInMQ {
 	case MsgStreamTypePulsar, MsgStreamTypeKafka, MsgStreamTypeCustom:
 		return nil
 	case MsgStreamTypeWoodPecker:
-		return &m.WoodPecker
+		if m.WoodPecker.External {
+			// external LogStore (service mode): milvus is only a client,
+			// no built-in MQ data volume is needed
+			return nil
+		}
+		return &m.WoodPecker.MilvusBuiltInMQ
 	case MsgStreamTypeRocksMQ:
 		return &m.RocksMQ
 	case MsgStreamTypeNatsMQ:
@@ -168,6 +173,51 @@ type MilvusStorageSSLConfig struct {
 // MilvusBuiltInMQ (rocksmq or natsmq) configuration
 type MilvusBuiltInMQ struct {
 	Persistence Persistence `json:"persistence,omitempty"`
+}
+
+// MilvusWoodpecker configuration. Woodpecker runs embedded inside Milvus by
+// default; setting External switches it to woodpecker "service" mode.
+type MilvusWoodpecker struct {
+	MilvusBuiltInMQ `json:",inline"`
+
+	// External, when true, points Milvus at an externally-deployed Woodpecker
+	// LogStore (woodpecker "service" mode) instead of running woodpecker embedded
+	// inside Milvus. etcd and object storage must also be external and shared with
+	// the LogStore cluster.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	External bool `json:"external,omitempty"`
+
+	// QuorumBufferPools are the woodpecker quorum buffer pools, used when External
+	// is true. Each pool is a named group of LogStore service seed endpoints
+	// (host:port; the woodpecker service port is 18080). Rendered (as a JSON
+	// string) into woodpecker.client.quorum.quorumBufferPools in the Milvus config
+	// (milvus decodes it as a JSON string — builder.go setQuorumConfig). Quorum
+	// sizing (replicas/write-quorum/ack-quorum) is a milvus/woodpecker config-file
+	// concern and is NOT managed by the operator.
+	// +kubebuilder:validation:Optional
+	QuorumBufferPools []WoodpeckerBufferPool `json:"quorumBufferPools,omitempty"`
+}
+
+// SeedEndpoints returns all seed endpoints flattened across every buffer pool.
+func (w MilvusWoodpecker) SeedEndpoints() []string {
+	var eps []string
+	for _, pool := range w.QuorumBufferPools {
+		eps = append(eps, pool.Seeds...)
+	}
+	return eps
+}
+
+// WoodpeckerBufferPool is one woodpecker quorum buffer pool: a named group of
+// LogStore seed endpoints.
+type WoodpeckerBufferPool struct {
+	// Name of the buffer/region pool, e.g. "default-region-pool".
+	Name string `json:"name"`
+
+	// Seeds are the LogStore service gRPC seed endpoints (host:port; the
+	// woodpecker service port is 18080), e.g.
+	// <cluster>-server-client.<ns>.svc:18080
+	Seeds []string `json:"seeds"`
 }
 
 type MilvusPulsar struct {

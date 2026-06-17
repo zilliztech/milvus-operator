@@ -9560,6 +9560,9 @@ spec:
                     type: object
                   woodpecker:
                     properties:
+                      external:
+                        default: false
+                        type: boolean
                       persistence:
                         properties:
                           enabled:
@@ -9584,6 +9587,20 @@ spec:
                           pvcDeletion:
                             type: boolean
                         type: object
+                      quorumBufferPools:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            seeds:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - name
+                          - seeds
+                          type: object
+                        type: array
                     type: object
                 type: object
             type: object
@@ -10440,6 +10457,9 @@ spec:
                     type: object
                   woodpecker:
                     properties:
+                      external:
+                        default: false
+                        type: boolean
                       persistence:
                         properties:
                           enabled:
@@ -10464,6 +10484,20 @@ spec:
                           pvcDeletion:
                             type: boolean
                         type: object
+                      quorumBufferPools:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            seeds:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - name
+                          - seeds
+                          type: object
+                        type: array
                     type: object
                 type: object
               disableMetric:
@@ -20463,6 +20497,9 @@ spec:
                     type: object
                   woodpecker:
                     properties:
+                      external:
+                        default: false
+                        type: boolean
                       persistence:
                         properties:
                           enabled:
@@ -20487,6 +20524,20 @@ spec:
                           pvcDeletion:
                             type: boolean
                         type: object
+                      quorumBufferPools:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            seeds:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - name
+                          - seeds
+                          type: object
+                        type: array
                     type: object
                 type: object
               hookConfig:
@@ -21051,28 +21102,6 @@ spec:
   - name: metrics
     port: 8443
     targetPort: metrics
-  selector:
-    app.kubernetes.io/name: milvus-operator
-    app.kubernetes.io/instance: milvus-operator
----
-# Source: milvus-operator/templates/service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    helm.sh/chart: milvus-operator-1.3.6
-    app.kubernetes.io/name: milvus-operator
-    app.kubernetes.io/instance: milvus-operator
-    app.kubernetes.io/version: "1.3.6"
-    app.kubernetes.io/managed-by: Helm
-  name: 'milvus-operator-webhook-service'
-  namespace: "milvus-operator"
-spec:
-  ports:
-  - port: 443
-    targetPort: webhook-server
-    protocol: TCP
-    name: https
   selector:
     app.kubernetes.io/name: milvus-operator
     app.kubernetes.io/instance: milvus-operator
