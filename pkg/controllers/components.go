@@ -471,6 +471,10 @@ func GetConfCheckSum(spec v1beta1.MilvusSpec) string {
 	conf["pulsar-endpoint"] = spec.Dep.Pulsar.Endpoint
 	conf["kafka-brokerList"] = spec.Dep.Kafka.BrokerList
 	conf["storage-endpoint"] = spec.Dep.Storage.Endpoint
+	if spec.Dep.WoodPecker.External {
+		conf["woodpecker-external"] = spec.Dep.WoodPecker.External
+		conf["woodpecker-quorumBufferPools"] = spec.Dep.WoodPecker.QuorumBufferPools
+	}
 
 	b, err := json.Marshal(conf)
 	if err != nil {

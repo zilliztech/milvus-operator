@@ -292,6 +292,62 @@ func TestMilvus_ValidateCreate_Invalid3(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestMilvus_ValidateCreate_ExternalWoodpecker(t *testing.T) {
+	newMc := func(pools []WoodpeckerBufferPool) Milvus {
+		return Milvus{
+			Spec: MilvusSpec{
+				Mode: MilvusModeStandalone,
+				Dep: MilvusDependencies{
+					MsgStreamType: MsgStreamTypeWoodPecker,
+					WoodPecker: MilvusWoodpecker{
+						External:          true,
+						QuorumBufferPools: pools,
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("external with no pools rejected", func(t *testing.T) {
+		mc := newMc(nil)
+		mc.Default()
+		_, err := mc.ValidateCreate()
+		assert.Error(t, err)
+	})
+
+	t.Run("pool without seeds rejected", func(t *testing.T) {
+		mc := newMc([]WoodpeckerBufferPool{{Name: "p1"}})
+		mc.Default()
+		_, err := mc.ValidateCreate()
+		assert.Error(t, err)
+	})
+
+	t.Run("pool without name rejected", func(t *testing.T) {
+		mc := newMc([]WoodpeckerBufferPool{{Seeds: []string{"wp-0:18080"}}})
+		mc.Default()
+		_, err := mc.ValidateCreate()
+		assert.Error(t, err)
+	})
+
+	t.Run("multiple valid pools accepted", func(t *testing.T) {
+		mc := newMc([]WoodpeckerBufferPool{
+			{Name: "default-region-pool1", Seeds: []string{"p1-server-0.wp-headless.ns.svc:18080"}},
+			{Name: "default-region-pool2", Seeds: []string{"p2-server-0.wp-headless.ns.svc:18080"}},
+		})
+		mc.Default()
+		_, err := mc.ValidateCreate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("external=false ignores pools", func(t *testing.T) {
+		mc := newMc(nil)
+		mc.Spec.Dep.WoodPecker.External = false
+		mc.Default()
+		_, err := mc.ValidateCreate()
+		assert.NoError(t, err)
+	})
+}
+
 func TestMilvus_ValidateUpdate_NoError(t *testing.T) {
 	mc := Milvus{}
 	_, err := mc.ValidateUpdate(&mc)

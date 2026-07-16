@@ -9540,6 +9540,9 @@ spec:
                     type: object
                   woodpecker:
                     properties:
+                      external:
+                        default: false
+                        type: boolean
                       persistence:
                         properties:
                           enabled:
@@ -9564,6 +9567,20 @@ spec:
                           pvcDeletion:
                             type: boolean
                         type: object
+                      quorumBufferPools:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            seeds:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - name
+                          - seeds
+                          type: object
+                        type: array
                     type: object
                 type: object
             type: object

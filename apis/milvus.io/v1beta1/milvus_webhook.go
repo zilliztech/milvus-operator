@@ -176,6 +176,22 @@ func (r *Milvus) validateExternal() field.ErrorList {
 		if r.Spec.Dep.Pulsar.External && len(r.Spec.Dep.Pulsar.Endpoint) == 0 {
 			allErrs = append(allErrs, required(fp.Child("pulsar").Child("endpoint")))
 		}
+	case MsgStreamTypeWoodPecker:
+		if r.Spec.Dep.WoodPecker.External {
+			wpPath := fp.Child("woodpecker").Child("quorumBufferPools")
+			pools := r.Spec.Dep.WoodPecker.QuorumBufferPools
+			if len(pools) == 0 {
+				allErrs = append(allErrs, required(wpPath))
+			}
+			for i, pool := range pools {
+				if pool.Name == "" {
+					allErrs = append(allErrs, required(wpPath.Index(i).Child("name")))
+				}
+				if len(pool.Seeds) == 0 {
+					allErrs = append(allErrs, required(wpPath.Index(i).Child("seeds")))
+				}
+			}
+		}
 	}
 
 	return allErrs

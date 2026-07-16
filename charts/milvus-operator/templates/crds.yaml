@@ -9542,6 +9542,9 @@ spec:
                     type: object
                   woodpecker:
                     properties:
+                      external:
+                        default: false
+                        type: boolean
                       persistence:
                         properties:
                           enabled:
@@ -9566,6 +9569,20 @@ spec:
                           pvcDeletion:
                             type: boolean
                         type: object
+                      quorumBufferPools:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            seeds:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - name
+                          - seeds
+                          type: object
+                        type: array
                     type: object
                 type: object
             type: object
@@ -9719,13 +9736,10 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    {{- if .Values.enableWebhook }}
     cert-manager.io/inject-ca-from: '{{.Release.Namespace}}/{{. | include "chart.fullname"}}-serving-cert'
-    {{- end }}
     controller-gen.kubebuilder.io/version: v0.17.2
   name: milvuses.milvus.io
 spec:
-  {{- if .Values.enableWebhook }}
   conversion:
     strategy: Webhook
     webhook:
@@ -9736,10 +9750,6 @@ spec:
           path: /convert
       conversionReviewVersions:
       - v1
-  {{- else }}
-  conversion:
-    strategy: None
-  {{- end }}
   group: milvus.io
   names:
     kind: Milvus
@@ -10428,6 +10438,9 @@ spec:
                     type: object
                   woodpecker:
                     properties:
+                      external:
+                        default: false
+                        type: boolean
                       persistence:
                         properties:
                           enabled:
@@ -10452,6 +10465,20 @@ spec:
                           pvcDeletion:
                             type: boolean
                         type: object
+                      quorumBufferPools:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            seeds:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - name
+                          - seeds
+                          type: object
+                        type: array
                     type: object
                 type: object
               disableMetric:
@@ -20451,6 +20478,9 @@ spec:
                     type: object
                   woodpecker:
                     properties:
+                      external:
+                        default: false
+                        type: boolean
                       persistence:
                         properties:
                           enabled:
@@ -20475,6 +20505,20 @@ spec:
                           pvcDeletion:
                             type: boolean
                         type: object
+                      quorumBufferPools:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            seeds:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - name
+                          - seeds
+                          type: object
+                        type: array
                     type: object
                 type: object
               hookConfig:
