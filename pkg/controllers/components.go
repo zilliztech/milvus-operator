@@ -159,6 +159,16 @@ func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
 	return ret
 }
 
+// containsComponent reports whether components contains a component with the given name.
+func containsComponent(components []MilvusComponent, name string) bool {
+	for _, c := range components {
+		if c.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // IsCoord return if it's a coord by its name
 func (c MilvusComponent) IsCoord() bool {
 	if c.Name == MixCoordName {

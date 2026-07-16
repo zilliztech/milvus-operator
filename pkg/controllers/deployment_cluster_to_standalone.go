@@ -18,77 +18,50 @@ func (r *MilvusReconciler) CleanupDeploymentClusterToStandalone(ctx context.Cont
 	if mc.Spec.Mode != v1beta1.MilvusModeStandalone || mc.Spec.Com.EnableManualMode {
 		return nil
 	}
-	// If mode is standalone, we need to ensure all other component deployments are scaled down
 
-	// List all deployments with the instance label
 	deploymentList := &appsv1.DeploymentList{}
-	opts := &client.ListOptions{
+	if err := r.List(ctx, deploymentList, &client.ListOptions{
 		Namespace:     mc.Namespace,
 		LabelSelector: labels.SelectorFromSet(NewAppLabels(mc.Name)),
-	}
-
-	if err := r.List(ctx, deploymentList, opts); err != nil {
+	}); err != nil {
 		return pkgerr.Wrap(err, "list deployments by instance label")
 	}
-	var nonStandaloneDeployments []appsv1.Deployment
-	for i := range deploymentList.Items {
-		deployment := &deploymentList.Items[i]
 
-		// Skip the standalone deployments by checking the component label
-		if deployment.Labels != nil && deployment.Labels[AppLabelComponent] == MilvusStandalone.Name {
-			continue
-		}
-		nonStandaloneDeployments = append(nonStandaloneDeployments, *deployment)
-	}
-	if len(nonStandaloneDeployments) == 0 {
-		// No non-standalone deployments found
-		return nil
-	}
-	logger.Info("Found non-standalone deployments to delete, checking standalone deployment readiness")
+	expectedComponents := GetComponentsBySpec(mc.Spec)
 
-	// Check if standalone deployment exists and is ready
-	// Standalone may use 2 deployment mode, so list all standalone deployments
-	standaloneDeploymentList := &appsv1.DeploymentList{}
-	standaloneOpts := &client.ListOptions{
-		Namespace: mc.Namespace,
-		LabelSelector: labels.SelectorFromSet(NewComponentAppLabels(
-			mc.Name,
-			MilvusStandalone.Name,
-		)),
-	}
+	// Partition into expected (check readiness) and unexpected (to delete).
+	// foundComponents ensures all expected components are provisioned before we delete anything.
+	var toDelete []appsv1.Deployment
+	foundComponents := make(map[string]bool)
+	allExpectedReady := true
 
-	if err := r.List(ctx, standaloneDeploymentList, standaloneOpts); err != nil {
-		return pkgerr.Wrap(err, "list standalone deployments")
-	}
-
-	if len(standaloneDeploymentList.Items) == 0 {
-		// If standalone deployment doesn't exist yet, we can't proceed
-		logger.V(1).Info("Standalone deployment not found, skip cluster to standalone cleanup")
-		return nil
-	}
-
-	// Check if all standalone deployments are ready
-	allStandaloneReady := true
-	for i := range standaloneDeploymentList.Items {
-		if !DeploymentReady(standaloneDeploymentList.Items[i].Status) {
-			allStandaloneReady = false
-			break
+	for _, d := range deploymentList.Items {
+		label := d.Labels[AppLabelComponent]
+		if containsComponent(expectedComponents, label) {
+			foundComponents[label] = true
+			if !DeploymentReady(d.Status) {
+				allExpectedReady = false
+			}
+		} else {
+			toDelete = append(toDelete, d)
 		}
 	}
 
-	if !allStandaloneReady {
-		logger.V(1).Info("Standalone deployment not ready yet, skip cluster to standalone cleanup")
+	if len(toDelete) == 0 {
 		return nil
 	}
 
-	logger.Info("Standalone deployment is ready, delete cluster component deployments")
-	for i := range nonStandaloneDeployments {
-		deployment := &nonStandaloneDeployments[i]
-		err := r.Delete(ctx, deployment)
-		if client.IgnoreNotFound(err) != nil {
-			return pkgerr.Wrapf(err, "delete deployment %s/%s", deployment.Namespace, deployment.Name)
+	if len(foundComponents) < len(expectedComponents) || !allExpectedReady {
+		logger.V(1).Info("Expected deployments not all found or ready, skip cluster to standalone cleanup")
+		return nil
+	}
+
+	logger.Info("Expected deployments ready, delete cluster component deployments")
+	for _, d := range toDelete {
+		if err := r.Delete(ctx, &d); client.IgnoreNotFound(err) != nil {
+			return pkgerr.Wrapf(err, "delete deployment %s/%s", d.Namespace, d.Name)
 		}
-		logger.Info("Deleted deployment", "deployment", deployment.Name)
+		logger.Info("Deleted deployment", "deployment", d.Name)
 	}
 
 	return nil

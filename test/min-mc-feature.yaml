@@ -52,7 +52,9 @@ spec:
         periodSeconds: 10
         successThreshold: 1
     rollingMode: 3
-    enableRollingUpdate: false 
+    enableRollingUpdate: false
+    cdc:
+      replicas: 1
     runWithSubProcess: true
     runAsNonRoot: true
     dummyImage: 'my-registry/my-dummy-image'
