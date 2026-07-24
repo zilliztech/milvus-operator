@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -338,5 +340,126 @@ func TestDeployModeChangerImpl_RecoverDeploy(t *testing.T) {
 		mockUtil.EXPECT().CreateObject(ctx, gomock.AssignableToTypeOf(&appsv1.Deployment{})).Return(nil)
 		err := changer.RecoverDeploy(ctx, mc)
 		assert.NoError(t, err)
+	})
+}
+
+func TestDeployModeChangerImpl_ChangeToOneDeployMode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockCli := NewMockK8sClient(ctrl)
+	mockUtil := NewMockDeployControllerBizUtil(ctrl)
+	changer := NewDeployModeChanger(QueryNode, mockCli, mockUtil)
+	mc := v1beta1.Milvus{}
+	mc.Default()
+
+	ctx := context.Background()
+
+	t.Run("not QueryNode, no action", func(t *testing.T) {
+		changerNotQN := NewDeployModeChanger(RootCoord, mockCli, mockUtil)
+		err := changerNotQN.ChangeToOneDeployMode(ctx, mc)
+		assert.NoError(t, err)
+	})
+
+	t.Run("get old deploy failed", func(t *testing.T) {
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(nil, errors.New("mock error"))
+		err := changer.ChangeToOneDeployMode(ctx, mc)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "get old deployment")
+	})
+
+	t.Run("old deploy exists, scale down and delete", func(t *testing.T) {
+		oldDeploy := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "old-deploy"},
+			Spec:       appsv1.DeploymentSpec{Replicas: new(int32)},
+		}
+		*oldDeploy.Spec.Replicas = 1
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(oldDeploy, nil)
+		mockCli.EXPECT().Update(ctx, oldDeploy, gomock.Any()).DoAndReturn(func(_ context.Context, d *appsv1.Deployment, _ ...client.UpdateOption) error {
+			assert.Equal(t, int32(0), *d.Spec.Replicas)
+			return nil
+		})
+		mockCli.EXPECT().Delete(ctx, oldDeploy).Return(nil)
+		currentDeployName := fmt.Sprintf("%s-%s-0", QueryNode.Name, mc.Name)
+		mockCli.EXPECT().Get(ctx, client.ObjectKey{Namespace: mc.Namespace, Name: currentDeployName}, gomock.Any()).Return(nil)
+		mockUtil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, QueryNode, 0).Return(nil)
+		err := changer.ChangeToOneDeployMode(ctx, mc)
+		assert.NoError(t, err)
+	})
+
+	t.Run("old deploy exists, update replicas failed", func(t *testing.T) {
+		oldDeploy := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "old-deploy"},
+			Spec:       appsv1.DeploymentSpec{Replicas: new(int32)},
+		}
+		*oldDeploy.Spec.Replicas = 1
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(oldDeploy, nil)
+		mockCli.EXPECT().Update(ctx, oldDeploy, gomock.Any()).Return(errors.New("mock error"))
+		err := changer.ChangeToOneDeployMode(ctx, mc)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "scale down old deployment")
+	})
+
+	t.Run("old deploy exists, delete failed", func(t *testing.T) {
+		oldDeploy := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "old-deploy"},
+			Spec:       appsv1.DeploymentSpec{Replicas: new(int32)},
+		}
+		*oldDeploy.Spec.Replicas = 1
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(oldDeploy, nil)
+		mockCli.EXPECT().Update(ctx, oldDeploy, gomock.Any()).DoAndReturn(func(_ context.Context, d *appsv1.Deployment, _ ...client.UpdateOption) error {
+			assert.Equal(t, int32(0), *d.Spec.Replicas)
+			return nil
+		})
+		mockCli.EXPECT().Delete(ctx, oldDeploy).Return(errors.New("mock error"))
+		err := changer.ChangeToOneDeployMode(ctx, mc)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "delete old deployment")
+	})
+
+	t.Run("old deploy not exists, current deploy exists", func(t *testing.T) {
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(nil, kerrors.NewNotFound(appsv1.Resource("deployments"), "old"))
+		currentDeployName := fmt.Sprintf("%s-%s-0", QueryNode.Name, mc.Name)
+		mockCli.EXPECT().Get(ctx, client.ObjectKey{Namespace: mc.Namespace, Name: currentDeployName}, gomock.Any()).Return(nil)
+		mockUtil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, QueryNode, 0).Return(nil)
+		err := changer.ChangeToOneDeployMode(ctx, mc)
+		assert.NoError(t, err)
+	})
+
+	t.Run("old deploy not exists, create current deploy", func(t *testing.T) {
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(nil, kerrors.NewNotFound(appsv1.Resource("deployments"), "old"))
+		currentDeployName := fmt.Sprintf("%s-%s-0", QueryNode.Name, mc.Name)
+		mockCli.EXPECT().Get(ctx, client.ObjectKey{Namespace: mc.Namespace, Name: currentDeployName}, gomock.Any()).Return(kerrors.NewNotFound(appsv1.Resource("deployments"), currentDeployName))
+		mockCli.EXPECT().Scheme().Return(runtime.NewScheme())
+		mockUtil.EXPECT().CreateObject(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, obj client.Object) error {
+			deploy, ok := obj.(*appsv1.Deployment)
+			assert.True(t, ok)
+			assert.Equal(t, currentDeployName, deploy.Name)
+			assert.Equal(t, "0", deploy.Labels[fmt.Sprintf("%s-group-id", QueryNode.Name)])
+			return nil
+		})
+		mockUtil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, QueryNode, 0).Return(nil)
+		err := changer.ChangeToOneDeployMode(ctx, mc)
+		assert.NoError(t, err)
+	})
+
+	t.Run("create current deploy failed", func(t *testing.T) {
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(nil, kerrors.NewNotFound(appsv1.Resource("deployments"), "old"))
+		currentDeployName := fmt.Sprintf("%s-%s-0", QueryNode.Name, mc.Name)
+		mockCli.EXPECT().Get(ctx, client.ObjectKey{Namespace: mc.Namespace, Name: currentDeployName}, gomock.Any()).Return(kerrors.NewNotFound(appsv1.Resource("deployments"), currentDeployName))
+		mockCli.EXPECT().Scheme().Return(runtime.NewScheme())
+		mockUtil.EXPECT().CreateObject(ctx, gomock.Any()).Return(errors.New("mock error"))
+		err := changer.ChangeToOneDeployMode(ctx, mc)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "create current deployment")
+	})
+
+	t.Run("mark group id failed", func(t *testing.T) {
+		mockUtil.EXPECT().GetOldDeploy(ctx, mc, QueryNode).Return(nil, kerrors.NewNotFound(appsv1.Resource("deployments"), "old"))
+		currentDeployName := fmt.Sprintf("%s-%s-0", QueryNode.Name, mc.Name)
+		mockCli.EXPECT().Get(ctx, client.ObjectKey{Namespace: mc.Namespace, Name: currentDeployName}, gomock.Any()).Return(nil)
+		mockUtil.EXPECT().MarkMilvusComponentGroupId(ctx, mc, QueryNode, 0).Return(errors.New("mock error"))
+		err := changer.ChangeToOneDeployMode(ctx, mc)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mark group id to 0")
 	})
 }
