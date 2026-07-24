@@ -37,6 +37,8 @@ spec:
           memory: 4Gi
 ```
 
+> **Tip:** If you plan to use [HPA autoscaling](./scale-a-milvus-cluster.md#autoscaling-with-hpa), make sure to set resource `requests` (not just `limits`) on your components. HPA calculates utilization as a percentage of requested resources.
+
 # More samples for different scale Milvus
 
 Check samples in [https://github.com/zilliztech/milvus-operator/tree/main/config/samples](https://github.com/zilliztech/milvus-operator/tree/main/config/samples)

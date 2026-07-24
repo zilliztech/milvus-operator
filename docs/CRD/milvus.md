@@ -171,6 +171,7 @@ spec:
 Each component has its own basic specifications that can overrides global ones:
 - replica: number of replicas
 - port: the port number that server will listen
+- hpa: optional HPA (Horizontal Pod Autoscaler) configuration for the component
 - fields same as section **Components Global Spec** has stated above (including `image` fields, `env`, `nodeSelector`,`tolerations`, `resources`)
 
 Take `rootCoord` as example:
@@ -186,6 +187,20 @@ spec:
 
       # Port number the conponent's server will listen
       port: 8080 # Optional
+
+      # HPA configuration for this component. When set, the operator creates
+      # and manages a HorizontalPodAutoscaler targeting this component's deployment.
+      hpa: # Optional
+        minReplicas: 1 # Optional
+        maxReplicas: 10 # Required
+        metrics: # Required, standard k8s HPA metrics
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 80
+        behavior: {} # Optional, standard k8s HPA scaling behavior
 
       # Private Component Spec fields overrides the global ones
       image: milvusdb/milvus:latest # Optional
