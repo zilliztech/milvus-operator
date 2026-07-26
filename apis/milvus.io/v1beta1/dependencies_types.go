@@ -243,6 +243,11 @@ type MilvusKafka struct {
 
 	// +kubebuilder:validation:Optional
 	BrokerList []string `json:"brokerList,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// SecretRef is the reference to the secret containing Kafka credentials
+	// Expected keys: username, password
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 // MilvusTei configuration
