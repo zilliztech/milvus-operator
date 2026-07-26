@@ -10,6 +10,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -99,8 +100,10 @@ func updatePodTemplate(
 
 	if updater.GetMilvus().Spec.Com.RunAsNonRoot {
 		template.Spec.SecurityContext = &corev1.PodSecurityContext{
-			RunAsNonRoot: &updater.GetMilvus().Spec.Com.RunAsNonRoot,
-			RunAsUser:    int64Ptr(1000),
+			RunAsNonRoot:        &updater.GetMilvus().Spec.Com.RunAsNonRoot,
+			RunAsUser:           int64Ptr(1000),
+			FSGroup:             int64Ptr(1000),
+			FSGroupChangePolicy: ptr.To(corev1.FSGroupChangeOnRootMismatch),
 		}
 	}
 
@@ -170,15 +173,14 @@ func updateInitContainers(template *corev1.PodTemplateSpec, updater deploymentUp
 
 func updateConfigContainer(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
 	configContainerIdx := GetContainerIndex(template.Spec.InitContainers, configContainerName)
-	spec := updater.GetMilvus().Spec
 	if configContainerIdx < 0 {
 		var container = new(corev1.Container)
 		if len(template.Spec.InitContainers) < 1 {
 			template.Spec.InitContainers = []corev1.Container{}
 		}
-		template.Spec.InitContainers = append(template.Spec.InitContainers, *renderInitContainer(container, spec.Com.ToolImage))
+		template.Spec.InitContainers = append(template.Spec.InitContainers, *renderInitContainer(container, updater))
 	} else {
-		renderInitContainer(&template.Spec.InitContainers[configContainerIdx], spec.Com.ToolImage)
+		renderInitContainer(&template.Spec.InitContainers[configContainerIdx], updater)
 	}
 }
 
@@ -218,6 +220,8 @@ func updateUserDefinedVolumes(template *corev1.PodTemplateSpec, updater deployme
 		} else {
 			userDefinedVolumes = append(userDefinedVolumes, emptyDirDataVolume())
 		}
+	} else if updater.GetMilvus().Spec.Com.RunAsNonRoot {
+		userDefinedVolumes = append(userDefinedVolumes, emptyDirDataVolume())
 	}
 
 	for _, volume := range userDefinedVolumes {
@@ -329,7 +333,7 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 func getUserDefinedVolumeMounts(updater deploymentUpdater) []corev1.VolumeMount {
 	ret := updater.GetMergedComponentSpec().VolumeMounts
 	builtInMq := updater.GetMilvus().Spec.Dep.GetMilvusBuiltInMQ()
-	if builtInMq != nil {
+	if builtInMq != nil || updater.GetMilvus().Spec.Com.RunAsNonRoot {
 		ret = append(ret, dataVolumeMount())
 	}
 	return ret
