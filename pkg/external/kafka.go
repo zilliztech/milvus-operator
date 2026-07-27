@@ -3,7 +3,6 @@ package external
 import (
 	"context"
 	"crypto/tls"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/segmentio/kafka-go"
@@ -89,7 +88,6 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 }
 
 func CheckKafka(conf CheckKafkaConfig) error {
-	// make a new reader that consumes from _milvus-operator, partition 0, at offset 0
 	if len(conf.BrokerList) == 0 {
 		return errors.New("broker list is empty")
 	}
@@ -99,17 +97,46 @@ func CheckKafka(conf CheckKafkaConfig) error {
 		return errors.Wrap(err, "get kafka dialer failed")
 	}
 
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Dialer:  dialer,
-		Brokers: conf.BrokerList,
-		Topic:   "_milvus-operator",
-	})
-	defer r.Close()
+	// Probe the brokers with an ApiVersions request: the dial performs the TLS and
+	// SASL handshake, and ApiVersions is a full protocol round trip, so a success
+	// means the broker is reachable, authenticated and answering requests.
+	//
+	// This probe is deliberately topic independent. It used to read the offset of a
+	// topic named "_milvus-operator", which requires that topic to exist and so
+	// silently depended on the broker having auto.create.topics.enable=true. On a
+	// broker where topic auto creation is disabled the probe could never succeed,
+	// leaving MsgStreamReady false forever, which in turn blocks ReconcileMilvus
+	// from creating any component. The failure was also hard to diagnose: the
+	// missing topic burned the whole DependencyCheckTimeout budget in retries, so
+	// the surfaced error was a dial/DNS timeout on whichever broker happened to be
+	// tried last rather than anything about the topic.
 	var checkKafka = func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), DependencyCheckTimeout)
 		defer cancel()
-		err := r.SetOffsetAt(ctx, time.Now())
-		return errors.Wrap(err, "check consume offset from broker failed")
+		var lastErr error
+		for _, broker := range conf.BrokerList {
+			conn, err := dialer.DialContext(ctx, "tcp", broker)
+			if err != nil {
+				lastErr = errors.Wrapf(err, "dial broker[%s] failed", broker)
+				continue
+			}
+			// DialContext does not bind the connection to the context deadline, so
+			// set it explicitly to keep the probe within DependencyCheckTimeout.
+			if deadline, ok := ctx.Deadline(); ok {
+				if err := conn.SetDeadline(deadline); err != nil {
+					conn.Close()
+					lastErr = errors.Wrapf(err, "set deadline for broker[%s] failed", broker)
+					continue
+				}
+			}
+			_, err = conn.ApiVersions()
+			conn.Close()
+			if err == nil {
+				return nil
+			}
+			lastErr = errors.Wrapf(err, "probe broker[%s] failed", broker)
+		}
+		return errors.Wrap(lastErr, "check kafka brokers failed")
 	}
 	return util.DoWithBackoff("checkKafka", checkKafka, util.DefaultMaxRetry, util.DefaultBackOffInterval)
 }

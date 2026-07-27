@@ -22,6 +22,14 @@ func TestCheckKafkaFailed(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("probe all brokers failed", func(t *testing.T) {
+		conf.BrokerList = []string{"dummy1:9092", "dummy2:9092"}
+		err = CheckKafka(conf)
+		assert.Error(t, err)
+		// every broker is tried, so the last one shows up in the error
+		assert.Contains(t, err.Error(), "dummy2:9092")
+	})
+
 	t.Run("get dialer failed", func(t *testing.T) {
 		conf.SecurityProtocol = "bad"
 		err = CheckKafka(conf)
