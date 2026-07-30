@@ -182,6 +182,20 @@ func TestGetHostPort(t *testing.T) {
 	assert.Equal(t, int32(80), port)
 }
 
+func TestGetHostPortWithDefault(t *testing.T) {
+	host, port := GetHostPortWithDefault("hostOnly", 443)
+	assert.Equal(t, "hostOnly", host)
+	assert.Equal(t, int32(443), port)
+
+	host, port = GetHostPortWithDefault("host:9000", 443)
+	assert.Equal(t, "host", host)
+	assert.Equal(t, int32(9000), port)
+
+	host, port = GetHostPortWithDefault("host:badPort", 443)
+	assert.Equal(t, "host", host)
+	assert.Equal(t, int32(443), port)
+}
+
 func TestGetTemplatedValues(t *testing.T) {
 	template := `
 k1: v1

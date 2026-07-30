@@ -249,7 +249,9 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	}
 	container := &template.Spec.Containers[containerIdx]
 	container.Args = updater.GetArgs()
-	env := mergedComSpec.Env
+	milvus := updater.GetMilvus()
+	env := GetStorageEndpointEnv(milvus.Spec.Dep.Storage.Endpoint, GetMinioSecure(milvus.Spec.Conf.Data))
+	env = MergeEnvVar(env, mergedComSpec.Env)
 	env = append(env, GetStorageSecretRefEnv(updater.GetSecretRef())...)
 	container.Env = MergeEnvVar(container.Env, env)
 	metricPort := corev1.ContainerPort{

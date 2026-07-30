@@ -316,6 +316,51 @@ func TestGetStorageSecretRefEnv(t *testing.T) {
 	assert.Len(t, ret, 4)
 }
 
+func TestGetStorageEndpointEnv(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		useSSL   bool
+		port     string
+	}{
+		{
+			name:     "endpoint with port",
+			endpoint: "minio.default.svc:9000",
+			port:     "9000",
+		},
+		{
+			name:     "endpoint without port",
+			endpoint: "minio.default.svc",
+			port:     "80",
+		},
+		{
+			name:     "ssl endpoint without port",
+			endpoint: "minio.default.svc",
+			useSSL:   true,
+			port:     "443",
+		},
+		{
+			name:     "ssl endpoint with explicit port",
+			endpoint: "minio.default.svc:9000",
+			useSSL:   true,
+			port:     "9000",
+		},
+		{
+			name:     "ipv6 endpoint",
+			endpoint: "[::1]:9000",
+			port:     "9000",
+		},
+	}
+
+	assert.Empty(t, GetStorageEndpointEnv("", false))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := GetStorageEndpointEnv(tt.endpoint, tt.useSSL)
+			assert.Equal(t, []corev1.EnvVar{{Name: "MINIO_PORT", Value: tt.port}}, env)
+		})
+	}
+}
+
 func TestReconciler_handleOldInstanceChangingMode(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

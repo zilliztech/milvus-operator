@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -44,6 +45,28 @@ var (
 	DefaultSecretMode    = corev1.SecretVolumeSourceDefaultMode
 	ErrRequeue           = errors.New("requeue")
 )
+
+func GetStorageHostPort(endpoint string, useSSL bool) (string, int32) {
+	defaultPort := int32(80)
+	if useSSL {
+		defaultPort = 443
+	}
+	return util.GetHostPortWithDefault(endpoint, defaultPort)
+}
+
+func GetStorageEndpointEnv(endpoint string, useSSL bool) []corev1.EnvVar {
+	if endpoint == "" {
+		return nil
+	}
+
+	_, port := GetStorageHostPort(endpoint, useSSL)
+	return []corev1.EnvVar{
+		{
+			Name:  "MINIO_PORT",
+			Value: strconv.Itoa(int(port)),
+		},
+	}
+}
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 	env := []corev1.EnvVar{}
