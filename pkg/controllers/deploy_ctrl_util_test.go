@@ -37,11 +37,17 @@ func TestDeployControllerBizUtilImpl_RenderPodTemplateWithoutGroupID(t *testing.
 	mc.Default()
 	currentTemplate := new(corev1.PodTemplateSpec)
 	component := DataNode
+	ctx := contextWithStorageEndpointEnv(context.Background(), []corev1.EnvVar{{
+		Name:  "MINIO_PORT",
+		Value: "80",
+	}})
 
 	mockcli.EXPECT().Scheme().Return(scheme)
-	template := bizUtil.RenderPodTemplateWithoutGroupID(mc, currentTemplate, component, false)
+	template := bizUtil.RenderPodTemplateWithoutGroupID(ctx, mc, currentTemplate, component, false)
 	assert.NotNil(t, template)
 	assert.Equal(t, template.Labels[v1beta1.GetComponentGroupIdLabel(component.Name)], "")
+	assert.Contains(t, template.Spec.Containers[0].Env, corev1.EnvVar{Name: "MINIO_PORT", Value: "80"})
+	assert.Empty(t, mc.Spec.Com.Env)
 }
 
 func TestDeployControllerBizUtilImpl_GetOldDeploy(t *testing.T) {
@@ -301,13 +307,13 @@ func TestDeployControllerBizUtilImpl_ShouldRollback(t *testing.T) {
 	currentDeploy := new(appsv1.Deployment)
 	lastDeploy := new(appsv1.Deployment)
 	mockcli.EXPECT().Scheme().Return(scheme).AnyTimes()
-	podTemplate := bizUtil.RenderPodTemplateWithoutGroupID(mc, nil, DataNode, false)
+	podTemplate := bizUtil.RenderPodTemplateWithoutGroupID(ctx, mc, nil, DataNode, false)
 	labelHelper := v1beta1.Labels()
 
 	t.Cleanup(func() {
 		currentDeploy = new(appsv1.Deployment)
 		lastDeploy = new(appsv1.Deployment)
-		podTemplate = bizUtil.RenderPodTemplateWithoutGroupID(mc, nil, DataNode, false)
+		podTemplate = bizUtil.RenderPodTemplateWithoutGroupID(ctx, mc, nil, DataNode, false)
 		mockCtrl.Finish()
 	})
 

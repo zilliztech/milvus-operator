@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"time"
 
 	pkgErrs "github.com/pkg/errors"
@@ -28,6 +29,7 @@ type deploymentUpdater interface {
 	GetMergedComponentSpec() ComponentSpec
 	GetArgs() []string
 	GetSecretRef() string
+	GetStorageEndpointEnv() []corev1.EnvVar
 	GetMilvus() *v1beta1.Milvus
 	RollingUpdateImageDependencyReady() bool
 	HasHookConfig() bool
@@ -249,7 +251,7 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	}
 	container := &template.Spec.Containers[containerIdx]
 	container.Args = updater.GetArgs()
-	env := mergedComSpec.Env
+	env := MergeEnvVar(updater.GetStorageEndpointEnv(), mergedComSpec.Env)
 	env = append(env, GetStorageSecretRefEnv(updater.GetSecretRef())...)
 	container.Env = MergeEnvVar(container.Env, env)
 	metricPort := corev1.ContainerPort{
@@ -409,8 +411,9 @@ func updateSidecars(template *corev1.PodTemplateSpec, updater deploymentUpdater)
 // milvusDeploymentUpdater implements deploymentUpdater for milvus
 type milvusDeploymentUpdater struct {
 	v1beta1.Milvus
-	scheme    *runtime.Scheme
-	component MilvusComponent
+	scheme             *runtime.Scheme
+	component          MilvusComponent
+	storageEndpointEnv []corev1.EnvVar
 }
 
 func newMilvusDeploymentUpdater(m v1beta1.Milvus, scheme *runtime.Scheme, component MilvusComponent) *milvusDeploymentUpdater {
@@ -419,6 +422,33 @@ func newMilvusDeploymentUpdater(m v1beta1.Milvus, scheme *runtime.Scheme, compon
 		scheme:    scheme,
 		component: component,
 	}
+}
+
+func newMilvusDeploymentUpdaterWithStorageEndpointEnv(
+	m v1beta1.Milvus,
+	scheme *runtime.Scheme,
+	component MilvusComponent,
+	storageEndpointEnv []corev1.EnvVar,
+) *milvusDeploymentUpdater {
+	updater := newMilvusDeploymentUpdater(m, scheme, component)
+	updater.storageEndpointEnv = storageEndpointEnv
+	return updater
+}
+
+type storageEndpointEnvContextKey struct{}
+
+// contextWithStorageEndpointEnv keeps the generated override reconcile-scoped so
+// deployment controllers cannot accidentally persist it into the Milvus spec.
+func contextWithStorageEndpointEnv(ctx context.Context, env []corev1.EnvVar) context.Context {
+	if len(env) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, storageEndpointEnvContextKey{}, env)
+}
+
+func storageEndpointEnvFromContext(ctx context.Context) []corev1.EnvVar {
+	env, _ := ctx.Value(storageEndpointEnvContextKey{}).([]corev1.EnvVar)
+	return env
 }
 
 func (m milvusDeploymentUpdater) GetPersistenceConfig() *v1beta1.Persistence {
@@ -435,6 +465,10 @@ func (m milvusDeploymentUpdater) GetPortName() string {
 
 func (m milvusDeploymentUpdater) GetComponent() MilvusComponent {
 	return m.component
+}
+
+func (m milvusDeploymentUpdater) GetStorageEndpointEnv() []corev1.EnvVar {
+	return m.storageEndpointEnv
 }
 
 func (m milvusDeploymentUpdater) GetRestfulPort() int32 {

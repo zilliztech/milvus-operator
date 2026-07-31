@@ -372,7 +372,7 @@ func TestGetStorageEndpointEnv(t *testing.T) {
 	}
 }
 
-func TestInjectMinioPortEnvIfServiceExists(t *testing.T) {
+func TestGetMinioPortEnvIfServiceExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	r := newMilvusReconcilerForTest(ctrl)
 	mockClient := r.Client.(*MockK8sClient)
@@ -385,9 +385,9 @@ func TestInjectMinioPortEnvIfServiceExists(t *testing.T) {
 			Get(gomock.Any(), NamespacedName("ns", Minio), gomock.AssignableToTypeOf(&corev1.Service{})).
 			Return(k8sErrors.NewNotFound(schema.GroupResource{Resource: "services"}, Minio))
 
-		err := r.injectMinioPortEnvIfServiceExists(ctx, &mc)
+		env, err := r.getMinioPortEnvIfServiceExists(ctx, mc)
 		assert.NoError(t, err)
-		assert.Empty(t, mc.Spec.Com.Env)
+		assert.Empty(t, env)
 	})
 
 	t.Run("service exists", func(t *testing.T) {
@@ -397,9 +397,10 @@ func TestInjectMinioPortEnvIfServiceExists(t *testing.T) {
 			Get(gomock.Any(), NamespacedName("ns", Minio), gomock.AssignableToTypeOf(&corev1.Service{})).
 			Return(nil)
 
-		err := r.injectMinioPortEnvIfServiceExists(ctx, &mc)
+		env, err := r.getMinioPortEnvIfServiceExists(ctx, mc)
 		assert.NoError(t, err)
-		assert.Equal(t, []corev1.EnvVar{{Name: "MINIO_PORT", Value: "9000"}}, mc.Spec.Com.Env)
+		assert.Equal(t, []corev1.EnvVar{{Name: "MINIO_PORT", Value: "9000"}}, env)
+		assert.Empty(t, mc.Spec.Com.Env)
 	})
 
 	t.Run("ssl service defaults to port 443", func(t *testing.T) {
@@ -414,22 +415,10 @@ func TestInjectMinioPortEnvIfServiceExists(t *testing.T) {
 			Get(gomock.Any(), NamespacedName("ns", Minio), gomock.AssignableToTypeOf(&corev1.Service{})).
 			Return(nil)
 
-		err := r.injectMinioPortEnvIfServiceExists(ctx, &mc)
+		env, err := r.getMinioPortEnvIfServiceExists(ctx, mc)
 		assert.NoError(t, err)
-		assert.Equal(t, []corev1.EnvVar{{Name: "MINIO_PORT", Value: "443"}}, mc.Spec.Com.Env)
-	})
-
-	t.Run("user env takes precedence", func(t *testing.T) {
-		mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "ns"}}
-		mc.Spec.Dep.Storage.Endpoint = "minio.example.com:9000"
-		mc.Spec.Com.Env = []corev1.EnvVar{{Name: "MINIO_PORT", Value: "9443"}}
-		mockClient.EXPECT().
-			Get(gomock.Any(), NamespacedName("ns", Minio), gomock.AssignableToTypeOf(&corev1.Service{})).
-			Return(nil)
-
-		err := r.injectMinioPortEnvIfServiceExists(ctx, &mc)
-		assert.NoError(t, err)
-		assert.Equal(t, []corev1.EnvVar{{Name: "MINIO_PORT", Value: "9443"}}, mc.Spec.Com.Env)
+		assert.Equal(t, []corev1.EnvVar{{Name: "MINIO_PORT", Value: "443"}}, env)
+		assert.Empty(t, mc.Spec.Com.Env)
 	})
 }
 

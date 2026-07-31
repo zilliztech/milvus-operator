@@ -287,7 +287,7 @@ func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.
 	if currentDeploy == nil {
 		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
 	}
-	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, false)
+	podTemplate := c.util.RenderPodTemplateWithoutGroupID(ctx, mc, &currentDeploy.Spec.Template, c.component, false)
 
 	if c.util.ShouldRollback(ctx, currentDeploy, lastDeploy, podTemplate) {
 		currentDeploy = lastDeploy
@@ -328,7 +328,7 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 	if getDeployReplicas(currentDeploy) != 0 {
 		return nil
 	}
-	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, true)
+	podTemplate := c.util.RenderPodTemplateWithoutGroupID(ctx, mc, &currentDeploy.Spec.Template, c.component, true)
 	needUpdate := c.util.RenewDeployAnnotation(ctx, mc, currentDeploy)
 	if c.util.IsPodTemplateChanged(ctx, currentDeploy, podTemplate) {
 		needUpdate = true

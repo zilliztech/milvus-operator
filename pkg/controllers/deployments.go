@@ -68,21 +68,19 @@ func GetStorageEndpointEnv(endpoint string, useSSL bool) []corev1.EnvVar {
 	}
 }
 
-// injectMinioPortEnvIfServiceExists overrides the Kubernetes service-link variable only
-// in namespaces where a Service named "minio" can cause the collision.
-func (r *MilvusReconciler) injectMinioPortEnvIfServiceExists(ctx context.Context, mc *v1beta1.Milvus) error {
+// getMinioPortEnvIfServiceExists returns an override for the Kubernetes service-link
+// variable only in namespaces where a Service named "minio" can cause the collision.
+func (r *MilvusReconciler) getMinioPortEnvIfServiceExists(ctx context.Context, mc v1beta1.Milvus) ([]corev1.EnvVar, error) {
 	service := &corev1.Service{}
 	err := r.Get(ctx, NamespacedName(mc.Namespace, Minio), service)
 	if kerrors.IsNotFound(err) {
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return pkgerr.Wrap(err, "check minio service")
+		return nil, pkgerr.Wrap(err, "check minio service")
 	}
 
-	env := GetStorageEndpointEnv(mc.Spec.Dep.Storage.Endpoint, GetMinioSecure(mc.Spec.Conf.Data))
-	mc.Spec.Com.Env = MergeEnvVar(env, mc.Spec.Com.Env)
-	return nil
+	return GetStorageEndpointEnv(mc.Spec.Dep.Storage.Endpoint, GetMinioSecure(mc.Spec.Conf.Data)), nil
 }
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
@@ -140,7 +138,9 @@ func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 func (r *MilvusReconciler) updateDeployment(
 	ctx context.Context, mc v1beta1.Milvus, deployment *appsv1.Deployment, component MilvusComponent,
 ) error {
-	updater := newMilvusDeploymentUpdater(mc, r.Scheme, component)
+	updater := newMilvusDeploymentUpdaterWithStorageEndpointEnv(
+		mc, r.Scheme, component, storageEndpointEnvFromContext(ctx),
+	)
 	hasTerminatingPod, err := CheckComponentHasTerminatingPod(ctx, r.Client, mc, component)
 	if err != nil {
 		return pkgerr.Wrap(err, "check component has terminating pod")
@@ -306,10 +306,11 @@ func (r *MilvusReconciler) RemoveOldStandlone(ctx context.Context, mc v1beta1.Mi
 }
 
 func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.Milvus) error {
-	err := r.injectMinioPortEnvIfServiceExists(ctx, &mc)
+	storageEndpointEnv, err := r.getMinioPortEnvIfServiceExists(ctx, mc)
 	if err != nil {
 		return err
 	}
+	ctx = contextWithStorageEndpointEnv(ctx, storageEndpointEnv)
 
 	err = r.RemoveOldStandlone(ctx, mc)
 	if err != nil {
