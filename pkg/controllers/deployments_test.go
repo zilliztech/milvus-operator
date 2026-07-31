@@ -45,6 +45,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 
 	// all ok
 	t.Run("v1 deploy mode all ok", func(t *testing.T) {
+		expectMinioServiceNotFound(mockClient)
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
@@ -61,6 +62,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 	})
 
 	t.Run("has old standlaone deploy delete ok", func(t *testing.T) {
+		expectMinioServiceNotFound(mockClient)
 		oldDeploy := appsv1.Deployment{}
 		oldDeploy.Name = "mc-standalone"
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
@@ -88,6 +90,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 	})
 
 	t.Run("has volume& volumemounts ok", func(t *testing.T) {
+		expectMinioServiceNotFound(mockClient)
 		mc := *mcDefault.DeepCopy()
 		mc.Spec.Com.Volumes = []v1beta1.Values{
 			{},
@@ -255,6 +258,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 	}()
 	t.Run("call client.Update if changed", func(t *testing.T) {
 		defer env.Ctrl.Finish()
+		expectMinioServiceNotFound(mockClient)
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
@@ -275,6 +279,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 
 	t.Run("not call client.Update if configmap not changed", func(t *testing.T) {
 		defer env.Ctrl.Finish()
+		expectMinioServiceNotFound(mockClient)
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
@@ -307,6 +312,12 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+}
+
+func expectMinioServiceNotFound(mockClient *MockK8sClient) {
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).
+		Return(k8sErrors.NewNotFound(schema.GroupResource{Resource: "services"}, Minio))
 }
 
 func TestGetStorageSecretRefEnv(t *testing.T) {
@@ -359,6 +370,67 @@ func TestGetStorageEndpointEnv(t *testing.T) {
 			assert.Equal(t, []corev1.EnvVar{{Name: "MINIO_PORT", Value: tt.port}}, env)
 		})
 	}
+}
+
+func TestInjectMinioPortEnvIfServiceExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	r := newMilvusReconcilerForTest(ctrl)
+	mockClient := r.Client.(*MockK8sClient)
+	ctx := context.Background()
+
+	t.Run("service not found", func(t *testing.T) {
+		mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "ns"}}
+		mc.Spec.Dep.Storage.Endpoint = "minio.example.com:9000"
+		mockClient.EXPECT().
+			Get(gomock.Any(), NamespacedName("ns", Minio), gomock.AssignableToTypeOf(&corev1.Service{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{Resource: "services"}, Minio))
+
+		err := r.injectMinioPortEnvIfServiceExists(ctx, &mc)
+		assert.NoError(t, err)
+		assert.Empty(t, mc.Spec.Com.Env)
+	})
+
+	t.Run("service exists", func(t *testing.T) {
+		mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "ns"}}
+		mc.Spec.Dep.Storage.Endpoint = "minio.example.com:9000"
+		mockClient.EXPECT().
+			Get(gomock.Any(), NamespacedName("ns", Minio), gomock.AssignableToTypeOf(&corev1.Service{})).
+			Return(nil)
+
+		err := r.injectMinioPortEnvIfServiceExists(ctx, &mc)
+		assert.NoError(t, err)
+		assert.Equal(t, []corev1.EnvVar{{Name: "MINIO_PORT", Value: "9000"}}, mc.Spec.Com.Env)
+	})
+
+	t.Run("ssl service defaults to port 443", func(t *testing.T) {
+		mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "ns"}}
+		mc.Spec.Dep.Storage.Endpoint = "minio.example.com"
+		mc.Spec.Conf.Data = map[string]interface{}{
+			"minio": map[string]interface{}{
+				"useSSL": true,
+			},
+		}
+		mockClient.EXPECT().
+			Get(gomock.Any(), NamespacedName("ns", Minio), gomock.AssignableToTypeOf(&corev1.Service{})).
+			Return(nil)
+
+		err := r.injectMinioPortEnvIfServiceExists(ctx, &mc)
+		assert.NoError(t, err)
+		assert.Equal(t, []corev1.EnvVar{{Name: "MINIO_PORT", Value: "443"}}, mc.Spec.Com.Env)
+	})
+
+	t.Run("user env takes precedence", func(t *testing.T) {
+		mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "ns"}}
+		mc.Spec.Dep.Storage.Endpoint = "minio.example.com:9000"
+		mc.Spec.Com.Env = []corev1.EnvVar{{Name: "MINIO_PORT", Value: "9443"}}
+		mockClient.EXPECT().
+			Get(gomock.Any(), NamespacedName("ns", Minio), gomock.AssignableToTypeOf(&corev1.Service{})).
+			Return(nil)
+
+		err := r.injectMinioPortEnvIfServiceExists(ctx, &mc)
+		assert.NoError(t, err)
+		assert.Equal(t, []corev1.EnvVar{{Name: "MINIO_PORT", Value: "9443"}}, mc.Spec.Com.Env)
+	})
 }
 
 func TestReconciler_handleOldInstanceChangingMode(t *testing.T) {

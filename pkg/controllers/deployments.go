@@ -68,6 +68,23 @@ func GetStorageEndpointEnv(endpoint string, useSSL bool) []corev1.EnvVar {
 	}
 }
 
+// injectMinioPortEnvIfServiceExists overrides the Kubernetes service-link variable only
+// in namespaces where a Service named "minio" can cause the collision.
+func (r *MilvusReconciler) injectMinioPortEnvIfServiceExists(ctx context.Context, mc *v1beta1.Milvus) error {
+	service := &corev1.Service{}
+	err := r.Get(ctx, NamespacedName(mc.Namespace, Minio), service)
+	if kerrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return pkgerr.Wrap(err, "check minio service")
+	}
+
+	env := GetStorageEndpointEnv(mc.Spec.Dep.Storage.Endpoint, GetMinioSecure(mc.Spec.Conf.Data))
+	mc.Spec.Com.Env = MergeEnvVar(env, mc.Spec.Com.Env)
+	return nil
+}
+
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 	env := []corev1.EnvVar{}
 	if secretRef == "" {
@@ -289,7 +306,12 @@ func (r *MilvusReconciler) RemoveOldStandlone(ctx context.Context, mc v1beta1.Mi
 }
 
 func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.Milvus) error {
-	err := r.RemoveOldStandlone(ctx, mc)
+	err := r.injectMinioPortEnvIfServiceExists(ctx, &mc)
+	if err != nil {
+		return err
+	}
+
+	err = r.RemoveOldStandlone(ctx, mc)
 	if err != nil {
 		return err
 	}
