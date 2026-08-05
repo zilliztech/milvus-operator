@@ -26,6 +26,9 @@ spec:
         {{- if .Values.enableWebhook }}
         - --webhook=true
         {{- end }}
+        {{- if .Values.watchNamespaceEnabled }}
+        - --watch-namespace={{ join "," .Values.watchNamespace }}
+        {{- end }}
         command:
         - /manager
         image: '{{.Values.image.repository}}:{{.Values.image.tag|default .Chart.AppVersion}}'
