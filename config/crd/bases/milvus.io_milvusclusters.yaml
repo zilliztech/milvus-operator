@@ -9379,6 +9379,8 @@ spec:
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
                         type: object
+                      secretRef:
+                        type: string
                     type: object
                   msgStreamType:
                     enum:

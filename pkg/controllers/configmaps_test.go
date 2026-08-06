@@ -312,4 +312,38 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("kafka sasl secretRef populates saslUsername/saslPassword from secret", func(t *testing.T) {
+		mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		mc.Spec.Dep.Kafka.BrokerList = []string{"broker:9092"}
+		mc.Spec.Dep.Kafka.SecretRef = "kafka-sasl-secret"
+		mc.Spec.Conf.Data = nil
+		cm := &corev1.ConfigMap{}
+		cm.Namespace = "ns"
+		cm.Name = "cm1"
+		// get secret of minio (NotFound, as in other cases) and the new kafka sasl secret
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				if key.Name != mc.Spec.Dep.Kafka.SecretRef {
+					return k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")
+				}
+				secret := obj.(*corev1.Secret)
+				secret.Data = map[string][]byte{
+					KafkaSaslUsernameKey: []byte("kafka-user"),
+					KafkaSaslPasswordKey: []byte("kafka-pass"),
+				}
+				return nil
+			}).
+			Times(2)
+
+		err := r.updateConfigMap(ctx, mc, cm)
+		assert.NoError(t, err)
+
+		conf := map[string]interface{}{}
+		assert.NoError(t, yaml.Unmarshal([]byte(cm.Data[UserYaml]), &conf))
+		kafka := conf["kafka"].(map[string]interface{})
+		assert.Equal(t, "kafka-user", kafka["saslUsername"])
+		assert.Equal(t, "kafka-pass", kafka["saslPassword"])
+	})
 }

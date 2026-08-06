@@ -35,6 +35,20 @@ func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Mi
 
 }
 
+func (r *MilvusReconciler) getKafkaSaslInfo(ctx context.Context, mc v1beta1.Milvus) (string, string) {
+	if mc.Spec.Dep.Kafka.SecretRef == "" {
+		return "", ""
+	}
+	secret := &corev1.Secret{}
+	key := types.NamespacedName{Namespace: mc.Namespace, Name: mc.Spec.Dep.Kafka.SecretRef}
+	if err := r.Get(ctx, key, secret); err != nil {
+		r.logger.Error(err, "get kafka sasl secret error")
+		return "", ""
+	}
+
+	return string(secret.Data[KafkaSaslUsernameKey]), string(secret.Data[KafkaSaslPasswordKey])
+}
+
 func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvus, configmap *corev1.ConfigMap) error {
 	confYaml, err := util.GetTemplatedValues(config.GetMilvusConfigTemplate(), mc)
 	if err != nil {
@@ -61,6 +75,10 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 	switch mc.Spec.Dep.MsgStreamType {
 	case v1beta1.MsgStreamTypeKafka:
 		util.SetStringSlice(conf, mc.Spec.Dep.Kafka.BrokerList, "kafka", "brokerList")
+		if username, password := r.getKafkaSaslInfo(ctx, mc); mc.Spec.Dep.Kafka.SecretRef != "" {
+			util.SetValue(conf, username, "kafka", "saslUsername")
+			util.SetValue(conf, password, "kafka", "saslPassword")
+		}
 		// delete other mq config to make milvus use kafka
 		delete(conf, "pulsar")
 		delete(conf, "rocksmq")

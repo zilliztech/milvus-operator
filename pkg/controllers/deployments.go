@@ -30,6 +30,8 @@ const (
 	HookYaml                   = "hook.yaml"
 	AccessKey                  = "accesskey"
 	SecretKey                  = "secretkey"
+	KafkaSaslUsernameKey       = "username"
+	KafkaSaslPasswordKey       = "password"
 	AnnotationCheckSum         = "checksum/config"
 	AnnotationMilvusGeneration = v1beta1.AnnotationMilvusGeneration
 
