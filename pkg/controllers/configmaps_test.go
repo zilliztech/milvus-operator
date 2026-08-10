@@ -239,4 +239,77 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 			"c": "d",
 		}, mc.Spec.Conf.Data["rocksmq"])
 	})
+
+	t.Run("woodpecker external service config rendered", func(t *testing.T) {
+		mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeWoodPecker
+		mc.Spec.Dep.WoodPecker.External = true
+		mc.Spec.Dep.WoodPecker.QuorumBufferPools = []v1beta1.WoodpeckerBufferPool{
+			{
+				Name: "default-region-pool1",
+				Seeds: []string{
+					"default-region-pool1-server-0.wp-headless.ns.svc:18080",
+					"default-region-pool1-server-1.wp-headless.ns.svc:18080",
+				},
+			},
+			{
+				Name:  "default-region-pool2",
+				Seeds: []string{"default-region-pool2-server-0.wp-headless.ns.svc:18080"},
+			},
+		}
+		mc.Spec.Conf.Data = nil
+		cm := &corev1.ConfigMap{}
+		cm.Namespace = "ns"
+		cm.Name = "cm1"
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")).Times(1)
+
+		err := r.updateConfigMap(ctx, mc, cm)
+		assert.NoError(t, err)
+
+		conf := map[string]interface{}{}
+		assert.NoError(t, yaml.Unmarshal([]byte(cm.Data[UserYaml]), &conf))
+		assert.Equal(t, "woodpecker", conf["mq"].(map[string]interface{})["type"])
+		assert.Equal(t, "woodpecker", conf["messageQueue"])
+		wp := conf["woodpecker"].(map[string]interface{})
+		assert.Equal(t, "service", wp["storage"].(map[string]interface{})["type"])
+		quorum := wp["client"].(map[string]interface{})["quorum"].(map[string]interface{})
+		pools := quorum["quorumBufferPools"].(string) // milvus reads this as a JSON string
+		// both pools and all seeds must be rendered
+		assert.Contains(t, pools, "default-region-pool1")
+		assert.Contains(t, pools, "default-region-pool2")
+		assert.Contains(t, pools, "default-region-pool1-server-1.wp-headless.ns.svc:18080")
+		assert.Contains(t, pools, "default-region-pool2-server-0.wp-headless.ns.svc:18080")
+		// the operator must NOT set quorum sizing (replicas) — config-file concern
+		assert.Nil(t, quorum["quorumSelectStrategy"])
+		assert.Nil(t, conf["pulsar"])
+		assert.Nil(t, conf["kafka"])
+	})
+
+	t.Run("woodpecker embedded (external=false) renders no service config", func(t *testing.T) {
+		mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeWoodPecker
+		// embedded mode: must NOT render service mode
+		mc.Spec.Dep.WoodPecker.External = false
+		mc.Spec.Dep.WoodPecker.QuorumBufferPools = nil
+		mc.Spec.Conf.Data = nil
+		cm := &corev1.ConfigMap{}
+		cm.Namespace = "ns"
+		cm.Name = "cm1"
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")).Times(1)
+
+		err := r.updateConfigMap(ctx, mc, cm)
+		assert.NoError(t, err)
+
+		conf := map[string]interface{}{}
+		assert.NoError(t, yaml.Unmarshal([]byte(cm.Data[UserYaml]), &conf))
+		assert.Equal(t, "woodpecker", conf["messageQueue"])
+		// no service-mode storage type rendered
+		if wp, ok := conf["woodpecker"].(map[string]interface{}); ok {
+			if storage, ok := wp["storage"].(map[string]interface{}); ok {
+				assert.NotEqual(t, "service", storage["type"])
+			}
+		}
+	})
 }

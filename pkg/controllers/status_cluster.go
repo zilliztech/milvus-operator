@@ -423,6 +423,13 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 		kafkaConf.BrokerList = mc.Spec.Dep.Kafka.BrokerList
 		getter = wrapKafkaConditonGetter(ctx, r.logger, mc.Spec.Dep.Kafka, *kafkaConf)
 		eps = mc.Spec.Dep.Kafka.BrokerList
+	case v1beta1.MsgStreamTypeWoodPecker:
+		if !mc.Spec.Dep.WoodPecker.External {
+			// embedded woodpecker runs inside milvus, assume ok
+			return msgStreamReadyCondition, nil
+		}
+		eps = mc.Spec.Dep.WoodPecker.SeedEndpoints()
+		getter = external.NewTCPDialConditionGetter(v1beta1.MsgStreamReady, eps).GetCondition
 	default:
 		// default built-in mqs, assume ok
 		return msgStreamReadyCondition, nil
