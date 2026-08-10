@@ -207,9 +207,12 @@ Fields used to configure an external Kafka service include:
 - `external`: A `true` value indicates that Milvus uses an external Kafka service.
 - `brokerList`: The list of brokers to send the messages to.
 - `secretRef`: Optional, the name of a Secret storing SASL credentials for the Kafka
-  service, with keys `username` and `password`. When set, it takes precedence over
-  `spec.config.kafka.saslUsername`/`saslPassword`, so SASL credentials don't need to
-  be set as literal values in the Milvus CR.
+  service. Both the `username` and the `password` key are required; the operator requeues
+  until they are readable instead of writing an unusable Kafka configuration. When set, it
+  takes precedence over `spec.config.kafka.saslUsername`/`saslPassword`, so SASL
+  credentials don't need to be set as literal values in the Milvus CR.
+  The Secret is watched: rotating the credentials in place re-renders the configmap and
+  rolls the Milvus components so that they pick the new credentials up.
 
 #### Example
 

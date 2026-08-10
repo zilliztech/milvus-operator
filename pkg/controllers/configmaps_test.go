@@ -321,7 +321,7 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		cm := &corev1.ConfigMap{}
 		cm.Namespace = "ns"
 		cm.Name = "cm1"
-		// get secret of minio (NotFound, as in other cases) and the new kafka sasl secret
+		// get the minio secret (NotFound) & the kafka sasl secret
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
 			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
@@ -345,5 +345,121 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		kafka := conf["kafka"].(map[string]interface{})
 		assert.Equal(t, "kafka-user", kafka["saslUsername"])
 		assert.Equal(t, "kafka-pass", kafka["saslPassword"])
+	})
+
+	t.Run("kafka sasl secret read failed", func(t *testing.T) {
+		mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		mc.Spec.Dep.Kafka.BrokerList = []string{"broker:9092"}
+		mc.Spec.Dep.Kafka.SecretRef = "kafka-sasl-secret"
+		mc.Spec.Conf.Data = nil
+		cm := &corev1.ConfigMap{}
+		cm.Namespace = "ns"
+		cm.Name = "cm1"
+		// the minio secret & the kafka sasl secret are both missing
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")).
+			Times(2)
+
+		err := r.updateConfigMap(ctx, mc, cm)
+		assert.Error(t, err)
+	})
+
+	t.Run("kafka sasl secret missing required key", func(t *testing.T) {
+		mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		mc.Spec.Dep.Kafka.BrokerList = []string{"broker:9092"}
+		mc.Spec.Dep.Kafka.SecretRef = "kafka-sasl-secret"
+		mc.Spec.Conf.Data = nil
+		cm := &corev1.ConfigMap{}
+		cm.Namespace = "ns"
+		cm.Name = "cm1"
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				if key.Name != mc.Spec.Dep.Kafka.SecretRef {
+					return k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")
+				}
+				secret := obj.(*corev1.Secret)
+				secret.Data = map[string][]byte{
+					KafkaSaslUsernameKey: []byte("kafka-user"),
+				}
+				return nil
+			}).
+			Times(2)
+
+		err := r.updateConfigMap(ctx, mc, cm)
+		assert.ErrorContains(t, err, KafkaSaslPasswordKey)
+	})
+}
+
+func TestMilvusReconciler_SyncKafkaSaslCheckSum(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	mockClient := env.MockClient
+	r := env.Reconciler
+	ctx := env.ctx
+
+	expectGetKafkaSecret := func(username, password string) {
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				secret := obj.(*corev1.Secret)
+				secret.Data = map[string][]byte{
+					KafkaSaslUsernameKey: []byte(username),
+					KafkaSaslPasswordKey: []byte(password),
+				}
+				return nil
+			})
+	}
+
+	t.Run("no secretRef, no annotation", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		assert.NoError(t, r.SyncKafkaSaslCheckSum(ctx, mc))
+		assert.NotContains(t, mc.GetAnnotations(), v1beta1.KafkaSaslCheckSumAnnotation)
+	})
+
+	t.Run("annotation set from secret", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		mc.Spec.Dep.Kafka.SecretRef = "kafka-sasl-secret"
+		expectGetKafkaSecret("kafka-user", "kafka-pass")
+		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+
+		assert.NoError(t, r.SyncKafkaSaslCheckSum(ctx, mc))
+		checkSum := mc.GetAnnotations()[v1beta1.KafkaSaslCheckSumAnnotation]
+		assert.NotEmpty(t, checkSum)
+
+		// credentials unchanged, no update expected
+		expectGetKafkaSecret("kafka-user", "kafka-pass")
+		assert.NoError(t, r.SyncKafkaSaslCheckSum(ctx, mc))
+		assert.Equal(t, checkSum, mc.GetAnnotations()[v1beta1.KafkaSaslCheckSumAnnotation])
+
+		// credentials rotated, annotation & checksum change
+		expectGetKafkaSecret("kafka-user", "new-pass")
+		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+		assert.NoError(t, r.SyncKafkaSaslCheckSum(ctx, mc))
+		rotatedCheckSum := mc.GetAnnotations()[v1beta1.KafkaSaslCheckSumAnnotation]
+		assert.NotEmpty(t, rotatedCheckSum)
+		assert.NotEqual(t, checkSum, rotatedCheckSum)
+		assert.NotEqual(t, GetConfCheckSum(mc.Spec), GetConfCheckSumWithRefs(mc))
+	})
+
+	t.Run("annotation removed when secretRef unset", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Annotations = map[string]string{v1beta1.KafkaSaslCheckSumAnnotation: "stale"}
+		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+		assert.NoError(t, r.SyncKafkaSaslCheckSum(ctx, mc))
+		assert.NotContains(t, mc.GetAnnotations(), v1beta1.KafkaSaslCheckSumAnnotation)
+	})
+
+	t.Run("secret read failed", func(t *testing.T) {
+		mc := env.Inst.DeepCopy()
+		mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		mc.Spec.Dep.Kafka.SecretRef = "kafka-sasl-secret"
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr"))
+		assert.Error(t, r.SyncKafkaSaslCheckSum(ctx, mc))
 	})
 }

@@ -27,10 +27,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -181,6 +183,10 @@ func (r *MilvusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
+	if err := r.SyncKafkaSaslCheckSum(ctx, milvus); err != nil {
+		return ctrl.Result{}, pkgErr.Wrap(err, "sync kafka sasl checksum")
+	}
+
 	if err := r.ReconcileAll(ctx, *milvus); err != nil {
 		if pkgErr.Is(err, ErrRequeue) {
 			logger.Info("requeue", "err", err.Error())
@@ -223,6 +229,10 @@ func (r *MilvusReconciler) VerifyCR(ctx context.Context, milvus *milvusv1beta1.M
 func (r *MilvusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&milvusv1beta1.Milvus{}).
+		// reconcile when a secret referenced by the milvus spec changes
+		Watches(&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.mapSecretToMilvusRequests),
+			ctrlbuilder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).
 		// For(&milvusv1alpha1.MilvusCluster{}).
 		// Owns(&appsv1.Deployment{}).
 		// Owns(&corev1.ConfigMap{}).
@@ -237,6 +247,30 @@ func (r *MilvusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	} */
 
 	return builder.Complete(r)
+}
+
+// mapSecretToMilvusRequests returns the milvus instances that reference the secret
+func (r *MilvusReconciler) mapSecretToMilvusRequests(ctx context.Context, obj client.Object) []ctrl.Request {
+	milvusList := &milvusv1beta1.MilvusList{}
+	if err := r.List(ctx, milvusList, client.InNamespace(obj.GetNamespace())); err != nil {
+		predicateLog.Error(err, "list milvus for secret", "secret", obj.GetName(), "namespace", obj.GetNamespace())
+		return nil
+	}
+
+	var requests []ctrl.Request
+	for i := range milvusList.Items {
+		milvus := &milvusList.Items[i]
+		if !milvusReferencesSecret(milvus, obj.GetName()) {
+			continue
+		}
+		requests = append(requests, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(milvus)})
+	}
+	return requests
+}
+
+func milvusReferencesSecret(milvus *milvusv1beta1.Milvus, secretName string) bool {
+	return milvus.Spec.Dep.MsgStreamType == milvusv1beta1.MsgStreamTypeKafka &&
+		milvus.Spec.Dep.Kafka.SecretRef == secretName
 }
 
 var predicateLog = logf.Log.WithName("predicates").WithName("Milvus")

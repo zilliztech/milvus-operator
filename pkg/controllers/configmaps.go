@@ -35,18 +35,56 @@ func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Mi
 
 }
 
-func (r *MilvusReconciler) getKafkaSaslInfo(ctx context.Context, mc v1beta1.Milvus) (string, string) {
+// getKafkaSaslInfo reads the kafka SASL credentials from the referenced secret.
+// Both the username & the password key are required.
+func (r *MilvusReconciler) getKafkaSaslInfo(ctx context.Context, mc v1beta1.Milvus) (string, string, error) {
 	if mc.Spec.Dep.Kafka.SecretRef == "" {
-		return "", ""
+		return "", "", nil
 	}
 	secret := &corev1.Secret{}
 	key := types.NamespacedName{Namespace: mc.Namespace, Name: mc.Spec.Dep.Kafka.SecretRef}
 	if err := r.Get(ctx, key, secret); err != nil {
-		r.logger.Error(err, "get kafka sasl secret error")
-		return "", ""
+		return "", "", errors.Wrapf(err, "get kafka sasl secret[%s]", key)
+	}
+	username, password := secret.Data[KafkaSaslUsernameKey], secret.Data[KafkaSaslPasswordKey]
+	if len(username) == 0 {
+		return "", "", errors.Errorf("kafka sasl secret[%s] has no [%s] key", key, KafkaSaslUsernameKey)
+	}
+	if len(password) == 0 {
+		return "", "", errors.Errorf("kafka sasl secret[%s] has no [%s] key", key, KafkaSaslPasswordKey)
 	}
 
-	return string(secret.Data[KafkaSaslUsernameKey]), string(secret.Data[KafkaSaslPasswordKey])
+	return string(username), string(password), nil
+}
+
+// SyncKafkaSaslCheckSum records the checksum of the kafka SASL credentials in an annotation
+// on the milvus object, so that rotating them rolls the components.
+func (r *MilvusReconciler) SyncKafkaSaslCheckSum(ctx context.Context, mc *v1beta1.Milvus) error {
+	oldCheckSum := mc.GetAnnotations()[v1beta1.KafkaSaslCheckSumAnnotation]
+	newCheckSum := ""
+	if mc.Spec.Dep.MsgStreamType == v1beta1.MsgStreamTypeKafka &&
+		mc.Spec.Dep.Kafka.SecretRef != "" {
+		username, password, err := r.getKafkaSaslInfo(ctx, *mc)
+		if err != nil {
+			return err
+		}
+		newCheckSum = util.CheckSum([]byte(username + ":" + password))
+	}
+	if oldCheckSum == newCheckSum {
+		return nil
+	}
+
+	if newCheckSum == "" {
+		delete(mc.Annotations, v1beta1.KafkaSaslCheckSumAnnotation)
+	} else {
+		if mc.Annotations == nil {
+			mc.Annotations = map[string]string{}
+		}
+		mc.Annotations[v1beta1.KafkaSaslCheckSumAnnotation] = newCheckSum
+	}
+	r.logger.Info("kafka sasl credentials changed, update checksum annotation",
+		"namespace", mc.Namespace, "name", mc.Name)
+	return errors.Wrap(r.Update(ctx, mc), "update kafka sasl checksum annotation")
 }
 
 func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvus, configmap *corev1.ConfigMap) error {
@@ -75,7 +113,11 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 	switch mc.Spec.Dep.MsgStreamType {
 	case v1beta1.MsgStreamTypeKafka:
 		util.SetStringSlice(conf, mc.Spec.Dep.Kafka.BrokerList, "kafka", "brokerList")
-		if username, password := r.getKafkaSaslInfo(ctx, mc); mc.Spec.Dep.Kafka.SecretRef != "" {
+		if mc.Spec.Dep.Kafka.SecretRef != "" {
+			username, password, err := r.getKafkaSaslInfo(ctx, mc)
+			if err != nil {
+				return err
+			}
 			util.SetValue(conf, username, "kafka", "saslUsername")
 			util.SetValue(conf, password, "kafka", "saslPassword")
 		}
