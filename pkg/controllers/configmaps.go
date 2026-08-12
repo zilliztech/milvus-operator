@@ -37,13 +37,13 @@ func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Mi
 
 // getKafkaSaslInfo reads the kafka SASL credentials from the referenced secret.
 // Both the username & the password key are required.
-func (r *MilvusReconciler) getKafkaSaslInfo(ctx context.Context, mc v1beta1.Milvus) (string, string, error) {
+func getKafkaSaslInfo(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (string, string, error) {
 	if mc.Spec.Dep.Kafka.SecretRef == "" {
 		return "", "", nil
 	}
 	secret := &corev1.Secret{}
 	key := types.NamespacedName{Namespace: mc.Namespace, Name: mc.Spec.Dep.Kafka.SecretRef}
-	if err := r.Get(ctx, key, secret); err != nil {
+	if err := cli.Get(ctx, key, secret); err != nil {
 		return "", "", errors.Wrapf(err, "get kafka sasl secret[%s]", key)
 	}
 	username, password := secret.Data[KafkaSaslUsernameKey], secret.Data[KafkaSaslPasswordKey]
@@ -64,7 +64,7 @@ func (r *MilvusReconciler) SyncKafkaSaslCheckSum(ctx context.Context, mc *v1beta
 	newCheckSum := ""
 	if mc.Spec.Dep.MsgStreamType == v1beta1.MsgStreamTypeKafka &&
 		mc.Spec.Dep.Kafka.SecretRef != "" {
-		username, password, err := r.getKafkaSaslInfo(ctx, *mc)
+		username, password, err := getKafkaSaslInfo(ctx, r.Client, *mc)
 		if err != nil {
 			return err
 		}
@@ -114,7 +114,7 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 	case v1beta1.MsgStreamTypeKafka:
 		util.SetStringSlice(conf, mc.Spec.Dep.Kafka.BrokerList, "kafka", "brokerList")
 		if mc.Spec.Dep.Kafka.SecretRef != "" {
-			username, password, err := r.getKafkaSaslInfo(ctx, mc)
+			username, password, err := getKafkaSaslInfo(ctx, r.Client, mc)
 			if err != nil {
 				return err
 			}
