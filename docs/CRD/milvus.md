@@ -173,6 +173,33 @@ Each component has its own basic specifications that can overrides global ones:
 - port: the port number that server will listen
 - fields same as section **Components Global Spec** has stated above (including `image` fields, `env`, `nodeSelector`,`tolerations`, `resources`)
 
+`proxy`, `dataNode`, `queryNode`, and `streamingNode` can also be split into deployment groups. When `groups` is non-empty, component-level `replicas` is ignored and each group must specify its own static replica count or `-1` for an external HPA. Global fields are overridden by component fields, then group fields. Omitted scheduling fields inherit; explicit empty scheduling maps/lists clear inherited values.
+
+```yaml
+spec:
+  components:
+    queryNode:
+      groups:
+        - name: g1-az1
+          replicas: 2
+          labels:
+            topology.milvus.io/az: az1
+          annotations:
+            example.com/owner: search
+          extraEnv:
+            - name: MILVUS_SERVER_LABEL_RESOURCE_GROUP
+              value: rg-g1
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1a
+          affinity: {}
+          tolerations: []
+          topologySpreadConstraints: []
+```
+
+Group names must be unique DNS labels within the component. The operator adds `milvus.io/deployment-group=<name>` to each Deployment selector and pod. User group labels cannot override operator-owned identity or rollout labels. Services remain component-wide.
+
+QueryNode retains its two-Deployment topology per group (`...-<group>-0` and `...-<group>-1`). Under `rollingMode: 3`, every supported component does the same; otherwise Proxy, DataNode, and StreamingNode retain one Deployment per group. The operator does not create HPAs.
+
 Take `rootCoord` as example:
 ``` yaml
 spec:
@@ -487,6 +514,9 @@ status:
   endpoint: "milvus:19530"
   # ComponentsDeployStatus contains the map of component's name to the status of each component deployment
   componentsDeployStatus: {}
+  # Exact active Deployment status, keyed by component and deployment-group name.
+  # componentsDeployStatus remains a compatibility aggregate across these entries.
+  deploymentGroupsDeployStatus: {}
   # When observedGeneration is smaller than spec.generation, all the above fields are out of date, the operator should update them later.
   observedGeneration: 1
 ```

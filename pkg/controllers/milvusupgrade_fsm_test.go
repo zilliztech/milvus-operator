@@ -7,10 +7,12 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
@@ -667,6 +669,51 @@ func Test_recordOldInfo_stopMiluvs(t *testing.T) {
 	}
 
 	assert.Equal(t, int32(0), *milvus.Spec.Com.RootCoord.Replicas)
+}
+
+func TestMilvusUpgradeDeploymentGroupReplicas(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	_, mockClient := newUpgradeReconcilerFortest(ctrl)
+	upgrade := &v1beta1.MilvusUpgrade{ObjectMeta: metav1.ObjectMeta{Name: "upgrade", Namespace: "ns"}}
+	milvus := &v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns"}}
+	milvus.Spec.Mode = v1beta1.MilvusModeCluster
+	milvus.Default()
+	one, three := int32(1), int32(3)
+	milvus.Spec.Com.Proxy.Groups = []v1beta1.DeploymentGroup{{Name: "a", Replicas: &one}, {Name: "b", Replicas: &three}}
+	milvus.Spec.Com.QueryNode.Groups = []v1beta1.DeploymentGroup{{Name: "rg", Replicas: &three}}
+
+	recordOldInfo(ctx, mockClient, upgrade, milvus)
+	assert.Equal(t, int32(1), upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[ProxyName]["a"])
+	assert.Equal(t, int32(3), upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[ProxyName]["b"])
+	assert.Equal(t, int32(3), upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[QueryNodeName]["rg"])
+
+	mockClient.EXPECT().Update(gomock.Any(), milvus).Return(nil).Times(2)
+	require.NoError(t, stopMilvus(ctx, mockClient, upgrade, milvus))
+	for _, workload := range GetComponentWorkloadsBySpec(milvus.Spec) {
+		assert.Equal(t, int32(0), *workload.GetReplicas(milvus.Spec), workload.GetDisplayName())
+	}
+	require.NoError(t, startMilvus(ctx, mockClient, upgrade, milvus))
+	assert.Equal(t, int32(1), *milvus.Spec.Com.Proxy.Groups[0].Replicas)
+	assert.Equal(t, int32(3), *milvus.Spec.Com.Proxy.Groups[1].Replicas)
+	assert.Equal(t, int32(3), *milvus.Spec.Com.QueryNode.Groups[0].Replicas)
+}
+
+func TestMilvusUpgradeRejectsExternalHPADeploymentGroup(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	_, mockClient := newUpgradeReconcilerFortest(ctrl)
+	upgrade := &v1beta1.MilvusUpgrade{}
+	milvus := &v1beta1.Milvus{}
+	milvus.Spec.Mode = v1beta1.MilvusModeCluster
+	milvus.Default()
+	external := int32(-1)
+	milvus.Spec.Com.Proxy.Groups = []v1beta1.DeploymentGroup{{Name: "hpa", Replicas: &external}}
+
+	err := stopMilvus(ctx, mockClient, upgrade, milvus)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "suspend its HPA")
+	assert.Equal(t, int32(-1), *milvus.Spec.Com.Proxy.Groups[0].Replicas)
 }
 
 func Test_annotateAlphaCR(t *testing.T) {

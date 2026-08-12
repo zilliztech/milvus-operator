@@ -92,20 +92,32 @@ func (ms MilvusSpec) IsStopping() bool {
 			return false
 		}
 	}
-	if *ms.Com.Proxy.Replicas != 0 {
+	if !componentOrGroupsStopped(ms.Com.Proxy.Replicas, ms.Com.Proxy.Groups) {
 		return false
 	}
-	if *ms.Com.DataNode.Replicas != 0 {
+	if !componentOrGroupsStopped(ms.Com.DataNode.Replicas, ms.Com.DataNode.Groups) {
 		return false
 	}
 	if ms.Com.IndexNode != nil && *ms.Com.IndexNode.Replicas != 0 {
 		return false
 	}
-	if *ms.Com.QueryNode.Replicas != 0 {
+	if !componentOrGroupsStopped(ms.Com.QueryNode.Replicas, ms.Com.QueryNode.Groups) {
 		return false
 	}
-	if ms.UseStreamingNode() && *ms.Com.StreamingNode.Replicas != 0 {
+	if ms.UseStreamingNode() && !componentOrGroupsStopped(ms.Com.StreamingNode.Replicas, ms.Com.StreamingNode.Groups) {
 		return false
+	}
+	return true
+}
+
+func componentOrGroupsStopped(componentReplicas *int32, groups []DeploymentGroup) bool {
+	if len(groups) == 0 {
+		return componentReplicas != nil && *componentReplicas == 0
+	}
+	for i := range groups {
+		if groups[i].Replicas == nil || *groups[i].Replicas != 0 {
+			return false
+		}
 	}
 	return true
 }
@@ -228,6 +240,13 @@ type MilvusStatus struct {
 	// it is used to check the status of rolling update of each component
 	// +optional
 	ComponentsDeployStatus map[string]ComponentDeployStatus `json:"componentsDeployStatus,omitempty"`
+
+	// DeploymentGroupsDeployStatus contains the active Deployment status for
+	// every desired deployment group, keyed first by component name and then by
+	// deployment-group name. ComponentsDeployStatus remains the compatibility
+	// aggregate for clients that are unaware of deployment groups.
+	// +optional
+	DeploymentGroupsDeployStatus map[string]map[string]ComponentDeployStatus `json:"deploymentGroupsDeployStatus,omitempty"`
 
 	// RollingMode is the version of rolling mode the milvus CR is using
 	RollingMode RollingMode `json:"rollingModeVersion,omitempty"`

@@ -42,23 +42,23 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 		return v1beta1.MilvusCondition{}, err
 	}
 
-	allComponents := GetComponentsBySpec(mc.Spec)
+	allComponents := GetComponentWorkloadsBySpec(mc.Spec)
 	var notReadyComponents []string
 	var errDetail *ComponentErrorDetail
 	var err error
-	componentDeploy := makeComponentDeploymentMap(mc, deployList.Items)
+	componentDeploy := makeWorkloadDeploymentMap(mc, deployList.Items)
 	hasEntryReplicas := false
 	for _, component := range allComponents {
-		deployment := componentDeploy[component.Name]
+		deployment := componentDeploy[component.GetStateKey()]
 		if deployment != nil && DeploymentReady(deployment.Status) {
 			if component.IsService() && deployment.Status.ReadyReplicas > 0 {
 				hasEntryReplicas = true
 			}
 			continue
 		}
-		notReadyComponents = append(notReadyComponents, component.Name)
+		notReadyComponents = append(notReadyComponents, component.GetDisplayName())
 		if errDetail == nil {
-			errDetail, err = getComponentErrorDetail(ctx, cli, component.Name, deployment)
+			errDetail, err = getComponentErrorDetail(ctx, cli, component.GetDisplayName(), deployment)
 			if err != nil {
 				return v1beta1.MilvusCondition{}, errors.Wrap(err, "failed to get component err detail")
 			}
@@ -180,7 +180,7 @@ var CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Clien
 	opts := &client.ListOptions{
 		Namespace: mc.Namespace,
 	}
-	opts.LabelSelector = labels.SelectorFromSet(NewComponentAppLabels(mc.Name, component.Name))
+	opts.LabelSelector = labels.SelectorFromSet(component.GetSelectorLabels(mc.Name))
 	list, err := listTerminatingPodByOpts(ctx, cli, opts)
 	if err != nil {
 		return false, err

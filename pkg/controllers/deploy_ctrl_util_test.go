@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -220,6 +221,43 @@ func TestDeployControllerBizUtilImpl_GetDeploys(t *testing.T) {
 		assert.Equal(t, &deploys[1], ret2)
 	})
 
+}
+
+func TestDeployControllerBizUtilImpl_GetDeploysByDeploymentGroup(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockClient := NewMockK8sClient(mockCtrl)
+	mockUtil := NewMockK8sUtil(mockCtrl)
+	one := int32(1)
+	groupA := v1beta1.DeploymentGroup{Name: "a", Replicas: &one}
+	componentA := QueryNode
+	componentA.DeploymentGroup = &groupA
+	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns"}}
+	mc.Default()
+	v1beta1.Labels().SetCurrentGroupID(&mc, componentA.GetStateKey(), 1)
+
+	deployments := []appsv1.Deployment{}
+	for _, groupName := range []string{"a", "b"} {
+		for slot := 0; slot < 2; slot++ {
+			deployment := appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Name:   "mc-milvus-querynode-" + groupName,
+				Labels: NewComponentAppLabels(mc.Name, QueryNodeName),
+			}}
+			deployment.Labels[v1beta1.DeploymentGroupLabel] = groupName
+			v1beta1.Labels().SetGroupID(QueryNodeName, deployment.Labels, slot)
+			deployment.Name += "-" + deployment.Labels[v1beta1.GetComponentGroupIdLabel(QueryNodeName)]
+			deployments = append(deployments, deployment)
+		}
+	}
+	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), client.InNamespace(mc.Namespace), client.MatchingLabels(componentA.GetSelectorLabels(mc.Name))).
+		DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+			list.(*appsv1.DeploymentList).Items = deployments
+			return nil
+		})
+
+	current, last, err := NewDeployControllerBizUtil(componentA, mockClient, mockUtil).GetDeploys(context.Background(), mc)
+	require.NoError(t, err)
+	assert.Equal(t, "mc-milvus-querynode-a-1", current.Name)
+	assert.Equal(t, "mc-milvus-querynode-a-0", last.Name)
 }
 
 func TestDeployControllerBizUtilImpl_CreateDeploy(t *testing.T) {

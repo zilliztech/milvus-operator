@@ -34,14 +34,15 @@ func NewK8sUtil(cli client.Client) *K8sUtilImpl {
 
 func (c *K8sUtilImpl) GetOldDeploy(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (*appsv1.Deployment, error) {
 	deployList := appsv1.DeploymentList{}
-	labels := NewComponentAppLabels(mc.Name, component.Name)
+	labels := component.GetSelectorLabels(mc.Name)
 	err := c.cli.List(ctx, &deployList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
 	if err != nil {
 		return nil, errors.Wrapf(err, "list %s deployments", component.Name)
 	}
 	var deploys = []appsv1.Deployment{}
 	for _, deploy := range deployList.Items {
-		if v1beta1.Labels().GetLabelGroupID(component.Name, &deploy) == "" {
+		if component.MatchesDeploymentGroup(deploy.Labels) &&
+			v1beta1.Labels().GetLabelGroupID(component.Name, &deploy) == "" {
 			deploys = append(deploys, deploy)
 		}
 	}
@@ -113,10 +114,10 @@ func (c *K8sUtilImpl) OrphanDelete(ctx context.Context, obj client.Object) error
 
 func (c *K8sUtilImpl) MarkMilvusComponentGroupId(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent, groupId int) error {
 	groupIdStr := strconv.Itoa(groupId)
-	if v1beta1.Labels().GetCurrentGroupId(&mc, component.Name) == groupIdStr {
+	if v1beta1.Labels().GetCurrentGroupId(&mc, component.GetStateKey()) == groupIdStr {
 		return nil
 	}
-	v1beta1.Labels().SetCurrentGroupID(&mc, component.Name, groupId)
+	v1beta1.Labels().SetCurrentGroupID(&mc, component.GetStateKey(), groupId)
 	return c.UpdateAndRequeue(ctx, &mc)
 }
 
@@ -130,7 +131,7 @@ func (c *K8sUtilImpl) UpdateAndRequeue(ctx context.Context, obj client.Object) e
 
 func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (appsv1.ReplicaSetList, error) {
 	replicasetList := appsv1.ReplicaSetList{}
-	labels := NewComponentAppLabels(mc.Name, component.Name)
+	labels := component.GetSelectorLabels(mc.Name)
 	err := c.cli.List(ctx, &replicasetList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
 	if err != nil {
 		return replicasetList, errors.Wrap(err, "list component replica sets")
@@ -139,7 +140,7 @@ func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus,
 	ret.Items = []appsv1.ReplicaSet{}
 	labelhelper := v1beta1.Labels()
 	for _, rs := range replicasetList.Items {
-		if labelhelper.GetLabelGroupID(component.Name, &rs) == "" {
+		if component.MatchesDeploymentGroup(rs.Labels) && labelhelper.GetLabelGroupID(component.Name, &rs) == "" {
 			ret.Items = append(ret.Items, rs)
 		}
 	}
@@ -148,7 +149,7 @@ func (c *K8sUtilImpl) ListOldReplicaSets(ctx context.Context, mc v1beta1.Milvus,
 
 func (c *K8sUtilImpl) ListOldPods(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) ([]corev1.Pod, error) {
 	podList := corev1.PodList{}
-	labels := NewComponentAppLabels(mc.Name, component.Name)
+	labels := component.GetSelectorLabels(mc.Name)
 	err := c.cli.List(ctx, &podList, client.InNamespace(mc.Namespace), client.MatchingLabels(labels))
 	if err != nil {
 		return nil, errors.Wrap(err, "list component pods")
@@ -156,7 +157,7 @@ func (c *K8sUtilImpl) ListOldPods(ctx context.Context, mc v1beta1.Milvus, compon
 	ret := []corev1.Pod{}
 	labelhelper := v1beta1.Labels()
 	for _, pod := range podList.Items {
-		if labelhelper.GetLabelGroupID(component.Name, &pod) == "" {
+		if component.MatchesDeploymentGroup(pod.Labels) && labelhelper.GetLabelGroupID(component.Name, &pod) == "" {
 			ret = append(ret, pod)
 		}
 	}

@@ -59,8 +59,14 @@ func updateDeploymentReplicas(deployment *appsv1.Deployment, updater deploymentU
 }
 
 func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) error {
-	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponent().Name)
-	deployment.Labels = MergeLabels(deployment.Labels, appLabels)
+	component := updater.GetComponent()
+	appLabels := component.GetSelectorLabels(updater.GetIntanceName())
+	if component.DeploymentGroup != nil {
+		deployment.Labels = MergeLabels(deployment.Labels, component.DeploymentGroup.Labels, appLabels)
+		deployment.Annotations = MergeAnnotations(deployment.Annotations, component.DeploymentGroup.Annotations)
+	} else {
+		deployment.Labels = MergeLabels(deployment.Labels, appLabels)
+	}
 	if err := SetControllerReference(updater.GetControllerRef(), deployment, updater.GetScheme()); err != nil {
 		return pkgErrs.Wrap(err, "set controller reference")
 	}
@@ -501,10 +507,11 @@ func (m milvusDeploymentUpdater) GetConfCheckSum() string {
 }
 
 func (m milvusDeploymentUpdater) GetMergedComponentSpec() ComponentSpec {
-	return MergeComponentSpec(
+	merged := MergeComponentSpec(
 		m.component.GetComponentSpec(m.Spec),
 		m.Spec.Com.ComponentSpec,
 	)
+	return ApplyDeploymentGroupOverrides(merged, m.component.DeploymentGroup)
 }
 
 func (m milvusDeploymentUpdater) GetArgs() []string {
