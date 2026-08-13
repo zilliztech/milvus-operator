@@ -328,7 +328,12 @@ func startMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.Milvus
 	for _, component := range workloads {
 		var replica int32
 		if component.DeploymentGroup != nil {
-			replica = upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[component.Name][component.GetDeploymentGroupName()]
+			componentSnapshots, componentRecorded := upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[component.Name]
+			groupReplica, groupRecorded := componentSnapshots[component.GetDeploymentGroupName()]
+			if !componentRecorded || !groupRecorded {
+				return errors.Errorf("replicas before upgrade not recorded for deployment group %s", component.GetDisplayName())
+			}
+			replica = groupReplica
 		} else {
 			replica = int32(component.GetMilvusReplicas(upgrade.Status.ReplicasBeforeUpgrade))
 		}
@@ -418,11 +423,17 @@ func startRollbackMetaPod(ctx context.Context, cli client.Client, upgrade *v1bet
 }
 
 func recordOldInfo(ctx context.Context, cli client.Client, upgrade *v1beta1.MilvusUpgrade, milvus *v1beta1.Milvus) {
-	if upgrade.Status.ReplicasBeforeUpgrade != nil || upgrade.Status.DeploymentGroupReplicasBeforeUpgrade != nil {
+	recordComponentReplicas := upgrade.Status.ReplicasBeforeUpgrade == nil
+	recordDeploymentGroupReplicas := upgrade.Status.DeploymentGroupReplicasBeforeUpgrade == nil
+	if !recordComponentReplicas && !recordDeploymentGroupReplicas {
 		return
 	}
-	upgrade.Status.ReplicasBeforeUpgrade = new(v1beta1.MilvusReplicas)
-	upgrade.Status.DeploymentGroupReplicasBeforeUpgrade = make(map[string]map[string]int32)
+	if recordComponentReplicas {
+		upgrade.Status.ReplicasBeforeUpgrade = new(v1beta1.MilvusReplicas)
+	}
+	if recordDeploymentGroupReplicas {
+		upgrade.Status.DeploymentGroupReplicasBeforeUpgrade = make(map[string]map[string]int32)
+	}
 	// record replicas
 	components := GetComponentWorkloadsBySpec(milvus.Spec)
 	for _, component := range components {
@@ -431,7 +442,12 @@ func recordOldInfo(ctx context.Context, cli client.Client, upgrade *v1beta1.Milv
 			replicas = int32Ptr(1)
 		}
 		if component.DeploymentGroup == nil {
-			component.SetStatusReplicas(upgrade.Status.ReplicasBeforeUpgrade, int(*replicas))
+			if recordComponentReplicas {
+				component.SetStatusReplicas(upgrade.Status.ReplicasBeforeUpgrade, int(*replicas))
+			}
+			continue
+		}
+		if !recordDeploymentGroupReplicas {
 			continue
 		}
 		if upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[component.Name] == nil {
@@ -441,7 +457,9 @@ func recordOldInfo(ctx context.Context, cli client.Client, upgrade *v1beta1.Milv
 	}
 
 	// record image
-	upgrade.Status.SourceImage = milvus.Spec.Com.Image
+	if upgrade.Status.SourceImage == "" {
+		upgrade.Status.SourceImage = milvus.Spec.Com.Image
+	}
 }
 
 func annotateAlphaCR(ctx context.Context, cli client.Client, upgrade *v1beta1.MilvusUpgrade, milvus *v1beta1.Milvus, value string) error {

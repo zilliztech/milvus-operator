@@ -679,13 +679,14 @@ func TestMilvusUpgradeDeploymentGroupReplicas(t *testing.T) {
 	milvus := &v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns"}}
 	milvus.Spec.Mode = v1beta1.MilvusModeCluster
 	milvus.Default()
-	one, three := int32(1), int32(3)
-	milvus.Spec.Com.Proxy.Groups = []v1beta1.DeploymentGroup{{Name: "a", Replicas: &one}, {Name: "b", Replicas: &three}}
+	zero, one, three := int32(0), int32(1), int32(3)
+	milvus.Spec.Com.Proxy.Groups = []v1beta1.DeploymentGroup{{Name: "a", Replicas: &one}, {Name: "b", Replicas: &three}, {Name: "stopped", Replicas: &zero}}
 	milvus.Spec.Com.QueryNode.Groups = []v1beta1.DeploymentGroup{{Name: "rg", Replicas: &three}}
 
 	recordOldInfo(ctx, mockClient, upgrade, milvus)
 	assert.Equal(t, int32(1), upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[ProxyName]["a"])
 	assert.Equal(t, int32(3), upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[ProxyName]["b"])
+	assert.Equal(t, int32(0), upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[ProxyName]["stopped"])
 	assert.Equal(t, int32(3), upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[QueryNodeName]["rg"])
 
 	mockClient.EXPECT().Update(gomock.Any(), milvus).Return(nil).Times(2)
@@ -696,7 +697,62 @@ func TestMilvusUpgradeDeploymentGroupReplicas(t *testing.T) {
 	require.NoError(t, startMilvus(ctx, mockClient, upgrade, milvus))
 	assert.Equal(t, int32(1), *milvus.Spec.Com.Proxy.Groups[0].Replicas)
 	assert.Equal(t, int32(3), *milvus.Spec.Com.Proxy.Groups[1].Replicas)
+	assert.Equal(t, int32(0), *milvus.Spec.Com.Proxy.Groups[2].Replicas, "an explicitly recorded zero is valid")
 	assert.Equal(t, int32(3), *milvus.Spec.Com.QueryNode.Groups[0].Replicas)
+}
+
+func TestRecordOldInfoRecoversMissingDeploymentGroupSnapshotBeforeStop(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	_, mockClient := newUpgradeReconcilerFortest(ctrl)
+	upgrade := &v1beta1.MilvusUpgrade{}
+	upgrade.Status.ReplicasBeforeUpgrade = &v1beta1.MilvusReplicas{Proxy: 7}
+	upgrade.Status.SourceImage = "recorded-source-image"
+	milvus := &v1beta1.Milvus{}
+	milvus.Spec.Mode = v1beta1.MilvusModeCluster
+	milvus.Spec.Com.Image = "current-image"
+	milvus.Default()
+	one, three := int32(1), int32(3)
+	milvus.Spec.Com.Proxy.Groups = []v1beta1.DeploymentGroup{{Name: "a", Replicas: &one}, {Name: "b", Replicas: &three}}
+
+	recordOldInfo(ctx, mockClient, upgrade, milvus)
+
+	assert.Equal(t, 7, upgrade.Status.ReplicasBeforeUpgrade.Proxy, "the legacy snapshot must not be overwritten")
+	assert.Equal(t, int32(1), upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[ProxyName]["a"])
+	assert.Equal(t, int32(3), upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[ProxyName]["b"])
+	assert.Equal(t, "recorded-source-image", upgrade.Status.SourceImage)
+}
+
+func TestStartMilvusRejectsMissingDeploymentGroupReplicaSnapshot(t *testing.T) {
+	tests := map[string]map[string]map[string]int32{
+		"nil snapshot":            nil,
+		"missing component entry": {DataNodeName: {"a": 2}},
+		"missing group entry":     {ProxyName: {"other": 2}},
+	}
+	for name, groupSnapshots := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			_, mockClient := newUpgradeReconcilerFortest(ctrl)
+			upgrade := &v1beta1.MilvusUpgrade{}
+			upgrade.Status.ReplicasBeforeUpgrade = &v1beta1.MilvusReplicas{Proxy: 3}
+			upgrade.Status.DeploymentGroupReplicasBeforeUpgrade = groupSnapshots
+			milvus := &v1beta1.Milvus{}
+			milvus.Spec.Mode = v1beta1.MilvusModeCluster
+			milvus.Default()
+			zero := int32(0)
+			milvus.Spec.Com.Proxy.Groups = []v1beta1.DeploymentGroup{{Name: "a", Replicas: &zero}}
+			milvus.SetStoppedAtAnnotation(time.Now())
+
+			err := startMilvus(ctx, mockClient, upgrade, milvus)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "replicas before upgrade not recorded for deployment group proxy/a")
+			assert.Equal(t, int32(0), *milvus.Spec.Com.Proxy.Groups[0].Replicas)
+			_, stoppedAtExists := milvus.Annotations[v1beta1.StoppedAtAnnotation]
+			assert.True(t, stoppedAtExists, "a failed restore must leave Milvus marked as stopped")
+		})
+	}
 }
 
 func TestMilvusUpgradeRejectsExternalHPADeploymentGroup(t *testing.T) {

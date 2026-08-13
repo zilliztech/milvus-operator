@@ -63,6 +63,27 @@ func TestMilvusValidateDeploymentGroups(t *testing.T) {
 		"reserved rollout label": func(mc *Milvus) {
 			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Labels: map[string]string{MilvusIO + "custom-rolling-id": "1"}}}
 		},
+		"reserved kubectl label prefix": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Labels: map[string]string{"kubectl.kubernetes.io/future-key": "value"}}}
+		},
+		"reserved deployment label prefix": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Labels: map[string]string{"deployment.kubernetes.io/future-key": "value"}}}
+		},
+		"reserved milvus label prefix": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Labels: map[string]string{MilvusIO + "future-key": "value"}}}
+		},
+		"reserved operator annotation": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Annotations: map[string]string{PodAnnotationUsingConfigMap: "other"}}}
+		},
+		"reserved kubectl annotation": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Annotations: map[string]string{"kubectl.kubernetes.io/restartedAt": "now"}}}
+		},
+		"reserved deployment annotation prefix": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Annotations: map[string]string{"deployment.kubernetes.io/future-key": "value"}}}
+		},
+		"reserved milvus annotation prefix": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Annotations: map[string]string{MilvusIO + "future-key": "value"}}}
+		},
 		"rollout deployment name too long": func(mc *Milvus) {
 			mc.Name = strings.Repeat("a", 190)
 			mc.Spec.Com.QueryNode.Groups = []DeploymentGroup{{Name: strings.Repeat("b", 50), Replicas: &replicas}}

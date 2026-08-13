@@ -320,21 +320,12 @@ func componentUsesTwoDeployments(mc v1beta1.Milvus, component MilvusComponent) b
 }
 
 // cleanupStaleDeploymentGroups prunes only owned workloads whose stable
-// deployment-group identity is no longer desired. Desired workloads are made
-// ready first so legacy-to-grouped and grouped-to-legacy transitions do not
-// remove the serving deployment prematurely.
+// deployment-group identity is no longer desired. Stale topology is discovered
+// from Deployment labels rather than status because group status describes only
+// the current desired topology and may be cleared before grouped-to-legacy
+// cleanup runs. Desired workloads are made ready first so topology transitions
+// do not remove the serving deployment prematurely.
 func (r *MilvusReconciler) cleanupStaleDeploymentGroups(ctx context.Context, mc v1beta1.Milvus) error {
-	hasDesiredGroups := false
-	for _, workload := range GetComponentWorkloadsBySpec(mc.Spec) {
-		if workload.DeploymentGroup != nil {
-			hasDesiredGroups = true
-			break
-		}
-	}
-	if !hasDesiredGroups && len(mc.Status.DeploymentGroupsDeployStatus) == 0 {
-		return nil
-	}
-
 	deployments := &appsv1.DeploymentList{}
 	if err := r.List(ctx, deployments,
 		client.InNamespace(mc.Namespace),

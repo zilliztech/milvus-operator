@@ -16,6 +16,13 @@ import (
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
+const (
+	deploymentRevisionAnnotation = "deployment.kubernetes.io/revision"
+	kubectlRestartedAtAnnotation = "kubectl.kubernetes.io/restartedAt"
+	kubectlLastAppliedAnnotation = "kubectl.kubernetes.io/last-applied-configuration"
+	kubectlDefaultContainer      = "kubectl.kubernetes.io/default-container"
+)
+
 func TestGetComponentWorkloadsBySpec(t *testing.T) {
 	mc := v1beta1.Milvus{}
 	mc.Spec.Mode = v1beta1.MilvusModeCluster
@@ -161,6 +168,148 @@ func TestUpdateDeploymentForDeploymentGroup(t *testing.T) {
 	assert.Equal(t, "group", groupEnv)
 }
 
+func TestDeploymentGroupMetadataIsAuthoritativeForOneDeployment(t *testing.T) {
+	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns"}}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	mc.Spec.Com.Proxy.PodLabels = map[string]string{
+		"parent-label": "parent",
+	}
+	mc.Spec.Com.Proxy.PodAnnotations = map[string]string{
+		"parent-annotation": "parent",
+	}
+	one := int32(1)
+	group := v1beta1.DeploymentGroup{
+		Name:        "zone-a",
+		Replicas:    &one,
+		Labels:      map[string]string{"current-group-label": "current"},
+		Annotations: map[string]string{"current-group-annotation": "current"},
+	}
+	workload := Proxy
+	workload.DeploymentGroup = &group
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      workload.GetDeploymentName(mc.Name),
+			Namespace: mc.Namespace,
+			Labels: map[string]string{
+				"removed-group-label":                     "old",
+				"external-label":                          "external",
+				AppLabelComponent:                         "wrong-component",
+				"deployment.kubernetes.io/future-label":   "deployment-system",
+				"kubectl.kubernetes.io/future-label":      "kubectl-system",
+				v1beta1.MilvusIO + "future-runtime-label": "milvus-system",
+			},
+			Annotations: map[string]string{
+				"removed-group-annotation":                "old",
+				"external-annotation":                     "external",
+				AnnotationMilvusGeneration:                "7",
+				deploymentRevisionAnnotation:              "4",
+				"deployment.kubernetes.io/future-key":     "deployment-system",
+				kubectlLastAppliedAnnotation:              "last-applied",
+				"kubectl.kubernetes.io/future-key":        "kubectl-system",
+				v1beta1.MilvusIO + "future-runtime-state": "milvus-system",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(1),
+			Selector: &metav1.LabelSelector{MatchLabels: workload.GetSelectorLabels(mc.Name)},
+			Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"removed-group-label":                      "old",
+					"external-label":                           "external",
+					"parent-label":                             "old-group-value",
+					v1beta1.ServiceLabel:                       "false",
+					"deployment.kubernetes.io/future-template": "deployment-system",
+					"kubectl.kubernetes.io/future-template":    "kubectl-system",
+					v1beta1.MilvusIO + "future-template-label": "milvus-system",
+				},
+				Annotations: map[string]string{
+					"removed-group-annotation":                 "old",
+					"external-annotation":                      "external",
+					"parent-annotation":                        "old-group-value",
+					kubectlRestartedAtAnnotation:               "2026-08-13T10:00:00-07:00",
+					kubectlDefaultContainer:                    ProxyName,
+					AnnotationCheckSum:                         "existing-checksum",
+					"deployment.kubernetes.io/future-template": "deployment-system",
+					v1beta1.MilvusIO + "future-template-state": "milvus-system",
+				},
+			}},
+		},
+	}
+
+	err := updateDeployment(deployment, newMilvusDeploymentUpdater(mc, scheme, workload))
+	require.NoError(t, err)
+
+	assert.Equal(t, "current", deployment.Labels["current-group-label"])
+	assert.NotContains(t, deployment.Labels, "removed-group-label")
+	assert.NotContains(t, deployment.Labels, "external-label")
+	assert.Equal(t, ProxyName, deployment.Labels[AppLabelComponent])
+	assert.Equal(t, "deployment-system", deployment.Labels["deployment.kubernetes.io/future-label"])
+	assert.Equal(t, "kubectl-system", deployment.Labels["kubectl.kubernetes.io/future-label"])
+	assert.Equal(t, "milvus-system", deployment.Labels[v1beta1.MilvusIO+"future-runtime-label"])
+	assert.Equal(t, "current", deployment.Annotations["current-group-annotation"])
+	assert.NotContains(t, deployment.Annotations, "removed-group-annotation")
+	assert.NotContains(t, deployment.Annotations, "external-annotation")
+	assert.Equal(t, "7", deployment.Annotations[AnnotationMilvusGeneration])
+	assert.Equal(t, "4", deployment.Annotations[deploymentRevisionAnnotation])
+	assert.Equal(t, "deployment-system", deployment.Annotations["deployment.kubernetes.io/future-key"])
+	assert.Equal(t, "last-applied", deployment.Annotations[kubectlLastAppliedAnnotation])
+	assert.Equal(t, "kubectl-system", deployment.Annotations["kubectl.kubernetes.io/future-key"])
+	assert.Equal(t, "milvus-system", deployment.Annotations[v1beta1.MilvusIO+"future-runtime-state"])
+
+	template := deployment.Spec.Template
+	assert.Equal(t, "parent", template.Labels["parent-label"], "removing a group override restores the component value")
+	assert.Equal(t, "current", template.Labels["current-group-label"])
+	assert.NotContains(t, template.Labels, "removed-group-label")
+	assert.NotContains(t, template.Labels, "external-label")
+	assert.Equal(t, v1beta1.TrueStr, template.Labels[v1beta1.ServiceLabel])
+	assert.Equal(t, "deployment-system", template.Labels["deployment.kubernetes.io/future-template"])
+	assert.Equal(t, "kubectl-system", template.Labels["kubectl.kubernetes.io/future-template"])
+	assert.Equal(t, "milvus-system", template.Labels[v1beta1.MilvusIO+"future-template-label"])
+	assert.Equal(t, "parent", template.Annotations["parent-annotation"])
+	assert.Equal(t, "current", template.Annotations["current-group-annotation"])
+	assert.NotContains(t, template.Annotations, "removed-group-annotation")
+	assert.NotContains(t, template.Annotations, "external-annotation")
+	assert.Equal(t, "2026-08-13T10:00:00-07:00", template.Annotations[kubectlRestartedAtAnnotation])
+	assert.Equal(t, ProxyName, template.Annotations[kubectlDefaultContainer])
+	assert.Equal(t, "existing-checksum", template.Annotations[AnnotationCheckSum])
+	assert.Equal(t, mc.GetActiveConfigMap(), template.Annotations[v1beta1.PodAnnotationUsingConfigMap])
+	assert.Equal(t, "deployment-system", template.Annotations["deployment.kubernetes.io/future-template"])
+	assert.Equal(t, "milvus-system", template.Annotations[v1beta1.MilvusIO+"future-template-state"])
+
+	converged := deployment.DeepCopy()
+	require.NoError(t, updateDeployment(deployment, newMilvusDeploymentUpdater(mc, scheme, workload)))
+	assert.Equal(t, converged, deployment, "authoritative metadata reconciliation must be idempotent")
+}
+
+func TestUngroupedMetadataReconciliationRemainsAdditive(t *testing.T) {
+	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns"}}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        Proxy.GetDeploymentName(mc.Name),
+			Namespace:   mc.Namespace,
+			Labels:      map[string]string{"external-label": "preserved"},
+			Annotations: map[string]string{"external-annotation": "preserved"},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(1),
+			Selector: &metav1.LabelSelector{MatchLabels: Proxy.GetSelectorLabels(mc.Name)},
+			Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{
+				Labels:      map[string]string{"external-label": "preserved"},
+				Annotations: map[string]string{"external-annotation": "preserved"},
+			}},
+		},
+	}
+
+	require.NoError(t, updateDeployment(deployment, newMilvusDeploymentUpdater(mc, scheme, Proxy)))
+	assert.Equal(t, "preserved", deployment.Labels["external-label"])
+	assert.Equal(t, "preserved", deployment.Annotations["external-annotation"])
+	assert.Equal(t, "preserved", deployment.Spec.Template.Labels["external-label"])
+	assert.Equal(t, "preserved", deployment.Spec.Template.Annotations["external-annotation"])
+}
+
 func TestCreateTwoDeploymentSlotForDeploymentGroup(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	mockClient := NewMockK8sClient(mockCtrl)
@@ -196,6 +345,59 @@ func TestCreateTwoDeploymentSlotForDeploymentGroup(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestRenderTwoDeploymentGroupPodMetadataAuthoritatively(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockClient := NewMockK8sClient(mockCtrl)
+	mockUtil := NewMockK8sUtil(mockCtrl)
+	one := int32(1)
+	group := v1beta1.DeploymentGroup{
+		Name:        "zone-a",
+		Replicas:    &one,
+		Labels:      map[string]string{"current-group-label": "current"},
+		Annotations: map[string]string{"current-group-annotation": "current"},
+	}
+	workload := QueryNode
+	workload.DeploymentGroup = &group
+	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns"}}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	mc.Spec.Com.QueryNode.PodLabels = map[string]string{"parent-label": "parent"}
+	mc.Spec.Com.QueryNode.PodAnnotations = map[string]string{"parent-annotation": "parent"}
+	current := &corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{
+		Labels: MergeLabels(workload.GetSelectorLabels(mc.Name), map[string]string{
+			"removed-group-label": "old",
+			"external-label":      "external",
+			"parent-label":        "old-group-value",
+		}),
+		Annotations: map[string]string{
+			"removed-group-annotation":   "old",
+			"external-annotation":        "external",
+			"parent-annotation":          "old-group-value",
+			kubectlRestartedAtAnnotation: "2026-08-13T10:00:00-07:00",
+		},
+	}}
+	v1beta1.Labels().SetGroupID(QueryNodeName, current.Labels, 1)
+	mockClient.EXPECT().Scheme().Return(scheme).Times(2)
+
+	rendered := NewDeployControllerBizUtil(workload, mockClient, mockUtil).
+		RenderPodTemplateWithoutGroupID(mc, current, workload, false)
+
+	assert.Equal(t, "zone-a", rendered.Labels[v1beta1.DeploymentGroupLabel])
+	assert.Equal(t, "1", rendered.Labels[v1beta1.GetComponentGroupIdLabel(QueryNodeName)], "the runtime rollout slot is preserved")
+	assert.Equal(t, "parent", rendered.Labels["parent-label"])
+	assert.Equal(t, "current", rendered.Labels["current-group-label"])
+	assert.NotContains(t, rendered.Labels, "removed-group-label")
+	assert.NotContains(t, rendered.Labels, "external-label")
+	assert.Equal(t, "parent", rendered.Annotations["parent-annotation"])
+	assert.Equal(t, "current", rendered.Annotations["current-group-annotation"])
+	assert.NotContains(t, rendered.Annotations, "removed-group-annotation")
+	assert.NotContains(t, rendered.Annotations, "external-annotation")
+	assert.Equal(t, "2026-08-13T10:00:00-07:00", rendered.Annotations[kubectlRestartedAtAnnotation])
+	renderedAgain := NewDeployControllerBizUtil(workload, mockClient, mockUtil).
+		RenderPodTemplateWithoutGroupID(mc, rendered, workload, false)
+	assert.Equal(t, rendered, renderedAgain, "rendering converged metadata must not request another rollout")
+}
+
 func TestReconcileTwoDeploymentGroupMetadata(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	mockClient := NewMockK8sClient(mockCtrl)
@@ -211,7 +413,32 @@ func TestReconcileTwoDeploymentGroupMetadata(t *testing.T) {
 	workload.DeploymentGroup = &group
 	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns"}}
 	mc.Default()
-	deployments := []*appsv1.Deployment{{ObjectMeta: metav1.ObjectMeta{Labels: workload.GetSelectorLabels(mc.Name)}}, {ObjectMeta: metav1.ObjectMeta{Labels: workload.GetSelectorLabels(mc.Name)}}}
+	deployments := []*appsv1.Deployment{
+		{ObjectMeta: metav1.ObjectMeta{
+			Labels: MergeLabels(workload.GetSelectorLabels(mc.Name), map[string]string{
+				"removed-group-label": "old",
+				"external-label":      "external",
+			}),
+			Annotations: map[string]string{
+				"removed-group-annotation":   "old",
+				"external-annotation":        "external",
+				AnnotationMilvusGeneration:   "8",
+				deploymentRevisionAnnotation: "3",
+			},
+		}},
+		{ObjectMeta: metav1.ObjectMeta{
+			Labels: MergeLabels(workload.GetSelectorLabels(mc.Name), map[string]string{
+				"removed-group-label": "old",
+				"external-label":      "external",
+			}),
+			Annotations: map[string]string{
+				"removed-group-annotation":   "old",
+				"external-annotation":        "external",
+				AnnotationMilvusGeneration:   "8",
+				deploymentRevisionAnnotation: "3",
+			},
+		}},
+	}
 	for slot := range deployments {
 		v1beta1.Labels().SetGroupID(workload.Name, deployments[slot].Labels, slot)
 	}
@@ -220,10 +447,17 @@ func TestReconcileTwoDeploymentGroupMetadata(t *testing.T) {
 
 	err := biz.reconcileDeploymentGroupMetadata(context.Background(), mc, deployments...)
 	assert.ErrorIs(t, err, ErrRequeue)
-	for _, deployment := range deployments {
+	for slot, deployment := range deployments {
 		assert.Equal(t, "label", deployment.Labels["custom"])
 		assert.Equal(t, QueryNodeName, deployment.Labels[AppLabelComponent])
+		assert.Equal(t, []string{"0", "1"}[slot], deployment.Labels[v1beta1.GetComponentGroupIdLabel(QueryNodeName)])
+		assert.NotContains(t, deployment.Labels, "removed-group-label")
+		assert.NotContains(t, deployment.Labels, "external-label")
 		assert.Equal(t, "annotation", deployment.Annotations["custom"])
+		assert.NotContains(t, deployment.Annotations, "removed-group-annotation")
+		assert.NotContains(t, deployment.Annotations, "external-annotation")
+		assert.Equal(t, "8", deployment.Annotations[AnnotationMilvusGeneration])
+		assert.Equal(t, "3", deployment.Annotations[deploymentRevisionAnnotation])
 	}
 	assert.NoError(t, biz.reconcileDeploymentGroupMetadata(context.Background(), mc, deployments...))
 }
@@ -375,6 +609,176 @@ func TestMilvusUpdatedConditionReportsDeploymentGroup(t *testing.T) {
 	condition := GetMilvusUpdatedCondition(&mc)
 	assert.Equal(t, corev1.ConditionFalse, condition.Status)
 	assert.Contains(t, condition.Message, "proxy/b")
+}
+
+func newOwnedDeploymentForCleanup(
+	t *testing.T,
+	mc *v1beta1.Milvus,
+	workload MilvusComponent,
+	name string,
+	groupName string,
+	replicas int32,
+	status appsv1.DeploymentStatus,
+) appsv1.Deployment {
+	t.Helper()
+	labels := workload.GetSelectorLabels(mc.Name)
+	if groupName == "" {
+		delete(labels, v1beta1.DeploymentGroupLabel)
+	} else {
+		labels[v1beta1.DeploymentGroupLabel] = groupName
+	}
+	deployment := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: mc.Namespace,
+			Labels:    labels,
+		},
+		Spec:   appsv1.DeploymentSpec{Replicas: &replicas},
+		Status: status,
+	}
+	require.NoError(t, controllerutil.SetControllerReference(mc, &deployment, scheme))
+	return deployment
+}
+
+func TestCleanupStaleDeploymentGroupsAfterGroupsRemoved(t *testing.T) {
+	tests := []struct {
+		name        string
+		groupStatus map[string]map[string]v1beta1.ComponentDeployStatus
+	}{
+		{name: "nil group status"},
+		{name: "empty group status", groupStatus: map[string]map[string]v1beta1.ComponentDeployStatus{}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			mockClient := NewMockK8sClient(mockCtrl)
+			mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns", UID: "uid"}}
+			mc.Spec.Mode = v1beta1.MilvusModeCluster
+			mc.Default()
+			mc.Status.DeploymentGroupsDeployStatus = test.groupStatus
+
+			desired := newOwnedDeploymentForCleanup(
+				t, &mc, Proxy, Proxy.GetDeploymentName(mc.Name), "", 1, *readyDeployStatus.DeepCopy())
+			staleOne := newOwnedDeploymentForCleanup(
+				t, &mc, Proxy, "mc-milvus-proxy-zone-a", "zone-a", 1, appsv1.DeploymentStatus{})
+			staleTwo := newOwnedDeploymentForCleanup(
+				t, &mc, Proxy, "mc-milvus-proxy-zone-b", "zone-b", 1, appsv1.DeploymentStatus{})
+
+			foreign := newOwnedDeploymentForCleanup(
+				t, &mc, Proxy, "mc-milvus-proxy-foreign", "foreign", 1, appsv1.DeploymentStatus{})
+			foreign.OwnerReferences = nil
+			other := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: mc.Namespace, UID: "other-uid"}}
+			require.NoError(t, controllerutil.SetControllerReference(&other, &foreign, scheme))
+
+			deployments := []appsv1.Deployment{desired, staleOne, staleTwo, foreign}
+			mockClient.EXPECT().List(
+				gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any(),
+			).DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+				list.(*appsv1.DeploymentList).Items = deployments
+				return nil
+			})
+
+			deleted := map[string]bool{}
+			mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, obj client.Object, _ ...client.DeleteOption) error {
+					deleted[obj.GetName()] = true
+					return nil
+				},
+			).Times(2)
+
+			reconciler := &MilvusReconciler{Client: mockClient, Scheme: scheme}
+			require.NoError(t, reconciler.cleanupStaleDeploymentGroups(context.Background(), mc))
+			assert.Equal(t, map[string]bool{staleOne.Name: true, staleTwo.Name: true}, deleted)
+		})
+	}
+}
+
+func TestCleanupStaleDeploymentGroupsAfterGroupsRemovedWaitsForLegacyReadiness(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockClient := NewMockK8sClient(mockCtrl)
+	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns", UID: "uid"}}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+
+	desired := newOwnedDeploymentForCleanup(
+		t, &mc, Proxy, Proxy.GetDeploymentName(mc.Name), "", 1, appsv1.DeploymentStatus{})
+	stale := newOwnedDeploymentForCleanup(
+		t, &mc, Proxy, "mc-milvus-proxy-zone-a", "zone-a", 1, appsv1.DeploymentStatus{})
+	deployments := []appsv1.Deployment{desired, stale}
+	mockClient.EXPECT().List(
+		gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any(),
+	).DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+		list.(*appsv1.DeploymentList).Items = deployments
+		return nil
+	})
+
+	reconciler := &MilvusReconciler{Client: mockClient, Scheme: scheme}
+	assert.NoError(t, reconciler.cleanupStaleDeploymentGroups(context.Background(), mc))
+}
+
+func TestCleanupStaleDeploymentGroupsAfterGroupsRemovedWithTwoDeployments(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockClient := NewMockK8sClient(mockCtrl)
+	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns", UID: "uid"}}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	v1beta1.Labels().SetCurrentGroupID(&mc, QueryNode.GetStateKey(), 0)
+
+	desiredCurrent := newOwnedDeploymentForCleanup(
+		t, &mc, QueryNode, formatComponentDeployName(mc, QueryNode, 0), "", 1, *readyDeployStatus.DeepCopy())
+	v1beta1.Labels().SetGroupID(QueryNodeName, desiredCurrent.Labels, 0)
+	desiredLast := newOwnedDeploymentForCleanup(
+		t, &mc, QueryNode, formatComponentDeployName(mc, QueryNode, 1), "", 0, appsv1.DeploymentStatus{})
+	v1beta1.Labels().SetGroupID(QueryNodeName, desiredLast.Labels, 1)
+
+	one := int32(1)
+	groupedQueryNode := QueryNode
+	groupedQueryNode.DeploymentGroup = &v1beta1.DeploymentGroup{Name: "zone-a", Replicas: &one}
+	staleCurrent := newOwnedDeploymentForCleanup(
+		t, &mc, groupedQueryNode, formatComponentDeployName(mc, groupedQueryNode, 0), "zone-a", 1, appsv1.DeploymentStatus{})
+	v1beta1.Labels().SetGroupID(QueryNodeName, staleCurrent.Labels, 0)
+	staleLast := newOwnedDeploymentForCleanup(
+		t, &mc, groupedQueryNode, formatComponentDeployName(mc, groupedQueryNode, 1), "zone-a", 0, appsv1.DeploymentStatus{})
+	v1beta1.Labels().SetGroupID(QueryNodeName, staleLast.Labels, 1)
+
+	deployments := []appsv1.Deployment{desiredCurrent, desiredLast, staleCurrent, staleLast}
+	mockClient.EXPECT().List(
+		gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any(),
+	).DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+		list.(*appsv1.DeploymentList).Items = deployments
+		return nil
+	})
+	deleted := map[string]bool{}
+	mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, obj client.Object, _ ...client.DeleteOption) error {
+			deleted[obj.GetName()] = true
+			return nil
+		},
+	).Times(2)
+
+	reconciler := &MilvusReconciler{Client: mockClient, Scheme: scheme}
+	require.NoError(t, reconciler.cleanupStaleDeploymentGroups(context.Background(), mc))
+	assert.Equal(t, map[string]bool{staleCurrent.Name: true, staleLast.Name: true}, deleted)
+}
+
+func TestCleanupStaleDeploymentGroupsWithoutStaleDeployments(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockClient := NewMockK8sClient(mockCtrl)
+	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc", Namespace: "ns", UID: "uid"}}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	desired := newOwnedDeploymentForCleanup(
+		t, &mc, Proxy, Proxy.GetDeploymentName(mc.Name), "", 1, *readyDeployStatus.DeepCopy())
+	mockClient.EXPECT().List(
+		gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any(),
+	).DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+		list.(*appsv1.DeploymentList).Items = []appsv1.Deployment{desired}
+		return nil
+	})
+
+	reconciler := &MilvusReconciler{Client: mockClient, Scheme: scheme}
+	assert.NoError(t, reconciler.cleanupStaleDeploymentGroups(context.Background(), mc))
 }
 
 func TestCleanupStaleDeploymentGroupsAfterDesiredReady(t *testing.T) {

@@ -240,14 +240,14 @@ func (c *DeployControllerBizImpl) reconcileDeploymentGroupMetadata(ctx context.C
 	if c.component.DeploymentGroup == nil {
 		return nil
 	}
-	selectorLabels := c.component.GetSelectorLabels(mc.Name)
 	updated := false
 	for _, deployment := range deployments {
 		if deployment == nil {
 			continue
 		}
-		labels := MergeLabels(deployment.Labels, c.component.DeploymentGroup.Labels, selectorLabels)
-		annotations := MergeAnnotations(deployment.Annotations, c.component.DeploymentGroup.Annotations)
+		rolloutSlot := v1beta1.Labels().GetLabelGroupID(c.component.Name, deployment)
+		labels := desiredDeploymentLabels(mc.Name, c.component, rolloutSlot, deployment.Labels)
+		annotations := desiredDeploymentAnnotations(c.component, deployment.Annotations)
 		if IsEqual(labels, deployment.Labels) && IsEqual(annotations, deployment.Annotations) {
 			continue
 		}

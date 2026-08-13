@@ -46,6 +46,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 	// all ok
 	t.Run("v1 deploy mode all ok", func(t *testing.T) {
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
 			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "")).
@@ -69,6 +70,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 				list.Items = append(list.Items, oldDeploy)
 				return nil
 			})
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).DoAndReturn(func(_, deploy interface{}, opts ...interface{}) error {
 			assert.Equal(t, oldDeploy.Name, deploy.(*appsv1.Deployment).Name)
 			return nil
@@ -96,6 +98,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 			{},
 		}
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
 			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "")).
@@ -256,6 +259,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 	t.Run("call client.Update if changed", func(t *testing.T) {
 		defer env.Ctrl.Finish()
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
 			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opt ...any) error {
@@ -276,6 +280,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 	t.Run("not call client.Update if configmap not changed", func(t *testing.T) {
 		defer env.Ctrl.Finish()
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
 			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opt ...any) error {

@@ -170,6 +170,31 @@ var deploymentGroupReservedLabels = map[string]struct{}{
 	GetComponentGroupIdLabel(StreamingNodeName): {},
 }
 
+// These annotations are maintained by the operator and are preserved when
+// deployment-group metadata is rendered authoritatively. Deployment groups
+// cannot claim the same keys.
+var deploymentGroupReservedAnnotations = map[string]struct{}{
+	"checksum/config": {},
+}
+
+// Kubernetes, kubectl, and the operator own these metadata namespaces.
+// Reserving the same prefixes that reconciliation preserves keeps ownership
+// unambiguous when a group label or annotation is removed from the CR.
+var deploymentGroupReservedMetadataPrefixes = []string{
+	"kubectl.kubernetes.io/",
+	MilvusIO,
+	"deployment.kubernetes.io/",
+}
+
+func hasDeploymentGroupReservedMetadataPrefix(key string) bool {
+	for _, prefix := range deploymentGroupReservedMetadataPrefixes {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *Milvus) validateDeploymentGroups() field.ErrorList {
 	const maxKubernetesNameLength = 253
 	basePath := field.NewPath("spec").Child("components")
@@ -235,9 +260,15 @@ func (r *Milvus) validateDeploymentGroups() field.ErrorList {
 				allErrs = append(allErrs, field.Invalid(groupPath.Child("replicas"), *group.Replicas, "must be -1 or nonnegative"))
 			}
 			for key := range group.Labels {
-				if _, reserved := deploymentGroupReservedLabels[key]; reserved ||
-					(strings.HasPrefix(key, MilvusIO) && strings.HasSuffix(key, "-rolling-id")) {
+				_, reserved := deploymentGroupReservedLabels[key]
+				if reserved || hasDeploymentGroupReservedMetadataPrefix(key) {
 					allErrs = append(allErrs, field.Forbidden(groupPath.Child("labels").Key(key), "label is reserved by milvus-operator"))
+				}
+			}
+			for key := range group.Annotations {
+				_, reserved := deploymentGroupReservedAnnotations[key]
+				if reserved || hasDeploymentGroupReservedMetadataPrefix(key) {
+					allErrs = append(allErrs, field.Forbidden(groupPath.Child("annotations").Key(key), "annotation is reserved by milvus-operator or Kubernetes"))
 				}
 			}
 		}
