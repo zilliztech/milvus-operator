@@ -240,6 +240,29 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		}, mc.Spec.Conf.Data["rocksmq"])
 	})
 
+	t.Run("ssl storage defaults port to 443", func(t *testing.T) {
+		sslMC := mc.DeepCopy()
+		sslMC.Spec.Dep.Storage.Endpoint = "minio.example.com"
+		sslMC.Spec.Conf.Data = map[string]interface{}{
+			"minio": map[string]interface{}{
+				"useSSL": true,
+			},
+		}
+		cm := &corev1.ConfigMap{}
+		cm.Namespace = sslMC.Namespace
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr"))
+
+		err := r.updateConfigMap(ctx, *sslMC, cm)
+		assert.NoError(t, err)
+
+		conf := map[string]interface{}{}
+		assert.NoError(t, yaml.Unmarshal([]byte(cm.Data[UserYaml]), &conf))
+		minio := conf["minio"].(map[string]interface{})
+		assert.EqualValues(t, 443, minio["port"])
+	})
+
 	t.Run("woodpecker external service config rendered", func(t *testing.T) {
 		mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeWoodPecker
 		mc.Spec.Dep.WoodPecker.External = true

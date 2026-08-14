@@ -35,6 +35,41 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		assert.Equal(t, []string{"/milvus/tools/run.sh", "milvus", "run", "mycomponent"}, deployment.Spec.Template.Spec.Containers[0].Args)
 	})
 
+	t.Run("set generated storage port env", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		updater := newMilvusDeploymentUpdaterWithStorageEndpointEnv(
+			*inst,
+			env.Reconciler.Scheme,
+			MilvusStandalone,
+			[]corev1.EnvVar{{Name: "MINIO_PORT", Value: "80"}},
+		)
+		deployment := sampleDeployment.DeepCopy()
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Contains(t, deployment.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
+			Name:  "MINIO_PORT",
+			Value: "80",
+		})
+	})
+
+	t.Run("user storage port env takes precedence", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Com.Env = []corev1.EnvVar{{Name: "MINIO_PORT", Value: "9000"}}
+		updater := newMilvusDeploymentUpdaterWithStorageEndpointEnv(
+			*inst,
+			env.Reconciler.Scheme,
+			MilvusStandalone,
+			[]corev1.EnvVar{{Name: "MINIO_PORT", Value: "80"}},
+		)
+		deployment := sampleDeployment.DeepCopy()
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Contains(t, deployment.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
+			Name:  "MINIO_PORT",
+			Value: "9000",
+		})
+	})
+
 	t.Run("test replicas", func(t *testing.T) {
 		int32Ptr := func(i int32) *int32 {
 			return &i

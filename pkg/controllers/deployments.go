@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -46,6 +47,43 @@ var (
 	DefaultSecretMode    = corev1.SecretVolumeSourceDefaultMode
 	ErrRequeue           = errors.New("requeue")
 )
+
+func GetStorageHostPort(endpoint string, useSSL bool) (string, int32) {
+	defaultPort := int32(80)
+	if useSSL {
+		defaultPort = 443
+	}
+	return util.GetHostPortWithDefault(endpoint, defaultPort)
+}
+
+func GetStorageEndpointEnv(endpoint string, useSSL bool) []corev1.EnvVar {
+	if endpoint == "" {
+		return nil
+	}
+
+	_, port := GetStorageHostPort(endpoint, useSSL)
+	return []corev1.EnvVar{
+		{
+			Name:  "MINIO_PORT",
+			Value: strconv.Itoa(int(port)),
+		},
+	}
+}
+
+// getMinioPortEnvIfServiceExists returns an override for the Kubernetes service-link
+// variable only in namespaces where a Service named "minio" can cause the collision.
+func (r *MilvusReconciler) getMinioPortEnvIfServiceExists(ctx context.Context, mc v1beta1.Milvus) ([]corev1.EnvVar, error) {
+	service := &corev1.Service{}
+	err := r.Get(ctx, NamespacedName(mc.Namespace, Minio), service)
+	if kerrors.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, pkgerr.Wrap(err, "check minio service")
+	}
+
+	return GetStorageEndpointEnv(mc.Spec.Dep.Storage.Endpoint, GetMinioSecure(mc.Spec.Conf.Data)), nil
+}
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 	env := []corev1.EnvVar{}
@@ -102,7 +140,9 @@ func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 func (r *MilvusReconciler) updateDeployment(
 	ctx context.Context, mc v1beta1.Milvus, deployment *appsv1.Deployment, component MilvusComponent,
 ) error {
-	updater := newMilvusDeploymentUpdater(mc, r.Scheme, component)
+	updater := newMilvusDeploymentUpdaterWithStorageEndpointEnv(
+		mc, r.Scheme, component, storageEndpointEnvFromContext(ctx),
+	)
 	hasTerminatingPod, err := CheckComponentHasTerminatingPod(ctx, r.Client, mc, component)
 	if err != nil {
 		return pkgerr.Wrap(err, "check component has terminating pod")
@@ -268,7 +308,13 @@ func (r *MilvusReconciler) RemoveOldStandlone(ctx context.Context, mc v1beta1.Mi
 }
 
 func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.Milvus) error {
-	err := r.RemoveOldStandlone(ctx, mc)
+	storageEndpointEnv, err := r.getMinioPortEnvIfServiceExists(ctx, mc)
+	if err != nil {
+		return err
+	}
+	ctx = contextWithStorageEndpointEnv(ctx, storageEndpointEnv)
+
+	err = r.RemoveOldStandlone(ctx, mc)
 	if err != nil {
 		return err
 	}

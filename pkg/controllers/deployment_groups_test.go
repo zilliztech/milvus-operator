@@ -380,7 +380,7 @@ func TestRenderTwoDeploymentGroupPodMetadataAuthoritatively(t *testing.T) {
 	mockClient.EXPECT().Scheme().Return(scheme).Times(2)
 
 	rendered := NewDeployControllerBizUtil(workload, mockClient, mockUtil).
-		RenderPodTemplateWithoutGroupID(mc, current, workload, false)
+		RenderPodTemplateWithoutGroupID(context.Background(), mc, current, workload, false)
 
 	assert.Equal(t, "zone-a", rendered.Labels[v1beta1.DeploymentGroupLabel])
 	assert.Equal(t, "1", rendered.Labels[v1beta1.GetComponentGroupIdLabel(QueryNodeName)], "the runtime rollout slot is preserved")
@@ -394,7 +394,7 @@ func TestRenderTwoDeploymentGroupPodMetadataAuthoritatively(t *testing.T) {
 	assert.NotContains(t, rendered.Annotations, "external-annotation")
 	assert.Equal(t, "2026-08-13T10:00:00-07:00", rendered.Annotations[kubectlRestartedAtAnnotation])
 	renderedAgain := NewDeployControllerBizUtil(workload, mockClient, mockUtil).
-		RenderPodTemplateWithoutGroupID(mc, rendered, workload, false)
+		RenderPodTemplateWithoutGroupID(context.Background(), mc, rendered, workload, false)
 	assert.Equal(t, rendered, renderedAgain, "rendering converged metadata must not request another rollout")
 }
 
