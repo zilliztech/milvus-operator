@@ -69,12 +69,12 @@ func (c *DeployModeChangerImpl) ChangeToTwoDeployMode(ctx context.Context, mc v1
 }
 
 func (c *DeployModeChangerImpl) markChangingDeployMode(ctx context.Context, mc v1beta1.Milvus, changing bool) error {
-	if v1beta1.Labels().IsChangingMode(mc, c.component.Name) == changing {
+	if v1beta1.Labels().IsChangingMode(mc, c.component.GetStateKey()) == changing {
 		return nil
 	}
 	logger := ctrl.LoggerFrom(ctx)
 	logger.Info("marking changing deploy mode", "changing", changing)
-	v1beta1.Labels().SetChangingMode(&mc, c.component.Name, changing)
+	v1beta1.Labels().SetChangingMode(&mc, c.component.GetStateKey(), changing)
 	err := c.util.UpdateAndRequeue(ctx, &mc)
 	return errors.Wrap(err, "marking changing deploy mode")
 }
@@ -192,18 +192,24 @@ func (c *DeployModeChangerImpl) RecoverDeploy(ctx context.Context, mc v1beta1.Mi
 }
 
 func (c *DeployModeChangerImpl) MarkCurrentDeploy(ctx context.Context, mc v1beta1.Milvus) error {
-	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.Name) == "0" {
+	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.GetStateKey()) == "0" {
 		return nil
 	}
-	v1beta1.Labels().SetCurrentGroupID(&mc, c.component.Name, 0)
+	v1beta1.Labels().SetCurrentGroupID(&mc, c.component.GetStateKey(), 0)
 	err := c.util.UpdateAndRequeue(ctx, &mc)
 	return errors.Wrap(err, "mark current deploy")
 }
 
 func formatSaveOldDeployName(mc v1beta1.Milvus, component MilvusComponent) string {
-	return fmt.Sprintf("%s-%s-old-deploy", component.Name, mc.Name)
+	if component.DeploymentGroup == nil {
+		return fmt.Sprintf("%s-%s-old-deploy", component.Name, mc.Name)
+	}
+	return fmt.Sprintf("%s-%s-%s-old-deploy", component.Name, mc.Name, component.GetDeploymentGroupName())
 }
 
 func formatSaveOldReplicaSetListName(mc v1beta1.Milvus, component MilvusComponent) string {
-	return fmt.Sprintf("%s-%s-old-replicas", component.Name, mc.Name)
+	if component.DeploymentGroup == nil {
+		return fmt.Sprintf("%s-%s-old-replicas", component.Name, mc.Name)
+	}
+	return fmt.Sprintf("%s-%s-%s-old-replicas", component.Name, mc.Name, component.GetDeploymentGroupName())
 }

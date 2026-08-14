@@ -297,12 +297,68 @@ type Component struct {
 	InitContainers []Values `json:"initContainers,omitempty"`
 }
 
+// DeploymentGroup describes one independently deployed workload for a Milvus
+// component. Deployment groups are Kubernetes workload identities and do not
+// implicitly create or configure Milvus resource groups.
+type DeploymentGroup struct {
+	// Name is the stable deployment-group identity and is used as a Kubernetes
+	// name suffix and label value.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// Replicas is the desired number of pods in this deployment group. A value
+	// of -1 relinquishes replica management to an external HPA.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=-1
+	Replicas *int32 `json:"replicas"`
+
+	// Labels are applied to both the Deployment and pod template. Reserved
+	// operator labels cannot be overridden.
+	// +kubebuilder:validation:Optional
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// Annotations are applied to both the Deployment and pod template.
+	// +kubebuilder:validation:Optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// ExtraEnv is merged over global and component environment variables by
+	// variable name.
+	// +kubebuilder:validation:Optional
+	ExtraEnv []corev1.EnvVar `json:"extraEnv,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	Tolerations *[]corev1.Toleration `json:"tolerations,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	TopologySpreadConstraints *[]corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
+}
+
 type MilvusQueryNode struct {
 	Component `json:",inline"`
+
+	// Groups splits QueryNode into independently configured Kubernetes
+	// workloads. QueryNode keeps its existing two-deployment rollout behavior
+	// within every group.
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=name
+	Groups []DeploymentGroup `json:"groups,omitempty"`
 }
 
 type MilvusDataNode struct {
 	Component `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=name
+	Groups []DeploymentGroup `json:"groups,omitempty"`
 }
 
 type MilvusIndexNode struct {
@@ -311,6 +367,11 @@ type MilvusIndexNode struct {
 
 type MilvusProxy struct {
 	ServiceComponent `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=name
+	Groups []DeploymentGroup `json:"groups,omitempty"`
 }
 
 // MilvusMixCoord is a mixture of rootCoord, indexCoord, queryCoord & dataCoord
@@ -336,6 +397,11 @@ type MilvusIndexCoord struct {
 
 type MilvusStreamingNode struct {
 	Component `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=name
+	Groups []DeploymentGroup `json:"groups,omitempty"`
 }
 
 type MilvusStandalone struct {

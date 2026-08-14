@@ -1,16 +1,185 @@
 package v1beta1
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/zilliztech/milvus-operator/pkg/config"
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
+
+func TestMilvusValidateDeploymentGroups(t *testing.T) {
+	newMilvus := func() *Milvus {
+		mc := &Milvus{ObjectMeta: metav1.ObjectMeta{Name: "mc"}}
+		mc.Spec.Mode = MilvusModeCluster
+		mc.Default()
+		return mc
+	}
+	replicas := int32(2)
+
+	t.Run("valid groups and external HPA sentinel", func(t *testing.T) {
+		mc := newMilvus()
+		external := int32(-1)
+		mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{
+			Name: "az-1", Replicas: &replicas,
+			Labels:   map[string]string{"topology.example/zone": "az-1"},
+			ExtraEnv: []corev1.EnvVar{{Name: "MILVUS_SERVER_LABEL_RESOURCE_GROUP", Value: "rg-a"}},
+		}, {Name: "az-2", Replicas: &external}}
+		_, err := mc.ValidateCreate()
+		assert.NoError(t, err)
+	})
+
+	tests := map[string]func(*Milvus){
+		"empty name": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Replicas: &replicas}}
+		},
+		"duplicate name": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas}, {Name: "az-1", Replicas: &replicas}}
+		},
+		"non DNS name": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "AZ_1", Replicas: &replicas}}
+		},
+		"missing replicas": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1"}}
+		},
+		"invalid replicas": func(mc *Milvus) {
+			invalid := int32(-2)
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &invalid}}
+		},
+		"reserved app label": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Labels: map[string]string{"app.kubernetes.io/component": "other"}}}
+		},
+		"reserved deployment group label": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Labels: map[string]string{DeploymentGroupLabel: "other"}}}
+		},
+		"reserved rollout label": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Labels: map[string]string{MilvusIO + "custom-rolling-id": "1"}}}
+		},
+		"reserved kubectl label prefix": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Labels: map[string]string{"kubectl.kubernetes.io/future-key": "value"}}}
+		},
+		"reserved deployment label prefix": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Labels: map[string]string{"deployment.kubernetes.io/future-key": "value"}}}
+		},
+		"reserved milvus label prefix": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Labels: map[string]string{MilvusIO + "future-key": "value"}}}
+		},
+		"reserved operator annotation": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Annotations: map[string]string{PodAnnotationUsingConfigMap: "other"}}}
+		},
+		"reserved kubectl annotation": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Annotations: map[string]string{"kubectl.kubernetes.io/restartedAt": "now"}}}
+		},
+		"reserved deployment annotation prefix": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Annotations: map[string]string{"deployment.kubernetes.io/future-key": "value"}}}
+		},
+		"reserved milvus annotation prefix": func(mc *Milvus) {
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "az-1", Replicas: &replicas, Annotations: map[string]string{MilvusIO + "future-key": "value"}}}
+		},
+		"rollout deployment name too long": func(mc *Milvus) {
+			mc.Name = strings.Repeat("a", 190)
+			mc.Spec.Com.QueryNode.Groups = []DeploymentGroup{{Name: strings.Repeat("b", 50), Replicas: &replicas}}
+		},
+		"saved rollout state name too long": func(mc *Milvus) {
+			// The physical slot Deployment name is 251 characters and remains
+			// valid; the readable ControllerRevision name is 255 characters.
+			mc.Name = strings.Repeat("a", 172)
+			mc.Spec.Com.RollingMode = RollingModeV3
+			mc.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: strings.Repeat("b", 63), Replicas: &replicas}}
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			mc := newMilvus()
+			mutate(mc)
+			_, err := mc.ValidateCreate()
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestDeploymentGroupDeepCopy(t *testing.T) {
+	replicas := int32(1)
+	nodeSelector := map[string]string{"node": "original"}
+	tolerations := []corev1.Toleration{{Key: "original"}}
+	topologySpreadConstraints := []corev1.TopologySpreadConstraint{{TopologyKey: "original"}}
+	mc := &Milvus{}
+	mc.Spec.Com.Proxy = &MilvusProxy{Groups: []DeploymentGroup{{
+		Name:         "az-1",
+		Replicas:     &replicas,
+		Labels:       map[string]string{"label": "original"},
+		Annotations:  map[string]string{"annotation": "original"},
+		ExtraEnv:     []corev1.EnvVar{{Name: "ENV", Value: "original"}},
+		NodeSelector: &nodeSelector,
+		Affinity: &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{},
+		}},
+		Tolerations:               &tolerations,
+		TopologySpreadConstraints: &topologySpreadConstraints,
+	}}}
+
+	copy := mc.DeepCopy()
+	group := &copy.Spec.Com.Proxy.Groups[0]
+	*group.Replicas = 2
+	group.Labels["label"] = "copy"
+	group.Annotations["annotation"] = "copy"
+	group.ExtraEnv[0].Value = "copy"
+	(*group.NodeSelector)["node"] = "copy"
+	group.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms = []corev1.NodeSelectorTerm{{}}
+	(*group.Tolerations)[0].Key = "copy"
+	(*group.TopologySpreadConstraints)[0].TopologyKey = "copy"
+
+	original := mc.Spec.Com.Proxy.Groups[0]
+	assert.Equal(t, int32(1), *original.Replicas)
+	assert.Equal(t, "original", original.Labels["label"])
+	assert.Equal(t, "original", original.Annotations["annotation"])
+	assert.Equal(t, "original", original.ExtraEnv[0].Value)
+	assert.Equal(t, "original", (*original.NodeSelector)["node"])
+	assert.Empty(t, original.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms)
+	assert.Equal(t, "original", (*original.Tolerations)[0].Key)
+	assert.Equal(t, "original", (*original.TopologySpreadConstraints)[0].TopologyKey)
+}
+
+func TestDeploymentGroupExplicitEmptySchedulingRoundTrip(t *testing.T) {
+	replicas := int32(1)
+	nodeSelector := map[string]string{}
+	tolerations := []corev1.Toleration{}
+	topologySpreadConstraints := []corev1.TopologySpreadConstraint{}
+	mc := Milvus{
+		Spec: MilvusSpec{
+			Com: MilvusComponents{
+				Proxy: &MilvusProxy{
+					Groups: []DeploymentGroup{{
+						Name:                      "clear-scheduling",
+						Replicas:                  &replicas,
+						NodeSelector:              &nodeSelector,
+						Affinity:                  &corev1.Affinity{},
+						Tolerations:               &tolerations,
+						TopologySpreadConstraints: &topologySpreadConstraints,
+					}},
+				},
+			},
+		},
+	}
+
+	data, err := json.Marshal(mc)
+	require.NoError(t, err)
+	var decoded Milvus
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	group := decoded.Spec.Com.Proxy.Groups[0]
+	assert.NotNil(t, group.NodeSelector)
+	assert.NotNil(t, group.Affinity)
+	assert.NotNil(t, group.Tolerations)
+	assert.NotNil(t, group.TopologySpreadConstraints)
+}
 
 func TestMilvus_Default_NotExternal(t *testing.T) {
 	// prepare default

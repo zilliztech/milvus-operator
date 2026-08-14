@@ -496,27 +496,113 @@ func (r *componentsDeployStatusUpdaterImpl) Update(ctx context.Context, mc *v1be
 	if err := r.List(ctx, deployList, opts); err != nil {
 		return errors.Wrap(err, "list deployments failed")
 	}
-	if mc.Status.ComponentsDeployStatus == nil {
-		mc.Status.ComponentsDeployStatus = make(map[string]v1beta1.ComponentDeployStatus)
-	}
-	componentDeploy := makeComponentDeploymentMap(*mc, deployList.Items)
-	allComponents := GetComponentsBySpec(mc.Spec)
-	for _, component := range allComponents {
-		deployment := componentDeploy[component.Name]
-		if deployment == nil {
+	componentStatuses := make(map[string]v1beta1.ComponentDeployStatus)
+	groupStatuses := make(map[string]map[string]v1beta1.ComponentDeployStatus)
+	workloadDeployments := makeWorkloadDeploymentMap(*mc, deployList.Items)
+	groupedByComponent := make(map[string][]v1beta1.ComponentDeployStatus)
+	for _, workload := range GetComponentWorkloadsBySpec(mc.Spec) {
+		status := componentDeployStatus(workload, workloadDeployments[workload.GetStateKey()])
+		if workload.DeploymentGroup == nil {
+			if workloadDeployments[workload.GetStateKey()] != nil {
+				componentStatuses[workload.Name] = status
+			}
 			continue
 		}
-		status := v1beta1.ComponentDeployStatus{
-			Generation: deployment.Generation,
-			Status:     deployment.Status,
+		if groupStatuses[workload.Name] == nil {
+			groupStatuses[workload.Name] = make(map[string]v1beta1.ComponentDeployStatus)
 		}
-		containerIdx := GetContainerIndex(deployment.Spec.Template.Spec.Containers, component.Name)
-		if containerIdx >= 0 {
-			status.Image = deployment.Spec.Template.Spec.Containers[containerIdx].Image
-		}
-		mc.Status.ComponentsDeployStatus[component.Name] = status
+		groupStatuses[workload.Name][workload.GetDeploymentGroupName()] = status
+		groupedByComponent[workload.Name] = append(groupedByComponent[workload.Name], status)
+	}
+	for component, statuses := range groupedByComponent {
+		componentStatuses[component] = aggregateComponentDeployStatuses(statuses)
+	}
+	mc.Status.ComponentsDeployStatus = componentStatuses
+	if len(groupStatuses) == 0 {
+		mc.Status.DeploymentGroupsDeployStatus = nil
+	} else {
+		mc.Status.DeploymentGroupsDeployStatus = groupStatuses
 	}
 	return nil
+}
+
+func componentDeployStatus(component MilvusComponent, deployment *appsv1.Deployment) v1beta1.ComponentDeployStatus {
+	if deployment == nil {
+		return v1beta1.ComponentDeployStatus{}
+	}
+	status := v1beta1.ComponentDeployStatus{
+		Generation: deployment.Generation,
+		Status:     deployment.Status,
+	}
+	containerIdx := GetContainerIndex(deployment.Spec.Template.Spec.Containers, component.Name)
+	if containerIdx >= 0 {
+		status.Image = deployment.Spec.Template.Spec.Containers[containerIdx].Image
+	}
+	return status
+}
+
+func aggregateComponentDeployStatuses(statuses []v1beta1.ComponentDeployStatus) v1beta1.ComponentDeployStatus {
+	if len(statuses) == 0 {
+		return v1beta1.ComponentDeployStatus{}
+	}
+	ret := v1beta1.ComponentDeployStatus{Image: statuses[0].Image}
+	allComplete := true
+	allCompleteOrPaused := true
+	allAvailable := true
+	anyFailed := false
+	for _, status := range statuses {
+		if status.Generation > ret.Generation {
+			ret.Generation = status.Generation
+		}
+		if status.Image != ret.Image {
+			ret.Image = ""
+		}
+		ret.Status.Replicas += status.Status.Replicas
+		ret.Status.UpdatedReplicas += status.Status.UpdatedReplicas
+		ret.Status.ReadyReplicas += status.Status.ReadyReplicas
+		ret.Status.AvailableReplicas += status.Status.AvailableReplicas
+		ret.Status.UnavailableReplicas += status.Status.UnavailableReplicas
+		if !DeploymentReady(status.Status) {
+			allAvailable = false
+		}
+		switch status.GetState() {
+		case v1beta1.DeploymentComplete:
+		case v1beta1.DeploymentPaused:
+			allComplete = false
+		case v1beta1.DeploymentFailed:
+			allComplete = false
+			allCompleteOrPaused = false
+			anyFailed = true
+		default:
+			allComplete = false
+			allCompleteOrPaused = false
+		}
+	}
+	ret.Status.ObservedGeneration = ret.Generation
+	condition := appsv1.DeploymentCondition{
+		Type:   appsv1.DeploymentProgressing,
+		Status: corev1.ConditionTrue,
+		Reason: "DeploymentGroupsUpdating",
+	}
+	switch {
+	case allComplete:
+		condition.Reason = v1beta1.NewReplicaSetAvailableReason
+	case allCompleteOrPaused:
+		condition.Reason = v1beta1.DeploymentPausedReason
+	case anyFailed:
+		condition.Status = corev1.ConditionFalse
+		condition.Reason = "DeploymentGroupFailed"
+	}
+	availableStatus := corev1.ConditionFalse
+	if allAvailable {
+		availableStatus = corev1.ConditionTrue
+	}
+	ret.Status.Conditions = []appsv1.DeploymentCondition{condition, {
+		Type:   appsv1.DeploymentAvailable,
+		Status: availableStatus,
+		Reason: "DeploymentGroupsAggregated",
+	}}
+	return ret
 }
 
 type MilvusHealthStatusInfo struct {
@@ -543,17 +629,21 @@ func (m MilvusHealthStatusInfo) GetMilvusHealthStatus() v1beta1.MilvusHealthStat
 }
 
 func GetMilvusUpdatedCondition(m *v1beta1.Milvus) v1beta1.MilvusCondition {
-	components := GetComponentsBySpec(m.Spec)
-	status := m.Status.ComponentsDeployStatus
+	workloads := GetComponentWorkloadsBySpec(m.Spec)
 	var updatingComponent []string
 	var isUpdatingImage bool
-	for _, component := range components {
-		componentStatus := status[component.Name]
+	for _, workload := range workloads {
+		var componentStatus v1beta1.ComponentDeployStatus
+		if workload.DeploymentGroup == nil {
+			componentStatus = m.Status.ComponentsDeployStatus[workload.Name]
+		} else {
+			componentStatus = m.Status.DeploymentGroupsDeployStatus[workload.Name][workload.GetDeploymentGroupName()]
+		}
 		deployState := componentStatus.GetState()
 		if deployState != v1beta1.DeploymentComplete && deployState != v1beta1.DeploymentPaused {
-			updatingComponent = append(updatingComponent, component.Name)
-		} else if v1beta1.Labels().IsComponentRolling(*m, component.Name) {
-			updatingComponent = append(updatingComponent, component.Name)
+			updatingComponent = append(updatingComponent, workload.GetDisplayName())
+		} else if v1beta1.Labels().IsComponentRolling(*m, workload.GetStateKey()) {
+			updatingComponent = append(updatingComponent, workload.GetDisplayName())
 		}
 		if m.IsRollingUpdateEnabled() &&
 			componentStatus.Image != m.Spec.Com.Image {

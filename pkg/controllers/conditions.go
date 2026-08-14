@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -355,6 +356,40 @@ func makeComponentDeploymentMap(mc v1beta1.Milvus, deploys []appsv1.Deployment) 
 
 	}
 	return m
+}
+
+// makeWorkloadDeploymentMap selects the active Deployment for every desired
+// logical workload. The key is MilvusComponent.GetStateKey(), which is unique
+// per component/deployment-group pair while retaining legacy component keys.
+func makeWorkloadDeploymentMap(mc v1beta1.Milvus, deploys []appsv1.Deployment) map[string]*appsv1.Deployment {
+	ret := make(map[string]*appsv1.Deployment)
+	sort.SliceStable(deploys, func(i, j int) bool { return deploys[i].Name < deploys[j].Name })
+	labelHelper := v1beta1.Labels()
+	for _, workload := range GetComponentWorkloadsBySpec(mc.Spec) {
+		currentSlot := labelHelper.GetCurrentGroupId(&mc, workload.GetStateKey())
+		for i := range deploys {
+			deployment := deploys[i]
+			if !metav1.IsControlledBy(&deployment, &mc) ||
+				deployment.Labels[AppLabelComponent] != workload.Name ||
+				!workload.MatchesDeploymentGroup(deployment.Labels) {
+				continue
+			}
+			if currentSlot != "" && labelHelper.GetLabelGroupID(workload.Name, &deployment) != currentSlot {
+				continue
+			}
+			if labelHelper.IsComponentRolling(mc, workload.GetStateKey()) {
+				deployment.Status.Conditions = UpdateDeploymentCondition(deployment.Status.Conditions, appsv1.DeploymentCondition{
+					Type:    appsv1.DeploymentProgressing,
+					Status:  corev1.ConditionFalse,
+					Reason:  "Rolling",
+					Message: fmt.Sprintf("rolling id %s", labelHelper.GetComponentRollingId(mc, workload.GetStateKey())),
+				})
+			}
+			ret[workload.GetStateKey()] = &deployment
+			break
+		}
+	}
+	return ret
 }
 
 func GetMilvusConditionByType(conditions []v1beta1.MilvusCondition, t v1beta1.MilvusConditionType) *v1beta1.MilvusCondition {

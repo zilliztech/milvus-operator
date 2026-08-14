@@ -198,7 +198,7 @@ func (r *MilvusReconciler) handleOldInstanceChangingMode(ctx context.Context, mc
 	// and raise err to requeue the reconcile
 	if !mc.IsPodServiceLabelAdded() &&
 		mc.IsChangingMode() &&
-		component == MilvusStandalone {
+		component.Is(MilvusStandalone) {
 
 		err := r.labelServicePods(ctx, mc)
 		if err != nil {
@@ -273,12 +273,10 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 		return err
 	}
 	var errs = []error{}
-	for _, component := range GetComponentsBySpec(mc.Spec) {
-		switch {
-		case component == QueryNode ||
-			mc.Spec.Com.RollingMode == v1beta1.RollingModeV3:
+	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
+		if componentUsesTwoDeployments(mc, component) {
 			err = r.deployCtrl.Reconcile(ctx, mc, component)
-		default:
+		} else {
 			err = r.ReconcileComponentDeployment(ctx, mc, component)
 		}
 		if err != nil {
@@ -293,6 +291,10 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 			}
 		}
 		return fmt.Errorf("reconcile milvus deployments errs: %w", errors.Join(errs...))
+	}
+
+	if err := r.cleanupStaleDeploymentGroups(ctx, mc); err != nil {
+		return err
 	}
 
 	err = r.CleanupDeploymentClusterToStandalone(ctx, mc)
@@ -311,6 +313,117 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 	}
 
 	return nil
+}
+
+func componentUsesTwoDeployments(mc v1beta1.Milvus, component MilvusComponent) bool {
+	return component.Is(QueryNode) || mc.Spec.Com.RollingMode == v1beta1.RollingModeV3
+}
+
+// cleanupStaleDeploymentGroups prunes only owned workloads whose stable
+// deployment-group identity is no longer desired. Stale topology is discovered
+// from Deployment labels rather than status because group status describes only
+// the current desired topology and may be cleared before grouped-to-legacy
+// cleanup runs. Desired workloads are made ready first so topology transitions
+// do not remove the serving deployment prematurely.
+func (r *MilvusReconciler) cleanupStaleDeploymentGroups(ctx context.Context, mc v1beta1.Milvus) error {
+	deployments := &appsv1.DeploymentList{}
+	if err := r.List(ctx, deployments,
+		client.InNamespace(mc.Namespace),
+		client.MatchingLabels(NewAppLabels(mc.Name))); err != nil {
+		return pkgerr.Wrap(err, "list deployments for deployment-group cleanup")
+	}
+
+	workloads := GetComponentWorkloadsBySpec(mc.Spec)
+	desiredGroups := map[string]map[string]struct{}{}
+	for _, workload := range workloads {
+		if desiredGroups[workload.Name] == nil {
+			desiredGroups[workload.Name] = map[string]struct{}{}
+		}
+		desiredGroups[workload.Name][workload.GetDeploymentGroupName()] = struct{}{}
+	}
+
+	staleDeployments := []*appsv1.Deployment{}
+	componentsWithStaleDeployments := map[string]struct{}{}
+	for i := range deployments.Items {
+		deployment := &deployments.Items[i]
+		if !metav1.IsControlledBy(deployment, &mc) {
+			continue
+		}
+		componentName := deployment.Labels[AppLabelComponent]
+		groups, managedComponent := desiredGroups[componentName]
+		if !managedComponent {
+			continue
+		}
+		if _, desired := groups[deployment.Labels[v1beta1.DeploymentGroupLabel]]; desired {
+			continue
+		}
+		staleDeployments = append(staleDeployments, deployment)
+		componentsWithStaleDeployments[componentName] = struct{}{}
+	}
+	if len(staleDeployments) == 0 {
+		return nil
+	}
+	workloadsToGate := make([]MilvusComponent, 0, len(workloads))
+	for _, workload := range workloads {
+		if _, needsGate := componentsWithStaleDeployments[workload.Name]; needsGate {
+			workloadsToGate = append(workloadsToGate, workload)
+		}
+	}
+	if !desiredWorkloadsReadyForCleanup(mc, workloadsToGate, deployments.Items) {
+		return nil
+	}
+
+	for _, deployment := range staleDeployments {
+		ctrl.LoggerFrom(ctx).Info("Delete stale deployment group workload",
+			"component", deployment.Labels[AppLabelComponent],
+			"deploymentGroup", deployment.Labels[v1beta1.DeploymentGroupLabel],
+			"deployment", deployment.Name)
+		if err := r.Delete(ctx, deployment); err != nil && !kerrors.IsNotFound(err) {
+			return pkgerr.Wrapf(err, "delete stale deployment %s/%s", deployment.Namespace, deployment.Name)
+		}
+	}
+	return nil
+}
+
+func desiredWorkloadsReadyForCleanup(mc v1beta1.Milvus, workloads []MilvusComponent, deployments []appsv1.Deployment) bool {
+	for _, workload := range workloads {
+		var desired *appsv1.Deployment
+		if componentUsesTwoDeployments(mc, workload) {
+			currentSlot := v1beta1.Labels().GetCurrentGroupId(&mc, workload.GetStateKey())
+			if currentSlot == "" {
+				return false
+			}
+			for i := range deployments {
+				deployment := &deployments[i]
+				if !metav1.IsControlledBy(deployment, &mc) ||
+					deployment.Labels[AppLabelComponent] != workload.Name ||
+					!workload.MatchesDeploymentGroup(deployment.Labels) ||
+					v1beta1.Labels().GetLabelGroupID(workload.Name, deployment) != currentSlot {
+					continue
+				}
+				desired = deployment
+				break
+			}
+		} else {
+			name := workload.GetDeploymentName(mc.Name)
+			for i := range deployments {
+				if deployments[i].Name == name && metav1.IsControlledBy(&deployments[i], &mc) {
+					desired = &deployments[i]
+					break
+				}
+			}
+		}
+		if desired == nil {
+			return false
+		}
+		if getDeployReplicas(desired) == 0 {
+			continue
+		}
+		if !DeploymentReady(desired.Status) {
+			return false
+		}
+	}
+	return true
 }
 
 // cleanupIndexNodeIfNeeded is part of the upgrade process to remove IndexNode which is no longer needed in 2.6+
