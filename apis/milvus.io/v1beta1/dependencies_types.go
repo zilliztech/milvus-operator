@@ -243,6 +243,9 @@ type MilvusKafka struct {
 
 	// +kubebuilder:validation:Optional
 	BrokerList []string `json:"brokerList,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 // MilvusTei configuration

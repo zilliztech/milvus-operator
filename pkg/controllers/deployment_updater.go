@@ -497,7 +497,7 @@ func GetDeploymentStrategy(milvus *v1beta1.Milvus, component MilvusComponent) ap
 }
 
 func (m milvusDeploymentUpdater) GetConfCheckSum() string {
-	return GetConfCheckSum(m.Spec)
+	return GetConfCheckSumWithRefs(m.GetMilvus())
 }
 
 func (m milvusDeploymentUpdater) GetMergedComponentSpec() ComponentSpec {

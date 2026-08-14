@@ -465,6 +465,16 @@ func (c MilvusComponent) IsImageUpdated(m *v1beta1.Milvus) bool {
 
 // GetConfCheckSum returns the checksum of the component configuration
 func GetConfCheckSum(spec v1beta1.MilvusSpec) string {
+	return getConfCheckSum(spec, nil)
+}
+
+// GetConfCheckSumWithRefs returns the checksum of the component configuration, including
+// the credentials read from referenced secrets
+func GetConfCheckSumWithRefs(m *v1beta1.Milvus) string {
+	return getConfCheckSum(m.Spec, m.GetAnnotations())
+}
+
+func getConfCheckSum(spec v1beta1.MilvusSpec, annotations map[string]string) string {
 	conf := map[string]interface{}{}
 	conf["conf"] = spec.Conf.Data
 	conf["etcd-endpoints"] = spec.Dep.Etcd.Endpoints
@@ -474,6 +484,13 @@ func GetConfCheckSum(spec v1beta1.MilvusSpec) string {
 	if spec.Dep.WoodPecker.External {
 		conf["woodpecker-external"] = spec.Dep.WoodPecker.External
 		conf["woodpecker-quorumBufferPools"] = spec.Dep.WoodPecker.QuorumBufferPools
+	}
+	// only set when used, to keep the checksum of other instances unchanged
+	if spec.Dep.Kafka.SecretRef != "" {
+		conf["kafka-secretRef"] = spec.Dep.Kafka.SecretRef
+	}
+	if sum := annotations[v1beta1.KafkaSaslCheckSumAnnotation]; sum != "" {
+		conf["kafka-sasl-checksum"] = sum
 	}
 
 	b, err := json.Marshal(conf)
