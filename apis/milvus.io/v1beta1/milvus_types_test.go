@@ -139,6 +139,29 @@ func TestMilvusSpec_IsStopping(t *testing.T) {
 		assert.True(t, m.Spec.IsStopping())
 	})
 }
+
+func TestMilvusSpec_IsStoppingWithDeploymentGroups(t *testing.T) {
+	m := &Milvus{}
+	m.Spec.Mode = MilvusModeCluster
+	m.Spec.Com.Image = "milvusdb/milvus:v2.5.15"
+	m.Default()
+	zero, one, external := int32(0), int32(1), int32(-1)
+	m.Spec.Com.MixCoord.Replicas = &zero
+	m.Spec.Com.IndexNode.Replicas = &zero
+	m.Spec.Com.Proxy.Groups = []DeploymentGroup{{Name: "a", Replicas: &zero}, {Name: "b", Replicas: &zero}}
+	m.Spec.Com.DataNode.Groups = []DeploymentGroup{{Name: "a", Replicas: &zero}}
+	m.Spec.Com.QueryNode.Groups = []DeploymentGroup{{Name: "a", Replicas: &zero}}
+	m.Spec.Com.Standalone.Replicas = &zero
+
+	assert.True(t, m.Spec.IsStopping())
+	m.Spec.Com.Proxy.Groups[1].Replicas = &one
+	assert.False(t, m.Spec.IsStopping())
+	m.Spec.Com.Proxy.Groups[1].Replicas = &external
+	assert.False(t, m.Spec.IsStopping(), "an externally managed group is not stopped")
+	m.Spec.Com.Proxy.Groups[1].Replicas = &zero
+	m.Spec.Com.Proxy.Replicas = &one
+	assert.True(t, m.Spec.IsStopping(), "component replicas are ignored while groups are configured")
+}
 func TestMilvusSpec_2_6_IsStopping(t *testing.T) {
 	m := &Milvus{}
 	m.Default()

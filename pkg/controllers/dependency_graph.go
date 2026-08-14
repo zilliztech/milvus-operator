@@ -31,10 +31,12 @@ func (d *dependencyGraphImpl) AddDependency(component MilvusComponent, dependenc
 }
 
 func (d *dependencyGraphImpl) GetDependencies(component MilvusComponent) []MilvusComponent {
+	component.DeploymentGroup = nil
 	return d.dependencies[component]
 }
 
 func (d *dependencyGraphImpl) GetReversedDependencies(component MilvusComponent) []MilvusComponent {
+	component.DeploymentGroup = nil
 	return d.reversedDependencies[component]
 }
 

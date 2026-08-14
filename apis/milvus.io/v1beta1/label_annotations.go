@@ -24,6 +24,8 @@ const (
 	StoppedAtAnnotation                    = MilvusIO + "stopped-at"
 	PodAnnotationUsingConfigMap            = MilvusIO + "using-configmap"
 	AnnotationMilvusGeneration             = MilvusIO + "generation"
+	// KafkaSaslCheckSumAnnotation is the checksum of the kafka SASL credentials in use
+	KafkaSaslCheckSumAnnotation = MilvusIO + "kafka-sasl-checksum"
 
 	// PodServiceLabelAddedAnnotation is to indicate whether the milvus.io/service=true label is added to proxy & standalone pods
 	// previously, we use milvus.io/component: proxy / standalone; to select the service pods
@@ -31,7 +33,11 @@ const (
 	// so instead we use milvus.io/service="true" to select the service pods
 	PodServiceLabelAddedAnnotation = MilvusIO + "pod-service-label-added"
 	// ServiceLabel is the label to indicate whether the pod is a service pod
-	ServiceLabel                         = MilvusIO + "service"
+	ServiceLabel = MilvusIO + "service"
+	// DeploymentGroupLabel is the stable identity of an independently
+	// configured component workload. It is distinct from the existing
+	// component group-id label, which identifies blue/green rollout slots.
+	DeploymentGroupLabel                 = MilvusIO + "deployment-group"
 	OldAnnotationCurrentQueryNodeGroupID = MilvusIO + "current-querynode-group-id"
 )
 

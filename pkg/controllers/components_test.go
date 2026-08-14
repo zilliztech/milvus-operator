@@ -386,6 +386,23 @@ func TestMilvusComponent_GetServiceType(t *testing.T) {
 	assert.Equal(t, corev1.ServiceTypeLoadBalancer, com.GetServiceType(spec))
 }
 
+func TestGroupedMilvusComponentKeepsLogicalProxyBehavior(t *testing.T) {
+	replicas := int32(1)
+	groupedProxy := Proxy
+	groupedProxy.DeploymentGroup = &v1beta1.DeploymentGroup{Name: "g1", Replicas: &replicas}
+
+	spec := newSpecCluster()
+	spec.Com.Proxy.ServiceType = corev1.ServiceTypeNodePort
+	spec.Com.Proxy.Port = 19532
+	spec.Com.Proxy.ServiceRestfulPort = 9091
+
+	assert.True(t, groupedProxy.Is(Proxy))
+	assert.True(t, groupedProxy.IsService())
+	assert.Equal(t, corev1.ServiceTypeNodePort, groupedProxy.GetServiceType(spec))
+	assert.Equal(t, int32(19532), groupedProxy.GetComponentPort(spec))
+	assert.Equal(t, int32(9091), groupedProxy.GetRestfulPort(spec))
+}
+
 func TestMilvusComponent_GetServicePorts(t *testing.T) {
 	com := Proxy
 	spec := newSpecCluster()

@@ -206,6 +206,13 @@ Fields used to configure an external Kafka service include:
 
 - `external`: A `true` value indicates that Milvus uses an external Kafka service.
 - `brokerList`: The list of brokers to send the messages to.
+- `secretRef`: Optional, the name of a Secret storing SASL credentials for the Kafka
+  service. Both the `username` and the `password` key are required; the operator requeues
+  until they are readable instead of writing an unusable Kafka configuration. When set, it
+  takes precedence over `spec.config.kafka.saslUsername`/`saslPassword`, so SASL
+  credentials don't need to be set as literal values in the Milvus CR.
+  The Secret is watched: rotating the credentials in place re-renders the configmap and
+  rolls the Milvus components so that they pick the new credentials up.
 
 #### Example
 
@@ -237,6 +244,50 @@ spec:
         - "kafkaBrokerAddr1:9092"
         - "kafkaBrokerAddr2:9092"
         # ...
+```
+
+#### Using a Secret for SASL credentials
+
+Instead of setting `saslUsername`/`saslPassword` as literal values, create a Secret
+holding them:
+
+```yaml
+# # change the <parameters> to match your environment
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-release-kafka-secret
+type: Opaque
+stringData:
+  username: <my-sasl-username>
+  password: <my-sasl-password>
+```
+
+Then reference it via `secretRef`:
+
+```yaml
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+  labels:
+    app: milvus
+spec:
+  config:
+    kafka:
+      securityProtocol: SASL_SSL
+      saslMechanisms: PLAIN
+  # Omit other fields ...
+  dependencies:
+    # Omit other fields ...
+    msgStreamType: "kafka"
+    kafka:
+      external: true
+      brokerList:
+        - "kafkaBrokerAddr1:9092"
+        - "kafkaBrokerAddr2:9092"
+        # ...
+      secretRef: "my-release-kafka-secret"
 ```
 
 ### Internal Kafka

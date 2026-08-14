@@ -77,6 +77,28 @@ spec:
 
 > You can also stop the Milvus cluster without deleting the related resource by scaling component replicas to 0. You can later quickly restart the Milvus cluster by scaling in the component replicas to 1 or more.
 
+## Scale deployment groups
+
+Proxy, DataNode, QueryNode, and StreamingNode can be scaled as independent deployment groups. When groups are configured, the component-level replica count is ignored:
+
+```yaml
+spec:
+  components:
+    dataNode:
+      groups:
+        - name: g1
+          replicas: 2
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1a
+        - name: g2
+          replicas: 3
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1b
+```
+
+Set every group to `replicas: 0` to stop a grouped component. Set `replicas: -1` to let an externally managed HPA control that group. The operator does not create or manage HPAs; external automation must target the generated Deployment name and clean up or retarget the HPA after a group rename or removal.
+
+One-Deployment workloads are named `<milvus>-milvus-<component>-<group>`. QueryNode always retains its two rollout slots, named `...-<group>-0` and `...-<group>-1`; all supported components use those two slots with `rollingMode: 3`. Suspend external HPAs and use static replica counts before a full stop or `MilvusUpgrade`.
+
 ## Scale up
 Described in [Allocate Resources](./allocate-resources.md).
-

@@ -97,7 +97,7 @@ func (c *DeployControllerBizUtilImpl) RenderPodTemplateWithoutGroupID(ctx contex
 	updater := newMilvusDeploymentUpdaterWithStorageEndpointEnv(
 		mc, c.cli.Scheme(), component, storageEndpointEnvFromContext(ctx),
 	)
-	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponent().Name)
+	appLabels := component.GetSelectorLabels(updater.GetIntanceName())
 	if !forceUpdateAll {
 		isCreating := currentTemplate == nil
 		isStopped := ReplicasValue(component.GetReplicas(mc.Spec)) == 0
@@ -114,19 +114,20 @@ var (
 
 func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error) {
 	deploys := appsv1.DeploymentList{}
-	commonlabels := NewComponentAppLabels(mc.Name, c.component.Name)
+	commonlabels := c.component.GetSelectorLabels(mc.Name)
 	err = c.cli.List(ctx, &deploys, client.InNamespace(mc.Namespace), client.MatchingLabels(commonlabels))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "list querynode deployments")
 	}
 	var items = []*appsv1.Deployment{}
 	for i := range deploys.Items {
-		if v1beta1.Labels().GetLabelGroupID(c.component.Name, &deploys.Items[i]) != "" {
+		if c.component.MatchesDeploymentGroup(deploys.Items[i].Labels) &&
+			v1beta1.Labels().GetLabelGroupID(c.component.Name, &deploys.Items[i]) != "" {
 			items = append(items, &deploys.Items[i])
 		}
 	}
 	if len(items) > 2 {
-		return nil, nil, errors.Errorf("unexpected: more than 2 querynode deployments found %d, admin please fix this, leave only 2 deployments", len(deploys.Items))
+		return nil, nil, errors.Errorf("unexpected: more than 2 %s deployments found %d, admin please fix this, leave only 2 deployments", c.component.GetDisplayName(), len(items))
 	}
 	if len(items) < 1 {
 		return nil, nil, ErrNotFound
@@ -153,18 +154,18 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 	}
 	// last == nil
 
-	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.Name) != "0" {
+	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.GetStateKey()) != "0" {
 		return nil, nil, errors.Errorf("unexpected: first deployment is not for group 0, admin please fix this by setting a last deployment for group 0")
 	}
 	return nil, nil, ErrNoLastDeployment
 }
 
 func componentDeployIsCurrentGroup(mc v1beta1.Milvus, component MilvusComponent, deploy *appsv1.Deployment) bool {
-	return v1beta1.Labels().GetLabelGroupID(component.Name, deploy) == v1beta1.Labels().GetCurrentGroupId(&mc, component.Name)
+	return v1beta1.Labels().GetLabelGroupID(component.Name, deploy) == v1beta1.Labels().GetCurrentGroupId(&mc, component.GetStateKey())
 }
 
 func formatComponentDeployName(mc v1beta1.Milvus, component MilvusComponent, groupId int) string {
-	return fmt.Sprintf("%s-milvus-%s-%d", mc.Name, component.Name, groupId)
+	return fmt.Sprintf("%s-%d", component.GetDeploymentName(mc.Name), groupId)
 }
 
 func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error {
@@ -186,9 +187,14 @@ func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1bet
 	if err != nil {
 		return errors.Wrap(err, "set controller reference")
 	}
-	labels := NewComponentAppLabels(mc.Name, c.component.Name)
+	labels := c.component.GetSelectorLabels(mc.Name)
 	v1beta1.Labels().SetGroupID(c.component.Name, labels, groupId)
-	deploy.Labels = labels
+	if c.component.DeploymentGroup != nil {
+		deploy.Labels = MergeLabels(c.component.DeploymentGroup.Labels, labels)
+		deploy.Annotations = MergeAnnotations(c.component.DeploymentGroup.Annotations)
+	} else {
+		deploy.Labels = labels
+	}
 	deploy.Spec.Selector = &metav1.LabelSelector{
 		MatchLabels: labels,
 	}
@@ -220,7 +226,7 @@ func (c *DeployControllerBizUtilImpl) ShouldRollback(ctx context.Context, curren
 }
 
 func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) (bool, error) {
-	if !v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
+	if !v1beta1.Labels().IsComponentRolling(mc, c.component.GetStateKey()) {
 		return true, nil
 	}
 
@@ -252,7 +258,7 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	)
 	logger := ctrl.LoggerFrom(ctx)
 	if !deploymentShowsRolloutFinished {
-		logger.Info("rollout not finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.Name), "reason", reasons[failedIndex])
+		logger.Info("rollout not finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.GetStateKey()), "reason", reasons[failedIndex])
 		return false, nil
 	}
 	// make sure all old pods are down
@@ -263,8 +269,8 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	if len(pods) != 0 {
 		return false, nil
 	}
-	logger.Info("rollout finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.Name))
-	v1beta1.Labels().SetComponentRolling(&mc, c.component.Name, false)
+	logger.Info("rollout finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.GetStateKey()))
+	v1beta1.Labels().SetComponentRolling(&mc, c.component.GetStateKey(), false)
 	return false, c.UpdateAndRequeue(ctx, &mc)
 }
 
@@ -385,7 +391,7 @@ func (c *DeployControllerBizUtilImpl) planScaleForHPA(ctx context.Context, mc v1
 		return scaleAction{deploy: currentDeployment, replicaChange: (lastDeployReplicas - currentDeployReplicas)}
 	}
 
-	isRolling := v1beta1.Labels().IsComponentRolling(mc, c.component.Name)
+	isRolling := v1beta1.Labels().IsComponentRolling(mc, c.component.GetStateKey())
 
 	// During rolling update, scale down old deployment once new one is ready
 	if isRolling && lastDeployReplicas > 0 {
@@ -565,8 +571,8 @@ func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc 
 		return errors.Wrap(err, "updateDeployTemplate failed")
 	}
 	logger.Info("stage 2: setRolling", "currentGroupId", currentGroupIdStr)
-	labelHelper.SetCurrentGroupIDStr(&mc, c.component.Name, currentGroupIdStr)
-	labelHelper.SetComponentRolling(&mc, c.component.Name, true)
+	labelHelper.SetCurrentGroupIDStr(&mc, c.component.GetStateKey(), currentGroupIdStr)
+	labelHelper.SetComponentRolling(&mc, c.component.GetStateKey(), true)
 	return c.UpdateAndRequeue(ctx, &mc)
 }
 

@@ -324,9 +324,19 @@ func startMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.Milvus
 		// no replicas recorded, assume zero
 		upgrade.Status.ReplicasBeforeUpgrade = new(v1beta1.MilvusReplicas)
 	}
-	components := GetComponentsBySpec(milvus.Spec)
-	for _, component := range components {
-		replica := int32(component.GetMilvusReplicas(upgrade.Status.ReplicasBeforeUpgrade))
+	workloads := GetComponentWorkloadsBySpec(milvus.Spec)
+	for _, component := range workloads {
+		var replica int32
+		if component.DeploymentGroup != nil {
+			componentSnapshots, componentRecorded := upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[component.Name]
+			groupReplica, groupRecorded := componentSnapshots[component.GetDeploymentGroupName()]
+			if !componentRecorded || !groupRecorded {
+				return errors.Errorf("replicas before upgrade not recorded for deployment group %s", component.GetDisplayName())
+			}
+			replica = groupReplica
+		} else {
+			replica = int32(component.GetMilvusReplicas(upgrade.Status.ReplicasBeforeUpgrade))
+		}
 		// Ignore errors from SetReplicas()
 		_ = component.SetReplicas(milvus.Spec, &replica)
 	}
@@ -413,22 +423,43 @@ func startRollbackMetaPod(ctx context.Context, cli client.Client, upgrade *v1bet
 }
 
 func recordOldInfo(ctx context.Context, cli client.Client, upgrade *v1beta1.MilvusUpgrade, milvus *v1beta1.Milvus) {
-	if upgrade.Status.ReplicasBeforeUpgrade != nil {
+	recordComponentReplicas := upgrade.Status.ReplicasBeforeUpgrade == nil
+	recordDeploymentGroupReplicas := upgrade.Status.DeploymentGroupReplicasBeforeUpgrade == nil
+	if !recordComponentReplicas && !recordDeploymentGroupReplicas {
 		return
 	}
-	upgrade.Status.ReplicasBeforeUpgrade = new(v1beta1.MilvusReplicas)
+	if recordComponentReplicas {
+		upgrade.Status.ReplicasBeforeUpgrade = new(v1beta1.MilvusReplicas)
+	}
+	if recordDeploymentGroupReplicas {
+		upgrade.Status.DeploymentGroupReplicasBeforeUpgrade = make(map[string]map[string]int32)
+	}
 	// record replicas
-	components := GetComponentsBySpec(milvus.Spec)
+	components := GetComponentWorkloadsBySpec(milvus.Spec)
 	for _, component := range components {
 		replicas := component.GetReplicas(milvus.Spec)
 		if replicas == nil {
 			replicas = int32Ptr(1)
 		}
-		component.SetStatusReplicas(upgrade.Status.ReplicasBeforeUpgrade, int(*replicas))
+		if component.DeploymentGroup == nil {
+			if recordComponentReplicas {
+				component.SetStatusReplicas(upgrade.Status.ReplicasBeforeUpgrade, int(*replicas))
+			}
+			continue
+		}
+		if !recordDeploymentGroupReplicas {
+			continue
+		}
+		if upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[component.Name] == nil {
+			upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[component.Name] = make(map[string]int32)
+		}
+		upgrade.Status.DeploymentGroupReplicasBeforeUpgrade[component.Name][component.GetDeploymentGroupName()] = *replicas
 	}
 
 	// record image
-	upgrade.Status.SourceImage = milvus.Spec.Com.Image
+	if upgrade.Status.SourceImage == "" {
+		upgrade.Status.SourceImage = milvus.Spec.Com.Image
+	}
 }
 
 func annotateAlphaCR(ctx context.Context, cli client.Client, upgrade *v1beta1.MilvusUpgrade, milvus *v1beta1.Milvus, value string) error {
@@ -454,11 +485,17 @@ func annotateAlphaCR(ctx context.Context, cli client.Client, upgrade *v1beta1.Mi
 }
 
 func stopMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.MilvusUpgrade, milvus *v1beta1.Milvus) error {
+	components := GetComponentWorkloadsBySpec(milvus.Spec)
+	for _, component := range components {
+		replicas := component.GetReplicas(milvus.Spec)
+		if replicas != nil && *replicas == -1 {
+			return errors.Errorf("cannot stop externally managed workload %s: suspend its HPA and set replicas to a static value before MilvusUpgrade", component.GetDisplayName())
+		}
+	}
 	err := annotateAlphaCR(ctx, cli, upgrade, milvus, v1beta1.AnnotationUpgrading)
 	if err != nil {
 		return errors.Wrap(err, "annotate alpha cr")
 	}
-	components := GetComponentsBySpec(milvus.Spec)
 	for _, component := range components {
 		// Ignore errors from SetReplicas()
 		_ = component.SetReplicas(milvus.Spec, int32Ptr(0))
@@ -467,10 +504,10 @@ func stopMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.MilvusU
 }
 
 func isMilvusStopping(ctx context.Context, cli client.Client, milvus *v1beta1.Milvus) bool {
-	components := GetComponentsBySpec(milvus.Spec)
+	components := GetComponentWorkloadsBySpec(milvus.Spec)
 	for _, component := range components {
 		replicas := component.GetReplicas(milvus.Spec)
-		if *replicas > 0 {
+		if replicas == nil || *replicas != 0 {
 			return false
 		}
 	}

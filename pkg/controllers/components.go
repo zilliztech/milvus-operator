@@ -1,9 +1,11 @@
 package controllers
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -69,27 +71,28 @@ const (
 
 // MilvusComponent contains basic info of a milvus cluster component
 type MilvusComponent struct {
-	Name        string
-	FieldName   string
-	DefaultPort int32
+	Name            string
+	FieldName       string
+	DefaultPort     int32
+	DeploymentGroup *v1beta1.DeploymentGroup
 }
 
 // define MilvusComponents
 var (
-	MixCoord      = MilvusComponent{MixCoordName, MixCoordFieldName, MultiplePorts}
-	RootCoord     = MilvusComponent{RootCoordName, RootCoordFieldName, RootCoordPort}
-	DataCoord     = MilvusComponent{DataCoordName, DataCoordFieldName, DataCoordPort}
-	QueryCoord    = MilvusComponent{QueryCoordName, QueryCoordFieldName, QueryCoordPort}
-	IndexCoord    = MilvusComponent{IndexCoordName, IndexCoordFieldName, IndexCoordPort}
-	DataNode      = MilvusComponent{DataNodeName, DataNodeFieldName, DataNodePort}
-	QueryNode     = MilvusComponent{QueryNodeName, QueryNodeFieldName, QueryNodePort}
-	IndexNode     = MilvusComponent{IndexNodeName, IndexNodeFieldName, IndexNodePort}
-	StreamingNode = MilvusComponent{StreamingNodeName, StreamingNodeFieldName, StreamingNodePort}
-	Proxy         = MilvusComponent{ProxyName, ProxyFieldName, ProxyPort}
-	Cdc           = MilvusComponent{CdcName, CdcFieldName, NoPort}
+	MixCoord      = MilvusComponent{Name: MixCoordName, FieldName: MixCoordFieldName, DefaultPort: MultiplePorts}
+	RootCoord     = MilvusComponent{Name: RootCoordName, FieldName: RootCoordFieldName, DefaultPort: RootCoordPort}
+	DataCoord     = MilvusComponent{Name: DataCoordName, FieldName: DataCoordFieldName, DefaultPort: DataCoordPort}
+	QueryCoord    = MilvusComponent{Name: QueryCoordName, FieldName: QueryCoordFieldName, DefaultPort: QueryCoordPort}
+	IndexCoord    = MilvusComponent{Name: IndexCoordName, FieldName: IndexCoordFieldName, DefaultPort: IndexCoordPort}
+	DataNode      = MilvusComponent{Name: DataNodeName, FieldName: DataNodeFieldName, DefaultPort: DataNodePort}
+	QueryNode     = MilvusComponent{Name: QueryNodeName, FieldName: QueryNodeFieldName, DefaultPort: QueryNodePort}
+	IndexNode     = MilvusComponent{Name: IndexNodeName, FieldName: IndexNodeFieldName, DefaultPort: IndexNodePort}
+	StreamingNode = MilvusComponent{Name: StreamingNodeName, FieldName: StreamingNodeFieldName, DefaultPort: StreamingNodePort}
+	Proxy         = MilvusComponent{Name: ProxyName, FieldName: ProxyFieldName, DefaultPort: ProxyPort}
+	Cdc           = MilvusComponent{Name: CdcName, FieldName: CdcFieldName, DefaultPort: NoPort}
 
 	// Milvus standalone
-	MilvusStandalone = MilvusComponent{StandaloneName, StandaloneFieldName, StandalonePort}
+	MilvusStandalone = MilvusComponent{Name: StandaloneName, FieldName: StandaloneFieldName, DefaultPort: StandalonePort}
 
 	MixtureComponents = []MilvusComponent{
 		MixCoord, DataNode, QueryNode, IndexNode, Proxy, MilvusStandalone,
@@ -159,6 +162,92 @@ func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
 	return ret
 }
 
+// GetComponentWorkloadsBySpec expands logical Milvus components into their
+// independently reconciled Kubernetes workloads. Components without groups
+// keep their legacy workload identity.
+func GetComponentWorkloadsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
+	components := GetComponentsBySpec(spec)
+	ret := make([]MilvusComponent, 0, len(components))
+	for _, component := range components {
+		groups := component.GetDeploymentGroups(spec)
+		if len(groups) == 0 {
+			ret = append(ret, component)
+			continue
+		}
+		sort.SliceStable(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
+		for i := range groups {
+			group := groups[i]
+			workload := component
+			workload.DeploymentGroup = &group
+			ret = append(ret, workload)
+		}
+	}
+	return ret
+}
+
+func (c MilvusComponent) GetDeploymentGroups(spec v1beta1.MilvusSpec) []v1beta1.DeploymentGroup {
+	switch c.Name {
+	case ProxyName:
+		if spec.Com.Proxy != nil {
+			return append([]v1beta1.DeploymentGroup(nil), spec.Com.Proxy.Groups...)
+		}
+	case DataNodeName:
+		if spec.Com.DataNode != nil {
+			return append([]v1beta1.DeploymentGroup(nil), spec.Com.DataNode.Groups...)
+		}
+	case QueryNodeName:
+		if spec.Com.QueryNode != nil {
+			return append([]v1beta1.DeploymentGroup(nil), spec.Com.QueryNode.Groups...)
+		}
+	case StreamingNodeName:
+		if spec.Com.StreamingNode != nil {
+			return append([]v1beta1.DeploymentGroup(nil), spec.Com.StreamingNode.Groups...)
+		}
+	}
+	return nil
+}
+
+func (c MilvusComponent) Is(component MilvusComponent) bool {
+	return c.Name == component.Name
+}
+
+func (c MilvusComponent) GetDeploymentGroupName() string {
+	if c.DeploymentGroup == nil {
+		return ""
+	}
+	return c.DeploymentGroup.Name
+}
+
+// GetStateKey scopes CR annotations/labels used by the rollout controller.
+// Existing ungrouped components retain their legacy key. Grouped workloads use
+// a bounded stable hash so Kubernetes qualified-name limits are never exceeded.
+func (c MilvusComponent) GetStateKey() string {
+	if c.DeploymentGroup == nil {
+		return c.Name
+	}
+	hash := sha256.Sum256([]byte(c.DeploymentGroup.Name))
+	return fmt.Sprintf("%s-%x", c.Name, hash[:8])
+}
+
+func (c MilvusComponent) GetDisplayName() string {
+	if c.DeploymentGroup == nil {
+		return c.Name
+	}
+	return fmt.Sprintf("%s/%s", c.Name, c.DeploymentGroup.Name)
+}
+
+func (c MilvusComponent) GetSelectorLabels(instance string) map[string]string {
+	labels := NewComponentAppLabels(instance, c.Name)
+	if c.DeploymentGroup != nil {
+		labels[v1beta1.DeploymentGroupLabel] = c.DeploymentGroup.Name
+	}
+	return labels
+}
+
+func (c MilvusComponent) MatchesDeploymentGroup(objLabels map[string]string) bool {
+	return objLabels[v1beta1.DeploymentGroupLabel] == c.GetDeploymentGroupName()
+}
+
 // IsCoord return if it's a coord by its name
 func (c MilvusComponent) IsCoord() bool {
 	if c.Name == MixCoordName {
@@ -200,6 +289,9 @@ func (c MilvusComponent) GetLeastReplicasRegardingHPA(spec v1beta1.MilvusSpec) i
 
 // GetReplicas returns the replicas for the component
 func (c MilvusComponent) GetReplicas(spec v1beta1.MilvusSpec) *int32 {
+	if c.DeploymentGroup != nil {
+		return c.DeploymentGroup.Replicas
+	}
 	componentField := reflect.ValueOf(spec.Com).FieldByName(c.FieldName)
 	if componentField.IsNil() {
 		// default replica is 1
@@ -218,6 +310,21 @@ func (c MilvusComponent) SetReplicas(spec v1beta1.MilvusSpec, replicas *int32) e
 	// if is nil
 	if componentField.IsNil() {
 		return fmt.Errorf("component %s is nil", c.Name)
+	}
+	if c.DeploymentGroup != nil {
+		groupsField := componentField.Elem().FieldByName("Groups")
+		if !groupsField.IsValid() {
+			return fmt.Errorf("component %s does not support deployment groups", c.Name)
+		}
+		groups, _ := groupsField.Interface().([]v1beta1.DeploymentGroup)
+		for i := range groups {
+			if groups[i].Name == c.DeploymentGroup.Name {
+				groups[i].Replicas = replicas
+				groupsField.Set(reflect.ValueOf(groups))
+				return nil
+			}
+		}
+		return fmt.Errorf("deployment group %s/%s not found", c.Name, c.DeploymentGroup.Name)
 	}
 
 	componentField.Elem().
@@ -243,7 +350,11 @@ func (c MilvusComponent) GetName() string {
 
 // GetDeploymentName returns the name of the component deployment
 func (c MilvusComponent) GetDeploymentName(instance string) string {
-	return fmt.Sprintf("%s-milvus-%s", instance, c.Name)
+	name := fmt.Sprintf("%s-milvus-%s", instance, c.Name)
+	if c.DeploymentGroup != nil {
+		name += "-" + c.DeploymentGroup.Name
+	}
+	return name
 }
 
 // GetServiceInstanceName returns the name of the component service
@@ -275,12 +386,12 @@ func (c MilvusComponent) GetPortName() string {
 }
 
 func (c MilvusComponent) IsService() bool {
-	return c == Proxy || c == MilvusStandalone
+	return c.Is(Proxy) || c.Is(MilvusStandalone)
 }
 
 // GetServiceType returns the type of the component service
 func (c MilvusComponent) GetServiceType(spec v1beta1.MilvusSpec) corev1.ServiceType {
-	if c == Proxy || c == MilvusStandalone {
+	if c.Is(Proxy) || c.Is(MilvusStandalone) {
 		return spec.GetServiceComponent().ServiceType
 	}
 	return corev1.ServiceTypeClusterIP
@@ -351,7 +462,7 @@ func (c MilvusComponent) GetServicePorts(spec v1beta1.MilvusSpec) []corev1.Servi
 
 // GetComponentPort returns the port of the component
 func (c MilvusComponent) GetComponentPort(spec v1beta1.MilvusSpec) int32 {
-	if c == Proxy || c == MilvusStandalone {
+	if c.Is(Proxy) || c.Is(MilvusStandalone) {
 		svcPort := spec.GetServiceComponent().Port
 		if svcPort > 0 {
 			return svcPort
@@ -362,7 +473,7 @@ func (c MilvusComponent) GetComponentPort(spec v1beta1.MilvusSpec) int32 {
 
 // GetComponentPort returns the port of the component
 func (c MilvusComponent) GetRestfulPort(spec v1beta1.MilvusSpec) int32 {
-	if c == Proxy || c == MilvusStandalone {
+	if c.Is(Proxy) || c.Is(MilvusStandalone) {
 		return spec.GetServiceComponent().ServiceRestfulPort
 	}
 	return 0
@@ -465,6 +576,16 @@ func (c MilvusComponent) IsImageUpdated(m *v1beta1.Milvus) bool {
 
 // GetConfCheckSum returns the checksum of the component configuration
 func GetConfCheckSum(spec v1beta1.MilvusSpec) string {
+	return getConfCheckSum(spec, nil)
+}
+
+// GetConfCheckSumWithRefs returns the checksum of the component configuration, including
+// the credentials read from referenced secrets
+func GetConfCheckSumWithRefs(m *v1beta1.Milvus) string {
+	return getConfCheckSum(m.Spec, m.GetAnnotations())
+}
+
+func getConfCheckSum(spec v1beta1.MilvusSpec, annotations map[string]string) string {
 	conf := map[string]interface{}{}
 	conf["conf"] = spec.Conf.Data
 	conf["etcd-endpoints"] = spec.Dep.Etcd.Endpoints
@@ -474,6 +595,13 @@ func GetConfCheckSum(spec v1beta1.MilvusSpec) string {
 	if spec.Dep.WoodPecker.External {
 		conf["woodpecker-external"] = spec.Dep.WoodPecker.External
 		conf["woodpecker-quorumBufferPools"] = spec.Dep.WoodPecker.QuorumBufferPools
+	}
+	// only set when used, to keep the checksum of other instances unchanged
+	if spec.Dep.Kafka.SecretRef != "" {
+		conf["kafka-secretRef"] = spec.Dep.Kafka.SecretRef
+	}
+	if sum := annotations[v1beta1.KafkaSaslCheckSumAnnotation]; sum != "" {
+		conf["kafka-sasl-checksum"] = sum
 	}
 
 	b, err := json.Marshal(conf)
@@ -700,4 +828,31 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 	}
 
 	return dst
+}
+
+// ApplyDeploymentGroupOverrides overlays the fields owned by a deployment
+// group on an already merged global/component spec. Nil scheduling fields
+// inherit; explicitly empty maps/slices clear inherited values.
+func ApplyDeploymentGroupOverrides(spec ComponentSpec, group *v1beta1.DeploymentGroup) ComponentSpec {
+	if group == nil {
+		return spec
+	}
+	spec.PodLabels = MergeLabels(spec.PodLabels, group.Labels)
+	spec.PodAnnotations = MergeAnnotations(spec.PodAnnotations, group.Annotations)
+	if group.ExtraEnv != nil {
+		spec.Env = MergeEnvVar(spec.Env, group.ExtraEnv)
+	}
+	if group.NodeSelector != nil {
+		spec.NodeSelector = *group.NodeSelector
+	}
+	if group.Affinity != nil {
+		spec.Affinity = group.Affinity
+	}
+	if group.Tolerations != nil {
+		spec.Tolerations = *group.Tolerations
+	}
+	if group.TopologySpreadConstraints != nil {
+		spec.TopologySpreadConstraints = *group.TopologySpreadConstraints
+	}
+	return spec
 }

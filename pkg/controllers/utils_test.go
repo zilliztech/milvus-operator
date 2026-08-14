@@ -418,6 +418,13 @@ func TestUpdateCondition(t *testing.T) {
 	assert.Len(t, status.Conditions, 2)
 	assert.Equal(t, status.Conditions[1].Status, condition2.Status)
 	assert.Equal(t, status.Conditions[1].Type, condition2.Type)
+
+	// Ignore zero-value conditions and clean up any left by older versions.
+	status.Conditions = append(status.Conditions, v1beta1.MilvusCondition{})
+	UpdateCondition(&status, v1beta1.MilvusCondition{})
+	assert.Len(t, status.Conditions, 2)
+	assert.NotEmpty(t, status.Conditions[0].Type)
+	assert.NotEmpty(t, status.Conditions[1].Type)
 }
 
 func TestGetMinioSecure(t *testing.T) {

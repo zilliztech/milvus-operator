@@ -19,12 +19,14 @@ package v1beta1
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -71,6 +73,8 @@ func (r *Milvus) ValidateCreate() (admission.Warnings, error) {
 	if errs := r.validateExternal(); len(errs) > 0 {
 		allErrs = append(allErrs, errs...)
 	}
+
+	allErrs = append(allErrs, r.validateDeploymentGroups()...)
 
 	if len(allErrs) == 0 {
 		return nil, nil
@@ -143,11 +147,133 @@ func (r *Milvus) ValidateUpdate(old runtime.Object) (admission.Warnings, error) 
 		allErrs = append(allErrs, errs...)
 	}
 
+	allErrs = append(allErrs, r.validateDeploymentGroups()...)
+
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
 
 	return nil, apierrors.NewInvalid(schema.GroupKind{Group: GroupVersion.Group, Kind: "Milvus"}, r.Name, allErrs)
+}
+
+var deploymentGroupReservedLabels = map[string]struct{}{
+	DeploymentGroupLabel:                        {},
+	ServiceLabel:                                {},
+	OperatorVersionLabel:                        {},
+	"app.kubernetes.io/instance":                {},
+	"app.kubernetes.io/component":               {},
+	"app.kubernetes.io/name":                    {},
+	"app.kubernetes.io/managed-by":              {},
+	GetComponentGroupIdLabel(ProxyName):         {},
+	GetComponentGroupIdLabel(DataNodeName):      {},
+	GetComponentGroupIdLabel(QueryNodeName):     {},
+	GetComponentGroupIdLabel(StreamingNodeName): {},
+}
+
+// These annotations are maintained by the operator and are preserved when
+// deployment-group metadata is rendered authoritatively. Deployment groups
+// cannot claim the same keys.
+var deploymentGroupReservedAnnotations = map[string]struct{}{
+	"checksum/config": {},
+}
+
+// Kubernetes, kubectl, and the operator own these metadata namespaces.
+// Reserving the same prefixes that reconciliation preserves keeps ownership
+// unambiguous when a group label or annotation is removed from the CR.
+var deploymentGroupReservedMetadataPrefixes = []string{
+	"kubectl.kubernetes.io/",
+	MilvusIO,
+	"deployment.kubernetes.io/",
+}
+
+func hasDeploymentGroupReservedMetadataPrefix(key string) bool {
+	for _, prefix := range deploymentGroupReservedMetadataPrefixes {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Milvus) validateDeploymentGroups() field.ErrorList {
+	const maxKubernetesNameLength = 253
+	basePath := field.NewPath("spec").Child("components")
+	type namedGroups struct {
+		fieldName     string
+		componentName string
+		groups        []DeploymentGroup
+	}
+	allGroups := []namedGroups{}
+	if r.Spec.Com.Proxy != nil {
+		allGroups = append(allGroups, namedGroups{"proxy", ProxyName, r.Spec.Com.Proxy.Groups})
+	}
+	if r.Spec.Com.DataNode != nil {
+		allGroups = append(allGroups, namedGroups{"dataNode", DataNodeName, r.Spec.Com.DataNode.Groups})
+	}
+	if r.Spec.Com.QueryNode != nil {
+		allGroups = append(allGroups, namedGroups{"queryNode", QueryNodeName, r.Spec.Com.QueryNode.Groups})
+	}
+	if r.Spec.Com.StreamingNode != nil {
+		allGroups = append(allGroups, namedGroups{"streamingNode", StreamingNodeName, r.Spec.Com.StreamingNode.Groups})
+	}
+
+	var allErrs field.ErrorList
+	for _, item := range allGroups {
+		seen := map[string]struct{}{}
+		groupsPath := basePath.Child(item.fieldName).Child("groups")
+		for i, group := range item.groups {
+			groupPath := groupsPath.Index(i)
+			namePath := groupPath.Child("name")
+			if group.Name == "" {
+				allErrs = append(allErrs, field.Required(namePath, "deployment group name is required"))
+			} else {
+				for _, msg := range k8svalidation.IsDNS1123Label(group.Name) {
+					allErrs = append(allErrs, field.Invalid(namePath, group.Name, msg))
+				}
+				if _, ok := seen[group.Name]; ok {
+					allErrs = append(allErrs, field.Duplicate(namePath, group.Name))
+				}
+				seen[group.Name] = struct{}{}
+				deploymentName := fmt.Sprintf("%s-milvus-%s-%s", r.Name, item.componentName, group.Name)
+				usesTwoDeployments := item.componentName == QueryNodeName || r.Spec.Com.RollingMode == RollingModeV3
+				maxNameLength := maxKubernetesNameLength
+				if usesTwoDeployments {
+					maxNameLength -= 2 // reserve the "-0"/"-1" rollout-slot suffix
+				}
+				if len(deploymentName) > maxNameLength {
+					allErrs = append(allErrs, field.Invalid(namePath, group.Name, "generated Deployment name must not exceed 253 characters"))
+				}
+				// The topology migration stores both the old Deployment and its
+				// ReplicaSets in ControllerRevisions. The ReplicaSet snapshot has
+				// the longer suffix, so validating it also bounds the Deployment
+				// snapshot name.
+				if usesTwoDeployments {
+					savedRolloutName := fmt.Sprintf("%s-%s-%s-old-replicas", item.componentName, r.Name, group.Name)
+					if len(savedRolloutName) > maxKubernetesNameLength {
+						allErrs = append(allErrs, field.Invalid(namePath, group.Name, "generated rollout ControllerRevision name must not exceed 253 characters"))
+					}
+				}
+			}
+			if group.Replicas == nil {
+				allErrs = append(allErrs, field.Required(groupPath.Child("replicas"), "deployment group replicas is required"))
+			} else if *group.Replicas < -1 {
+				allErrs = append(allErrs, field.Invalid(groupPath.Child("replicas"), *group.Replicas, "must be -1 or nonnegative"))
+			}
+			for key := range group.Labels {
+				_, reserved := deploymentGroupReservedLabels[key]
+				if reserved || hasDeploymentGroupReservedMetadataPrefix(key) {
+					allErrs = append(allErrs, field.Forbidden(groupPath.Child("labels").Key(key), "label is reserved by milvus-operator"))
+				}
+			}
+			for key := range group.Annotations {
+				_, reserved := deploymentGroupReservedAnnotations[key]
+				if reserved || hasDeploymentGroupReservedMetadataPrefix(key) {
+					allErrs = append(allErrs, field.Forbidden(groupPath.Child("annotations").Key(key), "annotation is reserved by milvus-operator or Kubernetes"))
+				}
+			}
+		}
+	}
+	return allErrs
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type

@@ -35,6 +35,58 @@ func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Mi
 
 }
 
+// getKafkaSaslInfo reads the kafka SASL credentials from the referenced secret.
+// Both the username & the password key are required.
+func getKafkaSaslInfo(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (string, string, error) {
+	if mc.Spec.Dep.Kafka.SecretRef == "" {
+		return "", "", nil
+	}
+	secret := &corev1.Secret{}
+	key := types.NamespacedName{Namespace: mc.Namespace, Name: mc.Spec.Dep.Kafka.SecretRef}
+	if err := cli.Get(ctx, key, secret); err != nil {
+		return "", "", errors.Wrapf(err, "get kafka sasl secret[%s]", key)
+	}
+	username, password := secret.Data[KafkaSaslUsernameKey], secret.Data[KafkaSaslPasswordKey]
+	if len(username) == 0 {
+		return "", "", errors.Errorf("kafka sasl secret[%s] has no [%s] key", key, KafkaSaslUsernameKey)
+	}
+	if len(password) == 0 {
+		return "", "", errors.Errorf("kafka sasl secret[%s] has no [%s] key", key, KafkaSaslPasswordKey)
+	}
+
+	return string(username), string(password), nil
+}
+
+// SyncKafkaSaslCheckSum records the checksum of the kafka SASL credentials in an annotation
+// on the milvus object, so that rotating them rolls the components.
+func (r *MilvusReconciler) SyncKafkaSaslCheckSum(ctx context.Context, mc *v1beta1.Milvus) error {
+	oldCheckSum := mc.GetAnnotations()[v1beta1.KafkaSaslCheckSumAnnotation]
+	newCheckSum := ""
+	if mc.Spec.Dep.MsgStreamType == v1beta1.MsgStreamTypeKafka &&
+		mc.Spec.Dep.Kafka.SecretRef != "" {
+		username, password, err := getKafkaSaslInfo(ctx, r.Client, *mc)
+		if err != nil {
+			return err
+		}
+		newCheckSum = util.CheckSum([]byte(username + ":" + password))
+	}
+	if oldCheckSum == newCheckSum {
+		return nil
+	}
+
+	if newCheckSum == "" {
+		delete(mc.Annotations, v1beta1.KafkaSaslCheckSumAnnotation)
+	} else {
+		if mc.Annotations == nil {
+			mc.Annotations = map[string]string{}
+		}
+		mc.Annotations[v1beta1.KafkaSaslCheckSumAnnotation] = newCheckSum
+	}
+	r.logger.Info("kafka sasl credentials changed, update checksum annotation",
+		"namespace", mc.Namespace, "name", mc.Name)
+	return errors.Wrap(r.Update(ctx, mc), "update kafka sasl checksum annotation")
+}
+
 func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvus, configmap *corev1.ConfigMap) error {
 	confYaml, err := util.GetTemplatedValues(config.GetMilvusConfigTemplate(), mc)
 	if err != nil {
@@ -61,6 +113,14 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 	switch mc.Spec.Dep.MsgStreamType {
 	case v1beta1.MsgStreamTypeKafka:
 		util.SetStringSlice(conf, mc.Spec.Dep.Kafka.BrokerList, "kafka", "brokerList")
+		if mc.Spec.Dep.Kafka.SecretRef != "" {
+			username, password, err := getKafkaSaslInfo(ctx, r.Client, mc)
+			if err != nil {
+				return err
+			}
+			util.SetValue(conf, username, "kafka", "saslUsername")
+			util.SetValue(conf, password, "kafka", "saslPassword")
+		}
 		// delete other mq config to make milvus use kafka
 		delete(conf, "pulsar")
 		delete(conf, "rocksmq")

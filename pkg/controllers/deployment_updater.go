@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	pkgErrs "github.com/pkg/errors"
@@ -36,6 +37,95 @@ type deploymentUpdater interface {
 	IsHPAEnabled() bool
 }
 
+var preservedMetadataPrefixes = []string{
+	"kubectl.kubernetes.io/",
+	v1beta1.MilvusIO,
+	"deployment.kubernetes.io/",
+}
+
+// preserveExistingMetadataKeys copies explicitly shared system metadata into a
+// freshly rendered desired map. CR-rendered values win when a key is present in
+// both maps.
+func preserveExistingMetadataKeys(desired, existing map[string]string, keys ...string) map[string]string {
+	result := MergeLabels(desired)
+	for _, key := range keys {
+		if _, desiredByCR := result[key]; desiredByCR {
+			continue
+		}
+		if value, exists := existing[key]; exists {
+			result[key] = value
+		}
+	}
+	return result
+}
+
+// preserveExistingMetadataPrefixes retains labels and annotations in
+// namespaces owned by kubectl, Kubernetes Deployment controllers, and the
+// Milvus operator. Deployment groups cannot use these prefixes, so preserved
+// keys cannot conflict with declaratively managed group metadata.
+func preserveExistingMetadataPrefixes(desired, existing map[string]string) map[string]string {
+	result := MergeLabels(desired)
+	for key, value := range existing {
+		if _, desiredByCR := result[key]; desiredByCR {
+			continue
+		}
+		for _, prefix := range preservedMetadataPrefixes {
+			if strings.HasPrefix(key, prefix) {
+				result[key] = value
+				break
+			}
+		}
+	}
+	return result
+}
+
+// desiredDeploymentLabels returns the labels a grouped Deployment would
+// receive if it were created from the current CR. rolloutSlot is empty for
+// one-Deployment workloads.
+func desiredDeploymentLabels(instance string, component MilvusComponent, rolloutSlot string, existing map[string]string) map[string]string {
+	labels := component.GetSelectorLabels(instance)
+	if component.DeploymentGroup != nil {
+		labels = MergeLabels(component.DeploymentGroup.Labels, labels)
+	}
+	labels = preserveExistingMetadataPrefixes(labels, existing)
+	if rolloutSlot != "" {
+		v1beta1.Labels().SetGroupIDStr(component.Name, labels, rolloutSlot)
+	}
+	return labels
+}
+
+func desiredDeploymentAnnotations(component MilvusComponent, existing map[string]string) map[string]string {
+	if component.DeploymentGroup == nil {
+		return MergeAnnotations(existing)
+	}
+	return preserveExistingMetadataPrefixes(component.DeploymentGroup.Annotations, existing)
+}
+
+func desiredPodTemplateLabels(updater deploymentUpdater, appLabels, existing map[string]string) map[string]string {
+	component := updater.GetComponent()
+	labels := MergeLabels(updater.GetMergedComponentSpec().PodLabels, appLabels)
+	if component.Name == ProxyName || component.Name == StandaloneName {
+		labels[v1beta1.ServiceLabel] = v1beta1.TrueStr
+	}
+	labels = preserveExistingMetadataPrefixes(labels, existing)
+	rolloutSlotKey := v1beta1.GetComponentGroupIdLabel(component.Name)
+	if rolloutSlot, exists := existing[rolloutSlotKey]; exists {
+		labels[rolloutSlotKey] = rolloutSlot
+	}
+	return labels
+}
+
+func desiredPodTemplateAnnotations(updater deploymentUpdater, existing map[string]string) map[string]string {
+	annotations := MergeAnnotations(updater.GetMergedComponentSpec().PodAnnotations)
+	annotations[v1beta1.PodAnnotationUsingConfigMap] = updater.GetMilvus().GetActiveConfigMap()
+	if !updater.GetMilvus().IsUpdateConfigMapOnly() {
+		annotations[AnnotationCheckSum] = updater.GetConfCheckSum()
+	} else {
+		annotations = preserveExistingMetadataKeys(annotations, existing, AnnotationCheckSum)
+	}
+	return preserveExistingMetadataPrefixes(annotations, existing)
+}
+
 func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater deploymentUpdater) error {
 	mergedComSpec := updater.GetMergedComponentSpec()
 	deployment.Spec.Paused = mergedComSpec.Paused
@@ -61,8 +151,14 @@ func updateDeploymentReplicas(deployment *appsv1.Deployment, updater deploymentU
 }
 
 func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) error {
-	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponent().Name)
-	deployment.Labels = MergeLabels(deployment.Labels, appLabels)
+	component := updater.GetComponent()
+	appLabels := component.GetSelectorLabels(updater.GetIntanceName())
+	if component.DeploymentGroup != nil {
+		deployment.Labels = desiredDeploymentLabels(updater.GetIntanceName(), component, "", deployment.Labels)
+		deployment.Annotations = desiredDeploymentAnnotations(component, deployment.Annotations)
+	} else {
+		deployment.Labels = MergeLabels(deployment.Labels, appLabels)
+	}
 	if err := SetControllerReference(updater.GetControllerRef(), deployment, updater.GetScheme()); err != nil {
 		return pkgErrs.Wrap(err, "set controller reference")
 	}
@@ -135,6 +231,11 @@ func updateNetworkSettings(template *corev1.PodTemplateSpec, updater deploymentU
 
 func updatePodMeta(template *corev1.PodTemplateSpec, appLabels map[string]string, updater deploymentUpdater) {
 	mergedComSpec := updater.GetMergedComponentSpec()
+	if updater.GetComponent().DeploymentGroup != nil {
+		template.Labels = desiredPodTemplateLabels(updater, appLabels, template.Labels)
+		template.Annotations = desiredPodTemplateAnnotations(updater, template.Annotations)
+		return
+	}
 	if template.Labels == nil {
 		template.Labels = map[string]string{}
 	}
@@ -531,14 +632,15 @@ func GetDeploymentStrategy(milvus *v1beta1.Milvus, component MilvusComponent) ap
 }
 
 func (m milvusDeploymentUpdater) GetConfCheckSum() string {
-	return GetConfCheckSum(m.Spec)
+	return GetConfCheckSumWithRefs(m.GetMilvus())
 }
 
 func (m milvusDeploymentUpdater) GetMergedComponentSpec() ComponentSpec {
-	return MergeComponentSpec(
+	merged := MergeComponentSpec(
 		m.component.GetComponentSpec(m.Spec),
 		m.Spec.Com.ComponentSpec,
 	)
+	return ApplyDeploymentGroupOverrides(merged, m.component.DeploymentGroup)
 }
 
 func (m milvusDeploymentUpdater) GetArgs() []string {
