@@ -195,3 +195,5 @@ tolerations: []
 #   }
 # }`
 affinity: {}
+watchNamespaceEnabled: false
+watchNamespace: []
