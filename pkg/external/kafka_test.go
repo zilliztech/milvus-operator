@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
@@ -33,7 +34,8 @@ func TestGetKafkaDialer(t *testing.T) {
 	conf := CheckKafkaConfig{}
 	t.Run("default no tls, no sasl", func(t *testing.T) {
 		dialer, err := GetKafkaDialer(conf)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		require.NotNil(t, dialer)
 		assert.Nil(t, dialer.TLS)
 		assert.Nil(t, dialer.SASLMechanism)
 	})
@@ -41,7 +43,8 @@ func TestGetKafkaDialer(t *testing.T) {
 	t.Run("securityProtocol=PLAINTEXT", func(t *testing.T) {
 		conf.SecurityProtocol = "PLAINTEXT"
 		dialer, err := GetKafkaDialer(conf)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		require.NotNil(t, dialer)
 		assert.Nil(t, dialer.TLS)
 		assert.Nil(t, dialer.SASLMechanism)
 	})
@@ -49,25 +52,28 @@ func TestGetKafkaDialer(t *testing.T) {
 	t.Run("securityProtocol=SSL", func(t *testing.T) {
 		conf.SecurityProtocol = "SSL"
 		dialer, err := GetKafkaDialer(conf)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		require.NotNil(t, dialer)
 		assert.NotNil(t, dialer.TLS)
 		assert.Nil(t, dialer.SASLMechanism)
 	})
 
-	t.Run("securityProtocol=SASL_PLAINTEXT", func(t *testing.T) {
-		conf.SecurityProtocol = "SASL_PLAINTEXT"
+	t.Run("securityProtocol=SASL_PLAINTEXT (defaults to PLAIN; empty creds allowed)", func(t *testing.T) {
+		conf := CheckKafkaConfig{SecurityProtocol: "SASL_PLAINTEXT"}
 		dialer, err := GetKafkaDialer(conf)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		require.NotNil(t, dialer)
 		assert.Nil(t, dialer.TLS)
-		assert.NotNil(t, dialer.SASLMechanism)
+		assert.NotNil(t, dialer.SASLMechanism) // PLAIN with empty creds is acceptable
 	})
 
 	t.Run("securityProtocol=SASL_SSL", func(t *testing.T) {
 		conf.SecurityProtocol = "SASL_SSL"
 		dialer, err := GetKafkaDialer(conf)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		require.NotNil(t, dialer)
 		assert.NotNil(t, dialer.TLS)
-		assert.NotNil(t, dialer.SASLMechanism)
+		assert.NotNil(t, dialer.SASLMechanism) // defaults to PLAIN
 	})
 
 	t.Run("securityProtocol=notSupport", func(t *testing.T) {
@@ -76,36 +82,61 @@ func TestGetKafkaDialer(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("saslMechanism=PLAIN", func(t *testing.T) {
-		conf.SecurityProtocol = "SASL_SSL"
-		conf.SASLMechanisms = "PLAIN"
+	t.Run("saslMechanism=PLAIN (empty creds OK)", func(t *testing.T) {
+		conf := CheckKafkaConfig{
+			SecurityProtocol: "SASL_SSL",
+			SASLMechanisms:   "PLAIN",
+		}
 		dialer, err := GetKafkaDialer(conf)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		require.NotNil(t, dialer)
 		assert.NotNil(t, dialer.TLS)
 		assert.Equal(t, "PLAIN", dialer.SASLMechanism.Name())
 	})
 
-	t.Run("saslMechanism=SCRAM-SHA-256", func(t *testing.T) {
-		conf.SecurityProtocol = "SASL_SSL"
-		conf.SASLMechanisms = "SCRAM-SHA-256"
+	t.Run("saslMechanism=SCRAM-SHA-256 with creds", func(t *testing.T) {
+		conf := CheckKafkaConfig{
+			SecurityProtocol: "SASL_SSL",
+			SASLMechanisms:   "SCRAM-SHA-256",
+			SASLUsername:     "user",
+			SASLPassword:     "pass",
+		}
 		dialer, err := GetKafkaDialer(conf)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		require.NotNil(t, dialer)
 		assert.NotNil(t, dialer.TLS)
 		assert.Equal(t, "SCRAM-SHA-256", dialer.SASLMechanism.Name())
 	})
 
-	t.Run("saslMechanism=SCRAM-SHA-512", func(t *testing.T) {
-		conf.SecurityProtocol = "SASL_SSL"
-		conf.SASLMechanisms = "SCRAM-SHA-512"
+	t.Run("saslMechanism=SCRAM-SHA-512 with creds", func(t *testing.T) {
+		conf := CheckKafkaConfig{
+			SecurityProtocol: "SASL_SSL",
+			SASLMechanisms:   "SCRAM-SHA-512",
+			SASLUsername:     "user",
+			SASLPassword:     "pass",
+		}
 		dialer, err := GetKafkaDialer(conf)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		require.NotNil(t, dialer)
 		assert.NotNil(t, dialer.TLS)
 		assert.Equal(t, "SCRAM-SHA-512", dialer.SASLMechanism.Name())
 	})
 
+	t.Run("saslMechanism=SCRAM-SHA-256 without creds -> error", func(t *testing.T) {
+		conf := CheckKafkaConfig{
+			SecurityProtocol: "SASL_SSL",
+			SASLMechanisms:   "SCRAM-SHA-256",
+			// no username/password on purpose
+		}
+		_, err := GetKafkaDialer(conf)
+		assert.Error(t, err)
+	})
+
 	t.Run("saslMechanism=notSupport", func(t *testing.T) {
-		conf.SecurityProtocol = "SASL_SSL"
-		conf.SASLMechanisms = "notSupport"
+		conf := CheckKafkaConfig{
+			SecurityProtocol: "SASL_SSL",
+			SASLMechanisms:   "notSupport",
+		}
 		_, err := GetKafkaDialer(conf)
 		assert.Error(t, err)
 	})
