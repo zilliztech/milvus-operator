@@ -927,6 +927,20 @@ spec:
                       x-kubernetes-int-or-string: true
                     type: object
                 type: object
+              rollingUpdate:
+                nullable: true
+                properties:
+                  maxSurge:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    x-kubernetes-int-or-string: true
+                  maxUnavailable:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    x-kubernetes-int-or-string: true
+                type: object
               runWithSubProcess:
                 type: boolean
               schedulerName:
@@ -2326,6 +2340,20 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                        type: object
                       runWithSubProcess:
                         type: boolean
                       schedulerName:
@@ -3034,6 +3062,20 @@ spec:
                               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                               x-kubernetes-int-or-string: true
                             type: object
+                        type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
                         type: object
                       runWithSubProcess:
                         type: boolean
@@ -4345,6 +4387,20 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                        type: object
                       runWithSubProcess:
                         type: boolean
                       schedulerName:
@@ -5149,6 +5205,20 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                        type: object
                       runWithSubProcess:
                         type: boolean
                       schedulerName:
@@ -5853,6 +5923,20 @@ spec:
                               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                               x-kubernetes-int-or-string: true
                             type: object
+                        type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
                         type: object
                       runWithSubProcess:
                         type: boolean
@@ -6565,6 +6649,20 @@ spec:
                               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                               x-kubernetes-int-or-string: true
                             type: object
+                        type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
                         type: object
                       runWithSubProcess:
                         type: boolean
@@ -7924,6 +8022,20 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                        type: object
                       runWithSubProcess:
                         type: boolean
                       schedulerName:
@@ -8646,6 +8758,20 @@ spec:
                               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                               x-kubernetes-int-or-string: true
                             type: object
+                        type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
                         type: object
                       runWithSubProcess:
                         type: boolean
@@ -9957,6 +10083,20 @@ spec:
                               x-kubernetes-int-or-string: true
                             type: object
                         type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                        type: object
                       runWithSubProcess:
                         type: boolean
                       schedulerName:
@@ -10107,6 +10247,20 @@ spec:
                     type: object
                   rollingMode:
                     type: integer
+                  rollingUpdate:
+                    nullable: true
+                    properties:
+                      maxSurge:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        x-kubernetes-int-or-string: true
+                      maxUnavailable:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        x-kubernetes-int-or-string: true
+                    type: object
                   rootCoord:
                     properties:
                       affinity:
@@ -10696,6 +10850,20 @@ spec:
                               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                               x-kubernetes-int-or-string: true
                             type: object
+                        type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
                         type: object
                       runWithSubProcess:
                         type: boolean
@@ -11441,6 +11609,20 @@ spec:
                               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                               x-kubernetes-int-or-string: true
                             type: object
+                        type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
                         type: object
                       runWithSubProcess:
                         type: boolean
@@ -12772,6 +12954,20 @@ spec:
                               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                               x-kubernetes-int-or-string: true
                             type: object
+                        type: object
+                      rollingUpdate:
+                        nullable: true
+                        properties:
+                          maxSurge:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
+                          maxUnavailable:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            x-kubernetes-int-or-string: true
                         type: object
                       runWithSubProcess:
                         type: boolean
