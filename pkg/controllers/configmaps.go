@@ -106,7 +106,7 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 	util.MergeValues(conf, mc.Spec.Conf.Data)
 	util.SetStringSlice(conf, mc.Spec.Dep.Etcd.Endpoints, "etcd", "endpoints")
 
-	host, port := util.GetHostPort(mc.Spec.Dep.Storage.Endpoint)
+	host, port := GetStorageHostPort(mc.Spec.Dep.Storage.Endpoint, GetMinioSecure(mc.Spec.Conf.Data))
 	util.SetValue(conf, host, "minio", "address")
 	util.SetValue(conf, int64(port), "minio", "port")
 
