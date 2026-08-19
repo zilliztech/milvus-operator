@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -501,6 +502,26 @@ func (r *componentsDeployStatusUpdaterImpl) Update(ctx context.Context, mc *v1be
 	workloadDeployments := makeWorkloadDeploymentMap(*mc, deployList.Items)
 	groupedByComponent := make(map[string][]v1beta1.ComponentDeployStatus)
 	for _, workload := range GetComponentWorkloadsBySpec(mc.Spec) {
+		if queryNodeUsesStatefulSet(*mc, workload) {
+			sts, err := getStatefulSetForComponent(ctx, r.Client, *mc, workload)
+			if err != nil {
+				return errors.Wrap(err, "get querynode statefulset")
+			}
+			if sts == nil {
+				continue
+			}
+			stsStatus := synthesizeStatefulSetStatus(workload, sts)
+			if workload.DeploymentGroup == nil {
+				componentStatuses[workload.Name] = stsStatus
+				continue
+			}
+			if groupStatuses[workload.Name] == nil {
+				groupStatuses[workload.Name] = make(map[string]v1beta1.ComponentDeployStatus)
+			}
+			groupStatuses[workload.Name][workload.GetDeploymentGroupName()] = stsStatus
+			groupedByComponent[workload.Name] = append(groupedByComponent[workload.Name], stsStatus)
+			continue
+		}
 		status := componentDeployStatus(workload, workloadDeployments[workload.GetStateKey()])
 		if workload.DeploymentGroup == nil {
 			if workloadDeployments[workload.GetStateKey()] != nil {
@@ -579,10 +600,13 @@ func aggregateComponentDeployStatuses(statuses []v1beta1.ComponentDeployStatus) 
 		}
 	}
 	ret.Status.ObservedGeneration = ret.Generation
+	now := metav1.Now()
 	condition := appsv1.DeploymentCondition{
-		Type:   appsv1.DeploymentProgressing,
-		Status: corev1.ConditionTrue,
-		Reason: "DeploymentGroupsUpdating",
+		Type:               appsv1.DeploymentProgressing,
+		Status:             corev1.ConditionTrue,
+		Reason:             "DeploymentGroupsUpdating",
+		LastUpdateTime:     now,
+		LastTransitionTime: now,
 	}
 	switch {
 	case allComplete:
@@ -598,9 +622,11 @@ func aggregateComponentDeployStatuses(statuses []v1beta1.ComponentDeployStatus) 
 		availableStatus = corev1.ConditionTrue
 	}
 	ret.Status.Conditions = []appsv1.DeploymentCondition{condition, {
-		Type:   appsv1.DeploymentAvailable,
-		Status: availableStatus,
-		Reason: "DeploymentGroupsAggregated",
+		Type:               appsv1.DeploymentAvailable,
+		Status:             availableStatus,
+		Reason:             "DeploymentGroupsAggregated",
+		LastUpdateTime:     now,
+		LastTransitionTime: now,
 	}}
 	return ret
 }

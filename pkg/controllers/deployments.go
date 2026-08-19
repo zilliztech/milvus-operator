@@ -318,11 +318,24 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 	if err != nil {
 		return err
 	}
+
+	// Reconcile the QueryNode workload kind before creating workloads. Switching
+	// between StatefulSet and Deployment mode must remove the now-undesired
+	// workload first, because the surviving workload's creation flow can requeue
+	// (e.g. the two-deployment rollout marks a group id and requeues), which would
+	// otherwise return early and never reach cleanup — leaving both kinds stuck.
+	if err := r.cleanupQueryNodeWorkloadMode(ctx, mc); err != nil {
+		return err
+	}
+
 	var errs = []error{}
 	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
-		if componentUsesTwoDeployments(mc, component) {
+		switch {
+		case queryNodeUsesStatefulSet(mc, component):
+			err = r.ReconcileComponentStatefulSet(ctx, mc, component)
+		case componentUsesTwoDeployments(mc, component):
 			err = r.deployCtrl.Reconcile(ctx, mc, component)
-		} else {
+		default:
 			err = r.ReconcileComponentDeployment(ctx, mc, component)
 		}
 		if err != nil {
