@@ -11,6 +11,46 @@ import (
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
+func TestMilvusDeploymentUpdater_KafkaSecretRefEnv(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+
+	t.Run("no env for a non-kafka msgstream", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypePulsar
+		inst.Spec.Dep.Kafka.SecretRef = "stale-secret"
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		assert.Empty(t, updater.GetKafkaSecretRef())
+	})
+
+	t.Run("credentials reach the container", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		inst.Spec.Dep.Kafka.SecretRef = "kafka-secret"
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		assert.Equal(t, "kafka-secret", updater.GetKafkaSecretRef())
+
+		template := new(corev1.PodTemplateSpec)
+		updateMilvusContainer(template, updater, true)
+		idx := GetContainerIndex(template.Spec.Containers, MilvusStandalone.Name)
+		assert.GreaterOrEqual(t, idx, 0)
+
+		byName := map[string]corev1.EnvVar{}
+		for _, e := range template.Spec.Containers[idx].Env {
+			byName[e.Name] = e
+		}
+		for name, key := range map[string]string{
+			"KAFKA_SASLUSERNAME": KafkaSaslUsernameKey,
+			"KAFKA_SASLPASSWORD": KafkaSaslPasswordKey,
+		} {
+			env, found := byName[name]
+			assert.True(t, found, name)
+			assert.Equal(t, "kafka-secret", env.ValueFrom.SecretKeyRef.Name)
+			assert.Equal(t, key, env.ValueFrom.SecretKeyRef.Key)
+		}
+	})
+}
+
 func TestMilvus_UpdateDeployment(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.checkMocks()

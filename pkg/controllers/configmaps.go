@@ -35,26 +35,36 @@ func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Mi
 
 }
 
-// getKafkaSaslInfo reads the kafka SASL credentials from the referenced secret.
-// Both the username & the password key are required.
-func getKafkaSaslInfo(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (string, string, error) {
+// kafkaSecret is the content of the secret named by spec.dependencies.kafka.secretRef.
+type kafkaSecret struct {
+	Username string
+	Password string
+	// CACert is set only for brokers signed by a private CA, which the
+	// container's system roots cannot verify.
+	CACert []byte
+}
+
+// getKafkaSecret reads the kafka credentials from the referenced secret. Both the
+// username & the password key are required, the CA cert is optional.
+func getKafkaSecret(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (kafkaSecret, error) {
+	var ret kafkaSecret
 	if mc.Spec.Dep.Kafka.SecretRef == "" {
-		return "", "", nil
+		return ret, nil
 	}
 	secret := &corev1.Secret{}
 	key := types.NamespacedName{Namespace: mc.Namespace, Name: mc.Spec.Dep.Kafka.SecretRef}
 	if err := cli.Get(ctx, key, secret); err != nil {
-		return "", "", errors.Wrapf(err, "get kafka sasl secret[%s]", key)
+		return ret, errors.Wrapf(err, "get kafka sasl secret[%s]", key)
 	}
-	username, password := secret.Data[KafkaSaslUsernameKey], secret.Data[KafkaSaslPasswordKey]
-	if len(username) == 0 {
-		return "", "", errors.Errorf("kafka sasl secret[%s] has no [%s] key", key, KafkaSaslUsernameKey)
+	for _, required := range []string{KafkaSaslUsernameKey, KafkaSaslPasswordKey} {
+		if len(secret.Data[required]) == 0 {
+			return ret, errors.Errorf("kafka sasl secret[%s] has no [%s] key", key, required)
+		}
 	}
-	if len(password) == 0 {
-		return "", "", errors.Errorf("kafka sasl secret[%s] has no [%s] key", key, KafkaSaslPasswordKey)
-	}
-
-	return string(username), string(password), nil
+	ret.Username = string(secret.Data[KafkaSaslUsernameKey])
+	ret.Password = string(secret.Data[KafkaSaslPasswordKey])
+	ret.CACert = secret.Data[KafkaCACertKey]
+	return ret, nil
 }
 
 // SyncKafkaSaslCheckSum records the checksum of the kafka SASL credentials in an annotation
@@ -64,11 +74,12 @@ func (r *MilvusReconciler) SyncKafkaSaslCheckSum(ctx context.Context, mc *v1beta
 	newCheckSum := ""
 	if mc.Spec.Dep.MsgStreamType == v1beta1.MsgStreamTypeKafka &&
 		mc.Spec.Dep.Kafka.SecretRef != "" {
-		username, password, err := getKafkaSaslInfo(ctx, r.Client, *mc)
+		kafkaSecret, err := getKafkaSecret(ctx, r.Client, *mc)
 		if err != nil {
 			return err
 		}
-		newCheckSum = util.CheckSum([]byte(username + ":" + password))
+		// the CA is mounted into the pods too, and is read only at startup
+		newCheckSum = util.CheckSum([]byte(kafkaSecret.Username + ":" + kafkaSecret.Password + ":" + string(kafkaSecret.CACert)))
 	}
 	if oldCheckSum == newCheckSum {
 		return nil
@@ -82,7 +93,7 @@ func (r *MilvusReconciler) SyncKafkaSaslCheckSum(ctx context.Context, mc *v1beta
 		}
 		mc.Annotations[v1beta1.KafkaSaslCheckSumAnnotation] = newCheckSum
 	}
-	r.logger.Info("kafka sasl credentials changed, update checksum annotation",
+	r.logger.Info("kafka credentials changed, update checksum annotation",
 		"namespace", mc.Namespace, "name", mc.Name)
 	return errors.Wrap(r.Update(ctx, mc), "update kafka sasl checksum annotation")
 }
@@ -113,14 +124,9 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 	switch mc.Spec.Dep.MsgStreamType {
 	case v1beta1.MsgStreamTypeKafka:
 		util.SetStringSlice(conf, mc.Spec.Dep.Kafka.BrokerList, "kafka", "brokerList")
-		if mc.Spec.Dep.Kafka.SecretRef != "" {
-			username, password, err := getKafkaSaslInfo(ctx, r.Client, mc)
-			if err != nil {
-				return err
-			}
-			util.SetValue(conf, username, "kafka", "saslUsername")
-			util.SetValue(conf, password, "kafka", "saslPassword")
-		}
+		// Credentials from secretRef are injected into the pods as env vars, not
+		// written here: a configmap has no encryption at rest, no RBAC separation
+		// from ordinary config, and is excluded from secret scanning.
 		// delete other mq config to make milvus use kafka
 		delete(conf, "pulsar")
 		delete(conf, "rocksmq")

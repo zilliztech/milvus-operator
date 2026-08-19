@@ -420,9 +420,9 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 				Message: err.Error(),
 			}, nil
 		}
-		// credentials from the referenced secret take precedence over the plaintext config
+		// the referenced secret takes precedence over the plaintext config
 		if mc.Spec.Dep.Kafka.SecretRef != "" {
-			username, password, err := getKafkaSaslInfo(ctx, r.Client, mc)
+			kafkaSecret, err := getKafkaSecret(ctx, r.Client, mc)
 			if err != nil {
 				return v1beta1.MilvusCondition{
 					Type:    v1beta1.MsgStreamReady,
@@ -430,8 +430,9 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 					Message: err.Error(),
 				}, nil
 			}
-			kafkaConf.SASLUsername = username
-			kafkaConf.SASLPassword = password
+			kafkaConf.SASLUsername = kafkaSecret.Username
+			kafkaConf.SASLPassword = kafkaSecret.Password
+			kafkaConf.CACert = kafkaSecret.CACert
 		}
 		kafkaConf.BrokerList = mc.Spec.Dep.Kafka.BrokerList
 		getter = wrapKafkaConditonGetter(ctx, r.logger, mc.Spec.Dep.Kafka, *kafkaConf)

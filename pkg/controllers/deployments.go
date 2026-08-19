@@ -33,6 +33,7 @@ const (
 	SecretKey                  = "secretkey"
 	KafkaSaslUsernameKey       = "username"
 	KafkaSaslPasswordKey       = "password"
+	KafkaCACertKey             = "ca.pem"
 	AnnotationCheckSum         = "checksum/config"
 	AnnotationMilvusGeneration = v1beta1.AnnotationMilvusGeneration
 
@@ -83,6 +84,32 @@ func (r *MilvusReconciler) getMinioPortEnvIfServiceExists(ctx context.Context, m
 	}
 
 	return GetStorageEndpointEnv(mc.Spec.Dep.Storage.Endpoint, GetMinioSecure(mc.Spec.Conf.Data)), nil
+}
+
+// GetKafkaSecretRefEnv passes the SASL credentials to milvus as env vars, which
+// override kafka.saslUsername & kafka.saslPassword from the config file.
+func GetKafkaSecretRefEnv(secretRef string) []corev1.EnvVar {
+	env := []corev1.EnvVar{}
+	if secretRef == "" {
+		return env
+	}
+	for _, ref := range []struct{ name, key string }{
+		{"KAFKA_SASLPASSWORD", KafkaSaslPasswordKey},
+		{"KAFKA_SASLUSERNAME", KafkaSaslUsernameKey},
+	} {
+		env = append(env, corev1.EnvVar{
+			Name: ref.name,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: secretRef,
+					},
+					Key: ref.key,
+				},
+			},
+		})
+	}
+	return env
 }
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {

@@ -718,10 +718,12 @@ func TestMilvusStatusSyncer_GetMsgStreamCondition_KafkaSecretRef(t *testing.T) {
 			return nil
 		})
 		defer stubs.Reset()
-		expectGetSecret(map[string][]byte{
+		saslSecret := map[string][]byte{
 			KafkaSaslUsernameKey: []byte("kafka-user"),
 			KafkaSaslPasswordKey: []byte("kafka-pass"),
-		})
+			KafkaCACertKey:       []byte("-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----"),
+		}
+		expectGetSecret(saslSecret)
 
 		ret, err := s.GetMsgStreamCondition(ctx, milvus)
 		assert.NoError(t, err)
@@ -730,6 +732,7 @@ func TestMilvusStatusSyncer_GetMsgStreamCondition_KafkaSecretRef(t *testing.T) {
 		assert.Equal(t, "kafka-pass", probed.SASLPassword)
 		assert.Equal(t, "SASL_SSL", probed.SecurityProtocol)
 		assert.Equal(t, milvus.Spec.Dep.Kafka.BrokerList, probed.BrokerList)
+		assert.Contains(t, string(probed.CACert), "BEGIN CERTIFICATE")
 	})
 
 	t.Run("secret not found", func(t *testing.T) {
