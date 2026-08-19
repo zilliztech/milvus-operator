@@ -76,6 +76,8 @@ func (r *Milvus) ValidateCreate() (admission.Warnings, error) {
 
 	allErrs = append(allErrs, r.validateDeploymentGroups()...)
 
+	allErrs = append(allErrs, r.validateQueryNodeStatefulSet()...)
+
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
@@ -148,6 +150,8 @@ func (r *Milvus) ValidateUpdate(old runtime.Object) (admission.Warnings, error) 
 	}
 
 	allErrs = append(allErrs, r.validateDeploymentGroups()...)
+
+	allErrs = append(allErrs, r.validateQueryNodeStatefulSet()...)
 
 	if len(allErrs) == 0 {
 		return nil, nil
@@ -279,6 +283,32 @@ func (r *Milvus) validateDeploymentGroups() field.ErrorList {
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
 func (r *Milvus) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
+}
+
+// validateQueryNodeStatefulSet validates QueryNode's opt-in StatefulSet mode.
+// StatefulSet mode uses the StatefulSet's native rolling update instead of the
+// two-deployment blue/green rollout. It is compatible with deployment groups
+// (each group becomes its own StatefulSet), but not with rollingMode v3, which
+// globally forces every component into two-deployment mode.
+func (r *Milvus) validateQueryNodeStatefulSet() field.ErrorList {
+	qn := r.Spec.Com.QueryNode
+	if !qn.StatefulSetEnabled() {
+		return nil
+	}
+	var allErrs field.ErrorList
+	basePath := field.NewPath("spec").Child("components").Child("queryNode").Child("statefulSet")
+	if r.Spec.Com.RollingMode == RollingModeV3 {
+		allErrs = append(allErrs, field.Forbidden(basePath,
+			"queryNode statefulSet mode is incompatible with rollingMode v3"))
+	}
+	for i := range qn.StatefulSet.VolumeClaimTemplates {
+		if err := qn.StatefulSet.VolumeClaimTemplates[i].AsObject(new(corev1.PersistentVolumeClaim)); err != nil {
+			allErrs = append(allErrs, field.Invalid(
+				basePath.Child("volumeClaimTemplates").Index(i),
+				qn.StatefulSet.VolumeClaimTemplates[i], err.Error()))
+		}
+	}
+	return allErrs
 }
 
 func (r *Milvus) validateExternal() field.ErrorList {

@@ -1,0 +1,84 @@
+# Deploy QueryNode as a StatefulSet so each replica binds a stable, dedicated
+# PVC (e.g. local-SSD on bare metal). In this mode QueryNode uses the
+# StatefulSet's native rolling update instead of the two-deployment blue/green
+# rollout. It cannot be combined with rollingMode v3 (which globally forces
+# two-deployment mode), but it IS compatible with deployment groups.
+#
+# PVC lifecycle: QueryNode is a stateless cache (segments are authoritative in
+# object storage; local disk only holds mmap/disk-cache data). Kubernetes 1.24
+# does not honor StatefulSet's declarative persistentVolumeClaimRetentionPolicy,
+# so the operator reclaims scaled-down PVCs itself: scaling a StatefulSet down
+# deletes the now-unused per-replica PVCs instead of leaving orphans occupying
+# (often expensive local-SSD) storage. Scaling back up provisions fresh PVCs and
+# the cache is rebuilt from object storage. Deleting the whole Milvus leaves PVC
+# cleanup to the finalizer.
+#
+# PVC expansion: increasing a volumeClaimTemplate's storage request grows the
+# existing per-replica PVCs in place (only expansion — shrink is skipped). This
+# requires a StorageClass with allowVolumeExpansion; storage that cannot expand
+# (e.g. local-SSD) rejects the change, which is logged and left to the operator.
+# StatefulSet volumeClaimTemplates are immutable after creation, so a replica
+# added later uses the size the StatefulSet was originally created with.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+spec:
+  mode: cluster
+  dependencies: {}
+  components:
+    queryNode:
+      replicas: 3
+      # mount the per-replica PVC declared in volumeClaimTemplates below
+      volumeMounts:
+        - name: qn-local-data
+          mountPath: /var/lib/milvus/data
+      statefulSet:
+        enabled: true
+        volumeClaimTemplates:
+          - metadata:
+              name: qn-local-data
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              storageClassName: local-ssd
+              resources:
+                requests:
+                  storage: 100Gi
+---
+# StatefulSet mode combined with deployment groups: each group becomes its own
+# StatefulSet (mc-milvus-querynode-<group>) with its own headless service and
+# per-ordinal PVCs, pinned to a different availability zone. All groups share the
+# volumeClaimTemplates shape defined under statefulSet; groups override only
+# scheduling and replicas, not storage shape.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release-zoned
+spec:
+  mode: cluster
+  dependencies: {}
+  components:
+    queryNode:
+      volumeMounts:
+        - name: qn-local-data
+          mountPath: /var/lib/milvus/data
+      statefulSet:
+        enabled: true
+        volumeClaimTemplates:
+          - metadata:
+              name: qn-local-data
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              storageClassName: local-ssd
+              resources:
+                requests:
+                  storage: 100Gi
+      groups:
+        - name: az-a
+          replicas: 2
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1a
+        - name: az-b
+          replicas: 2
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1b

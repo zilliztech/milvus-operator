@@ -532,6 +532,61 @@ func TestComponentsDeployStatusUpdaterImpl_Update(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 3, len(m1.Status.ComponentsDeployStatus))
 	})
+
+	t.Run("querynode statefulset success", func(t *testing.T) {
+		m1 := m.DeepCopy()
+		m1.Spec.Mode = v1beta1.MilvusModeCluster
+		m1.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
+		m1.Default()
+		m1.Spec.Com.QueryNode.StatefulSet = &v1beta1.QueryNodeStatefulSet{Enabled: true}
+		scheme, _ := v1beta1.SchemeBuilder.Build()
+		// deployment list returns nothing for querynode (it's an STS)
+		mockCli.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+		// STS-backed querynode is fetched by name
+		mockCli.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
+			DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj client.Object, _ ...any) error {
+				sts := obj.(*appsv1.StatefulSet)
+				sts.Name = QueryNode.GetDeploymentName(m1.Name)
+				sts.Namespace = m1.Namespace
+				_ = runtimectrl.SetControllerReference(m1, sts, scheme)
+				return nil
+			})
+		err := r.Update(ctx, m1)
+		assert.NoError(t, err)
+		_, ok := m1.Status.ComponentsDeployStatus[QueryNodeName]
+		assert.True(t, ok)
+	})
+
+	t.Run("querynode statefulset with groups aggregates", func(t *testing.T) {
+		m1 := m.DeepCopy()
+		m1.Spec.Mode = v1beta1.MilvusModeCluster
+		m1.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
+		m1.Default()
+		replicas := int32(1)
+		m1.Spec.Com.QueryNode.StatefulSet = &v1beta1.QueryNodeStatefulSet{Enabled: true}
+		m1.Spec.Com.QueryNode.Groups = []v1beta1.DeploymentGroup{
+			{Name: "g1", Replicas: &replicas},
+			{Name: "g2", Replicas: &replicas},
+		}
+		scheme, _ := v1beta1.SchemeBuilder.Build()
+		mockCli.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+		// one Get per group STS
+		mockCli.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
+			DoAndReturn(func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...any) error {
+				sts := obj.(*appsv1.StatefulSet)
+				sts.Name = key.Name
+				sts.Namespace = m1.Namespace
+				_ = runtimectrl.SetControllerReference(m1, sts, scheme)
+				return nil
+			}).Times(2)
+		err := r.Update(ctx, m1)
+		assert.NoError(t, err)
+		_, ok := m1.Status.ComponentsDeployStatus[QueryNodeName]
+		assert.True(t, ok)
+		assert.Equal(t, 2, len(m1.Status.DeploymentGroupsDeployStatus[QueryNodeName]))
+	})
 }
 
 func TestMilvusHealthStatusInfo_GetMilvusHealthStatus(t *testing.T) {
