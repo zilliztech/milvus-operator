@@ -120,7 +120,16 @@ func (r *MilvusReconciler) updateStatefulSet(
 		mc, r.Scheme, component, storageEndpointEnvFromContext(ctx),
 	)
 	appLabels := component.GetSelectorLabels(mc.Name)
-	sts.Labels = MergeLabels(sts.Labels, appLabels)
+	// Mirror the Deployment path: grouped workloads carry the group's custom
+	// labels/annotations on the workload object; ungrouped carry only app labels.
+	// The blue/green group-id label is intentionally omitted (StatefulSet mode
+	// does not use two-deployment rollout), so rolloutSlot is empty.
+	if component.DeploymentGroup != nil {
+		sts.Labels = desiredDeploymentLabels(mc.Name, component, "", sts.Labels)
+		sts.Annotations = desiredDeploymentAnnotations(component, sts.Annotations)
+	} else {
+		sts.Labels = MergeLabels(sts.Labels, appLabels)
+	}
 
 	if err := SetControllerReference(&mc, sts, r.Scheme); err != nil {
 		return pkgerr.Wrap(err, "set controller reference")
@@ -135,6 +144,11 @@ func (r *MilvusReconciler) updateStatefulSet(
 	sts.Spec.ServiceName = component.GetStatefulSetServiceName(mc.Name)
 	sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
 		Type: appsv1.RollingUpdateStatefulSetStrategyType,
+	}
+	// Mirror the Deployment path: give pods a grace window before counting as
+	// available during a rolling update.
+	if mc.IsRollingUpdateEnabled() {
+		sts.Spec.MinReadySeconds = 30
 	}
 
 	// Replicas, HPA-aware (mirror updateDeploymentReplicas). In manual mode the
