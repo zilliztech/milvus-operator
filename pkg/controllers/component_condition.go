@@ -49,7 +49,7 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 	componentDeploy := makeWorkloadDeploymentMap(mc, deployList.Items)
 	hasEntryReplicas := false
 	for _, component := range allComponents {
-		if queryNodeUsesStatefulSet(mc, component) {
+		if componentUsesStatefulSet(mc, component) {
 			sts, err := getStatefulSetForComponent(ctx, cli, mc, component)
 			if err != nil {
 				return v1beta1.MilvusCondition{}, errors.Wrap(err, "get querynode statefulset")

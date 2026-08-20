@@ -218,7 +218,7 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 		stsInst := &v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "nssts", Name: "mcsts", UID: "uidsts"}}
 		stsInst.Spec.Mode = v1beta1.MilvusModeCluster
 		stsInst.Default()
-		stsInst.Spec.Com.QueryNode.StatefulSet = &v1beta1.QueryNodeStatefulSet{Enabled: true}
+		stsInst.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
 		// Deployments: all non-querynode components ready.
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
 			Do(func(_ interface{}, list *appsv1.DeploymentList, _ interface{}) {
@@ -258,7 +258,7 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 		stsInst := &v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "nssts2", Name: "mcsts2", UID: "uidsts2"}}
 		stsInst.Spec.Mode = v1beta1.MilvusModeCluster
 		stsInst.Default()
-		stsInst.Spec.Com.QueryNode.StatefulSet = &v1beta1.QueryNodeStatefulSet{Enabled: true}
+		stsInst.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
 			Do(func(_ interface{}, list *appsv1.DeploymentList, _ interface{}) {
 				for _, c := range Milvus2_6Components {
