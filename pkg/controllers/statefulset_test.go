@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +33,7 @@ func newStatefulSetTestMilvus() v1beta1.Milvus {
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		},
 	})
-	mc.Spec.Com.QueryNode.StatefulSet = &v1beta1.QueryNodeStatefulSet{
+	mc.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{
 		Enabled:              true,
 		VolumeClaimTemplates: []v1beta1.Values{pvc},
 	}
@@ -41,11 +42,81 @@ func newStatefulSetTestMilvus() v1beta1.Milvus {
 
 func TestQueryNodeUsesStatefulSet(t *testing.T) {
 	mc := newStatefulSetTestMilvus()
-	assert.True(t, queryNodeUsesStatefulSet(mc, QueryNode))
-	assert.False(t, queryNodeUsesStatefulSet(mc, DataNode))
+	assert.True(t, componentUsesStatefulSet(mc, QueryNode))
+	assert.False(t, componentUsesStatefulSet(mc, DataNode))
 
 	mc.Spec.Com.QueryNode.StatefulSet.Enabled = false
-	assert.False(t, queryNodeUsesStatefulSet(mc, QueryNode))
+	assert.False(t, componentUsesStatefulSet(mc, QueryNode))
+}
+
+func TestComponentUsesStatefulSet_AllComponents(t *testing.T) {
+	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "mc"}}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	// none enabled
+	for _, c := range []MilvusComponent{QueryNode, DataNode, IndexNode, Proxy} {
+		assert.False(t, componentUsesStatefulSet(mc, c), c.Name)
+	}
+	// enable each
+	mc.Spec.Com.DataNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
+	mc.Spec.Com.IndexNode = &v1beta1.MilvusIndexNode{StatefulSet: &v1beta1.ComponentStatefulSet{Enabled: true}}
+	assert.True(t, componentUsesStatefulSet(mc, DataNode))
+	assert.True(t, componentUsesStatefulSet(mc, IndexNode))
+	// Proxy never supports STS
+	mc.Spec.Com.Proxy = &v1beta1.MilvusProxy{}
+	assert.False(t, componentUsesStatefulSet(mc, Proxy))
+}
+
+func TestUpdateStatefulSetDataNodeAndIndexNode(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+
+	pvcVal := func(name string) v1beta1.Values {
+		v := v1beta1.Values{}
+		_ = v.FromObject(corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			},
+		})
+		return v
+	}
+
+	t.Run("datanode STS", func(t *testing.T) {
+		mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "mc"}}
+		mc.Spec.Mode = v1beta1.MilvusModeCluster
+		mc.Default()
+		mc.Spec.Com.DataNode.StatefulSet = &v1beta1.ComponentStatefulSet{
+			Enabled:              true,
+			VolumeClaimTemplates: []v1beta1.Values{pvcVal("dn-data")},
+		}
+		sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: DataNode.GetDeploymentName(mc.Name), Namespace: mc.Namespace}}
+		err := r.updateStatefulSet(env.ctx, mc, sts, DataNode)
+		assert.NoError(t, err)
+		assert.Equal(t, DataNode.Name, sts.Spec.Selector.MatchLabels[AppLabelComponent])
+		assert.Len(t, sts.Spec.VolumeClaimTemplates, 1)
+		assert.Equal(t, "dn-data", sts.Spec.VolumeClaimTemplates[0].Name)
+		assert.GreaterOrEqual(t, GetContainerIndex(sts.Spec.Template.Spec.Containers, DataNode.Name), 0)
+	})
+
+	t.Run("indexnode STS (no groups)", func(t *testing.T) {
+		mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "mc"}}
+		mc.Spec.Mode = v1beta1.MilvusModeCluster
+		mc.Default()
+		mc.Spec.Com.IndexNode = &v1beta1.MilvusIndexNode{
+			StatefulSet: &v1beta1.ComponentStatefulSet{
+				Enabled:              true,
+				VolumeClaimTemplates: []v1beta1.Values{pvcVal("in-data")},
+			},
+		}
+		sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: IndexNode.GetDeploymentName(mc.Name), Namespace: mc.Namespace}}
+		err := r.updateStatefulSet(env.ctx, mc, sts, IndexNode)
+		assert.NoError(t, err)
+		assert.Equal(t, IndexNode.Name, sts.Spec.Selector.MatchLabels[AppLabelComponent])
+		assert.Len(t, sts.Spec.VolumeClaimTemplates, 1)
+		assert.Equal(t, "in-data", sts.Spec.VolumeClaimTemplates[0].Name)
+	})
 }
 
 func TestUpdateStatefulSet(t *testing.T) {
@@ -282,7 +353,7 @@ func TestCleanupScaledDownQueryNodePVCs(t *testing.T) {
 				return nil
 			}).Times(2)
 
-		err := r.cleanupScaledDownQueryNodePVCs(env.ctx, mc, newSts(2))
+		err := r.cleanupScaledDownStatefulSetPVCs(env.ctx, mc, newSts(2))
 		assert.NoError(t, err)
 		assert.ElementsMatch(t, []string{
 			"qn-data-" + stsName + "-2",
@@ -297,13 +368,37 @@ func TestCleanupScaledDownQueryNodePVCs(t *testing.T) {
 		mc := newStatefulSetTestMilvus()
 		sts := newSts(2)
 		sts.Spec.VolumeClaimTemplates = nil
-		err := r.cleanupScaledDownQueryNodePVCs(env.ctx, mc, sts)
+		err := r.cleanupScaledDownStatefulSetPVCs(env.ctx, mc, sts)
 		assert.NoError(t, err)
 	})
 }
 
 func itoa(i int) string {
 	return strconv.Itoa(i)
+}
+
+// listComponentLabel extracts the app.kubernetes.io/component value from a
+// client.List call's options, so mocks can return items per component (the
+// cleanup logic lists once per StatefulSet-capable component).
+func listComponentLabel(opts []client.ListOption) string {
+	lo := &client.ListOptions{}
+	for _, o := range opts {
+		o.ApplyToList(lo)
+	}
+	if lo.LabelSelector == nil {
+		return ""
+	}
+	marker := AppLabelComponent + "="
+	set := lo.LabelSelector.String()
+	idx := strings.Index(set, marker)
+	if idx < 0 {
+		return ""
+	}
+	rest := set[idx+len(marker):]
+	if end := strings.IndexByte(rest, ','); end >= 0 {
+		rest = rest[:end]
+	}
+	return rest
 }
 
 func TestReconcileQueryNodePVCExpansion(t *testing.T) {
@@ -359,7 +454,7 @@ func TestReconcileQueryNodePVCExpansion(t *testing.T) {
 				patched = obj.(*corev1.PersistentVolumeClaim).Spec.Resources.Requests[corev1.ResourceStorage]
 				return nil
 			})
-		err := r.reconcileQueryNodePVCExpansion(env.ctx, newMc("200Gi"), newSts())
+		err := r.reconcileStatefulSetPVCExpansion(env.ctx, newMc("200Gi"), QueryNode, newSts())
 		assert.NoError(t, err)
 		assert.Equal(t, "200Gi", patched.String())
 	})
@@ -376,7 +471,7 @@ func TestReconcileQueryNodePVCExpansion(t *testing.T) {
 				return nil
 			})
 		// no Update expected
-		err := r.reconcileQueryNodePVCExpansion(env.ctx, newMc("100Gi"), newSts())
+		err := r.reconcileStatefulSetPVCExpansion(env.ctx, newMc("100Gi"), QueryNode, newSts())
 		assert.NoError(t, err)
 	})
 
@@ -392,7 +487,7 @@ func TestReconcileQueryNodePVCExpansion(t *testing.T) {
 				return nil
 			})
 		// no Update expected (shrink skipped)
-		err := r.reconcileQueryNodePVCExpansion(env.ctx, newMc("100Gi"), newSts())
+		err := r.reconcileStatefulSetPVCExpansion(env.ctx, newMc("100Gi"), QueryNode, newSts())
 		assert.NoError(t, err)
 	})
 
@@ -411,7 +506,7 @@ func TestReconcileQueryNodePVCExpansion(t *testing.T) {
 			Update(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaim{})).
 			Return(errors.New("storageclass does not allow expansion"))
 		// error is logged, not returned
-		err := r.reconcileQueryNodePVCExpansion(env.ctx, newMc("200Gi"), newSts())
+		err := r.reconcileStatefulSetPVCExpansion(env.ctx, newMc("200Gi"), QueryNode, newSts())
 		assert.NoError(t, err)
 	})
 
@@ -421,7 +516,7 @@ func TestReconcileQueryNodePVCExpansion(t *testing.T) {
 		r := env.Reconciler
 		sts := newSts()
 		sts.Spec.VolumeClaimTemplates = nil
-		err := r.reconcileQueryNodePVCExpansion(env.ctx, newMc("200Gi"), sts)
+		err := r.reconcileStatefulSetPVCExpansion(env.ctx, newMc("200Gi"), QueryNode, sts)
 		assert.NoError(t, err)
 	})
 }
@@ -562,7 +657,7 @@ func TestRenderVolumeClaimTemplatesError(t *testing.T) {
 	bad := v1beta1.Values{}
 	bad.Data = map[string]any{"metadata": "not-an-object"}
 	mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = []v1beta1.Values{bad}
-	_, err := renderVolumeClaimTemplates(mc)
+	_, err := renderVolumeClaimTemplates(mc, QueryNode)
 	assert.Error(t, err)
 }
 
@@ -586,12 +681,12 @@ func TestCleanupQueryNodeWorkloadMode(t *testing.T) {
 				return nil
 			})
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).Return(nil)
-		// stale-STS pruning lists StatefulSets; the desired one is kept.
+		// stale-STS pruning lists StatefulSets once per STS-capable component; all empty.
 		mockClient.EXPECT().
 			List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
-			Return(nil)
+			Return(nil).AnyTimes()
 
-		err := r.cleanupQueryNodeWorkloadMode(env.ctx, mc)
+		err := r.cleanupStatefulSetWorkloadModes(env.ctx, mc)
 		assert.NoError(t, err)
 	})
 
@@ -611,17 +706,19 @@ func TestCleanupQueryNodeWorkloadMode(t *testing.T) {
 		}
 		mockClient.EXPECT().
 			List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, raw client.ObjectList, _ ...any) error {
-				raw.(*appsv1.StatefulSetList).Items = []appsv1.StatefulSet{existing}
+			DoAndReturn(func(_ context.Context, raw client.ObjectList, opts ...client.ListOption) error {
+				if listComponentLabel(opts) == QueryNode.Name {
+					raw.(*appsv1.StatefulSetList).Items = []appsv1.StatefulSet{existing}
+				}
 				return nil
-			})
+			}).AnyTimes()
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).Return(nil)
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).
 			Return(nil)
 		mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).Return(nil)
 
-		err := r.cleanupQueryNodeWorkloadMode(env.ctx, mc)
+		err := r.cleanupStatefulSetWorkloadModes(env.ctx, mc)
 		assert.NoError(t, err)
 	})
 
@@ -635,9 +732,9 @@ func TestCleanupQueryNodeWorkloadMode(t *testing.T) {
 
 		mockClient.EXPECT().
 			List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
-			Return(nil)
+			Return(nil).AnyTimes()
 
-		err := r.cleanupQueryNodeWorkloadMode(env.ctx, mc)
+		err := r.cleanupStatefulSetWorkloadModes(env.ctx, mc)
 		assert.NoError(t, err)
 	})
 
@@ -666,13 +763,15 @@ func TestCleanupQueryNodeWorkloadMode(t *testing.T) {
 			Return(nil)
 		mockClient.EXPECT().
 			List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, raw client.ObjectList, _ ...any) error {
-				raw.(*appsv1.StatefulSetList).Items = []appsv1.StatefulSet{
-					mkSts("mc-milvus-querynode-g1"),
-					mkSts("mc-milvus-querynode-g2"),
+			DoAndReturn(func(_ context.Context, raw client.ObjectList, opts ...client.ListOption) error {
+				if listComponentLabel(opts) == QueryNode.Name {
+					raw.(*appsv1.StatefulSetList).Items = []appsv1.StatefulSet{
+						mkSts("mc-milvus-querynode-g1"),
+						mkSts("mc-milvus-querynode-g2"),
+					}
 				}
 				return nil
-			})
+			}).AnyTimes()
 		var deleted string
 		mockClient.EXPECT().
 			Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
@@ -684,7 +783,7 @@ func TestCleanupQueryNodeWorkloadMode(t *testing.T) {
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).
 			Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
 
-		err := r.cleanupQueryNodeWorkloadMode(env.ctx, mc)
+		err := r.cleanupStatefulSetWorkloadModes(env.ctx, mc)
 		assert.NoError(t, err)
 		assert.Equal(t, "mc-milvus-querynode-g2", deleted)
 	})
@@ -709,10 +808,12 @@ func TestCleanupStaleStatefulSetReclaimsPVCs(t *testing.T) {
 	}
 	mockClient.EXPECT().
 		List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, raw client.ObjectList, _ ...any) error {
-			raw.(*appsv1.StatefulSetList).Items = []appsv1.StatefulSet{stale}
+		DoAndReturn(func(_ context.Context, raw client.ObjectList, opts ...client.ListOption) error {
+			if listComponentLabel(opts) == QueryNode.Name {
+				raw.(*appsv1.StatefulSetList).Items = []appsv1.StatefulSet{stale}
+			}
 			return nil
-		})
+		}).AnyTimes()
 	mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).Return(nil)
 	// PVC list for reclaim: two belonging to the stale STS, plus a group PVC that
 	// must NOT be deleted (its "-g1-0" tail is non-numeric under the stale prefix).
@@ -740,7 +841,7 @@ func TestCleanupStaleStatefulSetReclaimsPVCs(t *testing.T) {
 		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).
 		Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
 
-	err := r.cleanupStaleQueryNodeStatefulSets(env.ctx, mc)
+	err := r.cleanupStaleStatefulSets(env.ctx, mc)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{
 		"qn-local-data-mc-milvus-querynode-0",

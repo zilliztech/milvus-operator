@@ -46,7 +46,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 	// all ok
 	t.Run("v1 deploy mode all ok", func(t *testing.T) {
 		expectMinioServiceNotFound(mockClient)
-		expectQueryNodeStatefulSetNotFound(mockClient)
+		expectComponentStatefulSetNotFound(mockClient)
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
@@ -65,7 +65,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 
 	t.Run("has old standlaone deploy delete ok", func(t *testing.T) {
 		expectMinioServiceNotFound(mockClient)
-		expectQueryNodeStatefulSetNotFound(mockClient)
+		expectComponentStatefulSetNotFound(mockClient)
 		oldDeploy := appsv1.Deployment{}
 		oldDeploy.Name = "mc-standalone"
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
@@ -95,7 +95,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 
 	t.Run("has volume& volumemounts ok", func(t *testing.T) {
 		expectMinioServiceNotFound(mockClient)
-		expectQueryNodeStatefulSetNotFound(mockClient)
+		expectComponentStatefulSetNotFound(mockClient)
 		mc := *mcDefault.DeepCopy()
 		mc.Spec.Com.Volumes = []v1beta1.Values{
 			{},
@@ -122,7 +122,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 	t.Run("querynode statefulset mode routes to STS", func(t *testing.T) {
 		expectMinioServiceNotFound(mockClient)
 		mc := *mcDefault.DeepCopy()
-		mc.Spec.Com.QueryNode.StatefulSet = &v1beta1.QueryNodeStatefulSet{Enabled: true}
+		mc.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
 
 		// RemoveOldStandlone + cleanupStaleDeploymentGroups list Deployments.
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil).AnyTimes()
@@ -151,10 +151,10 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 				assert.Equal(t, "mc-milvus-querynode", obj.(*appsv1.StatefulSet).Name)
 				return nil
 			})
-		// stale-STS cleanup lists StatefulSets.
+		// stale-STS cleanup lists StatefulSets (once per STS-capable component).
 		mockClient.EXPECT().
 			List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
-			Return(nil)
+			Return(nil).AnyTimes()
 
 		err := r.ReconcileDeployments(ctx, mc)
 		assert.NoError(t, err)
@@ -307,7 +307,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 	t.Run("call client.Update if changed", func(t *testing.T) {
 		defer env.Ctrl.Finish()
 		expectMinioServiceNotFound(mockClient)
-		expectQueryNodeStatefulSetNotFound(mockClient)
+		expectComponentStatefulSetNotFound(mockClient)
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
@@ -330,7 +330,7 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 	t.Run("not call client.Update if configmap not changed", func(t *testing.T) {
 		defer env.Ctrl.Finish()
 		expectMinioServiceNotFound(mockClient)
-		expectQueryNodeStatefulSetNotFound(mockClient)
+		expectComponentStatefulSetNotFound(mockClient)
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
 		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
 		mockClient.EXPECT().
@@ -372,12 +372,12 @@ func expectMinioServiceNotFound(mockClient *MockK8sClient) {
 		Return(k8sErrors.NewNotFound(schema.GroupResource{Resource: "services"}, Minio))
 }
 
-// expectQueryNodeStatefulSetNotFound accounts for the per-reconcile cleanup that
+// expectComponentStatefulSetNotFound accounts for the per-reconcile cleanup that
 // lists querynode StatefulSets to prune ones no longer desired.
-func expectQueryNodeStatefulSetNotFound(mockClient *MockK8sClient) {
+func expectComponentStatefulSetNotFound(mockClient *MockK8sClient) {
 	mockClient.EXPECT().
 		List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
-		Return(nil)
+		Return(nil).AnyTimes()
 }
 
 func TestGetStorageSecretRefEnv(t *testing.T) {

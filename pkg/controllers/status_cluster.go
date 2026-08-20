@@ -503,7 +503,7 @@ func (r *componentsDeployStatusUpdaterImpl) Update(ctx context.Context, mc *v1be
 	workloadDeployments := makeWorkloadDeploymentMap(*mc, deployList.Items)
 	groupedByComponent := make(map[string][]v1beta1.ComponentDeployStatus)
 	for _, workload := range GetComponentWorkloadsBySpec(mc.Spec) {
-		if queryNodeUsesStatefulSet(*mc, workload) {
+		if componentUsesStatefulSet(*mc, workload) {
 			sts, err := getStatefulSetForComponent(ctx, r.Client, *mc, workload)
 			if err != nil {
 				return errors.Wrap(err, "get querynode statefulset")

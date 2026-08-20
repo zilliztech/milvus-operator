@@ -82,3 +82,49 @@ spec:
           replicas: 2
           nodeSelector:
             topology.kubernetes.io/zone: us-east-1b
+---
+# StatefulSet mode is also available for DataNode and IndexNode (same semantics:
+# native rolling update, per-replica PVC, scale-down reclaim, online expansion).
+# DataNode supports deployment groups; IndexNode does not. IndexNode only exists
+# on Milvus < 2.6 (the operator offlines it on 2.6+).
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release-datanode-indexnode
+spec:
+  mode: cluster
+  dependencies: {}
+  components:
+    dataNode:
+      replicas: 2
+      volumeMounts:
+        - name: dn-local-data
+          mountPath: /var/lib/milvus/dndata
+      statefulSet:
+        enabled: true
+        volumeClaimTemplates:
+          - metadata:
+              name: dn-local-data
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              storageClassName: local-ssd
+              resources:
+                requests:
+                  storage: 50Gi
+    indexNode:
+      replicas: 2
+      volumeMounts:
+        - name: in-local-data
+          mountPath: /var/lib/milvus/indata
+      statefulSet:
+        enabled: true
+        volumeClaimTemplates:
+          - metadata:
+              name: in-local-data
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              storageClassName: local-ssd
+              resources:
+                requests:
+                  storage: 50Gi
+

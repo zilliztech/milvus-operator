@@ -20,11 +20,43 @@ import (
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
-// queryNodeUsesStatefulSet reports whether the given component should be
-// reconciled as a StatefulSet instead of a Deployment. Only QueryNode supports
-// this opt-in mode.
-func queryNodeUsesStatefulSet(mc v1beta1.Milvus, component MilvusComponent) bool {
-	return component.Is(QueryNode) && mc.Spec.Com.QueryNode.StatefulSetEnabled()
+// componentUsesStatefulSet reports whether the given component should be
+// reconciled as a StatefulSet instead of a Deployment. QueryNode, DataNode and
+// IndexNode support this opt-in mode.
+func componentUsesStatefulSet(mc v1beta1.Milvus, component MilvusComponent) bool {
+	switch component.Name {
+	case QueryNodeName:
+		return mc.Spec.Com.QueryNode.StatefulSetEnabled()
+	case DataNodeName:
+		return mc.Spec.Com.DataNode.StatefulSetEnabled()
+	case IndexNodeName:
+		return mc.Spec.Com.IndexNode.StatefulSetEnabled()
+	}
+	return false
+}
+
+// statefulSetCapableComponents returns the components that support StatefulSet mode.
+func statefulSetCapableComponents() []MilvusComponent {
+	return []MilvusComponent{QueryNode, DataNode, IndexNode}
+}
+
+// getComponentStatefulSetSpec returns the component's StatefulSet config, or nil.
+func getComponentStatefulSetSpec(mc v1beta1.Milvus, component MilvusComponent) *v1beta1.ComponentStatefulSet {
+	switch component.Name {
+	case QueryNodeName:
+		if mc.Spec.Com.QueryNode != nil {
+			return mc.Spec.Com.QueryNode.StatefulSet
+		}
+	case DataNodeName:
+		if mc.Spec.Com.DataNode != nil {
+			return mc.Spec.Com.DataNode.StatefulSet
+		}
+	case IndexNodeName:
+		if mc.Spec.Com.IndexNode != nil {
+			return mc.Spec.Com.IndexNode.StatefulSet
+		}
+	}
+	return nil
 }
 
 // GetStatefulSetServiceName returns the name of the headless service backing a
@@ -75,10 +107,10 @@ func (r *MilvusReconciler) ReconcileComponentStatefulSet(
 		}
 	}
 
-	if err := r.cleanupScaledDownQueryNodePVCs(ctx, mc, cur); err != nil {
+	if err := r.cleanupScaledDownStatefulSetPVCs(ctx, mc, cur); err != nil {
 		return err
 	}
-	return r.reconcileQueryNodePVCExpansion(ctx, mc, cur)
+	return r.reconcileStatefulSetPVCExpansion(ctx, mc, component, cur)
 }
 
 func (r *MilvusReconciler) updateStatefulSet(
@@ -116,12 +148,12 @@ func (r *MilvusReconciler) updateStatefulSet(
 		}
 	}
 
-	templates, err := renderVolumeClaimTemplates(mc)
+	templates, err := renderVolumeClaimTemplates(mc, component)
 	if err != nil {
 		return err
 	}
 	// Stamp component labels on each template so the PVCs StatefulSet provisions
-	// carry them, letting cleanupScaledDownQueryNodePVCs find them by label.
+	// carry them, letting cleanupScaledDownStatefulSetPVCs find them by label.
 	for i := range templates {
 		templates[i].Labels = MergeLabels(templates[i].Labels, appLabels)
 	}
@@ -148,24 +180,24 @@ func (r *MilvusReconciler) updateStatefulSet(
 }
 
 // renderVolumeClaimTemplates converts the opaque Values-encoded volume claim
-// templates from the spec into typed PersistentVolumeClaimTemplates.
-func renderVolumeClaimTemplates(mc v1beta1.Milvus) ([]corev1.PersistentVolumeClaim, error) {
-	qn := mc.Spec.Com.QueryNode
-	if qn == nil || qn.StatefulSet == nil {
+// templates from the component's spec into typed PersistentVolumeClaimTemplates.
+func renderVolumeClaimTemplates(mc v1beta1.Milvus, component MilvusComponent) ([]corev1.PersistentVolumeClaim, error) {
+	stsSpec := getComponentStatefulSetSpec(mc, component)
+	if stsSpec == nil {
 		return nil, nil
 	}
-	ret := make([]corev1.PersistentVolumeClaim, 0, len(qn.StatefulSet.VolumeClaimTemplates))
-	for i := range qn.StatefulSet.VolumeClaimTemplates {
+	ret := make([]corev1.PersistentVolumeClaim, 0, len(stsSpec.VolumeClaimTemplates))
+	for i := range stsSpec.VolumeClaimTemplates {
 		pvc := corev1.PersistentVolumeClaim{}
-		if err := qn.StatefulSet.VolumeClaimTemplates[i].AsObject(&pvc); err != nil {
-			return nil, pkgerr.Wrapf(err, "parse queryNode volumeClaimTemplates[%d]", i)
+		if err := stsSpec.VolumeClaimTemplates[i].AsObject(&pvc); err != nil {
+			return nil, pkgerr.Wrapf(err, "parse %s volumeClaimTemplates[%d]", component.Name, i)
 		}
 		ret = append(ret, pvc)
 	}
 	return ret, nil
 }
 
-// cleanupScaledDownQueryNodePVCs deletes the per-replica PVCs left behind after
+// cleanupScaledDownStatefulSetPVCs deletes the per-replica PVCs left behind after
 // scaling QueryNode down. StatefulSet's declarative
 // persistentVolumeClaimRetentionPolicy is only honored on Kubernetes 1.27+ with
 // the StatefulSetAutoDeletePVC feature gate enabled, so the operator reclaims
@@ -176,7 +208,7 @@ func renderVolumeClaimTemplates(mc v1beta1.Milvus) ([]corev1.PersistentVolumeCla
 //
 // StatefulSet names its PVCs "<templateName>-<stsName>-<ordinal>". PVCs whose
 // ordinal is >= the desired replica count are stale and safe to remove.
-func (r *MilvusReconciler) cleanupScaledDownQueryNodePVCs(ctx context.Context, mc v1beta1.Milvus, sts *appsv1.StatefulSet) error {
+func (r *MilvusReconciler) cleanupScaledDownStatefulSetPVCs(ctx context.Context, mc v1beta1.Milvus, sts *appsv1.StatefulSet) error {
 	if len(sts.Spec.VolumeClaimTemplates) == 0 {
 		return nil
 	}
@@ -229,7 +261,7 @@ func matchStatefulSetPVCOrdinal(pvcName string, prefixes []string) (int32, bool)
 	return 0, false
 }
 
-// reconcileQueryNodePVCExpansion grows the per-replica PVCs when the desired
+// reconcileStatefulSetPVCExpansion grows the per-replica PVCs when the desired
 // storage request in a volumeClaimTemplate increases. StatefulSet's
 // volumeClaimTemplates are immutable after creation, so the operator patches the
 // existing PVC objects directly (only expansion — shrink is rejected by
@@ -238,14 +270,14 @@ func matchStatefulSetPVCOrdinal(pvcName string, prefixes []string) (int32, bool)
 // online without restarting pods; storage that cannot expand (e.g. local-SSD)
 // rejects the patch, which is logged and left for the operator to resolve rather
 // than retried in a tight loop.
-func (r *MilvusReconciler) reconcileQueryNodePVCExpansion(ctx context.Context, mc v1beta1.Milvus, sts *appsv1.StatefulSet) error {
+func (r *MilvusReconciler) reconcileStatefulSetPVCExpansion(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent, sts *appsv1.StatefulSet) error {
 	if len(sts.Spec.VolumeClaimTemplates) == 0 {
 		return nil
 	}
 	logger := ctrl.LoggerFrom(ctx)
 
 	// desired size per template name (from the current spec, not the immutable STS template)
-	desiredTemplates, err := renderVolumeClaimTemplates(mc)
+	desiredTemplates, err := renderVolumeClaimTemplates(mc, component)
 	if err != nil {
 		return err
 	}
@@ -442,107 +474,144 @@ func getStatefulSetReplicas(sts *appsv1.StatefulSet) int32 {
 	return *sts.Spec.Replicas
 }
 
-// cleanupQueryNodeWorkloadMode reconciles the workload kind for QueryNode: when
-// StatefulSet mode is enabled it removes any leftover Deployment-based querynode
-// workloads; it always prunes StatefulSets (and their headless services) that are
-// no longer desired — StatefulSets of removed deployment groups, or all of them
-// when StatefulSet mode is turned off. Switching modes restarts QueryNode.
-func (r *MilvusReconciler) cleanupQueryNodeWorkloadMode(ctx context.Context, mc v1beta1.Milvus) error {
+// deleteComponentStatefulSetIfExists deletes a single component's StatefulSet
+// (plus its per-replica PVCs and headless service) if it exists. Used when a
+// component is being offlined (e.g. IndexNode on 2.6+).
+func (r *MilvusReconciler) deleteComponentStatefulSetIfExists(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
+	sts := &appsv1.StatefulSet{}
+	name := component.GetDeploymentName(mc.Name)
+	err := r.Get(ctx, NamespacedName(mc.Namespace, name), sts)
+	if kerrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return pkgerr.Wrapf(err, "get %s statefulset", component.Name)
+	}
+	ctrl.LoggerFrom(ctx).Info("Delete component statefulset", "component", component.Name, "name", name)
+	if err := r.Delete(ctx, sts); err != nil && !kerrors.IsNotFound(err) {
+		return pkgerr.Wrapf(err, "delete %s statefulset", component.Name)
+	}
+	if err := r.deletePVCsForStatefulSet(ctx, mc, component, sts); err != nil {
+		return err
+	}
+	svc := &corev1.Service{}
+	if err := r.Get(ctx, NamespacedName(mc.Namespace, name), svc); err == nil {
+		if err := r.Delete(ctx, svc); err != nil && !kerrors.IsNotFound(err) {
+			return pkgerr.Wrapf(err, "delete %s statefulset service", component.Name)
+		}
+	} else if !kerrors.IsNotFound(err) {
+		return pkgerr.Wrapf(err, "get %s statefulset service", component.Name)
+	}
+	return nil
+}
+
+// cleanupStatefulSetWorkloadModes reconciles the workload kind for the
+// StatefulSet-capable components (QueryNode/DataNode/IndexNode): when a
+// component's StatefulSet mode is enabled it removes any leftover
+// Deployment-based workloads; it always prunes StatefulSets (and their headless
+// services + PVCs) that are no longer desired — StatefulSets of removed
+// deployment groups, or all of them when a component's StatefulSet mode is turned
+// off. Switching modes restarts the component.
+func (r *MilvusReconciler) cleanupStatefulSetWorkloadModes(ctx context.Context, mc v1beta1.Milvus) error {
 	if mc.Spec.Mode != v1beta1.MilvusModeCluster {
 		return nil
 	}
-	if mc.Spec.Com.QueryNode.StatefulSetEnabled() {
-		if err := r.deleteLegacyQueryNodeDeployments(ctx, mc); err != nil {
-			return err
+	for _, component := range statefulSetCapableComponents() {
+		if componentUsesStatefulSet(mc, component) {
+			if err := r.deleteLegacyComponentDeployments(ctx, mc, component); err != nil {
+				return err
+			}
 		}
 	}
-	return r.cleanupStaleQueryNodeStatefulSets(ctx, mc)
+	return r.cleanupStaleStatefulSets(ctx, mc)
 }
 
-// deleteLegacyQueryNodeDeployments removes any Deployment-based querynode
-// workloads left over after switching QueryNode to StatefulSet mode.
-func (r *MilvusReconciler) deleteLegacyQueryNodeDeployments(ctx context.Context, mc v1beta1.Milvus) error {
+// deleteLegacyComponentDeployments removes any Deployment-based workloads of a
+// component left over after switching it to StatefulSet mode.
+func (r *MilvusReconciler) deleteLegacyComponentDeployments(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
 	deployments := &appsv1.DeploymentList{}
 	opts := &client.ListOptions{
 		Namespace:     mc.Namespace,
-		LabelSelector: labels.SelectorFromSet(NewComponentAppLabels(mc.Name, QueryNode.Name)),
+		LabelSelector: labels.SelectorFromSet(NewComponentAppLabels(mc.Name, component.Name)),
 	}
 	if err := r.List(ctx, deployments, opts); err != nil {
-		return pkgerr.Wrap(err, "list legacy querynode deployments")
+		return pkgerr.Wrapf(err, "list legacy %s deployments", component.Name)
 	}
 	for i := range deployments.Items {
 		deployment := &deployments.Items[i]
 		if !metav1.IsControlledBy(deployment, &mc) {
 			continue
 		}
-		ctrl.LoggerFrom(ctx).Info("Delete legacy querynode deployment for statefulset mode", "name", deployment.Name)
+		ctrl.LoggerFrom(ctx).Info("Delete legacy deployment for statefulset mode",
+			"component", component.Name, "name", deployment.Name)
 		if err := r.Delete(ctx, deployment); err != nil && !kerrors.IsNotFound(err) {
-			return pkgerr.Wrapf(err, "delete legacy querynode deployment %s", deployment.Name)
+			return pkgerr.Wrapf(err, "delete legacy %s deployment %s", component.Name, deployment.Name)
 		}
 	}
 	return nil
 }
 
-// cleanupStaleQueryNodeStatefulSets deletes owned querynode StatefulSets (and
-// their headless services) whose names are no longer desired. Desired names are
-// empty when StatefulSet mode is off (full revert to Deployment mode), otherwise
-// one per StatefulSet-backed querynode workload — covering the ungrouped case and
-// every currently-desired deployment group. This reclaims the StatefulSets of
-// removed groups.
-func (r *MilvusReconciler) cleanupStaleQueryNodeStatefulSets(ctx context.Context, mc v1beta1.Milvus) error {
+// cleanupStaleStatefulSets deletes owned StatefulSets (and their headless
+// services + PVCs) whose names are no longer desired, across all
+// StatefulSet-capable components. Desired names are one per StatefulSet-backed
+// workload (covering ungrouped and every currently-desired deployment group);
+// empty for a component whose StatefulSet mode is off. This reclaims the
+// StatefulSets of removed groups and of components reverted to Deployment mode.
+func (r *MilvusReconciler) cleanupStaleStatefulSets(ctx context.Context, mc v1beta1.Milvus) error {
 	desired := map[string]struct{}{}
 	for _, workload := range GetComponentWorkloadsBySpec(mc.Spec) {
-		if queryNodeUsesStatefulSet(mc, workload) {
+		if componentUsesStatefulSet(mc, workload) {
 			desired[workload.GetDeploymentName(mc.Name)] = struct{}{}
 		}
 	}
 
-	stsList := &appsv1.StatefulSetList{}
-	if err := r.List(ctx, stsList,
-		client.InNamespace(mc.Namespace),
-		client.MatchingLabels(NewComponentAppLabels(mc.Name, QueryNode.Name))); err != nil {
-		return pkgerr.Wrap(err, "list querynode statefulsets")
-	}
-
-	for i := range stsList.Items {
-		sts := &stsList.Items[i]
-		if !metav1.IsControlledBy(sts, &mc) {
-			continue
+	for _, component := range statefulSetCapableComponents() {
+		stsList := &appsv1.StatefulSetList{}
+		if err := r.List(ctx, stsList,
+			client.InNamespace(mc.Namespace),
+			client.MatchingLabels(NewComponentAppLabels(mc.Name, component.Name))); err != nil {
+			return pkgerr.Wrapf(err, "list %s statefulsets", component.Name)
 		}
-		if _, ok := desired[sts.Name]; ok {
-			continue
-		}
-		ctrl.LoggerFrom(ctx).Info("Delete stale querynode statefulset", "name", sts.Name)
-		if err := r.Delete(ctx, sts); err != nil && !kerrors.IsNotFound(err) {
-			return pkgerr.Wrapf(err, "delete stale querynode statefulset %s", sts.Name)
-		}
-		// Reclaim the per-replica PVCs of the deleted StatefulSet. Kubernetes does
-		// not delete a StatefulSet's PVCs on its own; QueryNode is a stateless
-		// cache (data is authoritative in object storage) so leaving them behind
-		// only wastes storage. PVC names are "<templateName>-<stsName>-<ordinal>".
-		if err := r.deleteQueryNodePVCsForStatefulSet(ctx, mc, sts); err != nil {
-			return err
-		}
-		// The headless service shares the StatefulSet name.
-		svc := &corev1.Service{}
-		err := r.Get(ctx, NamespacedName(mc.Namespace, sts.Name), svc)
-		if err == nil {
-			if err := r.Delete(ctx, svc); err != nil && !kerrors.IsNotFound(err) {
-				return pkgerr.Wrapf(err, "delete stale querynode statefulset service %s", sts.Name)
+		for i := range stsList.Items {
+			sts := &stsList.Items[i]
+			if !metav1.IsControlledBy(sts, &mc) {
+				continue
 			}
-		} else if !kerrors.IsNotFound(err) {
-			return pkgerr.Wrapf(err, "get stale querynode statefulset service %s", sts.Name)
+			if _, ok := desired[sts.Name]; ok {
+				continue
+			}
+			ctrl.LoggerFrom(ctx).Info("Delete stale statefulset", "component", component.Name, "name", sts.Name)
+			if err := r.Delete(ctx, sts); err != nil && !kerrors.IsNotFound(err) {
+				return pkgerr.Wrapf(err, "delete stale statefulset %s", sts.Name)
+			}
+			// Reclaim the per-replica PVCs of the deleted StatefulSet. Kubernetes does
+			// not delete a StatefulSet's PVCs on its own; these components are stateless
+			// caches (data is authoritative in object storage) so leaving them behind
+			// only wastes storage. PVC names are "<templateName>-<stsName>-<ordinal>".
+			if err := r.deletePVCsForStatefulSet(ctx, mc, component, sts); err != nil {
+				return err
+			}
+			// The headless service shares the StatefulSet name.
+			svc := &corev1.Service{}
+			err := r.Get(ctx, NamespacedName(mc.Namespace, sts.Name), svc)
+			if err == nil {
+				if err := r.Delete(ctx, svc); err != nil && !kerrors.IsNotFound(err) {
+					return pkgerr.Wrapf(err, "delete stale statefulset service %s", sts.Name)
+				}
+			} else if !kerrors.IsNotFound(err) {
+				return pkgerr.Wrapf(err, "get stale statefulset service %s", sts.Name)
+			}
 		}
 	}
 	return nil
 }
 
-// deleteQueryNodePVCsForStatefulSet reclaims all per-replica PVCs provisioned by
-// a (now-deleted) querynode StatefulSet. It matches PVCs by the exact
+// deletePVCsForStatefulSet reclaims all per-replica PVCs provisioned by a
+// (now-deleted) StatefulSet. It matches PVCs by the exact
 // "<templateName>-<stsName>-<ordinal>" naming scheme (ordinal must be numeric),
 // so an ungrouped StatefulSet's cleanup never matches a group's PVCs (whose name
 // has a non-numeric "-<group>-<ordinal>" tail).
-func (r *MilvusReconciler) deleteQueryNodePVCsForStatefulSet(ctx context.Context, mc v1beta1.Milvus, sts *appsv1.StatefulSet) error {
+func (r *MilvusReconciler) deletePVCsForStatefulSet(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent, sts *appsv1.StatefulSet) error {
 	prefixes := make([]string, 0, len(sts.Spec.VolumeClaimTemplates))
 	for i := range sts.Spec.VolumeClaimTemplates {
 		prefixes = append(prefixes, sts.Spec.VolumeClaimTemplates[i].Name+"-"+sts.Name+"-")
@@ -554,8 +623,8 @@ func (r *MilvusReconciler) deleteQueryNodePVCsForStatefulSet(ctx context.Context
 	pvcList := &corev1.PersistentVolumeClaimList{}
 	if err := r.List(ctx, pvcList,
 		client.InNamespace(mc.Namespace),
-		client.MatchingLabels(NewComponentAppLabels(mc.Name, QueryNode.Name))); err != nil {
-		return pkgerr.Wrap(err, "list querynode pvcs for stale statefulset")
+		client.MatchingLabels(NewComponentAppLabels(mc.Name, component.Name))); err != nil {
+		return pkgerr.Wrapf(err, "list %s pvcs for stale statefulset", component.Name)
 	}
 	for i := range pvcList.Items {
 		pvc := &pvcList.Items[i]
@@ -565,9 +634,9 @@ func (r *MilvusReconciler) deleteQueryNodePVCsForStatefulSet(ctx context.Context
 		if _, ok := matchStatefulSetPVCOrdinal(pvc.Name, prefixes); !ok {
 			continue
 		}
-		ctrl.LoggerFrom(ctx).Info("Delete stale querynode pvc", "pvc", pvc.Name, "statefulset", sts.Name)
+		ctrl.LoggerFrom(ctx).Info("Delete stale pvc", "component", component.Name, "pvc", pvc.Name, "statefulset", sts.Name)
 		if err := r.Delete(ctx, pvc); err != nil && !kerrors.IsNotFound(err) {
-			return pkgerr.Wrapf(err, "delete stale querynode pvc %s", pvc.Name)
+			return pkgerr.Wrapf(err, "delete stale pvc %s", pvc.Name)
 		}
 	}
 	return nil

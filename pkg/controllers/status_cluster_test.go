@@ -538,7 +538,7 @@ func TestComponentsDeployStatusUpdaterImpl_Update(t *testing.T) {
 		m1.Spec.Mode = v1beta1.MilvusModeCluster
 		m1.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
 		m1.Default()
-		m1.Spec.Com.QueryNode.StatefulSet = &v1beta1.QueryNodeStatefulSet{Enabled: true}
+		m1.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
 		scheme, _ := v1beta1.SchemeBuilder.Build()
 		// deployment list returns nothing for querynode (it's an STS)
 		mockCli.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
@@ -564,7 +564,7 @@ func TestComponentsDeployStatusUpdaterImpl_Update(t *testing.T) {
 		m1.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
 		m1.Default()
 		replicas := int32(1)
-		m1.Spec.Com.QueryNode.StatefulSet = &v1beta1.QueryNodeStatefulSet{Enabled: true}
+		m1.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
 		m1.Spec.Com.QueryNode.Groups = []v1beta1.DeploymentGroup{
 			{Name: "g1", Replicas: &replicas},
 			{Name: "g2", Replicas: &replicas},
