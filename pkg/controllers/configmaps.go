@@ -127,6 +127,17 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 		// Credentials from secretRef are injected into the pods as env vars, not
 		// written here: a configmap has no encryption at rest, no RBAC separation
 		// from ordinary config, and is excluded from secret scanning.
+		if mc.Spec.Dep.Kafka.SecretRef != "" {
+			kafkaSecret, err := getKafkaSecret(ctx, r.Client, mc)
+			if err != nil {
+				return err
+			}
+			// A path, not the cert: the operator mounts it from the same secret.
+			if len(kafkaSecret.CACert) > 0 {
+				util.SetValue(conf, true, "kafka", "ssl", "enabled")
+				util.SetValue(conf, KafkaCACertPath, "kafka", "ssl", "tlsCaCert")
+			}
+		}
 		// delete other mq config to make milvus use kafka
 		delete(conf, "pulsar")
 		delete(conf, "rocksmq")

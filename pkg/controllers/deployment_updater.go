@@ -335,6 +335,9 @@ func updateBuiltInVolumes(template *corev1.PodTemplateSpec, updater deploymentUp
 		configVolumeByName(updater.GetMilvus().GetActiveConfigMap()),
 		toolVolume,
 	}
+	if secretRef := updater.GetKafkaSecretRef(); secretRef != "" {
+		builtInVolumes = append(builtInVolumes, kafkaCAVolumeBySecret(secretRef))
+	}
 	for _, volume := range builtInVolumes {
 		addVolume(&template.Spec.Volumes, volume)
 	}
@@ -424,6 +427,9 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 	builtInVolumeMounts := []corev1.VolumeMount{
 		configVolumeMount,
 		toolVolumeMount,
+	}
+	if updater.GetKafkaSecretRef() != "" {
+		builtInVolumeMounts = append(builtInVolumeMounts, kafkaCAVolumeMount)
 	}
 	removeVolumeMounts(&container.VolumeMounts, MilvusConfigVolumeName)
 	for _, volumeMount := range builtInVolumeMounts {

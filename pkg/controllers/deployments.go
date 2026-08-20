@@ -37,6 +37,10 @@ const (
 	AnnotationCheckSum         = "checksum/config"
 	AnnotationMilvusGeneration = v1beta1.AnnotationMilvusGeneration
 
+	KafkaCAVolumeName = "kafka-ca"
+	KafkaCAMountPath  = MilvusConfigRootPath + "/kafka-ca"
+	KafkaCACertPath   = KafkaCAMountPath + "/" + KafkaCACertKey
+
 	ToolsVolumeName = "tools"
 	ToolsMountPath  = "/milvus/tools"
 	RunScriptPath   = ToolsMountPath + "/run.sh"
@@ -625,7 +629,32 @@ var (
 		ReadOnly:  true,
 		MountPath: MilvusConfigmapMountPath,
 	}
+
+	kafkaCAVolumeMount = corev1.VolumeMount{
+		Name:      KafkaCAVolumeName,
+		ReadOnly:  true,
+		MountPath: KafkaCAMountPath,
+	}
 )
+
+// kafkaCAVolumeBySecret mounts only the CA cert out of the kafka secret, so the
+// credentials in it are not exposed as files. It is optional: a secret without a
+// CA cert is the normal case for publicly trusted brokers.
+func kafkaCAVolumeBySecret(name string) corev1.Volume {
+	readOnlyMode := int32(0444)
+	optional := true
+	return corev1.Volume{
+		Name: KafkaCAVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName:  name,
+				Items:       []corev1.KeyToPath{{Key: KafkaCACertKey, Path: KafkaCACertKey}},
+				DefaultMode: &readOnlyMode,
+				Optional:    &optional,
+			},
+		},
+	}
+}
 
 func configVolumeByName(name string) corev1.Volume {
 	// so that non root user can change the config

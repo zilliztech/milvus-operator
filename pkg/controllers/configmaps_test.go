@@ -344,11 +344,21 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		cm := &corev1.ConfigMap{}
 		cm.Namespace = "ns"
 		cm.Name = "cm1"
-		// only the minio secret is read; the kafka credentials reach the pods as env
+		// the minio secret (NotFound) and the kafka secret, read for the CA only
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
-			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")).
-			Times(1)
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				if key.Name != mc.Spec.Dep.Kafka.SecretRef {
+					return k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")
+				}
+				obj.(*corev1.Secret).Data = map[string][]byte{
+					KafkaSaslUsernameKey: []byte("kafka-user"),
+					KafkaSaslPasswordKey: []byte("kafka-pass"),
+					KafkaCACertKey:       []byte("ca-cert-bytes"),
+				}
+				return nil
+			}).
+			Times(2)
 
 		err := r.updateConfigMap(ctx, mc, cm)
 		assert.NoError(t, err)
@@ -359,6 +369,41 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		assert.Equal(t, []interface{}{"broker:9092"}, kafka["brokerList"])
 		assert.NotContains(t, kafka, "saslUsername")
 		assert.NotContains(t, kafka, "saslPassword")
+		// only a path to the mounted cert, never the cert itself
+		ssl := kafka["ssl"].(map[string]interface{})
+		assert.Equal(t, true, ssl["enabled"])
+		assert.Equal(t, KafkaCACertPath, ssl["tlsCaCert"])
+		assert.NotContains(t, cm.Data[UserYaml], "ca-cert-bytes")
+	})
+
+	t.Run("kafka secret without a CA leaves ssl alone", func(t *testing.T) {
+		mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		mc.Spec.Dep.Kafka.BrokerList = []string{"broker:9092"}
+		mc.Spec.Dep.Kafka.SecretRef = "kafka-sasl-secret"
+		mc.Spec.Conf.Data = nil
+		cm := &corev1.ConfigMap{}
+		cm.Namespace = "ns"
+		cm.Name = "cm1"
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				if key.Name != mc.Spec.Dep.Kafka.SecretRef {
+					return k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")
+				}
+				obj.(*corev1.Secret).Data = map[string][]byte{
+					KafkaSaslUsernameKey: []byte("kafka-user"),
+					KafkaSaslPasswordKey: []byte("kafka-pass"),
+				}
+				return nil
+			}).
+			Times(2)
+
+		err := r.updateConfigMap(ctx, mc, cm)
+		assert.NoError(t, err)
+
+		conf := map[string]interface{}{}
+		assert.NoError(t, yaml.Unmarshal([]byte(cm.Data[UserYaml]), &conf))
+		assert.NotContains(t, conf["kafka"].(map[string]interface{}), "ssl")
 	})
 }
 

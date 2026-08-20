@@ -23,6 +23,56 @@ func TestMilvusDeploymentUpdater_KafkaSecretRefEnv(t *testing.T) {
 		assert.Empty(t, updater.GetKafkaSecretRef())
 	})
 
+	t.Run("CA volume follows secretRef", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		inst.Spec.Dep.Kafka.SecretRef = "kafka-secret"
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+
+		template := new(corev1.PodTemplateSpec)
+		template.Annotations = map[string]string{}
+		updateMilvusContainer(template, updater, true)
+		updateBuiltInVolumes(template, updater)
+		updateBuiltInVolumeMounts(template, updater)
+
+		var volume *corev1.Volume
+		for i := range template.Spec.Volumes {
+			if template.Spec.Volumes[i].Name == KafkaCAVolumeName {
+				volume = &template.Spec.Volumes[i]
+			}
+		}
+		assert.NotNil(t, volume)
+		assert.Equal(t, "kafka-secret", volume.Secret.SecretName)
+		// only the CA is projected, so the credentials are not exposed as files
+		assert.Equal(t, []corev1.KeyToPath{{Key: KafkaCACertKey, Path: KafkaCACertKey}}, volume.Secret.Items)
+		assert.True(t, *volume.Secret.Optional)
+
+		idx := GetContainerIndex(template.Spec.Containers, MilvusStandalone.Name)
+		var mounted bool
+		for _, m := range template.Spec.Containers[idx].VolumeMounts {
+			if m.Name == KafkaCAVolumeName {
+				mounted = true
+				assert.Equal(t, KafkaCAMountPath, m.MountPath)
+				assert.True(t, m.ReadOnly)
+			}
+		}
+		assert.True(t, mounted)
+	})
+
+	t.Run("no CA volume without secretRef", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		inst.Spec.Dep.Kafka.SecretRef = ""
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+
+		template := new(corev1.PodTemplateSpec)
+		template.Annotations = map[string]string{}
+		updateBuiltInVolumes(template, updater)
+		for _, v := range template.Spec.Volumes {
+			assert.NotEqual(t, KafkaCAVolumeName, v.Name)
+		}
+	})
+
 	t.Run("credentials reach the container", func(t *testing.T) {
 		inst := env.Inst.DeepCopy()
 		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
