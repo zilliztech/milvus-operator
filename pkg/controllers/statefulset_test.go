@@ -126,6 +126,8 @@ func TestUpdateStatefulSet(t *testing.T) {
 	mc := newStatefulSetTestMilvus()
 	replicas := int32(3)
 	mc.Spec.Com.QueryNode.Replicas = &replicas
+	rolling := true
+	mc.Spec.Com.EnableRollingUpdate = &rolling
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{Name: QueryNode.GetDeploymentName(mc.Name), Namespace: mc.Namespace},
@@ -138,6 +140,8 @@ func TestUpdateStatefulSet(t *testing.T) {
 	assert.Equal(t, QueryNode.Name, sts.Spec.Selector.MatchLabels[AppLabelComponent])
 	assert.Equal(t, QueryNode.GetStatefulSetServiceName(mc.Name), sts.Spec.ServiceName)
 	assert.Equal(t, appsv1.RollingUpdateStatefulSetStrategyType, sts.Spec.UpdateStrategy.Type)
+	// MinReadySeconds mirrors the Deployment path when rolling update is enabled
+	assert.Equal(t, int32(30), sts.Spec.MinReadySeconds)
 
 	// replicas
 	assert.NotNil(t, sts.Spec.Replicas)
@@ -163,7 +167,12 @@ func TestUpdateStatefulSetWithGroup(t *testing.T) {
 	r := env.Reconciler
 	mc := newStatefulSetTestMilvus()
 	groupReplicas := int32(2)
-	group := v1beta1.DeploymentGroup{Name: "g1", Replicas: &groupReplicas}
+	group := v1beta1.DeploymentGroup{
+		Name:        "g1",
+		Replicas:    &groupReplicas,
+		Labels:      map[string]string{"topology.example/zone": "az-1"},
+		Annotations: map[string]string{"example.com/note": "hello"},
+	}
 	workload := QueryNode
 	workload.DeploymentGroup = &group
 
@@ -182,6 +191,10 @@ func TestUpdateStatefulSetWithGroup(t *testing.T) {
 	assert.Equal(t, int32(2), *sts.Spec.Replicas)
 	// group label stamped on the PVC template too
 	assert.Equal(t, "g1", sts.Spec.VolumeClaimTemplates[0].Labels[v1beta1.DeploymentGroupLabel])
+	// group custom labels/annotations propagate to the StatefulSet object
+	// (mirrors the Deployment path); no blue/green group-id label on STS.
+	assert.Equal(t, "az-1", sts.Labels["topology.example/zone"])
+	assert.Equal(t, "hello", sts.Annotations["example.com/note"])
 }
 
 func TestUpdateStatefulSetPausedAndManualMode(t *testing.T) {
