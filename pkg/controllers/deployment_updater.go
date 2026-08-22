@@ -30,6 +30,7 @@ type deploymentUpdater interface {
 	GetMergedComponentSpec() ComponentSpec
 	GetArgs() []string
 	GetSecretRef() string
+	GetKafkaSecretRef() string
 	GetStorageEndpointEnv() []corev1.EnvVar
 	GetMilvus() *v1beta1.Milvus
 	RollingUpdateImageDependencyReady() bool
@@ -334,6 +335,9 @@ func updateBuiltInVolumes(template *corev1.PodTemplateSpec, updater deploymentUp
 		configVolumeByName(updater.GetMilvus().GetActiveConfigMap()),
 		toolVolume,
 	}
+	if secretRef := updater.GetKafkaSecretRef(); secretRef != "" {
+		builtInVolumes = append(builtInVolumes, kafkaCAVolumeBySecret(secretRef))
+	}
 	for _, volume := range builtInVolumes {
 		addVolume(&template.Spec.Volumes, volume)
 	}
@@ -354,6 +358,7 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	container.Args = updater.GetArgs()
 	env := MergeEnvVar(updater.GetStorageEndpointEnv(), mergedComSpec.Env)
 	env = append(env, GetStorageSecretRefEnv(updater.GetSecretRef())...)
+	env = append(env, GetKafkaSecretRefEnv(updater.GetKafkaSecretRef())...)
 	container.Env = MergeEnvVar(container.Env, env)
 	metricPort := corev1.ContainerPort{
 		Name:          MetricPortName,
@@ -422,6 +427,9 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 	builtInVolumeMounts := []corev1.VolumeMount{
 		configVolumeMount,
 		toolVolumeMount,
+	}
+	if updater.GetKafkaSecretRef() != "" {
+		builtInVolumeMounts = append(builtInVolumeMounts, kafkaCAVolumeMount)
 	}
 	removeVolumeMounts(&container.VolumeMounts, MilvusConfigVolumeName)
 	for _, volumeMount := range builtInVolumeMounts {
@@ -658,6 +666,13 @@ func (m milvusDeploymentUpdater) GetArgs() []string {
 }
 func (m milvusDeploymentUpdater) GetSecretRef() string {
 	return m.Spec.Dep.Storage.SecretRef
+}
+
+func (m milvusDeploymentUpdater) GetKafkaSecretRef() string {
+	if m.Spec.Dep.MsgStreamType != v1beta1.MsgStreamTypeKafka {
+		return ""
+	}
+	return m.Spec.Dep.Kafka.SecretRef
 }
 
 func (m milvusDeploymentUpdater) GetMilvus() *v1beta1.Milvus {

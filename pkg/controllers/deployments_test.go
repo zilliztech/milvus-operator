@@ -332,6 +332,24 @@ func TestGetStorageSecretRefEnv(t *testing.T) {
 	assert.Len(t, ret, 4)
 }
 
+func TestGetKafkaSecretRefEnv(t *testing.T) {
+	assert.Len(t, GetKafkaSecretRefEnv(""), 0)
+
+	ret := GetKafkaSecretRefEnv("kafka-secret")
+	assert.Len(t, ret, 2)
+	// the order is fixed: a varying pod template would roll the pods forever
+	assert.Equal(t, "KAFKA_SASLPASSWORD", ret[0].Name)
+	assert.Equal(t, "KAFKA_SASLUSERNAME", ret[1].Name)
+	for _, env := range ret {
+		// referenced, never inlined: a value here would land in the deployment spec
+		assert.NotNil(t, env.ValueFrom.SecretKeyRef)
+		assert.Equal(t, "kafka-secret", env.ValueFrom.SecretKeyRef.Name)
+		assert.Empty(t, env.Value)
+	}
+	assert.Equal(t, KafkaSaslPasswordKey, ret[0].ValueFrom.SecretKeyRef.Key)
+	assert.Equal(t, KafkaSaslUsernameKey, ret[1].ValueFrom.SecretKeyRef.Key)
+}
+
 func TestGetStorageEndpointEnv(t *testing.T) {
 	tests := []struct {
 		name     string

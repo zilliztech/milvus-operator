@@ -11,6 +11,96 @@ import (
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
+func TestMilvusDeploymentUpdater_KafkaSecretRefEnv(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+
+	t.Run("no env for a non-kafka msgstream", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypePulsar
+		inst.Spec.Dep.Kafka.SecretRef = "stale-secret"
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		assert.Empty(t, updater.GetKafkaSecretRef())
+	})
+
+	t.Run("CA volume follows secretRef", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		inst.Spec.Dep.Kafka.SecretRef = "kafka-secret"
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+
+		template := new(corev1.PodTemplateSpec)
+		template.Annotations = map[string]string{}
+		updateMilvusContainer(template, updater, true)
+		updateBuiltInVolumes(template, updater)
+		updateBuiltInVolumeMounts(template, updater)
+
+		var volume *corev1.Volume
+		for i := range template.Spec.Volumes {
+			if template.Spec.Volumes[i].Name == KafkaCAVolumeName {
+				volume = &template.Spec.Volumes[i]
+			}
+		}
+		assert.NotNil(t, volume)
+		assert.Equal(t, "kafka-secret", volume.Secret.SecretName)
+		// only the CA is projected, so the credentials are not exposed as files
+		assert.Equal(t, []corev1.KeyToPath{{Key: KafkaCACertKey, Path: KafkaCACertKey}}, volume.Secret.Items)
+		assert.True(t, *volume.Secret.Optional)
+
+		idx := GetContainerIndex(template.Spec.Containers, MilvusStandalone.Name)
+		var mounted bool
+		for _, m := range template.Spec.Containers[idx].VolumeMounts {
+			if m.Name == KafkaCAVolumeName {
+				mounted = true
+				assert.Equal(t, KafkaCAMountPath, m.MountPath)
+				assert.True(t, m.ReadOnly)
+			}
+		}
+		assert.True(t, mounted)
+	})
+
+	t.Run("no CA volume without secretRef", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		inst.Spec.Dep.Kafka.SecretRef = ""
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+
+		template := new(corev1.PodTemplateSpec)
+		template.Annotations = map[string]string{}
+		updateBuiltInVolumes(template, updater)
+		for _, v := range template.Spec.Volumes {
+			assert.NotEqual(t, KafkaCAVolumeName, v.Name)
+		}
+	})
+
+	t.Run("credentials reach the container", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		inst.Spec.Dep.Kafka.SecretRef = "kafka-secret"
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		assert.Equal(t, "kafka-secret", updater.GetKafkaSecretRef())
+
+		template := new(corev1.PodTemplateSpec)
+		updateMilvusContainer(template, updater, true)
+		idx := GetContainerIndex(template.Spec.Containers, MilvusStandalone.Name)
+		assert.GreaterOrEqual(t, idx, 0)
+
+		byName := map[string]corev1.EnvVar{}
+		for _, e := range template.Spec.Containers[idx].Env {
+			byName[e.Name] = e
+		}
+		for name, key := range map[string]string{
+			"KAFKA_SASLUSERNAME": KafkaSaslUsernameKey,
+			"KAFKA_SASLPASSWORD": KafkaSaslPasswordKey,
+		} {
+			env, found := byName[name]
+			assert.True(t, found, name)
+			assert.Equal(t, "kafka-secret", env.ValueFrom.SecretKeyRef.Name)
+			assert.Equal(t, key, env.ValueFrom.SecretKeyRef.Key)
+		}
+	})
+}
+
 func TestMilvus_UpdateDeployment(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.checkMocks()

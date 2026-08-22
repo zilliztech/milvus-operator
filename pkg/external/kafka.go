@@ -3,7 +3,8 @@ package external
 import (
 	"context"
 	"crypto/tls"
-	"time"
+	"crypto/x509"
+	stderrors "errors"
 
 	"github.com/pkg/errors"
 	"github.com/segmentio/kafka-go"
@@ -21,6 +22,7 @@ type CheckKafkaConfig struct {
 	SASLMechanisms   string   `json:"saslMechanisms"`
 	SASLUsername     string   `json:"saslUsername"`
 	SASLPassword     string   `json:"saslPassword"`
+	CACert           []byte   `json:"-"`
 }
 
 // GetKafkaConfFromCR get check kafka config from CR
@@ -63,6 +65,13 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 	var saslMechanism sasl.Mechanism
 	if useTls {
 		tlsConfig = &tls.Config{}
+		if len(conf.CACert) > 0 {
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(conf.CACert) {
+				return nil, errors.New("no certificate found in kafka CA cert")
+			}
+			tlsConfig.RootCAs = pool
+		}
 	}
 	if useSasl {
 		switch conf.SASLMechanisms {
@@ -89,7 +98,9 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 }
 
 func CheckKafka(conf CheckKafkaConfig) error {
-	// make a new reader that consumes from _milvus-operator, partition 0, at offset 0
+	// A metadata request proves the brokers are reachable and that TLS & SASL
+	// succeed. It needs no topic to exist and no topic ACL, so it works on
+	// clusters where authorization is enabled and topics are managed elsewhere.
 	if len(conf.BrokerList) == 0 {
 		return errors.New("broker list is empty")
 	}
@@ -99,17 +110,41 @@ func CheckKafka(conf CheckKafkaConfig) error {
 		return errors.Wrap(err, "get kafka dialer failed")
 	}
 
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Dialer:  dialer,
-		Brokers: conf.BrokerList,
-		Topic:   "_milvus-operator",
-	})
-	defer r.Close()
 	var checkKafka = func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), DependencyCheckTimeout)
 		defer cancel()
-		err := r.SetOffsetAt(ctx, time.Now())
-		return errors.Wrap(err, "check consume offset from broker failed")
+		// Any broker answering is enough: the others may be mid-restart.
+		var errs []error
+		for _, broker := range conf.BrokerList {
+			err := checkKafkaBroker(ctx, dialer, broker)
+			if err == nil {
+				return nil
+			}
+			errs = append(errs, err)
+		}
+		return stderrors.Join(errs...)
 	}
 	return util.DoWithBackoff("checkKafka", checkKafka, util.DefaultMaxRetry, util.DefaultBackOffInterval)
+}
+
+// checkKafkaBroker dials one broker and asks it for cluster metadata. Dialing
+// covers TCP, TLS and the SASL handshake; the metadata request proves the
+// connection is usable and needs no topic and no topic ACL.
+// A var so the broker loop can be tested without a live cluster.
+var checkKafkaBroker = func(ctx context.Context, dialer *kafka.Dialer, broker string) error {
+	conn, err := dialer.DialContext(ctx, "tcp", broker)
+	if err != nil {
+		return errors.Wrapf(err, "dial broker[%s]", broker)
+	}
+	defer conn.Close()
+	// A conn has no deadline of its own, so metadata could outlive the timeout.
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(deadline); err != nil {
+			return errors.Wrapf(err, "set deadline on broker[%s]", broker)
+		}
+	}
+	if _, err := conn.Brokers(); err != nil {
+		return errors.Wrapf(err, "get metadata from broker[%s]", broker)
+	}
+	return nil
 }
