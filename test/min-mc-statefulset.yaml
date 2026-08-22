@@ -1,0 +1,89 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mc-sit
+---
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: milvus
+  namespace: mc-sit
+  labels:
+    app: milvus
+spec:
+  mode: "cluster"
+  components:
+    disableMetric: true
+    # QueryNode in StatefulSet mode: each replica gets a stable identity and its
+    # own PVC via volumeClaimTemplates. Uses the StatefulSet's native rolling
+    # update instead of the two-deployment blue/green rollout.
+    queryNode:
+      volumeMounts:
+        - name: qn-data
+          mountPath: /var/lib/milvus/qndata
+      statefulSet:
+        enabled: true
+        volumeClaimTemplates:
+          - metadata:
+              name: qn-data
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 1Gi
+    # DataNode in StatefulSet mode as well (DataNode does not run the two-deployment
+    # rollout, so this is the simpler path).
+    dataNode:
+      volumeMounts:
+        - name: dn-data
+          mountPath: /var/lib/milvus/dndata
+      statefulSet:
+        enabled: true
+        volumeClaimTemplates:
+          - metadata:
+              name: dn-data
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 1Gi
+    proxy:
+      ingress:
+        hosts: ["mc-sit.milvus.io"]
+  dependencies:
+    etcd:
+      inCluster:
+        deletionPolicy: Delete
+        pvcDeletion: true
+        values:
+          replicaCount: 1
+    msgStreamType: kafka
+    kafka:
+      inCluster:
+        deletionPolicy: Delete
+        pvcDeletion: true
+        values:
+          persistence:
+            enabled: true
+            storageClass:
+            accessMode: ReadWriteOnce
+            size: 20Gi
+          heapOpts: -Xmx512m -Xms320m
+          defaultReplicationFactor: 1
+          offsetsTopicReplicationFactor: 1
+          replicaCount: 1
+          zookeeper:
+            replicaCount: 1
+    storage:
+      inCluster:
+        deletionPolicy: Delete
+        pvcDeletion: true
+        values:
+          mode: standalone
+          persistence:
+            size: 20Gi
+  config:
+    milvus:
+      log:
+        level: info
