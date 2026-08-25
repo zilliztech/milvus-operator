@@ -290,6 +290,36 @@ func TestSynthesizeStatefulSetStatus(t *testing.T) {
 		assert.NotEqual(t, v1beta1.DeploymentComplete, status.GetState())
 	})
 
+	t.Run("not available until min ready seconds are satisfied", func(t *testing.T) {
+		sts := base()
+		sts.Status.ObservedGeneration = 5
+		sts.Status.Replicas = 2
+		sts.Status.UpdatedReplicas = 2
+		sts.Status.ReadyReplicas = 2
+		sts.Status.AvailableReplicas = 1
+		sts.Status.CurrentRevision = "rev-1"
+		sts.Status.UpdateRevision = "rev-1"
+
+		status := synthesizeStatefulSetStatus(QueryNode, sts)
+		assert.False(t, DeploymentReady(status.Status))
+		assert.Equal(t, int32(1), status.Status.UnavailableReplicas)
+	})
+
+	t.Run("scale down clamps unavailable replicas at zero", func(t *testing.T) {
+		sts := base()
+		replicas := int32(1)
+		sts.Spec.Replicas = &replicas
+		sts.Status.ObservedGeneration = 5
+		sts.Status.Replicas = 2
+		sts.Status.UpdatedReplicas = 1
+		sts.Status.ReadyReplicas = 2
+		sts.Status.AvailableReplicas = 2
+
+		status := synthesizeStatefulSetStatus(QueryNode, sts)
+		assert.Equal(t, int32(0), status.Status.UnavailableReplicas)
+		assert.True(t, DeploymentReady(status.Status))
+	})
+
 	t.Run("not observed yet is progressing", func(t *testing.T) {
 		sts := base()
 		sts.Status.ObservedGeneration = 4

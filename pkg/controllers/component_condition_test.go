@@ -244,6 +244,7 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 				sts.Spec.Replicas = &one
 				sts.Status.ObservedGeneration = 1
 				sts.Status.ReadyReplicas = 1
+				sts.Status.AvailableReplicas = 1
 				sts.Status.UpdatedReplicas = 1
 				sts.Status.CurrentRevision = "r1"
 				sts.Status.UpdateRevision = "r1"

@@ -417,6 +417,11 @@ func synthesizeStatefulSetStatus(component MilvusComponent, sts *appsv1.Stateful
 		desired = *sts.Spec.Replicas
 	}
 	ready := sts.Status.ReadyReplicas
+	available := sts.Status.AvailableReplicas
+	unavailable := desired - available
+	if unavailable < 0 {
+		unavailable = 0
+	}
 	updated := sts.Status.UpdatedReplicas
 	observed := sts.Status.ObservedGeneration >= sts.Generation
 	rolloutComplete := observed && updated == desired && sts.Status.CurrentRevision == sts.Status.UpdateRevision
@@ -426,8 +431,8 @@ func synthesizeStatefulSetStatus(component MilvusComponent, sts *appsv1.Stateful
 		Replicas:            sts.Status.Replicas,
 		UpdatedReplicas:     updated,
 		ReadyReplicas:       ready,
-		AvailableReplicas:   sts.Status.AvailableReplicas,
-		UnavailableReplicas: desired - ready,
+		AvailableReplicas:   available,
+		UnavailableReplicas: unavailable,
 	}
 
 	now := metav1.Now()
@@ -442,7 +447,7 @@ func synthesizeStatefulSetStatus(component MilvusComponent, sts *appsv1.Stateful
 		progressing.Reason = v1beta1.NewReplicaSetAvailableReason
 	}
 	availableStatus := corev1.ConditionFalse
-	if ready >= desired && desired > 0 {
+	if available >= desired && desired > 0 {
 		availableStatus = corev1.ConditionTrue
 	}
 	deployStatus.Conditions = []appsv1.DeploymentCondition{
