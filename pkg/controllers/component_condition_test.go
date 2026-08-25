@@ -11,7 +11,9 @@ import (
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -210,6 +212,74 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *milvus26)
 		assert.NoError(t, err)
 		assert.Equal(t, corev1.ConditionTrue, ret.Status)
+	})
+
+	t.Run("querynode statefulset ready", func(t *testing.T) {
+		stsInst := &v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "nssts", Name: "mcsts", UID: "uidsts"}}
+		stsInst.Spec.Mode = v1beta1.MilvusModeCluster
+		stsInst.Default()
+		stsInst.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
+		// Deployments: all non-querynode components ready.
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
+			Do(func(_ interface{}, list *appsv1.DeploymentList, _ interface{}) {
+				for _, c := range Milvus2_6Components {
+					if c.Is(QueryNode) {
+						continue
+					}
+					d := appsv1.Deployment{}
+					d.Labels = map[string]string{AppLabelComponent: c.Name}
+					d.OwnerReferences = []metav1.OwnerReference{{Controller: &trueVal, UID: "uidsts"}}
+					d.Status = readyDeployStatus
+					list.Items = append(list.Items, d)
+				}
+			}).Return(nil)
+		// querynode STS fetched by name, reports ready.
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
+			DoAndReturn(func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...any) error {
+				sts := obj.(*appsv1.StatefulSet)
+				sts.Name = key.Name
+				sts.Generation = 1
+				one := int32(1)
+				sts.Spec.Replicas = &one
+				sts.Status.ObservedGeneration = 1
+				sts.Status.ReadyReplicas = 1
+				sts.Status.AvailableReplicas = 1
+				sts.Status.UpdatedReplicas = 1
+				sts.Status.CurrentRevision = "r1"
+				sts.Status.UpdateRevision = "r1"
+				return nil
+			})
+		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *stsInst)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionTrue, ret.Status)
+	})
+
+	t.Run("querynode statefulset not ready", func(t *testing.T) {
+		stsInst := &v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "nssts2", Name: "mcsts2", UID: "uidsts2"}}
+		stsInst.Spec.Mode = v1beta1.MilvusModeCluster
+		stsInst.Default()
+		stsInst.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
+			Do(func(_ interface{}, list *appsv1.DeploymentList, _ interface{}) {
+				for _, c := range Milvus2_6Components {
+					if c.Is(QueryNode) {
+						continue
+					}
+					d := appsv1.Deployment{}
+					d.Labels = map[string]string{AppLabelComponent: c.Name}
+					d.OwnerReferences = []metav1.OwnerReference{{Controller: &trueVal, UID: "uidsts2"}}
+					d.Status = readyDeployStatus
+					list.Items = append(list.Items, d)
+				}
+			}).Return(nil)
+		// querynode STS not found -> not ready.
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
+		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *stsInst)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionFalse, ret.Status)
 	})
 
 }

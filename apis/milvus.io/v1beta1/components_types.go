@@ -350,6 +350,34 @@ type MilvusQueryNode struct {
 	// +listType=map
 	// +listMapKey=name
 	Groups []DeploymentGroup `json:"groups,omitempty"`
+
+	// StatefulSet, when enabled, deploys QueryNode as a StatefulSet instead of a
+	// Deployment, so each replica gets a stable identity and dedicated PVC(s) via
+	// volumeClaimTemplates. In this mode QueryNode uses the StatefulSet's native
+	// rolling update instead of the two-deployment blue/green rollout, so it
+	// cannot be combined with rollingMode v3.
+	// +kubebuilder:validation:Optional
+	StatefulSet *ComponentStatefulSet `json:"statefulSet,omitempty"`
+}
+
+// ComponentStatefulSet configures a component's StatefulSet deployment mode.
+type ComponentStatefulSet struct {
+	// Enabled turns on StatefulSet mode for the component.
+	// +kubebuilder:validation:Optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// VolumeClaimTemplates is same as []corev1.PersistentVolumeClaimTemplate.
+	// We use Values here to avoid the CRD becoming too large. Reference a
+	// template by its metadata.name from the component's volumeMounts to mount
+	// the per-replica PVC.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	VolumeClaimTemplates []Values `json:"volumeClaimTemplates,omitempty"`
+}
+
+// StatefulSetEnabled reports whether QueryNode should be deployed as a StatefulSet.
+func (q *MilvusQueryNode) StatefulSetEnabled() bool {
+	return q != nil && q.StatefulSet != nil && q.StatefulSet.Enabled
 }
 
 type MilvusDataNode struct {
@@ -359,10 +387,32 @@ type MilvusDataNode struct {
 	// +listType=map
 	// +listMapKey=name
 	Groups []DeploymentGroup `json:"groups,omitempty"`
+
+	// StatefulSet, when enabled, deploys DataNode as a StatefulSet instead of a
+	// Deployment, so each replica gets a stable identity and dedicated PVC(s) via
+	// volumeClaimTemplates. Cannot be combined with rollingMode v3.
+	// +kubebuilder:validation:Optional
+	StatefulSet *ComponentStatefulSet `json:"statefulSet,omitempty"`
+}
+
+// StatefulSetEnabled reports whether DataNode should be deployed as a StatefulSet.
+func (d *MilvusDataNode) StatefulSetEnabled() bool {
+	return d != nil && d.StatefulSet != nil && d.StatefulSet.Enabled
 }
 
 type MilvusIndexNode struct {
 	Component `json:",inline"`
+
+	// StatefulSet, when enabled, deploys IndexNode as a StatefulSet instead of a
+	// Deployment, so each replica gets a stable identity and dedicated PVC(s) via
+	// volumeClaimTemplates. Cannot be combined with rollingMode v3.
+	// +kubebuilder:validation:Optional
+	StatefulSet *ComponentStatefulSet `json:"statefulSet,omitempty"`
+}
+
+// StatefulSetEnabled reports whether IndexNode should be deployed as a StatefulSet.
+func (i *MilvusIndexNode) StatefulSetEnabled() bool {
+	return i != nil && i.StatefulSet != nil && i.StatefulSet.Enabled
 }
 
 type MilvusProxy struct {

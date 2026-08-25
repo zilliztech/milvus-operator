@@ -76,6 +76,8 @@ func (r *Milvus) ValidateCreate() (admission.Warnings, error) {
 
 	allErrs = append(allErrs, r.validateDeploymentGroups()...)
 
+	allErrs = append(allErrs, r.validateComponentStatefulSets()...)
+
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
@@ -148,6 +150,8 @@ func (r *Milvus) ValidateUpdate(old runtime.Object) (admission.Warnings, error) 
 	}
 
 	allErrs = append(allErrs, r.validateDeploymentGroups()...)
+
+	allErrs = append(allErrs, r.validateComponentStatefulSets()...)
 
 	if len(allErrs) == 0 {
 		return nil, nil
@@ -279,6 +283,45 @@ func (r *Milvus) validateDeploymentGroups() field.ErrorList {
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
 func (r *Milvus) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
+}
+
+// validateComponentStatefulSets validates the opt-in StatefulSet mode of the
+// StatefulSet-capable components (QueryNode/DataNode/IndexNode). StatefulSet mode
+// uses the StatefulSet's native rolling update instead of the two-deployment
+// blue/green rollout. It is compatible with deployment groups (each group becomes
+// its own StatefulSet), but not with rollingMode v3, which globally forces every
+// component into two-deployment mode.
+func (r *Milvus) validateComponentStatefulSets() field.ErrorList {
+	var allErrs field.ErrorList
+	type stsComponent struct {
+		field string
+		sts   *ComponentStatefulSet
+	}
+	components := []stsComponent{}
+	if r.Spec.Com.QueryNode.StatefulSetEnabled() {
+		components = append(components, stsComponent{"queryNode", r.Spec.Com.QueryNode.StatefulSet})
+	}
+	if r.Spec.Com.DataNode.StatefulSetEnabled() {
+		components = append(components, stsComponent{"dataNode", r.Spec.Com.DataNode.StatefulSet})
+	}
+	if r.Spec.Com.IndexNode.StatefulSetEnabled() {
+		components = append(components, stsComponent{"indexNode", r.Spec.Com.IndexNode.StatefulSet})
+	}
+	for _, c := range components {
+		basePath := field.NewPath("spec").Child("components").Child(c.field).Child("statefulSet")
+		if r.Spec.Com.RollingMode == RollingModeV3 {
+			allErrs = append(allErrs, field.Forbidden(basePath,
+				c.field+" statefulSet mode is incompatible with rollingMode v3"))
+		}
+		for i := range c.sts.VolumeClaimTemplates {
+			if err := c.sts.VolumeClaimTemplates[i].AsObject(new(corev1.PersistentVolumeClaim)); err != nil {
+				allErrs = append(allErrs, field.Invalid(
+					basePath.Child("volumeClaimTemplates").Index(i),
+					c.sts.VolumeClaimTemplates[i], err.Error()))
+			}
+		}
+	}
+	return allErrs
 }
 
 func (r *Milvus) validateExternal() field.ErrorList {
