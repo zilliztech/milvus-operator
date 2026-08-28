@@ -3,7 +3,7 @@
 IMG ?= milvusdb/milvus-operator:dev-latest
 TOOL_IMG ?= milvus-config-tool:dev-latest
 SIT_IMG ?= milvus-operator:sit
-VERSION ?= 1.3.8
+VERSION ?= 1.3.9
 TOOL_VERSION ?= 1.0.0
 MILVUS_HELM_VERSION ?= milvus-5.0.26
 RELEASE_IMG ?= milvusdb/milvus-operator:v$(VERSION)
