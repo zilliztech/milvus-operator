@@ -283,6 +283,10 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 			key := client.ObjectKey{Name: saveName, Namespace: namespace}
 			err = k8sUtil.GetSavedObject(ctx, key, savedSts)
 			if err != nil {
+				if kerrors.IsNotFound(err) {
+					logger.Info("StatefulSet not found and no saved StatefulSet to restore, skipping PVC reconciliation", "saveName", saveName)
+					return nil
+				}
 				return fmt.Errorf("failed to get saved StatefulSet: %v", err)
 			}
 
