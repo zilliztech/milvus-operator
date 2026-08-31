@@ -195,5 +195,5 @@ tolerations: []
 #   }
 # }`
 affinity: {}
-watchNamespaceEnabled: false
-watchNamespace: []
+watchNamespaceEnabled: false # if true, the operator will watch only the namespaces specified in watchNamespace. If false, the operator will watch all namespaces.
+watchNamespace: [] # The list of namespaces to watch. Only used if watchNamespaceEnabled is true. If empty, the operator will watch all namespaces. For example: ["namespace1", "namespace2"]

@@ -7,11 +7,11 @@ metadata:
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
-    matchLabels: {{- include "chart.selectorLabels" . | nindent 6 }}
+    matchLabels: {{- toYaml .Values.podAnnotations | nindent 6 }}
   template:
     metadata:
       annotations: {{- toYaml .Values.podAnnotations | nindent 8 }}
-      labels: {{- include "chart.selectorLabels" . | nindent 8 }}
+      labels: {{- toYaml .Values.podLabels | nindent 8 }}
     spec:
       affinity: {{- toYaml .Values.affinity | nindent 8 }}
       containers:
