@@ -506,7 +506,7 @@ func (r *componentsDeployStatusUpdaterImpl) Update(ctx context.Context, mc *v1be
 		if componentUsesStatefulSet(*mc, workload) {
 			sts, err := getStatefulSetForComponent(ctx, r.Client, *mc, workload)
 			if err != nil {
-				return errors.Wrap(err, "get querynode statefulset")
+				return errors.Wrapf(err, "get %s statefulset", workload.Name)
 			}
 			if sts == nil {
 				continue

@@ -75,6 +75,48 @@ func TestComponentErrorDetail_String(t *testing.T) {
 			"component[proxy]: pod[myrelease-proxy-xxxx-xxxx]: container[main]: currentState[waiting] reason[ErrImagePull]: ...",
 			detail.String())
 	})
+
+	t.Run("statefulset not created", func(t *testing.T) {
+		detail := ComponentErrorDetail{
+			ComponentName: "querynode",
+			WorkloadKind:  "statefulset",
+		}
+		assert.Equal(t, "component[querynode]: statefulset not created", detail.String())
+	})
+
+	t.Run("statefulset new generation not observed", func(t *testing.T) {
+		detail := ComponentErrorDetail{
+			ComponentName: "datanode",
+			WorkloadKind:  "statefulset",
+			NotObserved:   true,
+		}
+		assert.Equal(t, "component[datanode]: updating statefulset", detail.String())
+	})
+
+	t.Run("statefulset pod pull image failed", func(t *testing.T) {
+		detail := ComponentErrorDetail{
+			ComponentName: "indexnode",
+			WorkloadKind:  "statefulset",
+			PodName:       "mc-milvus-indexnode-0",
+			Pod: &corev1.PodCondition{
+				Type:   corev1.PodReady,
+				Status: corev1.ConditionFalse,
+			},
+			Container: &corev1.ContainerStatus{
+				Name: "indexnode",
+				State: corev1.ContainerState{
+					Waiting: &corev1.ContainerStateWaiting{
+						Reason: "ImagePullBackOff",
+					},
+				},
+			},
+		}
+		// pod/container detail is workload-agnostic; the StatefulSet noun only
+		// affects the non-pod fallback branches.
+		assert.Equal(t,
+			"component[indexnode]: pod[mc-milvus-indexnode-0]: container[indexnode]: currentState[waiting] reason[ImagePullBackOff]",
+			detail.String())
+	})
 }
 
 func TestGetDeploymentFalseCondition(t *testing.T) {
