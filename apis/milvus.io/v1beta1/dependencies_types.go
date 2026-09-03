@@ -228,8 +228,29 @@ type MilvusPulsar struct {
 	// +kubebuilder:default:=false
 	External bool `json:"external,omitempty"`
 
+	// Endpoint of the pulsar service, e.g. "pulsar-proxy:6650"
 	// +kubebuilder:validation:Optional
 	Endpoint string `json:"endpoint"`
+
+	// Endpoints of the external pulsar brokers, e.g. ["broker-0:6650", "broker-1:6650"].
+	// When set, it takes precedence over endpoint. The first entry is rendered into
+	// milvus' pulsar.address / pulsar.port (milvus' config only takes a single address,
+	// the client discovers the other brokers through lookups); all entries are used by
+	// the operator's availability check, where any reachable broker counts as ready.
+	// +kubebuilder:validation:Optional
+	Endpoints []string `json:"endpoints,omitempty"`
+}
+
+// GetEndpoints returns the pulsar broker endpoints,
+// falling back to the single endpoint field when endpoints is not set
+func (m MilvusPulsar) GetEndpoints() []string {
+	if len(m.Endpoints) > 0 {
+		return m.Endpoints
+	}
+	if m.Endpoint != "" {
+		return []string{m.Endpoint}
+	}
+	return nil
 }
 
 // MilvusKafka configuration

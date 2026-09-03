@@ -411,7 +411,7 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 	switch mc.Spec.Dep.MsgStreamType {
 	case v1beta1.MsgStreamTypePulsar:
 		getter = external.NewPulsarConditionGetter(&mc).GetCondition
-		eps = []string{mc.Spec.Dep.Pulsar.Endpoint}
+		eps = mc.Spec.Dep.Pulsar.GetEndpoints()
 	case v1beta1.MsgStreamTypeKafka:
 		kafkaConf, err := GetKafkaConfFromCR(mc)
 		if err != nil {
