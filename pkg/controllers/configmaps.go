@@ -142,7 +142,13 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 		delete(conf, "pulsar")
 		delete(conf, "rocksmq")
 	case v1beta1.MsgStreamTypePulsar:
-		host, port = util.GetHostPort(mc.Spec.Dep.Pulsar.Endpoint)
+		// milvus' pulsar config only takes a single address:port, render the first
+		// endpoint and let the client discover the other brokers through lookups
+		var pulsarEndpoint string
+		if eps := mc.Spec.Dep.Pulsar.GetEndpoints(); len(eps) > 0 {
+			pulsarEndpoint = eps[0]
+		}
+		host, port = util.GetHostPort(pulsarEndpoint)
 		util.SetValue(conf, host, "pulsar", "address")
 		util.SetValue(conf, int64(port), "pulsar", "port")
 		// delete other mq config to make milvus use kafka

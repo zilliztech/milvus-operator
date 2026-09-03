@@ -11873,6 +11873,10 @@ spec:
                     properties:
                       endpoint:
                         type: string
+                      endpoints:
+                        items:
+                          type: string
+                        type: array
                       external:
                         default: false
                         type: boolean
