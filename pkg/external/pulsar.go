@@ -1,6 +1,9 @@
 package external
 
 import (
+	"fmt"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -29,6 +32,34 @@ var MQReadyCondition = v1beta1.MilvusCondition{
 }
 
 func (p PulsarConditionGetter) GetCondition() v1beta1.MilvusCondition {
-	endpoint := p.m.Spec.Dep.Pulsar.Endpoint
-	return NewTCPDialConditionGetter(v1beta1.MsgStreamReady, []string{endpoint}).GetCondition()
+	endpoints := p.m.Spec.Dep.Pulsar.GetEndpoints()
+	if len(endpoints) == 0 {
+		return v1beta1.MilvusCondition{
+			Type:    v1beta1.MsgStreamReady,
+			Status:  corev1.ConditionFalse,
+			Reason:  "ConnectionFailed",
+			Message: "no pulsar endpoint configured",
+		}
+	}
+	// Any reachable broker counts as ready: the others may be mid-restart,
+	// same policy as the kafka check.
+	var errMsgs []string
+	for _, endpoint := range endpoints {
+		conn, err := netDialTimeout("tcp", endpoint, dialTimeout)
+		if err == nil {
+			conn.Close()
+			return v1beta1.MilvusCondition{
+				Type:   v1beta1.MsgStreamReady,
+				Status: corev1.ConditionTrue,
+				Reason: "ConnectionOK",
+			}
+		}
+		errMsgs = append(errMsgs, fmt.Sprintf("connect %s failed: %s", endpoint, err.Error()))
+	}
+	return v1beta1.MilvusCondition{
+		Type:    v1beta1.MsgStreamReady,
+		Status:  corev1.ConditionFalse,
+		Reason:  "ConnectionFailed",
+		Message: strings.Join(errMsgs, "; "),
+	}
 }
