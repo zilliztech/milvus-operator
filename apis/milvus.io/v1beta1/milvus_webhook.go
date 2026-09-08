@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -39,8 +38,9 @@ import (
 var milvuslog = logf.Log.WithName("milvus-resource")
 
 func (r *Milvus) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
+	return ctrl.NewWebhookManagedBy(mgr, r).
+		WithDefaulter(legacyDefaulterAdapter[*Milvus]{}).
+		WithValidator(legacyValidatorAdapter[*Milvus]{}).
 		Complete()
 }
 
@@ -48,9 +48,9 @@ func (r *Milvus) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 //+kubebuilder:webhook:path=/mutate-milvus-io-v1beta1-milvus,mutating=true,failurePolicy=fail,sideEffects=None,groups=milvus.io,resources=milvuses,verbs=create;update,versions=v1beta1,name=mmilvus.kb.io,admissionReviewVersions=v1
 
-var _ webhook.Defaulter = &Milvus{}
+var _ legacyDefaulter = &Milvus{}
 
-// Default implements webhook.Defaulter so a webhook will be registered for the type
+// Default implements legacyDefaulter so a webhook will be registered for the type
 func (r *Milvus) Default() {
 	r.DefaultMeta()
 	r.DefaultMode()
@@ -62,9 +62,9 @@ func (r *Milvus) Default() {
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
 //+kubebuilder:webhook:path=/validate-milvus-io-v1beta1-milvus,mutating=false,failurePolicy=fail,sideEffects=None,groups=milvus.io,resources=milvuses,verbs=create;update,versions=v1beta1,name=vmilvus.kb.io,admissionReviewVersions=v1
 
-var _ admission.Validator = &Milvus{}
+var _ legacyValidator = &Milvus{}
 
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
+// ValidateCreate implements legacyValidator so a webhook will be registered for the type
 func (r *Milvus) ValidateCreate() (warnings admission.Warnings, err error) {
 	var allErrs field.ErrorList
 	if err := r.validateCommon(); err != nil {
@@ -130,7 +130,7 @@ func (r *Milvus) validatePersistConfig() *field.Error {
 	return nil
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
+// ValidateUpdate implements legacyValidator so a webhook will be registered for the type
 func (r *Milvus) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	_, ok := old.(*Milvus)
 	if !ok {
@@ -153,7 +153,7 @@ func (r *Milvus) ValidateUpdate(old runtime.Object) (admission.Warnings, error) 
 	return nil, apierrors.NewInvalid(schema.GroupKind{Group: GroupVersion.Group, Kind: "Milvus"}, r.Name, allErrs)
 }
 
-// ValidateDelete implements webhook.Validator so a webhook will be registered for the type
+// ValidateDelete implements legacyValidator so a webhook will be registered for the type
 func (r *Milvus) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
