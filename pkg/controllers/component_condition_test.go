@@ -282,6 +282,60 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 		assert.Equal(t, corev1.ConditionFalse, ret.Status)
 	})
 
+	t.Run("querynode statefulset not ready reports pod detail", func(t *testing.T) {
+		stsInst := &v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "nssts3", Name: "mcsts3", UID: "uidsts3"}}
+		stsInst.Spec.Mode = v1beta1.MilvusModeCluster
+		stsInst.Default()
+		stsInst.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
+			Do(func(_ interface{}, list *appsv1.DeploymentList, _ interface{}) {
+				for _, c := range Milvus2_6Components {
+					if c.Is(QueryNode) {
+						continue
+					}
+					d := appsv1.Deployment{}
+					d.Labels = map[string]string{AppLabelComponent: c.Name}
+					d.OwnerReferences = []metav1.OwnerReference{{Controller: &trueVal, UID: "uidsts3"}}
+					d.Status = readyDeployStatus
+					list.Items = append(list.Items, d)
+				}
+			}).Return(nil)
+		// querynode STS exists but is not ready (observed, 0 ready replicas).
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
+			DoAndReturn(func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...any) error {
+				sts := obj.(*appsv1.StatefulSet)
+				sts.Name = key.Name
+				sts.Namespace = key.Namespace
+				sts.Generation = 1
+				one := int32(1)
+				sts.Spec.Replicas = &one
+				sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: QueryNode.GetSelectorLabels(stsInst.Name)}
+				sts.Status.ObservedGeneration = 1
+				sts.Status.ReadyReplicas = 0
+				return nil
+			})
+		// pod list for the STS error detail: one pod stuck pulling its image.
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PodList{}), gomock.Any()).
+			DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+				pod := corev1.Pod{}
+				pod.Name = "mcsts3-milvus-querynode-0"
+				pod.Status.ContainerStatuses = []corev1.ContainerStatus{{
+					Name:  QueryNode.Name,
+					State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ImagePullBackOff"}},
+				}}
+				list.(*corev1.PodList).Items = []corev1.Pod{pod}
+				return nil
+			})
+		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *stsInst)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionFalse, ret.Status)
+		// message names the component and carries pod/container detail, not <nil>
+		assert.Contains(t, ret.Message, "querynode")
+		assert.Contains(t, ret.Message, "ImagePullBackOff")
+		assert.NotContains(t, ret.Message, "detail: <nil>")
+	})
+
 }
 
 func TestGetComponentErrorDetail(t *testing.T) {
@@ -370,6 +424,71 @@ func TestGetComponentErrorDetail(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "creating", ret.Deployment.Message)
 	})
+}
+
+func TestGetStatefulSetErrorDetail(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ctx := context.Background()
+	cli := NewMockK8sClient(ctrl)
+
+	newSts := func(component string) *appsv1.StatefulSet {
+		sts := &appsv1.StatefulSet{}
+		sts.Namespace = "ns"
+		sts.Name = "mc-milvus-" + component
+		sts.Generation = 1
+		sts.Status.ObservedGeneration = 1
+		sts.Spec.Selector = &metav1.LabelSelector{
+			MatchLabels: map[string]string{AppLabelComponent: component},
+		}
+		return sts
+	}
+
+	t.Run("statefulset nil", func(t *testing.T) {
+		ret, err := getStatefulSetErrorDetail(ctx, cli, "querynode", nil)
+		assert.NoError(t, err)
+		assert.Equal(t, "querynode", ret.ComponentName)
+		assert.Equal(t, "statefulset", ret.WorkloadKind)
+		// non-pod fallback reports the StatefulSet noun, not "deployment"
+		assert.Equal(t, "component[querynode]: statefulset not created", ret.String())
+	})
+
+	t.Run("new generation not observed", func(t *testing.T) {
+		sts := newSts("datanode")
+		sts.Status.ObservedGeneration = 0
+		ret, err := getStatefulSetErrorDetail(ctx, cli, "datanode", sts)
+		assert.NoError(t, err)
+		assert.True(t, ret.NotObserved)
+		assert.Equal(t, "component[datanode]: updating statefulset", ret.String())
+	})
+
+	// One case per StatefulSet-capable component, asserting real pod/container
+	// detail is surfaced instead of <nil>.
+	for _, component := range []string{"querynode", "datanode", "indexnode"} {
+		t.Run(component+" pod image pull failure", func(t *testing.T) {
+			sts := newSts(component)
+			pod := corev1.Pod{}
+			pod.Name = sts.Name + "-0"
+			pod.Namespace = "ns"
+			pod.Status.ContainerStatuses = []corev1.ContainerStatus{{
+				Name: component,
+				State: corev1.ContainerState{
+					Waiting: &corev1.ContainerStateWaiting{Reason: "ImagePullBackOff"},
+				},
+			}}
+			cli.EXPECT().List(ctx, gomock.AssignableToTypeOf(&corev1.PodList{}), gomock.Any()).
+				DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+					list.(*corev1.PodList).Items = []corev1.Pod{pod}
+					return nil
+				})
+			ret, err := getStatefulSetErrorDetail(ctx, cli, component, sts)
+			assert.NoError(t, err)
+			assert.Equal(t, component, ret.ComponentName)
+			assert.Equal(t, pod.Name, ret.PodName)
+			assert.NotNil(t, ret.Container)
+			assert.Contains(t, ret.String(), "ImagePullBackOff")
+		})
+	}
 }
 
 func TestExecKillIfTerminatingTooLong(t *testing.T) {
