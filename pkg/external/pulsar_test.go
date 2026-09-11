@@ -47,3 +47,48 @@ func TestGetPulsarCondition(t *testing.T) {
 		assert.Contains(t, ret.Message, errTest.Error())
 	})
 }
+
+func TestGetPulsarCondition_MultiEndpoints(t *testing.T) {
+	m := &v1beta1.Milvus{}
+	m.Spec.Dep.Pulsar.Endpoint = "ignored.example.com:6650"
+	m.Spec.Dep.Pulsar.Endpoints = []string{"broker-0.example.com:6650", "broker-1.example.com:6650"}
+	getter := NewPulsarConditionGetter(m)
+
+	t.Run("any reachable broker is enough, endpoints take precedence", func(t *testing.T) {
+		clientConn, serverConn := net.Pipe()
+		defer serverConn.Close()
+		var dialed []string
+		stubs := gostub.Stub(&netDialTimeout, func(network, address string, timeout time.Duration) (net.Conn, error) {
+			dialed = append(dialed, address)
+			if address == "broker-1.example.com:6650" {
+				return clientConn, nil
+			}
+			return nil, errors.New("connection refused")
+		})
+		defer stubs.Reset()
+
+		ret := getter.GetCondition()
+		assert.Equal(t, corev1.ConditionTrue, ret.Status)
+		assert.Equal(t, "ConnectionOK", ret.Reason)
+		assert.Equal(t, []string{"broker-0.example.com:6650", "broker-1.example.com:6650"}, dialed)
+	})
+
+	t.Run("all brokers down", func(t *testing.T) {
+		stubs := gostub.Stub(&netDialTimeout, func(network, address string, timeout time.Duration) (net.Conn, error) {
+			return nil, errors.New("connection refused")
+		})
+		defer stubs.Reset()
+
+		ret := getter.GetCondition()
+		assert.Equal(t, corev1.ConditionFalse, ret.Status)
+		assert.Equal(t, "ConnectionFailed", ret.Reason)
+		assert.Contains(t, ret.Message, "broker-0.example.com:6650")
+		assert.Contains(t, ret.Message, "broker-1.example.com:6650")
+	})
+
+	t.Run("no endpoint configured", func(t *testing.T) {
+		ret := NewPulsarConditionGetter(&v1beta1.Milvus{}).GetCondition()
+		assert.Equal(t, corev1.ConditionFalse, ret.Status)
+		assert.Equal(t, "ConnectionFailed", ret.Reason)
+	})
+}
