@@ -7,10 +7,13 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -279,11 +282,14 @@ func matchStatefulSetPVCOrdinal(pvcName string, prefixes []string) (int32, bool)
 // storage request in a volumeClaimTemplate increases. StatefulSet's
 // volumeClaimTemplates are immutable after creation, so the operator patches the
 // existing PVC objects directly (only expansion — shrink is rejected by
-// Kubernetes and skipped here). Whether the patch actually resizes the volume is
+// Kubernetes and skipped here). Whether the volume can be resized at all is
 // decided by the StorageClass: networked storage with allowVolumeExpansion grows
 // online without restarting pods; storage that cannot expand (e.g. local-SSD)
-// rejects the patch, which is logged and left for the operator to resolve rather
-// than retried in a tight loop.
+// would reject the patch. To avoid retrying a write the API server will reject on
+// every reconcile, the operator first checks the target StorageClass's
+// allowVolumeExpansion and skips the update (emitting a Warning event) when
+// expansion is unsupported. The check is re-evaluated each reconcile, so enabling
+// expansion support later lets the expansion proceed on its own.
 func (r *MilvusReconciler) reconcileStatefulSetPVCExpansion(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent, sts *appsv1.StatefulSet) error {
 	if len(sts.Spec.VolumeClaimTemplates) == 0 {
 		return nil
@@ -312,6 +318,10 @@ func (r *MilvusReconciler) reconcileStatefulSetPVCExpansion(ctx context.Context,
 		return pkgerr.Wrap(err, "list querynode pvcs")
 	}
 
+	// StorageClass expansion support is cached per reconcile so a StatefulSet with
+	// many replicas resolves each class at most once.
+	expansionSupport := map[string]bool{}
+
 	// PVC name is "<templateName>-<stsName>-<ordinal>"; map each PVC back to its template.
 	for i := range pvcList.Items {
 		pvc := &pvcList.Items[i]
@@ -339,6 +349,28 @@ func (r *MilvusReconciler) reconcileStatefulSetPVCExpansion(ctx context.Context,
 				"pvc", pvc.Name, "current", current.String(), "desired", desired.String())
 			continue
 		}
+
+		// Only issue the update when the StorageClass allows expansion; otherwise
+		// the API server rejects it and the next reconcile would retry the same
+		// rejected write. A StorageClass we cannot resolve (unknown/transient) is
+		// treated as expandable so the write is still attempted — the original
+		// best-effort behavior — and transient failures keep being retried.
+		scName := storageClassNameForPVC(pvc)
+		allowed, resolved := expansionSupport[scName]
+		if !resolved {
+			allowed = r.storageClassAllowsExpansion(ctx, scName)
+			expansionSupport[scName] = allowed
+		}
+		if !allowed {
+			logger.Info("Skip querynode pvc expansion; storage class does not allow volume expansion",
+				"pvc", pvc.Name, "storageClass", scName,
+				"current", current.String(), "desired", desired.String())
+			r.eventf(&mc, corev1.EventTypeWarning, "PVCExpansionUnsupported",
+				"skip expanding PVC %q from %s to %s: storage class %q does not allow volume expansion",
+				pvc.Name, current.String(), desired.String(), scName)
+			continue
+		}
+
 		logger.Info("Expand querynode pvc", "pvc", pvc.Name,
 			"current", current.String(), "desired", desired.String())
 		if pvc.Spec.Resources.Requests == nil {
@@ -346,13 +378,63 @@ func (r *MilvusReconciler) reconcileStatefulSetPVCExpansion(ctx context.Context,
 		}
 		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = desired
 		if err := r.Update(ctx, pvc); err != nil {
-			// StorageClasses that cannot expand (e.g. local-SSD) reject this.
-			// Surface it but do not fail the whole reconcile.
-			logger.Error(err, "failed to expand querynode pvc; storage may not support expansion",
+			// A transient failure here is retried on the next reconcile.
+			logger.Error(err, "failed to expand querynode pvc",
 				"pvc", pvc.Name, "desired", desired.String())
+			r.eventf(&mc, corev1.EventTypeWarning, "PVCExpansionFailed",
+				"failed to expand PVC %q to %s: %v", pvc.Name, desired.String(), err)
 		}
 	}
 	return nil
+}
+
+// storageClassNameForPVC returns the StorageClass name bound to a PVC. An empty
+// string means the PVC targets the cluster's default StorageClass (or none).
+func storageClassNameForPVC(pvc *corev1.PersistentVolumeClaim) string {
+	if pvc.Spec.StorageClassName != nil {
+		return *pvc.Spec.StorageClassName
+	}
+	return ""
+}
+
+// storageClassAllowsExpansion reports whether volumes provisioned by the named
+// StorageClass can be expanded. When the name is empty it resolves the cluster's
+// default StorageClass. It returns true when the class cannot be resolved (not
+// found, unlabeled default, or a transient API error), so expansion is still
+// attempted and transient lookup failures do not permanently block a resize.
+func (r *MilvusReconciler) storageClassAllowsExpansion(ctx context.Context, name string) bool {
+	logger := ctrl.LoggerFrom(ctx)
+	sc := &storagev1.StorageClass{}
+	if name != "" {
+		if err := r.Get(ctx, types.NamespacedName{Name: name}, sc); err != nil {
+			logger.Error(err, "resolve storage class for pvc expansion; assuming expansion allowed", "storageClass", name)
+			return true
+		}
+		return sc.AllowVolumeExpansion != nil && *sc.AllowVolumeExpansion
+	}
+
+	// No StorageClass name on the PVC: fall back to the cluster default.
+	scList := &storagev1.StorageClassList{}
+	if err := r.List(ctx, scList); err != nil {
+		logger.Error(err, "list storage classes for pvc expansion; assuming expansion allowed")
+		return true
+	}
+	for i := range scList.Items {
+		if scList.Items[i].Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
+			return scList.Items[i].AllowVolumeExpansion != nil && *scList.Items[i].AllowVolumeExpansion
+		}
+	}
+	// No default StorageClass found; cannot decide, so attempt the expansion.
+	return true
+}
+
+// eventf records a Kubernetes event when an event recorder is configured. The
+// recorder is nil in some unit tests, so callers use this to stay nil-safe.
+func (r *MilvusReconciler) eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...any) {
+	if r.record == nil {
+		return
+	}
+	r.record.Eventf(object, eventtype, reason, messageFmt, args...)
 }
 
 // reconcileStatefulSetService ensures a headless service exists so the

@@ -11,10 +11,12 @@ import (
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -468,18 +470,31 @@ func TestReconcileQueryNodePVCExpansion(t *testing.T) {
 		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{{ObjectMeta: metav1.ObjectMeta{Name: "qn-data"}}}
 		return sts
 	}
+	scName := "test-sc"
 	existingPVC := func(size string) corev1.PersistentVolumeClaim {
+		sc := scName
 		return corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{Name: "qn-data-" + stsName + "-0", Namespace: "ns"},
 			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &sc,
 				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(size)},
 				},
 			},
 		}
 	}
+	// expectStorageClass mocks the Get(StorageClass) the expansion path issues to
+	// decide whether the target class allows volume expansion.
+	expectStorageClass := func(mockClient *MockK8sClient, allowExpansion bool) {
+		mockClient.EXPECT().
+			Get(gomock.Any(), types.NamespacedName{Name: scName}, gomock.AssignableToTypeOf(&storagev1.StorageClass{}), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ types.NamespacedName, obj client.Object, _ ...any) error {
+				obj.(*storagev1.StorageClass).AllowVolumeExpansion = &allowExpansion
+				return nil
+			})
+	}
 
-	t.Run("expands when desired greater", func(t *testing.T) {
+	t.Run("expands when desired greater and storage class allows it", func(t *testing.T) {
 		env := newTestEnv(t)
 		defer env.checkMocks()
 		r := env.Reconciler
@@ -490,6 +505,51 @@ func TestReconcileQueryNodePVCExpansion(t *testing.T) {
 				raw.(*corev1.PersistentVolumeClaimList).Items = []corev1.PersistentVolumeClaim{existingPVC("100Gi")}
 				return nil
 			})
+		expectStorageClass(mockClient, true)
+		var patched resource.Quantity
+		mockClient.EXPECT().
+			Update(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaim{})).
+			DoAndReturn(func(_ context.Context, obj client.Object, _ ...any) error {
+				patched = obj.(*corev1.PersistentVolumeClaim).Spec.Resources.Requests[corev1.ResourceStorage]
+				return nil
+			})
+		err := r.reconcileStatefulSetPVCExpansion(env.ctx, newMc("200Gi"), QueryNode, newSts())
+		assert.NoError(t, err)
+		assert.Equal(t, "200Gi", patched.String())
+	})
+
+	t.Run("skips expansion when storage class does not allow it", func(t *testing.T) {
+		env := newTestEnv(t)
+		defer env.checkMocks()
+		r := env.Reconciler
+		mockClient := env.MockClient
+		mockClient.EXPECT().
+			List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaimList{}), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, raw client.ObjectList, _ ...any) error {
+				raw.(*corev1.PersistentVolumeClaimList).Items = []corev1.PersistentVolumeClaim{existingPVC("100Gi")}
+				return nil
+			})
+		expectStorageClass(mockClient, false)
+		// no Update expected: the operator must not issue a write the API server
+		// would reject, so the next reconcile does not retry it either.
+		err := r.reconcileStatefulSetPVCExpansion(env.ctx, newMc("200Gi"), QueryNode, newSts())
+		assert.NoError(t, err)
+	})
+
+	t.Run("attempts expansion when storage class cannot be resolved", func(t *testing.T) {
+		env := newTestEnv(t)
+		defer env.checkMocks()
+		r := env.Reconciler
+		mockClient := env.MockClient
+		mockClient.EXPECT().
+			List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaimList{}), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, raw client.ObjectList, _ ...any) error {
+				raw.(*corev1.PersistentVolumeClaimList).Items = []corev1.PersistentVolumeClaim{existingPVC("100Gi")}
+				return nil
+			})
+		mockClient.EXPECT().
+			Get(gomock.Any(), types.NamespacedName{Name: scName}, gomock.AssignableToTypeOf(&storagev1.StorageClass{}), gomock.Any()).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{Resource: "storageclasses"}, scName))
 		var patched resource.Quantity
 		mockClient.EXPECT().
 			Update(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaim{})).
@@ -513,7 +573,7 @@ func TestReconcileQueryNodePVCExpansion(t *testing.T) {
 				raw.(*corev1.PersistentVolumeClaimList).Items = []corev1.PersistentVolumeClaim{existingPVC("100Gi")}
 				return nil
 			})
-		// no Update expected
+		// no StorageClass lookup and no Update expected
 		err := r.reconcileStatefulSetPVCExpansion(env.ctx, newMc("100Gi"), QueryNode, newSts())
 		assert.NoError(t, err)
 	})
@@ -529,12 +589,12 @@ func TestReconcileQueryNodePVCExpansion(t *testing.T) {
 				raw.(*corev1.PersistentVolumeClaimList).Items = []corev1.PersistentVolumeClaim{existingPVC("200Gi")}
 				return nil
 			})
-		// no Update expected (shrink skipped)
+		// no StorageClass lookup and no Update expected (shrink skipped)
 		err := r.reconcileStatefulSetPVCExpansion(env.ctx, newMc("100Gi"), QueryNode, newSts())
 		assert.NoError(t, err)
 	})
 
-	t.Run("patch failure is non-fatal", func(t *testing.T) {
+	t.Run("transient patch failure is non-fatal and retried", func(t *testing.T) {
 		env := newTestEnv(t)
 		defer env.checkMocks()
 		r := env.Reconciler
@@ -545,10 +605,12 @@ func TestReconcileQueryNodePVCExpansion(t *testing.T) {
 				raw.(*corev1.PersistentVolumeClaimList).Items = []corev1.PersistentVolumeClaim{existingPVC("100Gi")}
 				return nil
 			})
+		expectStorageClass(mockClient, true)
 		mockClient.EXPECT().
 			Update(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaim{})).
-			Return(errors.New("storageclass does not allow expansion"))
-		// error is logged, not returned
+			Return(errors.New("etcdserver: request timed out"))
+		// error is logged (and an event emitted), not returned, so the reconcile
+		// retries on the next pass.
 		err := r.reconcileStatefulSetPVCExpansion(env.ctx, newMc("200Gi"), QueryNode, newSts())
 		assert.NoError(t, err)
 	})

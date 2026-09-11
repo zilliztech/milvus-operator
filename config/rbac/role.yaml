@@ -25,6 +25,13 @@ rules:
   - watch
 - apiGroups:
   - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
   - apps
   - extensions
   resources:
@@ -161,4 +168,12 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
   - watch
