@@ -48,9 +48,13 @@ const (
 )
 
 var (
-	DefaultConfigMapMode = corev1.ConfigMapVolumeSourceDefaultMode
-	DefaultSecretMode    = corev1.SecretVolumeSourceDefaultMode
-	ErrRequeue           = errors.New("requeue")
+	DefaultConfigMapMode   = corev1.ConfigMapVolumeSourceDefaultMode
+	DefaultSecretMode      = corev1.SecretVolumeSourceDefaultMode
+	ErrRequeue             = errors.New("requeue")
+	defaultSecurityContext = &corev1.SecurityContext{
+		RunAsNonRoot: boolPtr(true),
+		RunAsUser:    int64Ptr(1000),
+	}
 )
 
 func GetStorageHostPort(endpoint string, useSSL bool) (string, int32) {
@@ -609,7 +613,11 @@ func addVolumeMount(volumeMounts *[]corev1.VolumeMount, volumeMount corev1.Volum
 
 const configContainerName = "config"
 
-func renderInitContainer(container *corev1.Container, toolImage string) *corev1.Container {
+func renderInitContainer(container *corev1.Container, updater deploymentUpdater) *corev1.Container {
+	spec := updater.GetMilvus().Spec
+	mergedComSpec := updater.GetMergedComponentSpec()
+
+	toolImage := spec.Com.ToolImage
 	imageInfo := globalCommonInfo.OperatorImageInfo
 	if toolImage == "" {
 		toolImage = imageInfo.Image
@@ -623,10 +631,15 @@ func renderInitContainer(container *corev1.Container, toolImage string) *corev1.
 		configVolumeMount,
 		toolVolumeMount,
 	}
-	container.SecurityContext = &corev1.SecurityContext{
-		RunAsNonRoot: boolPtr(true),
-		RunAsUser:    int64Ptr(1000),
+
+	isEmptyMergedSecurityContext := len(mergedComSpec.SecurityContext.Data) == 0
+	if container.SecurityContext == nil || isEmptyMergedSecurityContext {
+		container.SecurityContext = defaultSecurityContext
 	}
+	if !isEmptyMergedSecurityContext {
+		mergedComSpec.SecurityContext.MustAsObj(&container.SecurityContext)
+	}
+
 	fillContainerDefaultValues(container)
 	return container
 }
