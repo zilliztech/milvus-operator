@@ -31,8 +31,47 @@ func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Mi
 		return "", ""
 	}
 
-	return string(secret.Data[AccessKey]), string(secret.Data[SecretKey])
+	ak, sk, _, _ := storageSecretKeys(secret.Data)
+	return string(ak), string(sk)
 
+}
+
+func storageSecretKeys(data map[string][]byte) ([]byte, []byte, bool, bool) {
+	ak, aok := data[AccessKey]
+	sk, sok := data[SecretKey]
+	if !aok && !sok {
+		ak, aok = data["rootUser"]
+		sk, sok = data["rootPassword"]
+	}
+	return ak, sk, aok, sok
+}
+
+// resolveStorageSecretRefEnv accepts the legacy MinIO and upstream Silo secret
+// schemas without copying credentials or changing a user's Secret.
+func (r *MilvusReconciler) resolveStorageSecretRefEnv(ctx context.Context, mc v1beta1.Milvus) ([]corev1.EnvVar, error) {
+	ref := mc.Spec.Dep.Storage.SecretRef
+	env := GetStorageSecretRefEnv(ref)
+	if ref == "" {
+		return env, nil
+	}
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, NamespacedName(mc.Namespace, ref), secret); err != nil {
+		return nil, errors.Wrap(err, "get storage secret for pod environment")
+	}
+	_, legacyAccess := secret.Data[AccessKey]
+	_, legacySecret := secret.Data[SecretKey]
+	_, silo := secret.Data["rootUser"]
+	if !legacyAccess && !legacySecret && silo {
+		for i := range env {
+			key := &env[i].ValueFrom.SecretKeyRef.Key
+			if *key == AccessKey {
+				*key = "rootUser"
+			} else {
+				*key = "rootPassword"
+			}
+		}
+	}
+	return env, nil
 }
 
 // kafkaSecret is the content of the secret named by spec.dependencies.kafka.secretRef.

@@ -343,7 +343,11 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 	if err != nil {
 		return err
 	}
-	ctx = contextWithStorageEndpointEnv(ctx, storageEndpointEnv)
+	storageSecretEnv, err := r.resolveStorageSecretRefEnv(ctx, mc)
+	if err != nil {
+		return err
+	}
+	ctx = contextWithStorageEndpointEnv(ctx, append(storageEndpointEnv, storageSecretEnv...))
 
 	err = r.RemoveOldStandlone(ctx, mc)
 	if err != nil {
@@ -676,8 +680,8 @@ func kafkaCAVolumeBySecret(name string) corev1.Volume {
 }
 
 func configVolumeByName(name string) corev1.Volume {
-	// so that non root user can change the config
-	configmapMode := int32(0777)
+	// ConfigMap volumes are read-only; configuration files only need read access.
+	configmapMode := int32(0644)
 	return corev1.Volume{
 		Name: MilvusConfigVolumeName,
 		VolumeSource: corev1.VolumeSource{

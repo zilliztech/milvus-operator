@@ -147,6 +147,9 @@ func GetChartRequest(mc v1beta1.Milvus, dep values.DependencyKind, chart string)
 	inCluster := reflect.ValueOf(mc.Spec.Dep).FieldByName(string(dep)).
 		FieldByName("InCluster").Interface().(*v1beta1.InClusterConfig)
 	chartKind := chart
+	if dep == values.DependencyKindStorage {
+		chart = values.Silo
+	}
 
 	// Handle Pulsar versions
 	if dep == values.DependencyKindPulsar {
@@ -168,10 +171,25 @@ func GetChartRequest(mc v1beta1.Milvus, dep values.DependencyKind, chart string)
 		}
 	}
 
+	chartValues := inCluster.Values.DeepCopy().Data
+	if chartValues == nil {
+		chartValues = make(map[string]interface{})
+	}
+	if dep == values.DependencyKindStorage {
+		// The CR retains MinIO's credential names; Silo consumes rootUser/rootPassword.
+		if _, ok := chartValues["rootUser"]; !ok {
+			chartValues["rootUser"] = chartValues["accessKey"]
+		}
+		if _, ok := chartValues["rootPassword"]; !ok {
+			chartValues["rootPassword"] = chartValues["secretKey"]
+		}
+		chartValues["fullnameOverride"] = mc.Name + "-minio"
+		chartValues["nameOverride"] = "minio"
+	}
 	return ChartRequest{
 		ReleaseName: mc.Name + "-" + chartKind,
 		Namespace:   mc.Namespace,
 		Chart:       GetChartPathByName(chart),
-		Values:      inCluster.Values.Data,
+		Values:      chartValues,
 	}
 }

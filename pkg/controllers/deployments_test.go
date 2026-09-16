@@ -368,6 +368,9 @@ func TestClusterReconciler_ReconcileDeployments_Existed(t *testing.T) {
 
 func expectMinioServiceNotFound(mockClient *MockK8sClient) {
 	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+		Return(nil).AnyTimes()
+	mockClient.EXPECT().
 		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).
 		Return(k8sErrors.NewNotFound(schema.GroupResource{Resource: "services"}, Minio))
 }
