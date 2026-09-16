@@ -366,8 +366,8 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	}
 	container.Args = updater.GetArgs()
 	env := MergeEnvVar(updater.GetStorageEndpointEnv(), mergedComSpec.Env)
-	env = append(env, GetStorageSecretRefEnv(updater.GetSecretRef())...)
-	env = append(env, GetKafkaSecretRefEnv(updater.GetKafkaSecretRef())...)
+	env = MergeEnvVar(env, GetStorageSecretRefEnv(updater.GetSecretRef()))
+	env = MergeEnvVar(env, GetKafkaSecretRefEnv(updater.GetKafkaSecretRef()))
 	// Resolved storage Secret keys override the legacy default key names.
 	for _, resolved := range updater.GetStorageEndpointEnv() {
 		if resolved.ValueFrom != nil && resolved.ValueFrom.SecretKeyRef != nil {

@@ -49,6 +49,10 @@ func TestGetChartRequest_Silo(t *testing.T) {
 	assert.Equal(t, "user", request.Values["rootUser"])
 	assert.Equal(t, "password", request.Values["rootPassword"])
 	assert.NotContains(t, mc.Spec.Dep.Storage.InCluster.Values.Data, "rootUser")
+	assert.Equal(t, "test-minio", request.Values["serviceAccount"].(map[string]interface{})["name"])
+	mc.Spec.Dep.Storage.InCluster.Values.Data["serviceAccount"] = map[string]interface{}{"name": "custom", "create": false}
+	request = GetChartRequest(mc, values.DependencyKindStorage, values.Minio)
+	assert.Equal(t, "custom", request.Values["serviceAccount"].(map[string]interface{})["name"])
 	mc.Spec.Dep.Storage.InCluster.Values.Data = map[string]interface{}{"rootUser": "silo-user", "rootPassword": "silo-password", "accessKey": "ignored"}
 	request = GetChartRequest(mc, values.DependencyKindStorage, values.Minio)
 	assert.Equal(t, "silo-user", request.Values["rootUser"])

@@ -185,6 +185,15 @@ func GetChartRequest(mc v1beta1.Milvus, dep values.DependencyKind, chart string)
 		}
 		chartValues["fullnameOverride"] = mc.Name + "-minio"
 		chartValues["nameOverride"] = "minio"
+		// Silo's fixed "silo-sa" default conflicts across releases in one namespace.
+		serviceAccount, _ := chartValues["serviceAccount"].(map[string]interface{})
+		if serviceAccount == nil {
+			serviceAccount = make(map[string]interface{})
+			chartValues["serviceAccount"] = serviceAccount
+		}
+		if name, _ := serviceAccount["name"].(string); name == "" {
+			serviceAccount["name"] = mc.Name + "-minio"
+		}
 	}
 	return ChartRequest{
 		ReleaseName: mc.Name + "-" + chartKind,

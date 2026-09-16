@@ -70,9 +70,15 @@ func TestLayeredContainerTransition(t *testing.T) {
 	mc.Spec.Com.Image = "milvus:v2.6.23"
 	mc.Spec.Com.Version = "2.6.23"
 	updater := newMilvusDeploymentUpdater(*mc, env.Reconciler.Scheme, MilvusStandalone)
+	updater.storageEndpointEnv = GetStorageSecretRefEnv(updater.GetSecretRef())
 	template := &corev1.PodTemplateSpec{}
 	updateMilvusContainer(template, updater, true)
 	require.Len(t, template.Spec.InitContainers, 1)
+	seen := map[string]bool{}
+	for _, e := range template.Spec.Containers[0].Env {
+		assert.False(t, seen[e.Name], "duplicate environment variable %s", e.Name)
+		seen[e.Name] = true
+	}
 	assert.Contains(t, template.Spec.Containers[0].Env, corev1.EnvVar{Name: "MILVUS_OPERATOR_LAYERED_CONFIG", Value: "true"})
 	first := template.DeepCopy()
 	updateMilvusContainer(template, updater, true)

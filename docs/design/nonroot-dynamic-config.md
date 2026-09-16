@@ -78,6 +78,9 @@ interface, release name, and service endpoint. Legacy `accessKey`/`secretKey`
 values map to Silo's `rootUser`/`rootPassword`; explicit Silo values win. Storage
 health checks, configuration generation, and Pod Secret references accept both
 Secret schemas. No existing Secret is rewritten.
+Default ServiceAccount names are release-specific rather than Silo's shared
+`silo-sa`; explicitly configured names are preserved. Resolved storage credential
+environment variables are merged by name, not appended as duplicate entries.
 
 Existing bundled MinIO 8.x releases remain on the legacy chart: replacing their
 StatefulSets and PVCs requires a separate data migration. The legacy chart stays
@@ -104,8 +107,25 @@ of the retired MinIO image. This is not an automatic MinIO data migration.
 - `milvusdb/milvus:v2.6.23` with explicit non-root UID 1000 / GID 0 and read-only
   rootfs: startup, health, create/insert/search and FileSource `info -> warn`
   refresh passed as well. This public 2.6 image itself still defaults to root.
-- The runtime probe uses the built startup tools and an isolated Pod. It does
-  not yet constitute a complete CR-to-Operator reconciliation test: the existing
-  cluster-wide Operator has not been paused or replaced.
+- Full CR reconciliation was subsequently validated with the existing shared
+  Operator temporarily paused (with approval). The isolated operator created
+  `e2e-etcd` (etcd 8.12.0) and `e2e-minio` (Silo 7.0.2); the Milvus 2.6.23 CR
+  reached `Healthy` with all readiness conditions true.
+- Updating `spec.config.log.level` to `warn`, then removing it, produced
+  `info -> warn -> info` through FileSource. The same Pod UID
+  `cc2f538e-6ad3-4aef-8b1b-6875a64c8ebd` retained restart count 0.
+- The CR-managed instance also passed REST create/insert/search/Flush, with
+  persisted objects under its Silo bucket. Multiple Silo releases coexisted in
+  the same namespace after the ServiceAccount-name fix.
+- A second CR using native non-root Milvus 3.0.1 (UID/GID 999:999, read-only
+  rootfs) also reached `Healthy` and passed REST create/insert/search. Its
+  generated Pod had no duplicate environment variables and no restarts.
 
-No production resources or existing Operator deployment were changed.
+No production resources were changed. The shared test-cluster Operator's image
+was not replaced. Test CR reconciliation is paused after validation so the
+original operator can safely resume; test resources are retained for inspection.
+
+CI note: Silo image pull/load passed. The observed legacy-upgrade job failed
+while applying the initial CR to operator v0.9.17, with a webhook connection
+refused, before it attempted the upgrade to this PR. This is not a green CI
+result; CI for subsequent commits must be checked separately.
