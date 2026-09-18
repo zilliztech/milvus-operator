@@ -243,7 +243,14 @@ func TestZeroSurgeRolloutCompletes(t *testing.T) {
 				require.LessOrEqual(t, total, replicas)
 				require.GreaterOrEqual(t, total, replicas-1)
 				updated = nil
-				require.ErrorIs(t, biz.ScaleDeployments(context.Background(), mc, current, old), ErrRequeue)
+				err := biz.ScaleDeployments(context.Background(), mc, current, old)
+				if step == replicas*2-1 {
+					// At the desired count there is no further scaling to gate;
+					// LastRolloutFinished separately waits for the final pods.
+					require.NoError(t, err)
+				} else {
+					require.ErrorIs(t, err, ErrRequeue)
+				}
 				require.Nil(t, updated, "wait for the previous scale and termination to finish")
 				settle(current)
 				settle(old)

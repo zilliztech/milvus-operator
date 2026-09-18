@@ -313,11 +313,15 @@ func (c *DeployControllerBizUtilImpl) checkCanScaleNow(ctx context.Context, mc v
 	strategy := GetDeploymentStrategy(&mc, c.component)
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
 	surge, unavailable := rolloutSteps(strategy, expectedReplicas)
-	if scaleKind != scaleKindRollout && surge != 0 {
+	if scaleKind != scaleKindRollout {
+		// Normal downscaling must work even when a quota prevents the current
+		// Deployment from creating all its desired pods. Only adding pods with
+		// no surge needs to wait for the last old pod to finish terminating.
+		if surge == 0 && getDeployReplicas(currentDeployment) < expectedReplicas {
+			return errors.Wrap(c.checkLastDeploymentStable(ctx, lastDeployment), "check deployments stable")
+		}
 		return nil
 	}
-	// With no surge, wait for the last old pod to terminate even after the old
-	// Deployment's desired replicas reach zero and this becomes normal scaling.
 	err := c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment, surge == 0 && unavailable > 0)
 	return errors.Wrap(err, "check deployments stable")
 }
@@ -586,7 +590,7 @@ func (c *DeployControllerBizUtilImpl) markDeployAsCurrent(ctx context.Context, m
 	return errors.Wrapf(err, "mark group id to %d", groupId)
 }
 
-func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment, allowUnavailable bool) error {
+func (c *DeployControllerBizUtilImpl) checkLastDeploymentStable(ctx context.Context, lastDeployment *appsv1.Deployment) error {
 	lastDeployPods, err := c.ListDeployPods(ctx, lastDeployment, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list last deploy pods")
@@ -596,11 +600,33 @@ func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context
 		return errors.Wrapf(ErrRequeue, "last deploy is not stable[%s]", reason)
 	}
 
+	return nil
+}
+
+func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment, allowUnavailable bool) error {
+	if err := c.checkLastDeploymentStable(ctx, lastDeployment); err != nil {
+		return err
+	}
+
 	currentDeployPods, err := c.ListDeployPods(ctx, currentDeployment, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list current deploy pods")
 	}
-	isStable, reason = c.DeploymentIsStable(currentDeployment, currentDeployPods)
+	if allowUnavailable {
+		// Pod readiness can change before Deployment status catches up without
+		// changing its generation. Never spend an overstated availability budget.
+		readyPods := 0
+		for _, pod := range currentDeployPods {
+			if pod.DeletionTimestamp == nil && pod.Status.Phase == corev1.PodRunning &&
+				GetPodConditionByType(pod.Status.Conditions, corev1.PodReady).Status == corev1.ConditionTrue {
+				readyPods++
+			}
+		}
+		if int(currentDeployment.Status.AvailableReplicas) > readyPods {
+			return errors.Wrap(ErrRequeue, "current deploy available replicas exceed ready pods")
+		}
+	}
+	isStable, reason := c.DeploymentIsStable(currentDeployment, currentDeployPods)
 	if !isStable && allowUnavailable {
 		// A previously surged pod can be Pending on a full pool. Permit the
 		// planner to release old capacity within maxUnavailable, but only once
