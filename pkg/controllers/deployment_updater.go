@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
+	"github.com/google/go-cmp/cmp"
 	pkgErrs "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -219,7 +219,7 @@ func updatePodTemplate(
 		podTemplateLogger.WithValues(
 			"namespace", updater.GetMilvus().Namespace,
 			"milvus", updater.GetMilvus().Name).
-			Info("pod template updated by crd", "diff", diff.ObjectDiff(currentTemplate, template))
+			Info("pod template updated by crd", "diff", cmp.Diff(currentTemplate, template))
 	case forceUpdateAll:
 	default:
 		// no updates, no default changes

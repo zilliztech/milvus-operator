@@ -189,7 +189,7 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 	rec := MustNewLocalHelmReconciler(settings, logger, mockManager)
 
 	t.Run("success case", func(t *testing.T) {
-		fakeClientset := fakekubernetes.NewSimpleClientset()
+		fakeClientset := fakekubernetes.NewClientset()
 		rec.clientset = fakeClientset
 
 		sts := &appsv1.StatefulSet{
@@ -240,7 +240,7 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 	})
 
 	t.Run("sts not found and no saved object, skip reconciliation", func(t *testing.T) {
-		fakeClientset := fakekubernetes.NewSimpleClientset()
+		fakeClientset := fakekubernetes.NewClientset()
 		rec.clientset = fakeClientset
 
 		mc := v1beta1.Milvus{}
@@ -252,7 +252,7 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 	})
 
 	t.Run("sts not found, saved object get error (non-NotFound)", func(t *testing.T) {
-		fakeClientset := fakekubernetes.NewSimpleClientset()
+		fakeClientset := fakekubernetes.NewClientset()
 		rec.clientset = fakeClientset
 
 		// Insert a ControllerRevision with malformed data to trigger unmarshal error in GetSavedObject
@@ -275,7 +275,7 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 	})
 
 	t.Run("error getting PVC", func(t *testing.T) {
-		fakeClientset := fakekubernetes.NewSimpleClientset()
+		fakeClientset := fakekubernetes.NewClientset()
 		rec.clientset = fakeClientset
 
 		sts := &appsv1.StatefulSet{
@@ -298,7 +298,7 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 	})
 
 	t.Run("invalid storage size", func(t *testing.T) {
-		fakeClientset := fakekubernetes.NewSimpleClientset()
+		fakeClientset := fakekubernetes.NewClientset()
 		rec.clientset = fakeClientset
 
 		mc := v1beta1.Milvus{}
