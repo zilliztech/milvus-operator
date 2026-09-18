@@ -1,0 +1,51 @@
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: lifecycle
+spec:
+  mode: cluster
+  components:
+    disableMetric: true
+    rollingMode: 2
+    nodeSelector:
+      kubernetes.io/arch: amd64
+    proxy:
+      replicas: 1
+    queryNode:
+      replicas: 1
+  dependencies:
+    msgStreamType: kafka
+    etcd:
+      inCluster:
+        deletionPolicy: Delete
+        pvcDeletion: true
+        values:
+          replicaCount: 1
+    kafka:
+      inCluster:
+        deletionPolicy: Delete
+        pvcDeletion: true
+        values:
+          nodeSelector:
+            kubernetes.io/arch: amd64
+          replicaCount: 1
+          heapOpts: -Xmx512m -Xms320m
+          defaultReplicationFactor: 1
+          offsetsTopicReplicationFactor: 1
+          persistence:
+            size: 5Gi
+          zookeeper:
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            replicaCount: 1
+    storage:
+      inCluster:
+        deletionPolicy: Delete
+        pvcDeletion: true
+        values:
+          image:
+            repository: pgsty/silo
+            tag: RELEASE.2026-09-03T13-18-01Z
+          mode: standalone
+          persistence:
+            size: 5Gi

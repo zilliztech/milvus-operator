@@ -1,0 +1,130 @@
+name: Cluster Lifecycle SIT
+
+on:
+  workflow_call:
+    inputs:
+      from_image:
+        description: Previous supported Milvus image
+        type: string
+        default: milvusdb/milvus:v2.6.23
+      to_image:
+        description: Target image (empty uses the operator default)
+        type: string
+        default: ''
+      rolling_mode:
+        description: Deployment rolling mode (2 or 3)
+        type: string
+        default: '2'
+  workflow_dispatch:
+    inputs:
+      from_image:
+        description: Previous supported Milvus image
+        type: string
+        default: milvusdb/milvus:v2.6.23
+        required: true
+      to_image:
+        description: Target image (empty uses the operator default)
+        type: string
+        default: ''
+      rolling_mode:
+        description: Deployment rolling mode
+        type: choice
+        options: ['2', '3']
+        default: '2'
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash
+    env:
+      SIT_CONTEXT: kind-kind
+      KIND_CLUSTER: kind
+      ARTIFACT_DIR: artifacts/cluster-lifecycle
+      FROM_IMAGE: ${{ inputs.from_image }}
+      TO_IMAGE_OVERRIDE: ${{ inputs.to_image }}
+      ROLLING_MODE: ${{ inputs.rolling_mode }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Resolve test versions
+        shell: bash
+        run: |
+          target="$TO_IMAGE_OVERRIDE"
+          if [[ -z "$target" ]]; then
+            target="$(sed -n 's/.*DefaultMilvusVersion = "\([^"]*\)"/milvusdb\/milvus:\1/p' pkg/config/config.go)"
+          fi
+          for image in "$FROM_IMAGE" "$target"; do
+            [[ "$image" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/:@-]+$ ]] || exit 1
+          done
+          [[ "$FROM_IMAGE" != "$target" ]] || exit 1
+          [[ "$ROLLING_MODE" == 2 || "$ROLLING_MODE" == 3 ]] || exit 1
+          echo "TO_IMAGE=$target" >> "$GITHUB_ENV"
+          mkdir -p "$ARTIFACT_DIR"
+          printf 'FROM_IMAGE=%s\nTO_IMAGE=%s\nROLLING_MODE=%s\nCOMMIT=%s\n' \
+            "$FROM_IMAGE" "$target" "$ROLLING_MODE" "$GITHUB_SHA" | tee "$ARTIFACT_DIR/versions.txt"
+      - name: Check test harness and coverage
+        run: |
+          bash -n test/cluster-lifecycle.sh
+          python3 -m venv /tmp/lifecycle-check-venv
+          /tmp/lifecycle-check-venv/bin/pip install coverage==7.16.1
+          /tmp/lifecycle-check-venv/bin/coverage run --source=test -m unittest discover -s test -p 'test_cluster_lifecycle.py'
+          /tmp/lifecycle-check-venv/bin/coverage report --include='test/cluster_lifecycle.py,test/cluster-lifecycle.py' --fail-under=90 | tee "$ARTIFACT_DIR/coverage.txt"
+      - name: Build Operator from checkout
+        run: make sit-prepare-operator-images
+      - name: Setup KinD Cluster
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        with:
+          cluster_name: kind
+      - name: Load lifecycle images
+        run: make sit-cluster-lifecycle-images
+      - name: Install Operator and wait for admission webhook
+        timeout-minutes: 10
+        run: |
+          helm --kube-context "$SIT_CONTEXT" -n milvus-operator install \
+            --set image.repository=milvus-operator,image.tag=sit,resources.requests.cpu=10m \
+            --create-namespace --wait --timeout 5m milvus-operator ./charts/milvus-operator
+          for attempt in {1..30}; do
+            if kubectl --context "$SIT_CONTEXT" create --dry-run=server \
+              -f test/cluster-lifecycle.yaml -o name; then
+              exit 0
+            fi
+            echo "Admission readiness attempt $attempt failed"
+            sleep 2
+          done
+          echo 'Operator admission webhook did not become ready' >&2
+          exit 1
+      - name: Run cluster lifecycle
+        timeout-minutes: 55
+        shell: bash
+        run: |
+          # TERM gives the runner time to collect evidence and clean its namespace.
+          # The step deadline is longer than timeout plus its cleanup grace period.
+          timeout --signal=TERM --kill-after=8m 40m bash test/cluster-lifecycle.sh 2>&1 | tee "$ARTIFACT_DIR/runner.log"
+      - name: Collect cluster diagnostics
+        if: always()
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          mkdir -p "$ARTIFACT_DIR"
+          kind export logs "$ARTIFACT_DIR/kind" --name "$KIND_CLUSTER" || true
+          kubectl --context "$SIT_CONTEXT" --request-timeout=30s get pods -A -o wide > "$ARTIFACT_DIR/pods.txt" 2>&1 || true
+          kubectl --context "$SIT_CONTEXT" --request-timeout=30s get events -A --sort-by=.metadata.creationTimestamp > "$ARTIFACT_DIR/events.txt" 2>&1 || true
+          kubectl --context "$SIT_CONTEXT" --request-timeout=30s -n milvus-operator logs deploy/milvus-operator --tail=2000 > "$ARTIFACT_DIR/operator.log" 2>&1 || true
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cluster-lifecycle-mode-${{ inputs.rolling_mode }}-${{ github.run_attempt }}
+          path: artifacts/cluster-lifecycle
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Delete disposable KinD cluster
+        if: always()
+        run: kind delete cluster --name "$KIND_CLUSTER"
