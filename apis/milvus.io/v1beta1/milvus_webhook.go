@@ -342,8 +342,9 @@ func (r *Milvus) validateExternal() field.ErrorList {
 			allErrs = append(allErrs, required(fp.Child("kafka").Child("brokerList")))
 		}
 	case MsgStreamTypePulsar:
-		if r.Spec.Dep.Pulsar.External && len(r.Spec.Dep.Pulsar.Endpoint) == 0 {
-			allErrs = append(allErrs, required(fp.Child("pulsar").Child("endpoint")))
+		if r.Spec.Dep.Pulsar.External && len(r.Spec.Dep.Pulsar.GetEndpoints()) == 0 {
+			allErrs = append(allErrs, field.Required(fp.Child("pulsar"),
+				"endpoint or endpoints should be configured"))
 		}
 	case MsgStreamTypeWoodPecker:
 		if r.Spec.Dep.WoodPecker.External {

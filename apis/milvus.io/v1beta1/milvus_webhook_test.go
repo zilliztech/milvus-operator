@@ -620,3 +620,32 @@ func TestMilvus_validateCommon(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestValidateExternalPulsarEndpoints(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		conf    MilvusPulsar
+		invalid bool
+	}{
+		{name: "internal may omit endpoints"},
+		{name: "external requires endpoint or endpoints", conf: MilvusPulsar{External: true}, invalid: true},
+		{name: "legacy endpoint", conf: MilvusPulsar{External: true, Endpoint: "legacy:6650"}},
+		{name: "broker list", conf: MilvusPulsar{External: true, Endpoints: []string{"a:6650", "b:6650"}}},
+		{name: "both fields", conf: MilvusPulsar{External: true, Endpoint: "legacy:6650", Endpoints: []string{"a:6650"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mc := Milvus{}
+			mc.Spec.Dep.MsgStreamType = MsgStreamTypePulsar
+			mc.Spec.Dep.Pulsar = tc.conf
+			errs := mc.validateExternal()
+			if tc.invalid {
+				if assert.Len(t, errs, 1) {
+					assert.Equal(t, "spec.dependencies.pulsar", errs[0].Field)
+					assert.Contains(t, errs[0].Detail, "endpoint or endpoints")
+				}
+			} else {
+				assert.Empty(t, errs)
+			}
+		})
+	}
+}

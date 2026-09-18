@@ -612,6 +612,10 @@ func getConfCheckSum(spec v1beta1.MilvusSpec, annotations map[string]string) str
 	conf["conf"] = spec.Conf.Data
 	conf["etcd-endpoints"] = spec.Dep.Etcd.Endpoints
 	conf["pulsar-endpoint"] = spec.Dep.Pulsar.Endpoint
+	// Keep legacy checksums unchanged when the optional broker list is unused.
+	if len(spec.Dep.Pulsar.Endpoints) > 0 {
+		conf["pulsar-endpoints"] = spec.Dep.Pulsar.Endpoints
+	}
 	conf["kafka-brokerList"] = spec.Dep.Kafka.BrokerList
 	conf["storage-endpoint"] = spec.Dep.Storage.Endpoint
 	if spec.Dep.WoodPecker.External {
