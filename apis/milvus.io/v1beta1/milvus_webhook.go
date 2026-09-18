@@ -343,7 +343,8 @@ func (r *Milvus) validateExternal() field.ErrorList {
 		}
 	case MsgStreamTypePulsar:
 		if r.Spec.Dep.Pulsar.External && len(r.Spec.Dep.Pulsar.GetEndpoints()) == 0 {
-			allErrs = append(allErrs, required(fp.Child("pulsar").Child("endpoint")))
+			allErrs = append(allErrs, field.Required(fp.Child("pulsar"),
+				"endpoint or endpoints should be configured"))
 		}
 	case MsgStreamTypeWoodPecker:
 		if r.Spec.Dep.WoodPecker.External {
