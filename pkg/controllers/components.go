@@ -696,14 +696,8 @@ func (c MilvusComponent) GetDeploymentStrategy(ms *v1beta1.MilvusSpec) appsv1.De
 			MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 0},
 			MaxSurge:       &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
 		}
-		if spec := c.GetComponentSpec(*ms); spec.RollingUpdate != nil {
-			if spec.RollingUpdate.MaxUnavailable != nil {
-				rollingUpdate.MaxUnavailable = spec.RollingUpdate.MaxUnavailable
-			}
-			if spec.RollingUpdate.MaxSurge != nil {
-				rollingUpdate.MaxSurge = spec.RollingUpdate.MaxSurge
-			}
-		}
+		effective := v1beta1.MergeRollingUpdate(ms.Com.RollingUpdate, c.GetComponentSpec(*ms).RollingUpdate)
+		rollingUpdate = v1beta1.MergeRollingUpdate(rollingUpdate, effective)
 		return appsv1.DeploymentStrategy{
 			Type:          appsv1.RollingUpdateDeploymentStrategyType,
 			RollingUpdate: rollingUpdate,
@@ -837,17 +831,7 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 		dst.SecurityContext = src.SecurityContext
 	}
 
-	if src.RollingUpdate != nil {
-		if dst.RollingUpdate == nil {
-			dst.RollingUpdate = &appsv1.RollingUpdateDeployment{}
-		}
-		if src.RollingUpdate.MaxSurge != nil {
-			dst.RollingUpdate.MaxSurge = src.RollingUpdate.MaxSurge
-		}
-		if src.RollingUpdate.MaxUnavailable != nil {
-			dst.RollingUpdate.MaxUnavailable = src.RollingUpdate.MaxUnavailable
-		}
-	}
+	dst.RollingUpdate = v1beta1.MergeRollingUpdate(dst.RollingUpdate, src.RollingUpdate)
 	return dst
 }
 

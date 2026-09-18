@@ -72,3 +72,38 @@ func TestMilvusValidateRollingUpdates(t *testing.T) {
 		}
 	}
 }
+
+func TestRollingUpdateInheritanceValidation(t *testing.T) {
+	zero, one, two := intstr.FromInt(0), intstr.FromInt(1), intstr.FromInt(2)
+	for _, tc := range []struct {
+		name              string
+		global, component *appsv1.RollingUpdateDeployment
+		invalid           bool
+	}{
+		{"inherit all", &appsv1.RollingUpdateDeployment{MaxSurge: &zero, MaxUnavailable: &one}, nil, false},
+		{"inherit unavailable", &appsv1.RollingUpdateDeployment{MaxUnavailable: &one}, &appsv1.RollingUpdateDeployment{MaxSurge: &zero}, false},
+		{"inherit surge", &appsv1.RollingUpdateDeployment{MaxSurge: &two, MaxUnavailable: &one}, &appsv1.RollingUpdateDeployment{MaxUnavailable: &zero}, false},
+		{"override produces both zero", &appsv1.RollingUpdateDeployment{MaxSurge: &zero, MaxUnavailable: &one}, &appsv1.RollingUpdateDeployment{MaxUnavailable: &zero}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mc := &Milvus{}
+			mc.Spec.Mode = MilvusModeCluster
+			mc.Default()
+			mc.Spec.Com.RollingUpdate = tc.global.DeepCopy()
+			mc.Spec.Com.QueryNode.RollingUpdate = tc.component.DeepCopy()
+			before := mc.DeepCopy()
+			_, createErr := mc.ValidateCreate()
+			_, updateErr := mc.ValidateUpdate(before)
+			if tc.invalid {
+				require.Error(t, createErr)
+				require.Error(t, updateErr)
+				assert.Contains(t, createErr.Error(), "queryNode.rollingUpdate")
+			} else {
+				require.NoError(t, createErr)
+				require.NoError(t, updateErr)
+			}
+			assert.Equal(t, before.Spec.Com.RollingUpdate, mc.Spec.Com.RollingUpdate)
+			assert.Equal(t, before.Spec.Com.QueryNode.RollingUpdate, mc.Spec.Com.QueryNode.RollingUpdate)
+		})
+	}
+}

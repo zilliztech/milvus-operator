@@ -782,3 +782,28 @@ func TestMilvusComponent_IsImageUpdated(t *testing.T) {
 	m.Status.ComponentsDeployStatus[StandaloneName] = s
 	assert.True(t, MilvusStandalone.IsImageUpdated(m))
 }
+
+func TestDeploymentStrategyRollingUpdateInheritance(t *testing.T) {
+	zero, one, two := intstr.FromInt(0), intstr.FromInt(1), intstr.FromInt(2)
+	mc := v1beta1.Milvus{}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	mc.Spec.Com.RollingUpdate = &appsv1.RollingUpdateDeployment{MaxSurge: &zero, MaxUnavailable: &one}
+	original := mc.DeepCopy()
+	strategy := GetDeploymentStrategy(&mc, QueryNode)
+	assert.Equal(t, zero, *strategy.RollingUpdate.MaxSurge)
+	assert.Equal(t, one, *strategy.RollingUpdate.MaxUnavailable)
+	mc.Spec.Com.QueryNode.RollingUpdate = &appsv1.RollingUpdateDeployment{MaxSurge: &two}
+	strategy = GetDeploymentStrategy(&mc, QueryNode)
+	assert.Equal(t, two, *strategy.RollingUpdate.MaxSurge)
+	assert.Equal(t, one, *strategy.RollingUpdate.MaxUnavailable)
+	merged := MergeComponentSpec(mc.Spec.Com.QueryNode.ComponentSpec, mc.Spec.Com.ComponentSpec)
+	assert.Equal(t, two, *merged.RollingUpdate.MaxSurge)
+	*merged.RollingUpdate.MaxUnavailable = two
+	*strategy.RollingUpdate.MaxSurge = one
+	assert.Equal(t, original.Spec.Com.RollingUpdate, mc.Spec.Com.RollingUpdate)
+	assert.Equal(t, two, *mc.Spec.Com.QueryNode.RollingUpdate.MaxSurge)
+	other := GetDeploymentStrategy(&mc, DataNode)
+	assert.Equal(t, zero, *other.RollingUpdate.MaxSurge)
+	assert.Equal(t, one, *other.RollingUpdate.MaxUnavailable)
+}

@@ -26,7 +26,8 @@ func (r *Milvus) validateRollingUpdates() field.ErrorList {
 			continue
 		}
 		name := strings.Split(components.Type().Field(i).Tag.Get("json"), ",")[0]
-		allErrs = append(allErrs, validateRollingUpdate(spec.Interface().(ComponentSpec).RollingUpdate, path.Child(name, "rollingUpdate"))...)
+		effective := MergeRollingUpdate(r.Spec.Com.RollingUpdate, spec.Interface().(ComponentSpec).RollingUpdate)
+		allErrs = append(allErrs, validateRollingUpdate(effective, path.Child(name, "rollingUpdate"))...)
 	}
 	return allErrs
 }
