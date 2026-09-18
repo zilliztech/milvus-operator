@@ -53,6 +53,66 @@ check_milvus_available(){
     kubectl -n $1 get deploy -o yaml
 }
 
+check_hpa(){
+    log "=== HPA Integration Test ==="
+
+    local ns=$1
+    local hpa_name=$2
+
+    # Verify HPA exists
+    log "Checking HPA $hpa_name exists in namespace $ns"
+    if ! kubectl -n $ns get hpa $hpa_name; then
+        log "ERROR: HPA $hpa_name not found"
+        kubectl -n $ns get hpa
+        return 1
+    fi
+
+    # Verify HPA targets a deployment with the correct component name
+    log "Checking HPA target deployment"
+    local target
+    target=$(kubectl -n $ns get hpa $hpa_name -o jsonpath='{.spec.scaleTargetRef.name}')
+    if [[ ! "$target" =~ "querynode" ]]; then
+        log "ERROR: HPA target deployment '$target' does not contain 'querynode'"
+        return 1
+    fi
+    log "HPA targets deployment: $target"
+
+    # Verify HPA min/max replicas
+    log "Checking HPA replica bounds"
+    local min max
+    min=$(kubectl -n $ns get hpa $hpa_name -o jsonpath='{.spec.minReplicas}')
+    max=$(kubectl -n $ns get hpa $hpa_name -o jsonpath='{.spec.maxReplicas}')
+    if [ "$min" != "1" ] || [ "$max" != "3" ]; then
+        log "ERROR: HPA replicas incorrect: min=$min max=$max (expected min=1 max=3)"
+        return 1
+    fi
+    log "HPA replicas: min=$min max=$max"
+
+    # Verify HPA has owner reference to the Milvus CR
+    log "Checking HPA owner reference"
+    local owner_kind
+    owner_kind=$(kubectl -n $ns get hpa $hpa_name -o jsonpath='{.metadata.ownerReferences[0].kind}')
+    if [ "$owner_kind" != "Milvus" ]; then
+        log "ERROR: HPA owner reference kind is '$owner_kind', expected 'Milvus'"
+        return 1
+    fi
+    log "HPA owner reference: $owner_kind"
+
+    # Verify HPA has metrics configured
+    log "Checking HPA metrics"
+    local metric_count
+    metric_count=$(kubectl -n $ns get hpa $hpa_name -o jsonpath='{.spec.metrics}' | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+    if [ "$metric_count" -lt 1 ]; then
+        log "ERROR: HPA has no metrics configured"
+        kubectl -n $ns get hpa $hpa_name -o yaml
+        return 1
+    fi
+    log "HPA has $metric_count metric(s) configured"
+
+    kubectl -n $ns get hpa $hpa_name -o yaml
+    log "=== HPA Integration Test PASSED ==="
+}
+
 delete_milvus_cluster(){
     # Delete CR
     log "Deleting MilvusCluster ..."
@@ -100,6 +160,16 @@ case_create_delete_cluster(){
         delete_milvus_cluster
         return 1
     fi
+
+    # HPA verification for feature tests (queryNode HPA)
+    if [ "${testType}" == "feature" ]; then
+        check_hpa mc-sit milvus-milvus-querynode-hpa
+        if [ $? -ne 0 ]; then
+            delete_milvus_cluster
+            return 1
+        fi
+    fi
+
     delete_milvus_cluster
 }
 

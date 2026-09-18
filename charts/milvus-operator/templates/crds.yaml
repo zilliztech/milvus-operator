@@ -989,6 +989,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -1698,6 +1720,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -3008,6 +3052,28 @@ spec:
                         x-kubernetes-list-type: map
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -3822,6 +3888,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -4527,6 +4615,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -5249,6 +5359,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -6579,6 +6711,28 @@ spec:
                         x-kubernetes-list-type: map
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -7330,6 +7484,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -8640,6 +8816,28 @@ spec:
                         x-kubernetes-list-type: map
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -9390,6 +9588,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -10107,6 +10327,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -11466,6 +11708,28 @@ spec:
                         x-kubernetes-list-type: map
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -14515,6 +14779,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -15224,6 +15510,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -16534,6 +16842,28 @@ spec:
                         x-kubernetes-list-type: map
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -17348,6 +17678,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -18053,6 +18405,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -18775,6 +19149,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -20105,6 +20501,28 @@ spec:
                         x-kubernetes-list-type: map
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -20856,6 +21274,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -22166,6 +22606,28 @@ spec:
                         x-kubernetes-list-type: map
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -22916,6 +23378,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -23633,6 +24117,28 @@ spec:
                         type: array
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:
@@ -24992,6 +25498,28 @@ spec:
                         x-kubernetes-list-type: map
                       hostNetwork:
                         type: boolean
+                      hpa:
+                        properties:
+                          behavior:
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          maxReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          metrics:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                          minReplicas:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - maxReplicas
+                        type: object
                       image:
                         type: string
                       imagePullPolicy:

@@ -70,6 +70,7 @@ type MilvusReconciler struct {
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles;rolebindings;clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="monitoring.coreos.com",resources=servicemonitors;podmonitors,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="autoscaling",resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=list;get;watch
 //+kubebuilder:rbac:groups="storage.k8s.io",resources=storageclasses,verbs=get;list;watch
 
