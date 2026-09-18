@@ -162,6 +162,16 @@ func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
 	return ret
 }
 
+// containsComponent reports whether components contains a component with the given name.
+func containsComponent(components []MilvusComponent, name string) bool {
+	for _, c := range components {
+		if c.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // GetComponentWorkloadsBySpec expands logical Milvus components into their
 // independently reconciled Kubernetes workloads. Components without groups
 // keep their legacy workload identity.
