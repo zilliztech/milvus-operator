@@ -1061,7 +1061,7 @@ func TestPlanScaleForExternalHPA_LegacyMode(t *testing.T) {
 
 	util := NewDeployControllerBizUtil(QueryNode, env.Reconciler.Client, nil)
 
-	t.Run("legacy mode - both at 0, no action", func(t *testing.T) {
+	t.Run("legacy mode - bootstrap from 0 replicas", func(t *testing.T) {
 		currentDeploy := &appsv1.Deployment{}
 		currentDeploy.Spec.Replicas = int32Ptr(0)
 
@@ -1070,8 +1070,9 @@ func TestPlanScaleForExternalHPA_LegacyMode(t *testing.T) {
 
 		action := util.planScaleForExternalHPA(ctx, *mc, currentDeploy, lastDeploy)
 
-		// External HPA: no bootstrapping, defers to external HPA
-		assert.Equal(t, noScaleAction, action)
+		// Preserve the bootstrap behavior from main: HPA cannot scale from zero.
+		assert.Equal(t, currentDeploy, action.deploy)
+		assert.Equal(t, 1, action.replicaChange)
 	})
 
 	t.Run("legacy mode - bootstrap current to match last", func(t *testing.T) {
