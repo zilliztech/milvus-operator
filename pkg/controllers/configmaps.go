@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,8 +31,110 @@ func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Mi
 		return "", ""
 	}
 
-	return string(secret.Data[AccessKey]), string(secret.Data[SecretKey])
+	ak, sk, _, _ := storageSecretKeys(secret.Data)
+	return string(ak), string(sk)
 
+}
+
+func storageSecretKeys(data map[string][]byte) ([]byte, []byte, bool, bool) {
+	ak, aok := data[AccessKey]
+	sk, sok := data[SecretKey]
+	if !aok && !sok {
+		ak, aok = data["rootUser"]
+		sk, sok = data["rootPassword"]
+	}
+	return ak, sk, aok, sok
+}
+
+// resolveStorageSecretRefEnv accepts the legacy MinIO and upstream Silo secret
+// schemas without copying credentials or changing a user's Secret.
+func (r *MilvusReconciler) resolveStorageSecretRefEnv(ctx context.Context, mc v1beta1.Milvus) ([]corev1.EnvVar, error) {
+	ref := mc.Spec.Dep.Storage.SecretRef
+	env := GetStorageSecretRefEnv(ref)
+	if ref == "" {
+		return env, nil
+	}
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, NamespacedName(mc.Namespace, ref), secret); err != nil {
+		return nil, errors.Wrap(err, "get storage secret for pod environment")
+	}
+	_, legacyAccess := secret.Data[AccessKey]
+	_, legacySecret := secret.Data[SecretKey]
+	_, silo := secret.Data["rootUser"]
+	if !legacyAccess && !legacySecret && silo {
+		for i := range env {
+			key := &env[i].ValueFrom.SecretKeyRef.Key
+			if *key == AccessKey {
+				*key = "rootUser"
+			} else {
+				*key = "rootPassword"
+			}
+		}
+	}
+	return env, nil
+}
+
+// kafkaSecret is the content of the secret named by spec.dependencies.kafka.secretRef.
+type kafkaSecret struct {
+	Username string
+	Password string
+	// CACert is set only for brokers signed by a private CA, which the
+	// container's system roots cannot verify.
+	CACert []byte
+}
+
+// getKafkaSecret reads the kafka credentials from the referenced secret. Both the
+// username & the password key are required, the CA cert is optional.
+func getKafkaSecret(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (kafkaSecret, error) {
+	var ret kafkaSecret
+	if mc.Spec.Dep.Kafka.SecretRef == "" {
+		return ret, nil
+	}
+	secret := &corev1.Secret{}
+	key := types.NamespacedName{Namespace: mc.Namespace, Name: mc.Spec.Dep.Kafka.SecretRef}
+	if err := cli.Get(ctx, key, secret); err != nil {
+		return ret, errors.Wrapf(err, "get kafka sasl secret[%s]", key)
+	}
+	for _, required := range []string{KafkaSaslUsernameKey, KafkaSaslPasswordKey} {
+		if len(secret.Data[required]) == 0 {
+			return ret, errors.Errorf("kafka sasl secret[%s] has no [%s] key", key, required)
+		}
+	}
+	ret.Username = string(secret.Data[KafkaSaslUsernameKey])
+	ret.Password = string(secret.Data[KafkaSaslPasswordKey])
+	ret.CACert = secret.Data[KafkaCACertKey]
+	return ret, nil
+}
+
+// SyncKafkaSaslCheckSum records the checksum of the kafka SASL credentials in an annotation
+// on the milvus object, so that rotating them rolls the components.
+func (r *MilvusReconciler) SyncKafkaSaslCheckSum(ctx context.Context, mc *v1beta1.Milvus) error {
+	oldCheckSum := mc.GetAnnotations()[v1beta1.KafkaSaslCheckSumAnnotation]
+	newCheckSum := ""
+	if mc.Spec.Dep.MsgStreamType == v1beta1.MsgStreamTypeKafka &&
+		mc.Spec.Dep.Kafka.SecretRef != "" {
+		kafkaSecret, err := getKafkaSecret(ctx, r.Client, *mc)
+		if err != nil {
+			return err
+		}
+		// the CA is mounted into the pods too, and is read only at startup
+		newCheckSum = util.CheckSum([]byte(kafkaSecret.Username + ":" + kafkaSecret.Password + ":" + string(kafkaSecret.CACert)))
+	}
+	if oldCheckSum == newCheckSum {
+		return nil
+	}
+
+	if newCheckSum == "" {
+		delete(mc.Annotations, v1beta1.KafkaSaslCheckSumAnnotation)
+	} else {
+		if mc.Annotations == nil {
+			mc.Annotations = map[string]string{}
+		}
+		mc.Annotations[v1beta1.KafkaSaslCheckSumAnnotation] = newCheckSum
+	}
+	r.logger.Info("kafka credentials changed, update checksum annotation",
+		"namespace", mc.Namespace, "name", mc.Name)
+	return errors.Wrap(r.Update(ctx, mc), "update kafka sasl checksum annotation")
 }
 
 func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvus, configmap *corev1.ConfigMap) error {
@@ -53,13 +156,27 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 	util.MergeValues(conf, mc.Spec.Conf.Data)
 	util.SetStringSlice(conf, mc.Spec.Dep.Etcd.Endpoints, "etcd", "endpoints")
 
-	host, port := util.GetHostPort(mc.Spec.Dep.Storage.Endpoint)
+	host, port := GetStorageHostPort(mc.Spec.Dep.Storage.Endpoint, GetMinioSecure(mc.Spec.Conf.Data))
 	util.SetValue(conf, host, "minio", "address")
 	util.SetValue(conf, int64(port), "minio", "port")
 
 	switch mc.Spec.Dep.MsgStreamType {
 	case v1beta1.MsgStreamTypeKafka:
 		util.SetStringSlice(conf, mc.Spec.Dep.Kafka.BrokerList, "kafka", "brokerList")
+		// Credentials from secretRef are injected into the pods as env vars, not
+		// written here: a configmap has no encryption at rest, no RBAC separation
+		// from ordinary config, and is excluded from secret scanning.
+		if mc.Spec.Dep.Kafka.SecretRef != "" {
+			kafkaSecret, err := getKafkaSecret(ctx, r.Client, mc)
+			if err != nil {
+				return err
+			}
+			// A path, not the cert: the operator mounts it from the same secret.
+			if len(kafkaSecret.CACert) > 0 {
+				util.SetValue(conf, true, "kafka", "ssl", "enabled")
+				util.SetValue(conf, KafkaCACertPath, "kafka", "ssl", "tlsCaCert")
+			}
+		}
 		// delete other mq config to make milvus use kafka
 		delete(conf, "pulsar")
 		delete(conf, "rocksmq")
@@ -78,6 +195,24 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 		// delete other mq config to make milvus use rocksmq
 		delete(conf, "pulsar")
 		delete(conf, "kafka")
+	case v1beta1.MsgStreamTypeWoodPecker:
+		// external woodpecker LogStore (service mode); when unset, woodpecker runs
+		// embedded inside milvus over external etcd + object storage. Only the
+		// quorum buffer pool topology is rendered here; quorum sizing stays a
+		// milvus/woodpecker config-file concern and is not set by the operator.
+		if mc.Spec.Dep.WoodPecker.External {
+			// milvus reads quorumBufferPools as a JSON string (builder.go setQuorumConfig)
+			poolsJSON, err := json.Marshal(mc.Spec.Dep.WoodPecker.QuorumBufferPools)
+			if err != nil {
+				return errors.Wrap(err, "marshal woodpecker quorumBufferPools")
+			}
+			util.SetValue(conf, "service", "woodpecker", "storage", "type")
+			util.SetValue(conf, string(poolsJSON), "woodpecker", "client", "quorum", "quorumBufferPools")
+		}
+		// delete other mq config to make milvus use woodpecker
+		delete(conf, "pulsar")
+		delete(conf, "kafka")
+		delete(conf, "rocksmq")
 	default:
 		// we use mq.type to handle it
 	}

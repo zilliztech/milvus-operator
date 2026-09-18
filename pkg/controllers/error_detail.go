@@ -15,15 +15,22 @@ const (
 // ComponentErrorDetail is one sample of error detail among all error pods
 type ComponentErrorDetail struct {
 	ComponentName string
-	NotObserved   bool
-	Deployment    *appsv1.DeploymentCondition
-	PodName       string
-	Pod           *corev1.PodCondition
-	Container     *corev1.ContainerStatus
+	// WorkloadKind is the noun used in the non-pod fallback messages ("deployment"
+	// or "statefulset"). Empty defaults to "deployment" for backward compatibility.
+	WorkloadKind string
+	NotObserved  bool
+	Deployment   *appsv1.DeploymentCondition
+	PodName      string
+	Pod          *corev1.PodCondition
+	Container    *corev1.ContainerStatus
 }
 
 func (m ComponentErrorDetail) String() string {
 	ret := fmt.Sprintf("component[%s]: ", m.ComponentName)
+	workload := m.WorkloadKind
+	if workload == "" {
+		workload = "deployment"
+	}
 	if m.Pod != nil {
 		ret += fmt.Sprintf("pod[%s]: ", m.PodName)
 		if m.Container != nil {
@@ -33,11 +40,11 @@ func (m ComponentErrorDetail) String() string {
 		}
 	} else {
 		if m.NotObserved {
-			ret += "updating deployment"
+			ret += "updating " + workload
 			return ret
 		}
 		if m.Deployment == nil {
-			return ret + "deployment not created"
+			return ret + workload + " not created"
 		}
 		ret += fmt.Sprintf("deployment status[%s:%s]: reason[%s]: %s", m.Deployment.Type, m.Deployment.Status, m.Deployment.Reason, m.Deployment.Message)
 	}

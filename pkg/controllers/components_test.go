@@ -386,6 +386,23 @@ func TestMilvusComponent_GetServiceType(t *testing.T) {
 	assert.Equal(t, corev1.ServiceTypeLoadBalancer, com.GetServiceType(spec))
 }
 
+func TestGroupedMilvusComponentKeepsLogicalProxyBehavior(t *testing.T) {
+	replicas := int32(1)
+	groupedProxy := Proxy
+	groupedProxy.DeploymentGroup = &v1beta1.DeploymentGroup{Name: "g1", Replicas: &replicas}
+
+	spec := newSpecCluster()
+	spec.Com.Proxy.ServiceType = corev1.ServiceTypeNodePort
+	spec.Com.Proxy.Port = 19532
+	spec.Com.Proxy.ServiceRestfulPort = 9091
+
+	assert.True(t, groupedProxy.Is(Proxy))
+	assert.True(t, groupedProxy.IsService())
+	assert.Equal(t, corev1.ServiceTypeNodePort, groupedProxy.GetServiceType(spec))
+	assert.Equal(t, int32(19532), groupedProxy.GetComponentPort(spec))
+	assert.Equal(t, int32(9091), groupedProxy.GetRestfulPort(spec))
+}
+
 func TestMilvusComponent_GetServicePorts(t *testing.T) {
 	com := Proxy
 	spec := newSpecCluster()
@@ -505,6 +522,18 @@ func TestMilvusComponent_GetConfCheckSum(t *testing.T) {
 	spec.Dep.Storage.Endpoint = "ep"
 	checksum4 := GetConfCheckSum(spec)
 	assert.NotEqual(t, checksum1, checksum4)
+
+	// enabling external woodpecker + changing its config must roll pods
+	spec.Dep.WoodPecker.External = true
+	spec.Dep.WoodPecker.QuorumBufferPools = []v1beta1.WoodpeckerBufferPool{
+		{Name: "p1", Seeds: []string{"wp-0:18080"}},
+	}
+	checksum5 := GetConfCheckSum(spec)
+	assert.NotEqual(t, checksum4, checksum5)
+
+	spec.Dep.WoodPecker.QuorumBufferPools[0].Seeds = []string{"wp-1:18080"}
+	checksum6 := GetConfCheckSum(spec)
+	assert.NotEqual(t, checksum5, checksum6)
 }
 
 func TestMilvusComponent_GetMilvusConfCheckSumt(t *testing.T) {

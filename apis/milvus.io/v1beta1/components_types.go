@@ -278,6 +278,29 @@ type MilvusComponents struct {
 	Cdc *MilvusCdc `json:"cdc,omitempty"`
 }
 
+// HPASpec defines the HPA configuration for a component
+type HPASpec struct {
+	// MinReplicas is the minimum number of replicas (default: 1)
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Optional
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+
+	// MaxReplicas is the maximum number of replicas
+	// +kubebuilder:validation:Minimum=1
+	MaxReplicas int32 `json:"maxReplicas"`
+
+	// Metrics contains the specifications for scaling metrics
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Metrics []Values `json:"metrics,omitempty"`
+
+	// Behavior configures the scaling behavior
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +nullable
+	Behavior Values `json:"behavior,omitempty"`
+}
+
 type Component struct {
 	ComponentSpec `json:",inline"`
 
@@ -285,6 +308,10 @@ type Component struct {
 	// +kubebuilder:validation:Minimum=-1
 	// when replicas is -1, it means the replicas should be managed by HPA
 	Replicas *int32 `json:"replicas,omitempty"`
+
+	// HPA defines the Horizontal Pod Autoscaler configuration
+	// +kubebuilder:validation:Optional
+	HPA *HPASpec `json:"hpa,omitempty"`
 
 	// SideCars is same as []corev1.Container, we use a Values here to avoid the CRD become too large
 	// +kubebuilder:validation:Optional
@@ -297,20 +324,131 @@ type Component struct {
 	InitContainers []Values `json:"initContainers,omitempty"`
 }
 
+// DeploymentGroup describes one independently deployed workload for a Milvus
+// component. Deployment groups are Kubernetes workload identities and do not
+// implicitly create or configure Milvus resource groups.
+type DeploymentGroup struct {
+	// Name is the stable deployment-group identity and is used as a Kubernetes
+	// name suffix and label value.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// Replicas is the desired number of pods in this deployment group. A value
+	// of -1 relinquishes replica management to an external HPA.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=-1
+	Replicas *int32 `json:"replicas"`
+
+	// Labels are applied to both the Deployment and pod template. Reserved
+	// operator labels cannot be overridden.
+	// +kubebuilder:validation:Optional
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// Annotations are applied to both the Deployment and pod template.
+	// +kubebuilder:validation:Optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// ExtraEnv is merged over global and component environment variables by
+	// variable name.
+	// +kubebuilder:validation:Optional
+	ExtraEnv []corev1.EnvVar `json:"extraEnv,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	Tolerations *[]corev1.Toleration `json:"tolerations,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	TopologySpreadConstraints *[]corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
+}
+
 type MilvusQueryNode struct {
 	Component `json:",inline"`
+
+	// Groups splits QueryNode into independently configured Kubernetes
+	// workloads. QueryNode keeps its existing two-deployment rollout behavior
+	// within every group.
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=name
+	Groups []DeploymentGroup `json:"groups,omitempty"`
+
+	// StatefulSet, when enabled, deploys QueryNode as a StatefulSet instead of a
+	// Deployment, so each replica gets a stable identity and dedicated PVC(s) via
+	// volumeClaimTemplates. In this mode QueryNode uses the StatefulSet's native
+	// rolling update instead of the two-deployment blue/green rollout, so it
+	// cannot be combined with rollingMode v3.
+	// +kubebuilder:validation:Optional
+	StatefulSet *ComponentStatefulSet `json:"statefulSet,omitempty"`
+}
+
+// ComponentStatefulSet configures a component's StatefulSet deployment mode.
+type ComponentStatefulSet struct {
+	// Enabled turns on StatefulSet mode for the component.
+	// +kubebuilder:validation:Optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// VolumeClaimTemplates is same as []corev1.PersistentVolumeClaimTemplate.
+	// We use Values here to avoid the CRD becoming too large. Reference a
+	// template by its metadata.name from the component's volumeMounts to mount
+	// the per-replica PVC.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	VolumeClaimTemplates []Values `json:"volumeClaimTemplates,omitempty"`
+}
+
+// StatefulSetEnabled reports whether QueryNode should be deployed as a StatefulSet.
+func (q *MilvusQueryNode) StatefulSetEnabled() bool {
+	return q != nil && q.StatefulSet != nil && q.StatefulSet.Enabled
 }
 
 type MilvusDataNode struct {
 	Component `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=name
+	Groups []DeploymentGroup `json:"groups,omitempty"`
+
+	// StatefulSet, when enabled, deploys DataNode as a StatefulSet instead of a
+	// Deployment, so each replica gets a stable identity and dedicated PVC(s) via
+	// volumeClaimTemplates. Cannot be combined with rollingMode v3.
+	// +kubebuilder:validation:Optional
+	StatefulSet *ComponentStatefulSet `json:"statefulSet,omitempty"`
+}
+
+// StatefulSetEnabled reports whether DataNode should be deployed as a StatefulSet.
+func (d *MilvusDataNode) StatefulSetEnabled() bool {
+	return d != nil && d.StatefulSet != nil && d.StatefulSet.Enabled
 }
 
 type MilvusIndexNode struct {
 	Component `json:",inline"`
+
+	// StatefulSet, when enabled, deploys IndexNode as a StatefulSet instead of a
+	// Deployment, so each replica gets a stable identity and dedicated PVC(s) via
+	// volumeClaimTemplates. Cannot be combined with rollingMode v3.
+	// +kubebuilder:validation:Optional
+	StatefulSet *ComponentStatefulSet `json:"statefulSet,omitempty"`
+}
+
+// StatefulSetEnabled reports whether IndexNode should be deployed as a StatefulSet.
+func (i *MilvusIndexNode) StatefulSetEnabled() bool {
+	return i != nil && i.StatefulSet != nil && i.StatefulSet.Enabled
 }
 
 type MilvusProxy struct {
 	ServiceComponent `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=name
+	Groups []DeploymentGroup `json:"groups,omitempty"`
 }
 
 // MilvusMixCoord is a mixture of rootCoord, indexCoord, queryCoord & dataCoord
@@ -336,6 +474,11 @@ type MilvusIndexCoord struct {
 
 type MilvusStreamingNode struct {
 	Component `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=name
+	Groups []DeploymentGroup `json:"groups,omitempty"`
 }
 
 type MilvusStandalone struct {

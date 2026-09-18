@@ -334,6 +334,17 @@ func RemoveConditions(status *v1beta1.MilvusStatus, typesToRemove []v1beta1.Milv
 }
 
 func UpdateCondition(status *v1beta1.MilvusStatus, c v1beta1.MilvusCondition) {
+	validConditions := status.Conditions[:0]
+	for _, condition := range status.Conditions {
+		if condition.Type != "" {
+			validConditions = append(validConditions, condition)
+		}
+	}
+	status.Conditions = validConditions
+	if c.Type == "" {
+		return
+	}
+
 	for i := range status.Conditions {
 		cp := &status.Conditions[i]
 		if cp.Type == c.Type {
