@@ -113,8 +113,7 @@ func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Clien
 			return newErrStorageCondResult(v1beta1.ReasonSecretNotExist, MessageSecretNotExist)
 		}
 		var exist1, exist2 bool
-		accesskey, exist1 = secret.Data[AccessKey]
-		secretkey, exist2 = secret.Data[SecretKey]
+		accesskey, secretkey, exist1, exist2 = storageSecretKeys(secret.Data)
 		if !exist1 || !exist2 {
 			return newErrStorageCondResult(v1beta1.ReasonSecretNotExist, MessageKeyNotExist)
 		}

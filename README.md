@@ -96,11 +96,11 @@ Versions of the underlying components are listed below:
 
 <!-- source csv for table
 Components, Milvus, Pulsar / Kafka, Etcd, MinIO
-Versions, v2.6.11 `[1]`, 3.0.7 / 3.1.0, 3.5.25, RELEASE.2024-12-18T13-15-44Z -->
+Versions, v2.6.24 `[1]`, 3.0.7 / 3.1.0, 3.5.25, RELEASE.2024-12-18T13-15-44Z -->
 
 |Components| Milvus| Pulsar / Kafka| Etcd| MinIO|
 |---|---|---|---|---|
-|Versions| v2.6.11 `[1]`| 3.0.7`[2]` / 3.1.0 | 3.5.25 |RELEASE.2024-12-18T13-15-44Z|
+|Versions| v2.6.24 `[1]`| 3.0.7`[2]` / 3.1.0 | 3.5.25 |RELEASE.2024-12-18T13-15-44Z|
 
 
 > `[1]` Version of milvus is the default version we will use, you can set it to other version. The Compatibility with milvus releases is showed below.

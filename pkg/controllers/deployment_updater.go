@@ -2,9 +2,11 @@ package controllers
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/blang/semver/v4"
 	pkgErrs "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -355,10 +357,23 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 		containerIdx = len(template.Spec.Containers) - 1
 	}
 	container := &template.Spec.Containers[containerIdx]
+	const layeredEnv = "MILVUS_OPERATOR_LAYERED_CONFIG"
+	previouslyLayered := false
+	for _, e := range container.Env {
+		if e.Name == layeredEnv && e.Value == "true" {
+			previouslyLayered = true
+		}
+	}
 	container.Args = updater.GetArgs()
 	env := MergeEnvVar(updater.GetStorageEndpointEnv(), mergedComSpec.Env)
-	env = append(env, GetStorageSecretRefEnv(updater.GetSecretRef())...)
-	env = append(env, GetKafkaSecretRefEnv(updater.GetKafkaSecretRef())...)
+	env = MergeEnvVar(env, GetStorageSecretRefEnv(updater.GetSecretRef()))
+	env = MergeEnvVar(env, GetKafkaSecretRefEnv(updater.GetKafkaSecretRef()))
+	// Resolved storage Secret keys override the legacy default key names.
+	for _, resolved := range updater.GetStorageEndpointEnv() {
+		if resolved.ValueFrom != nil && resolved.ValueFrom.SecretKeyRef != nil {
+			env = MergeEnvVar(env, []corev1.EnvVar{resolved})
+		}
+	}
 	container.Env = MergeEnvVar(container.Env, env)
 	metricPort := corev1.ContainerPort{
 		Name:          MetricPortName,
@@ -409,6 +424,16 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	}
 
 	container.Resources = *mergedComSpec.Resources
+	version := ""
+	if container.Image == mergedComSpec.Image {
+		version = mergedComSpec.Version
+	}
+	layered := supportsLayeredConfig(container.Image, version)
+	container.Env = MergeEnvVar(container.Env, []corev1.EnvVar{{Name: layeredEnv, Value: strconv.FormatBool(layered)}})
+	if layered && !previouslyLayered {
+		// The new startup path requires the new script, including on existing CRs.
+		updateConfigContainer(template, updater)
+	}
 
 	if mergedComSpec.SecurityContext.Data != nil {
 		if container.SecurityContext == nil {
@@ -416,6 +441,22 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 		}
 		mergedComSpec.SecurityContext.MustAsObj(&container.SecurityContext)
 	}
+}
+
+// Explicit versions support custom tags/digests. Unknown versions keep legacy behavior.
+func supportsLayeredConfig(image, version string) bool {
+	if version == "" {
+		if strings.Contains(image, "@") {
+			return false
+		}
+		tag := strings.LastIndex(image, ":")
+		if tag <= strings.LastIndex(image, "/") {
+			return false
+		}
+		version = image[tag+1:]
+	}
+	v, err := semver.ParseTolerant(version)
+	return err == nil && (v.Major > 2 || v.Major == 2 && v.Minor >= 5)
 }
 
 func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploymentUpdater) {

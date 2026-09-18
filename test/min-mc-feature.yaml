@@ -24,6 +24,7 @@ metadata:
 spec:
   mode: 'cluster'
   components:
+    image: milvusdb/milvus:v2.6.24
     probes:
       livenessProbe:
         failureThreshold: 3
