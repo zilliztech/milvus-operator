@@ -37,3 +37,11 @@ jobs:
       - name: Integration Test
         run: |
           make sit-test test_mode=alpha
+
+  weekly-cluster-lifecycle:
+    name: Cluster Lifecycle SIT (rolling mode 3)
+    uses: ./.github/workflows/cluster-lifecycle.yml
+    permissions:
+      contents: read
+    with:
+      rolling_mode: '3'
