@@ -292,6 +292,30 @@ sit-test:
 cleanup-sit:
 	kubectl delete -f test/test_gen.yaml
 
+# Pin the previous supported patch explicitly; target follows the operator default.
+FROM_IMAGE ?= milvusdb/milvus:v2.6.23
+TO_IMAGE ?= $(shell sed -n 's/.*DefaultMilvusVersion = "\([^"]*\)"/milvusdb\/milvus:\1/p' pkg/config/config.go)
+
+.PHONY: sit-cluster-lifecycle sit-cluster-lifecycle-check sit-cluster-lifecycle-images
+sit-cluster-lifecycle:
+	FROM_IMAGE='$(FROM_IMAGE)' TO_IMAGE='$(TO_IMAGE)' SDK_IMAGE='$(SDK_IMAGE)' ./test/cluster-lifecycle.sh
+
+sit-cluster-lifecycle-check:
+	bash -n test/cluster-lifecycle.sh
+	python3 -m unittest discover -s test -p 'test_cluster_lifecycle.py' -v
+
+SDK_IMAGE ?= bitnamilegacy/pymilvus:2.4.6
+SIT_LIFECYCLE_IMAGES = $(FROM_IMAGE) $(TO_IMAGE) $(SILO_IMAGE) \
+	milvusdb/etcd:3.5.25-r1 bitnamilegacy/kafka:3.1.0 \
+	bitnamilegacy/zookeeper:3.7.0 $(SDK_IMAGE) pgsty/mc:RELEASE.2026-09-13T00-00-00Z
+
+sit-cluster-lifecycle-images: sit-load-operator-images
+	@set -eu; for image in $(sort $(SIT_LIFECYCLE_IMAGES)); do \
+		docker pull "$$image"; \
+		kind load docker-image "$$image" --name $(KIND_CLUSTER); \
+		docker rmi "$$image"; \
+	done
+
 test-milvus-upgrade:
 	./test/milvus-upgrade.sh
 	

@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
+	"github.com/google/go-cmp/cmp"
 	pkgErrs "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -38,6 +38,7 @@ type deploymentUpdater interface {
 	RollingUpdateImageDependencyReady() bool
 	HasHookConfig() bool
 	IsHPAEnabled() bool
+	GetHPASpec() *v1beta1.HPASpec
 }
 
 var preservedMetadataPrefixes = []string{
@@ -147,9 +148,16 @@ func updateDeploymentReplicas(deployment *appsv1.Deployment, updater deploymentU
 	// mutate replicas if HPA is not enabled
 	if !updater.IsHPAEnabled() {
 		deployment.Spec.Replicas = updater.GetReplicas()
-	} else if getDeployReplicas(deployment) == 0 {
-		// hpa cannot scale from 0, so we set replicas to 1
-		deployment.Spec.Replicas = int32Ptr(1)
+		return
+	}
+
+	// HPA enabled - only set replicas if currently 0 (HPA cannot scale from 0)
+	if getDeployReplicas(deployment) == 0 {
+		minReplicas := int32(1)
+		if hpaSpec := updater.GetHPASpec(); hpaSpec != nil && hpaSpec.MinReplicas != nil {
+			minReplicas = *hpaSpec.MinReplicas
+		}
+		deployment.Spec.Replicas = int32Ptr(int(minReplicas))
 	}
 }
 
@@ -211,7 +219,7 @@ func updatePodTemplate(
 		podTemplateLogger.WithValues(
 			"namespace", updater.GetMilvus().Namespace,
 			"milvus", updater.GetMilvus().Name).
-			Info("pod template updated by crd", "diff", diff.ObjectDiff(currentTemplate, template))
+			Info("pod template updated by crd", "diff", cmp.Diff(currentTemplate, template))
 	case forceUpdateAll:
 	default:
 		// no updates, no default changes
@@ -637,10 +645,23 @@ func (m milvusDeploymentUpdater) GetReplicas() *int32 {
 	return m.component.GetReplicas(m.Spec)
 }
 
-// when replicas is -1, HPA is enabled
+// IsHPAEnabled returns true if HPA is enabled for the component
+// HPA is enabled when either:
+// 1. The component has an HPA spec defined (new approach)
+// 2. The replicas is set to -1 (legacy convention for backward compatibility)
 func (m milvusDeploymentUpdater) IsHPAEnabled() bool {
+	// Check HPA spec first (new approach takes precedence)
+	if m.component.GetHPASpec(m.Spec) != nil {
+		return true
+	}
+	// Fallback to replicas = -1 convention (backward compatibility)
 	replicas := m.component.GetReplicas(m.Spec)
 	return replicas != nil && *replicas < 0
+}
+
+// GetHPASpec returns the HPA spec for the component
+func (m milvusDeploymentUpdater) GetHPASpec() *v1beta1.HPASpec {
+	return m.component.GetHPASpec(m.Spec)
 }
 
 func (m milvusDeploymentUpdater) GetSideCars() []corev1.Container {

@@ -807,3 +807,21 @@ func TestDeploymentStrategyRollingUpdateInheritance(t *testing.T) {
 	assert.Equal(t, zero, *other.RollingUpdate.MaxSurge)
 	assert.Equal(t, one, *other.RollingUpdate.MaxUnavailable)
 }
+
+func TestPulsarEndpointsCheckSum(t *testing.T) {
+	spec := newSpecCluster()
+	spec.Dep.Pulsar.Endpoint = "legacy:6650"
+	legacy := GetConfCheckSum(spec)
+	spec.Dep.Pulsar.Endpoints = []string{}
+	assert.Equal(t, legacy, GetConfCheckSum(spec))
+	spec.Dep.Pulsar.Endpoints = []string{"first:6650", "second:6650"}
+	listed := GetConfCheckSum(spec)
+	assert.NotEqual(t, legacy, listed)
+	spec.Dep.Pulsar.Endpoints[0] = "replacement:6651"
+	changed := GetConfCheckSum(spec)
+	assert.NotEqual(t, listed, changed)
+	spec.Dep.Pulsar.Endpoints[0], spec.Dep.Pulsar.Endpoints[1] = spec.Dep.Pulsar.Endpoints[1], spec.Dep.Pulsar.Endpoints[0]
+	assert.NotEqual(t, changed, GetConfCheckSum(spec))
+	spec.Dep.Pulsar.Endpoints = nil
+	assert.Equal(t, legacy, GetConfCheckSum(spec))
+}

@@ -576,3 +576,44 @@ func TestMilvusReconciler_SyncKafkaSaslCheckSum(t *testing.T) {
 		assert.Error(t, r.SyncKafkaSaslCheckSum(ctx, mc))
 	})
 }
+
+func TestUpdateConfigMapPulsarEndpoints(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		endpoint  string
+		endpoints []string
+		host      string
+		port      int64
+	}{
+		{name: "legacy", endpoint: "legacy:6650", host: "legacy", port: 6650},
+		{name: "empty list falls back", endpoint: "legacy:6650", endpoints: []string{}, host: "legacy", port: 6650},
+		{name: "list only", endpoints: []string{"first:6651", "second:6650"}, host: "first", port: 6651},
+		{name: "list overrides legacy", endpoint: "legacy:6650", endpoints: []string{"first:6651", "second:6650"}, host: "first", port: 6651},
+		{name: "reordered list", endpoints: []string{"second:6650", "first:6651"}, host: "second", port: 6650},
+		{name: "unset", port: 80},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newTestEnv(t)
+			defer env.checkMocks()
+			mc := env.Inst
+			mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypePulsar
+			mc.Spec.Dep.Pulsar = v1beta1.MilvusPulsar{External: true, Endpoint: tc.endpoint, Endpoints: tc.endpoints}
+			env.MockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).Return(k8sErrors.NewNotFound(schema.GroupResource{}, "missing"))
+			cm := &corev1.ConfigMap{}
+			cm.Namespace = mc.Namespace
+			cm.Name = "pulsar-config"
+			if !assert.NoError(t, env.Reconciler.updateConfigMap(env.ctx, mc, cm)) {
+				return
+			}
+			conf := map[string]interface{}{}
+			if !assert.NoError(t, yaml.Unmarshal([]byte(cm.Data[UserYaml]), &conf)) {
+				return
+			}
+			pulsar := conf["pulsar"].(map[string]interface{})
+			assert.Equal(t, tc.host, pulsar["address"])
+			assert.EqualValues(t, tc.port, pulsar["port"])
+			assert.Nil(t, conf["kafka"])
+			assert.Nil(t, conf["rocksmq"])
+		})
+	}
+}

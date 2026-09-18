@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -54,6 +55,9 @@ func NewManager(k8sQps, k8sBurst int, metricsAddr, probeAddr string, enableLeade
 	cacheOptions := cache.Options{
 		SyncPeriod:        &syncPeriod,
 		DefaultNamespaces: defaultNamespaces,
+		// client-go 0.35 WatchList needs a bookmark to finish initial cache sync.
+		// controller-runtime 0.19 defaults this to false and overrides client-go.
+		DefaultEnableWatchBookmarks: ptr.To(true),
 	}
 	metricsOptions := metricsserver.Options{
 		BindAddress: metricsAddr,

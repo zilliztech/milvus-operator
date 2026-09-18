@@ -98,7 +98,7 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 }
 
 func CheckKafka(conf CheckKafkaConfig) error {
-	// A metadata request proves the brokers are reachable and that TLS & SASL
+	// An ApiVersions request proves the brokers are reachable and that TLS & SASL
 	// succeed. It needs no topic to exist and no topic ACL, so it works on
 	// clusters where authorization is enabled and topics are managed elsewhere.
 	if len(conf.BrokerList) == 0 {
@@ -127,8 +127,8 @@ func CheckKafka(conf CheckKafkaConfig) error {
 	return util.DoWithBackoff("checkKafka", checkKafka, util.DefaultMaxRetry, util.DefaultBackOffInterval)
 }
 
-// checkKafkaBroker dials one broker and asks it for cluster metadata. Dialing
-// covers TCP, TLS and the SASL handshake; the metadata request proves the
+// checkKafkaBroker dials one broker and sends an ApiVersions request. Dialing
+// covers TCP, TLS and the SASL handshake; the ApiVersions request proves the
 // connection is usable and needs no topic and no topic ACL.
 // A var so the broker loop can be tested without a live cluster.
 var checkKafkaBroker = func(ctx context.Context, dialer *kafka.Dialer, broker string) error {
@@ -137,14 +137,14 @@ var checkKafkaBroker = func(ctx context.Context, dialer *kafka.Dialer, broker st
 		return errors.Wrapf(err, "dial broker[%s]", broker)
 	}
 	defer conn.Close()
-	// A conn has no deadline of its own, so metadata could outlive the timeout.
+	// A conn has no deadline of its own, so the probe could outlive the timeout.
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := conn.SetDeadline(deadline); err != nil {
 			return errors.Wrapf(err, "set deadline on broker[%s]", broker)
 		}
 	}
-	if _, err := conn.Brokers(); err != nil {
-		return errors.Wrapf(err, "get metadata from broker[%s]", broker)
+	if _, err := conn.ApiVersions(); err != nil {
+		return errors.Wrapf(err, "probe broker[%s]", broker)
 	}
 	return nil
 }

@@ -34,6 +34,14 @@ func TestCheckKafkaFailed(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("probe all brokers failed", func(t *testing.T) {
+		conf.BrokerList = []string{"dummy1:9092", "dummy2:9092"}
+		err = CheckKafka(conf)
+		assert.Error(t, err)
+		// every broker is tried, so the last one shows up in the error
+		assert.Contains(t, err.Error(), "dummy2:9092")
+	})
+
 	t.Run("get dialer failed", func(t *testing.T) {
 		conf.SecurityProtocol = "bad"
 		err = CheckKafka(conf)
@@ -42,7 +50,7 @@ func TestCheckKafkaFailed(t *testing.T) {
 }
 
 func TestCheckKafkaBrokerIteration(t *testing.T) {
-	// a listener that accepts and hangs up: dialing works, metadata does not
+	// a listener that accepts and hangs up: dialing works, ApiVersions does not
 	deadBroker, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.NoError(t, err)
 	defer deadBroker.Close()
@@ -56,9 +64,9 @@ func TestCheckKafkaBrokerIteration(t *testing.T) {
 		}
 	}()
 
-	t.Run("dial ok, metadata fails", func(t *testing.T) {
+	t.Run("dial ok, ApiVersions fails", func(t *testing.T) {
 		err := CheckKafka(CheckKafkaConfig{BrokerList: []string{deadBroker.Addr().String()}})
-		assert.ErrorContains(t, err, "get metadata from broker")
+		assert.ErrorContains(t, err, "probe broker")
 	})
 
 	t.Run("every broker is reported, not just the last", func(t *testing.T) {

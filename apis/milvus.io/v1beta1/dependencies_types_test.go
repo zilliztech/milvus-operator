@@ -59,3 +59,19 @@ func TestMilvusSpec_GetPersistenceConfig_ExternalWoodpecker(t *testing.T) {
 	spec.Dep.WoodPecker.External = true
 	assert.Nil(t, spec.GetPersistenceConfig())
 }
+
+func TestMilvusPulsar_GetEndpoints(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		conf MilvusPulsar
+		want []string
+	}{
+		{name: "unset"},
+		{name: "legacy", conf: MilvusPulsar{Endpoint: "legacy:6650"}, want: []string{"legacy:6650"}},
+		{name: "empty list falls back", conf: MilvusPulsar{Endpoint: "legacy:6650", Endpoints: []string{}}, want: []string{"legacy:6650"}},
+		{name: "list", conf: MilvusPulsar{Endpoints: []string{"a:6650", "b:6650"}}, want: []string{"a:6650", "b:6650"}},
+		{name: "list takes precedence", conf: MilvusPulsar{Endpoint: "legacy:6650", Endpoints: []string{"a:6650", "b:6650"}}, want: []string{"a:6650", "b:6650"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) { assert.Equal(t, tc.want, tc.conf.GetEndpoints()) })
+	}
+}

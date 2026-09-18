@@ -162,6 +162,16 @@ func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
 	return ret
 }
 
+// containsComponent reports whether components contains a component with the given name.
+func containsComponent(components []MilvusComponent, name string) bool {
+	for _, c := range components {
+		if c.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // GetComponentWorkloadsBySpec expands logical Milvus components into their
 // independently reconciled Kubernetes workloads. Components without groups
 // keep their legacy workload identity.
@@ -301,6 +311,28 @@ func (c MilvusComponent) GetReplicas(spec v1beta1.MilvusSpec) *int32 {
 		FieldByName("Component").
 		FieldByName("Replicas").Interface().(*int32)
 	return replicas
+}
+
+// GetHPASpec returns the HPA spec for the component
+func (c MilvusComponent) GetHPASpec(spec v1beta1.MilvusSpec) *v1beta1.HPASpec {
+	componentField := reflect.ValueOf(spec.Com).FieldByName(c.FieldName)
+	if componentField.IsNil() {
+		return nil
+	}
+	hpa, _ := componentField.Elem().
+		FieldByName("Component").
+		FieldByName("HPA").Interface().(*v1beta1.HPASpec)
+	return hpa
+}
+
+// IsHPAEnabled returns true if HPA is enabled for the component
+func (c MilvusComponent) IsHPAEnabled(spec v1beta1.MilvusSpec) bool {
+	return c.GetHPASpec(spec) != nil
+}
+
+// GetHPAName returns the name of the HPA for the component
+func (c MilvusComponent) GetHPAName(instanceName string) string {
+	return fmt.Sprintf("%s-milvus-%s-hpa", instanceName, c.Name)
 }
 
 // GetReplicas returns the replicas for the component
@@ -590,6 +622,10 @@ func getConfCheckSum(spec v1beta1.MilvusSpec, annotations map[string]string) str
 	conf["conf"] = spec.Conf.Data
 	conf["etcd-endpoints"] = spec.Dep.Etcd.Endpoints
 	conf["pulsar-endpoint"] = spec.Dep.Pulsar.Endpoint
+	// Keep legacy checksums unchanged when the optional broker list is unused.
+	if len(spec.Dep.Pulsar.Endpoints) > 0 {
+		conf["pulsar-endpoints"] = spec.Dep.Pulsar.Endpoints
+	}
 	conf["kafka-brokerList"] = spec.Dep.Kafka.BrokerList
 	conf["storage-endpoint"] = spec.Dep.Storage.Endpoint
 	if spec.Dep.WoodPecker.External {

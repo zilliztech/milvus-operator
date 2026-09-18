@@ -29,7 +29,7 @@ jobs:
           go-version: 1.26.7
           cache: false
       - name: Cache Go Mod Pkg
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cache/go-build
@@ -61,7 +61,7 @@ jobs:
           go-version: 1.26.7
           cache: false
       - name: Cache Go Mod Pkg
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cache/go-build
@@ -69,11 +69,11 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
       - name: Cache TestBin
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: testbin
-          key: ubuntu${{ matrix.ubuntu }}-testbin
-          restore-keys: ubuntu${{ matrix.ubuntu }}-testbin
+          key: ${{ matrix.os }}-testbin
+          restore-keys: ${{ matrix.os }}-testbin
       - name: Kubernetes KinD Cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
@@ -88,7 +88,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
           files: ./cover.out
-          name: ubuntu-${{ matrix.ubuntu }}-unittests
+          name: ${{ matrix.os }}-unittests
           fail_ci_if_error: true
 
   sit:
@@ -225,3 +225,9 @@ jobs:
       - name: Test Upgrade
         run: |
           make test-upgrade
+
+  sit-cluster-lifecycle:
+    name: Cluster Lifecycle SIT
+    uses: ./.github/workflows/cluster-lifecycle.yml
+    permissions:
+      contents: read

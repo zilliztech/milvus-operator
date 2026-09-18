@@ -53,7 +53,9 @@ spec:
         periodSeconds: 10
         successThreshold: 1
     rollingMode: 3
-    enableRollingUpdate: false 
+    enableRollingUpdate: false
+    cdc:
+      replicas: 1
     runWithSubProcess: true
     runAsNonRoot: true
     dummyImage: 'my-registry/my-dummy-image'
@@ -70,6 +72,18 @@ spec:
       replicas: 1
     mixCoord:
       replicas: 1
+    queryNode:
+      replicas: 1
+      hpa:
+        maxReplicas: 3
+        minReplicas: 1
+        metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 80
     volumes:
       - emptyDir: {}
         name: data
