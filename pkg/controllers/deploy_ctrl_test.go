@@ -555,11 +555,22 @@ func TestDeployControllerBizImpl_HandleManualMode(t *testing.T) {
 		assert.Equal(t, ErrRequeue, err)
 	})
 
-	t.Run("active deploy has replica, no new rollout", func(t *testing.T) {
+	t.Run("active deploy has replica and template is unchanged", func(t *testing.T) {
 		deploy.Spec.Replicas = int32Ptr(1)
 		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(deploy, nil, nil)
+		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(gomock.Any(), mc, gomock.Any(), QueryNode, true).Return(podTemplate)
+		mockUtil.EXPECT().IsPodTemplateChanged(gomock.Any(), deploy, podTemplate).Return(false)
 		err := bizImpl.HandleManualMode(ctx, mc)
 		assert.NoError(t, err)
 	})
 
+	t.Run("active deploy has replica and template drift", func(t *testing.T) {
+		deploy.Spec.Replicas = int32Ptr(1)
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(deploy, nil, nil)
+		mockUtil.EXPECT().RenderPodTemplateWithoutGroupID(gomock.Any(), mc, gomock.Any(), QueryNode, true).Return(podTemplate)
+		mockUtil.EXPECT().IsPodTemplateChanged(gomock.Any(), deploy, podTemplate).Return(true)
+		err := bizImpl.HandleManualMode(ctx, mc)
+		assert.ErrorIs(t, err, ErrRequeue)
+		assert.Contains(t, err.Error(), "active deployment pod template is out of sync")
+	})
 }

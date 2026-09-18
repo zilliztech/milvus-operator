@@ -352,13 +352,18 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 	}
 	logger := ctrl.LoggerFrom(ctx).WithName("manual-mode").WithValues("component", c.component.Name)
 	ctx = ctrl.LoggerInto(ctx, logger)
+	podTemplate := c.util.RenderPodTemplateWithoutGroupID(ctx, mc, &currentDeploy.Spec.Template, c.component, true)
+	templateChanged := c.util.IsPodTemplateChanged(ctx, currentDeploy, podTemplate)
 	// should not update deploy with replicas if it's in manual mode
 	if getDeployReplicas(currentDeploy) != 0 {
+		if templateChanged {
+			return errors.Wrapf(ErrRequeue,
+				"[%s]'s active deployment pod template is out of sync in manual mode", c.component.Name)
+		}
 		return nil
 	}
-	podTemplate := c.util.RenderPodTemplateWithoutGroupID(ctx, mc, &currentDeploy.Spec.Template, c.component, true)
 	needUpdate := c.util.RenewDeployAnnotation(ctx, mc, currentDeploy)
-	if c.util.IsPodTemplateChanged(ctx, currentDeploy, podTemplate) {
+	if templateChanged {
 		needUpdate = true
 		updatePodTemplateTwoDeployMode(ctx, c.component, currentDeploy, podTemplate)
 	}

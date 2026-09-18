@@ -532,6 +532,61 @@ func TestComponentsDeployStatusUpdaterImpl_Update(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 3, len(m1.Status.ComponentsDeployStatus))
 	})
+
+	t.Run("querynode statefulset success", func(t *testing.T) {
+		m1 := m.DeepCopy()
+		m1.Spec.Mode = v1beta1.MilvusModeCluster
+		m1.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
+		m1.Default()
+		m1.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
+		scheme, _ := v1beta1.SchemeBuilder.Build()
+		// deployment list returns nothing for querynode (it's an STS)
+		mockCli.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+		// STS-backed querynode is fetched by name
+		mockCli.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
+			DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj client.Object, _ ...any) error {
+				sts := obj.(*appsv1.StatefulSet)
+				sts.Name = QueryNode.GetDeploymentName(m1.Name)
+				sts.Namespace = m1.Namespace
+				_ = runtimectrl.SetControllerReference(m1, sts, scheme)
+				return nil
+			})
+		err := r.Update(ctx, m1)
+		assert.NoError(t, err)
+		_, ok := m1.Status.ComponentsDeployStatus[QueryNodeName]
+		assert.True(t, ok)
+	})
+
+	t.Run("querynode statefulset with groups aggregates", func(t *testing.T) {
+		m1 := m.DeepCopy()
+		m1.Spec.Mode = v1beta1.MilvusModeCluster
+		m1.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
+		m1.Default()
+		replicas := int32(1)
+		m1.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
+		m1.Spec.Com.QueryNode.Groups = []v1beta1.DeploymentGroup{
+			{Name: "g1", Replicas: &replicas},
+			{Name: "g2", Replicas: &replicas},
+		}
+		scheme, _ := v1beta1.SchemeBuilder.Build()
+		mockCli.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+		// one Get per group STS
+		mockCli.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
+			DoAndReturn(func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...any) error {
+				sts := obj.(*appsv1.StatefulSet)
+				sts.Name = key.Name
+				sts.Namespace = m1.Namespace
+				_ = runtimectrl.SetControllerReference(m1, sts, scheme)
+				return nil
+			}).Times(2)
+		err := r.Update(ctx, m1)
+		assert.NoError(t, err)
+		_, ok := m1.Status.ComponentsDeployStatus[QueryNodeName]
+		assert.True(t, ok)
+		assert.Equal(t, 2, len(m1.Status.DeploymentGroupsDeployStatus[QueryNodeName]))
+	})
 }
 
 func TestMilvusHealthStatusInfo_GetMilvusHealthStatus(t *testing.T) {
@@ -718,10 +773,12 @@ func TestMilvusStatusSyncer_GetMsgStreamCondition_KafkaSecretRef(t *testing.T) {
 			return nil
 		})
 		defer stubs.Reset()
-		expectGetSecret(map[string][]byte{
+		saslSecret := map[string][]byte{
 			KafkaSaslUsernameKey: []byte("kafka-user"),
 			KafkaSaslPasswordKey: []byte("kafka-pass"),
-		})
+			KafkaCACertKey:       []byte("-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----"),
+		}
+		expectGetSecret(saslSecret)
 
 		ret, err := s.GetMsgStreamCondition(ctx, milvus)
 		assert.NoError(t, err)
@@ -730,6 +787,7 @@ func TestMilvusStatusSyncer_GetMsgStreamCondition_KafkaSecretRef(t *testing.T) {
 		assert.Equal(t, "kafka-pass", probed.SASLPassword)
 		assert.Equal(t, "SASL_SSL", probed.SecurityProtocol)
 		assert.Equal(t, milvus.Spec.Dep.Kafka.BrokerList, probed.BrokerList)
+		assert.Contains(t, string(probed.CACert), "BEGIN CERTIFICATE")
 	})
 
 	t.Run("secret not found", func(t *testing.T) {

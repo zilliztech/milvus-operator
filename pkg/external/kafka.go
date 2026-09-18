@@ -3,6 +3,8 @@ package external
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	stderrors "errors"
 
 	"github.com/pkg/errors"
 	"github.com/segmentio/kafka-go"
@@ -20,6 +22,7 @@ type CheckKafkaConfig struct {
 	SASLMechanisms   string   `json:"saslMechanisms"`
 	SASLUsername     string   `json:"saslUsername"`
 	SASLPassword     string   `json:"saslPassword"`
+	CACert           []byte   `json:"-"`
 }
 
 // GetKafkaConfFromCR get check kafka config from CR
@@ -62,6 +65,13 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 	var saslMechanism sasl.Mechanism
 	if useTls {
 		tlsConfig = &tls.Config{}
+		if len(conf.CACert) > 0 {
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(conf.CACert) {
+				return nil, errors.New("no certificate found in kafka CA cert")
+			}
+			tlsConfig.RootCAs = pool
+		}
 	}
 	if useSasl {
 		switch conf.SASLMechanisms {
@@ -88,6 +98,9 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 }
 
 func CheckKafka(conf CheckKafkaConfig) error {
+	// An ApiVersions request proves the brokers are reachable and that TLS & SASL
+	// succeed. It needs no topic to exist and no topic ACL, so it works on
+	// clusters where authorization is enabled and topics are managed elsewhere.
 	if len(conf.BrokerList) == 0 {
 		return errors.New("broker list is empty")
 	}
@@ -97,46 +110,41 @@ func CheckKafka(conf CheckKafkaConfig) error {
 		return errors.Wrap(err, "get kafka dialer failed")
 	}
 
-	// Probe the brokers with an ApiVersions request: the dial performs the TLS and
-	// SASL handshake, and ApiVersions is a full protocol round trip, so a success
-	// means the broker is reachable, authenticated and answering requests.
-	//
-	// This probe is deliberately topic independent. It used to read the offset of a
-	// topic named "_milvus-operator", which requires that topic to exist and so
-	// silently depended on the broker having auto.create.topics.enable=true. On a
-	// broker where topic auto creation is disabled the probe could never succeed,
-	// leaving MsgStreamReady false forever, which in turn blocks ReconcileMilvus
-	// from creating any component. The failure was also hard to diagnose: the
-	// missing topic burned the whole DependencyCheckTimeout budget in retries, so
-	// the surfaced error was a dial/DNS timeout on whichever broker happened to be
-	// tried last rather than anything about the topic.
 	var checkKafka = func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), DependencyCheckTimeout)
 		defer cancel()
-		var lastErr error
+		// Any broker answering is enough: the others may be mid-restart.
+		var errs []error
 		for _, broker := range conf.BrokerList {
-			conn, err := dialer.DialContext(ctx, "tcp", broker)
-			if err != nil {
-				lastErr = errors.Wrapf(err, "dial broker[%s] failed", broker)
-				continue
-			}
-			// DialContext does not bind the connection to the context deadline, so
-			// set it explicitly to keep the probe within DependencyCheckTimeout.
-			if deadline, ok := ctx.Deadline(); ok {
-				if err := conn.SetDeadline(deadline); err != nil {
-					conn.Close()
-					lastErr = errors.Wrapf(err, "set deadline for broker[%s] failed", broker)
-					continue
-				}
-			}
-			_, err = conn.ApiVersions()
-			conn.Close()
+			err := checkKafkaBroker(ctx, dialer, broker)
 			if err == nil {
 				return nil
 			}
-			lastErr = errors.Wrapf(err, "probe broker[%s] failed", broker)
+			errs = append(errs, err)
 		}
-		return errors.Wrap(lastErr, "check kafka brokers failed")
+		return stderrors.Join(errs...)
 	}
 	return util.DoWithBackoff("checkKafka", checkKafka, util.DefaultMaxRetry, util.DefaultBackOffInterval)
+}
+
+// checkKafkaBroker dials one broker and sends an ApiVersions request. Dialing
+// covers TCP, TLS and the SASL handshake; the ApiVersions request proves the
+// connection is usable and needs no topic and no topic ACL.
+// A var so the broker loop can be tested without a live cluster.
+var checkKafkaBroker = func(ctx context.Context, dialer *kafka.Dialer, broker string) error {
+	conn, err := dialer.DialContext(ctx, "tcp", broker)
+	if err != nil {
+		return errors.Wrapf(err, "dial broker[%s]", broker)
+	}
+	defer conn.Close()
+	// A conn has no deadline of its own, so the probe could outlive the timeout.
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(deadline); err != nil {
+			return errors.Wrapf(err, "set deadline on broker[%s]", broker)
+		}
+	}
+	if _, err := conn.ApiVersions(); err != nil {
+		return errors.Wrapf(err, "probe broker[%s]", broker)
+	}
+	return nil
 }

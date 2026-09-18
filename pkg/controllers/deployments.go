@@ -33,8 +33,13 @@ const (
 	SecretKey                  = "secretkey"
 	KafkaSaslUsernameKey       = "username"
 	KafkaSaslPasswordKey       = "password"
+	KafkaCACertKey             = "ca.pem"
 	AnnotationCheckSum         = "checksum/config"
 	AnnotationMilvusGeneration = v1beta1.AnnotationMilvusGeneration
+
+	KafkaCAVolumeName = "kafka-ca"
+	KafkaCAMountPath  = MilvusConfigRootPath + "/kafka-ca"
+	KafkaCACertPath   = KafkaCAMountPath + "/" + KafkaCACertKey
 
 	ToolsVolumeName = "tools"
 	ToolsMountPath  = "/milvus/tools"
@@ -83,6 +88,32 @@ func (r *MilvusReconciler) getMinioPortEnvIfServiceExists(ctx context.Context, m
 	}
 
 	return GetStorageEndpointEnv(mc.Spec.Dep.Storage.Endpoint, GetMinioSecure(mc.Spec.Conf.Data)), nil
+}
+
+// GetKafkaSecretRefEnv passes the SASL credentials to milvus as env vars, which
+// override kafka.saslUsername & kafka.saslPassword from the config file.
+func GetKafkaSecretRefEnv(secretRef string) []corev1.EnvVar {
+	env := []corev1.EnvVar{}
+	if secretRef == "" {
+		return env
+	}
+	for _, ref := range []struct{ name, key string }{
+		{"KAFKA_SASLPASSWORD", KafkaSaslPasswordKey},
+		{"KAFKA_SASLUSERNAME", KafkaSaslUsernameKey},
+	} {
+		env = append(env, corev1.EnvVar{
+			Name: ref.name,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: secretRef,
+					},
+					Key: ref.key,
+				},
+			},
+		})
+	}
+	return env
 }
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
@@ -312,17 +343,34 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 	if err != nil {
 		return err
 	}
-	ctx = contextWithStorageEndpointEnv(ctx, storageEndpointEnv)
+	storageSecretEnv, err := r.resolveStorageSecretRefEnv(ctx, mc)
+	if err != nil {
+		return err
+	}
+	ctx = contextWithStorageEndpointEnv(ctx, append(storageEndpointEnv, storageSecretEnv...))
 
 	err = r.RemoveOldStandlone(ctx, mc)
 	if err != nil {
 		return err
 	}
+
+	// Reconcile the QueryNode workload kind before creating workloads. Switching
+	// between StatefulSet and Deployment mode must remove the now-undesired
+	// workload first, because the surviving workload's creation flow can requeue
+	// (e.g. the two-deployment rollout marks a group id and requeues), which would
+	// otherwise return early and never reach cleanup — leaving both kinds stuck.
+	if err := r.cleanupStatefulSetWorkloadModes(ctx, mc); err != nil {
+		return err
+	}
+
 	var errs = []error{}
 	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
-		if componentUsesTwoDeployments(mc, component) {
+		switch {
+		case componentUsesStatefulSet(mc, component):
+			err = r.ReconcileComponentStatefulSet(ctx, mc, component)
+		case componentUsesTwoDeployments(mc, component):
 			err = r.deployCtrl.Reconcile(ctx, mc, component)
-		} else {
+		default:
 			err = r.ReconcileComponentDeployment(ctx, mc, component)
 		}
 		if err != nil {
@@ -483,6 +531,12 @@ func (r *MilvusReconciler) cleanupIndexNodeIfNeeded(ctx context.Context, mc v1be
 		if err != nil {
 			return err
 		}
+		// IndexNode may have been running as a StatefulSet; remove it (and its
+		// per-replica PVCs + headless service) too, otherwise it lingers as an
+		// orphan since spec.Com.IndexNode is about to be cleared.
+		if err := r.deleteComponentStatefulSetIfExists(ctx, mc, IndexNode); err != nil {
+			return err
+		}
 
 		mc.Spec.Com.IndexNode = nil
 		err = r.Update(ctx, &mc)
@@ -598,11 +652,36 @@ var (
 		ReadOnly:  true,
 		MountPath: MilvusConfigmapMountPath,
 	}
+
+	kafkaCAVolumeMount = corev1.VolumeMount{
+		Name:      KafkaCAVolumeName,
+		ReadOnly:  true,
+		MountPath: KafkaCAMountPath,
+	}
 )
 
+// kafkaCAVolumeBySecret mounts only the CA cert out of the kafka secret, so the
+// credentials in it are not exposed as files. It is optional: a secret without a
+// CA cert is the normal case for publicly trusted brokers.
+func kafkaCAVolumeBySecret(name string) corev1.Volume {
+	readOnlyMode := int32(0444)
+	optional := true
+	return corev1.Volume{
+		Name: KafkaCAVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName:  name,
+				Items:       []corev1.KeyToPath{{Key: KafkaCACertKey, Path: KafkaCACertKey}},
+				DefaultMode: &readOnlyMode,
+				Optional:    &optional,
+			},
+		},
+	}
+}
+
 func configVolumeByName(name string) corev1.Volume {
-	// so that non root user can change the config
-	configmapMode := int32(0777)
+	// ConfigMap volumes are read-only; configuration files only need read access.
+	configmapMode := int32(0644)
 	return corev1.Volume{
 		Name: MilvusConfigVolumeName,
 		VolumeSource: corev1.VolumeSource{

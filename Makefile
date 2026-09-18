@@ -3,9 +3,12 @@
 IMG ?= milvusdb/milvus-operator:dev-latest
 TOOL_IMG ?= milvus-config-tool:dev-latest
 SIT_IMG ?= milvus-operator:sit
-VERSION ?= 1.3.8
+VERSION ?= 1.3.9
 TOOL_VERSION ?= 1.0.0
-MILVUS_HELM_VERSION ?= milvus-5.0.26
+MILVUS_HELM_VERSION ?= milvus-5.0.28
+# Silo is pending upstream release in milvus-helm PR #317. Pin its reviewed source.
+SILO_HELM_REF ?= 14943dcc80300de93ae4548a08c04182871a40e6
+SILO_IMAGE ?= pgsty/silo:RELEASE.2026-09-03T13-18-01Z
 RELEASE_IMG ?= milvusdb/milvus-operator:v$(VERSION)
 TOOL_RELEASE_IMG ?= milvusdb/milvus-config-tool:v$(TOOL_VERSION)
 KIND_CLUSTER ?= kind
@@ -119,6 +122,7 @@ docker-prepare: build-release out/config/assets/templates
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/etcd-8.12.0.tgz -O ./etcdv8.tgz
 	wget https://charts.bitnami.com/bitnami/etcd-6.3.3.tgz -O ./etcdv6.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/minio-8.0.17.tgz -O ./minio.tgz
+	wget https://raw.githubusercontent.com/zilliztech/milvus-helm/${SILO_HELM_REF}/charts/milvus/charts/silo-7.0.2.tgz -O ./silo.tgz
 	wget https://github.com/apache/pulsar-helm-chart/releases/download/pulsar-2.7.8/pulsar-2.7.8.tgz -O ./pulsar.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/pulsar-3.3.0.tgz -O ./pulsarv3.tgz
 	wget https://github.com/zilliztech/milvus-helm/raw/${MILVUS_HELM_VERSION}/charts/milvus/charts/kafka-15.5.1.tgz -O ./kafka.tgz
@@ -128,6 +132,7 @@ docker-prepare: build-release out/config/assets/templates
 	tar -xf ./etcdv6.tgz -C ./out/config/assets/
 	mv ./out/config/assets/etcd ./out/config/assets/charts/etcdv6
 	tar -xf ./minio.tgz -C ./out/config/assets/charts/
+	tar -xf ./silo.tgz -C ./out/config/assets/charts/
 	tar -xf ./pulsarv3.tgz -C ./out/config/assets/
 	mv ./out/config/assets/pulsar ./out/config/assets/charts/pulsarv3
 	tar -xf ./pulsar.tgz -C ./out/config/assets/charts/
@@ -240,12 +245,12 @@ sit-prepare-operator-images:
 
 sit-prepare-images: sit-prepare-operator-images
 	@echo "Preparing images"
-	docker pull milvusdb/milvus:v2.6.11
+	docker pull milvusdb/milvus:v2.6.24
 	
 	# docker pull -q apachepulsar/pulsar:2.8.2
 	docker pull -q bitnamilegacy/kafka:3.1.0
 	docker pull -q milvusdb/etcd:3.5.25-r1
-	docker pull -q minio/minio:RELEASE.2024-12-18T13-15-44Z
+	docker pull -q $(SILO_IMAGE)
 	docker pull -q bitnamilegacy/pymilvus:2.4.6
 
 sit-load-operator-images:
@@ -254,20 +259,20 @@ sit-load-operator-images:
 
 sit-load-images: sit-load-operator-images
 	@echo "Loading images"
-	kind load docker-image milvusdb/milvus:v2.6.11
+	kind load docker-image milvusdb/milvus:v2.6.24
 	# kind load docker-image apachepulsar/pulsar:2.8.2 --name $(KIND_CLUSTER)
 	kind load docker-image bitnamilegacy/kafka:3.1.0 --name $(KIND_CLUSTER)
 	kind load docker-image milvusdb/etcd:3.5.25-r1 --name $(KIND_CLUSTER)
-	kind load docker-image minio/minio:RELEASE.2024-12-18T13-15-44Z --name $(KIND_CLUSTER)
+	kind load docker-image $(SILO_IMAGE) --name $(KIND_CLUSTER)
 	kind load docker-image bitnamilegacy/pymilvus:2.4.6 --name $(KIND_CLUSTER)
 
 sit-load-and-cleanup-images: sit-load-images
 	@echo "Clean up some big images to save disk space in github action"
-	docker rmi milvusdb/milvus:v2.6.11
+	docker rmi milvusdb/milvus:v2.6.24
 	# docker rmi apachepulsar/pulsar:2.8.2
 	docker rmi bitnamilegacy/kafka:3.1.0
 	docker rmi milvusdb/etcd:3.5.25-r1
-	docker rmi minio/minio:RELEASE.2024-12-18T13-15-44Z
+	docker rmi $(SILO_IMAGE)
 
 sit-generate-manifest:
 	cat deploy/manifests/deployment.yaml | sed  "s#${RELEASE_IMG}#${SIT_IMG}#g" > test/test_gen.yaml

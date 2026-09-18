@@ -37,7 +37,7 @@ func GetExpectedTwoDeployComponents(spec v1beta1.MilvusSpec) []MilvusComponent {
 		}
 		ret := []MilvusComponent{}
 		for _, workload := range GetComponentWorkloadsBySpec(spec) {
-			if workload.Is(QueryNode) {
+			if workload.Is(QueryNode) && !spec.Com.QueryNode.StatefulSetEnabled() {
 				ret = append(ret, workload)
 			}
 		}

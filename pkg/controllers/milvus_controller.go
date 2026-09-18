@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -55,6 +56,7 @@ type MilvusReconciler struct {
 	helmReconciler HelmReconciler
 	statusSyncer   MilvusStatusSyncerInterface
 	deployCtrl     DeployController
+	record         record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=milvus.io,resources=milvuses,verbs=get;list;watch;create;update;patch;delete
@@ -63,11 +65,13 @@ type MilvusReconciler struct {
 //+kubebuilder:rbac:groups=apps,resources=deployments;replicasets;statefulsets;controllerrevisions,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=pods;pods/exec;configmaps;serviceaccounts;secrets;services;persistentvolumeclaims;persistentvolumes,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups="policy",resources=poddisruptionbudgets;podsecuritypolicies,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles;rolebindings;clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="monitoring.coreos.com",resources=servicemonitors;podmonitors,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=list;get;watch
+//+kubebuilder:rbac:groups="storage.k8s.io",resources=storageclasses,verbs=get;list;watch
 
 // below wrong statements are introduced by pulsar helm chart. we have to keep them before pulsar fixes.
 //+kubebuilder:rbac:groups="";extensions;apps,resources=statefulsets;deployments;pods;secrets;services;ingresses,verbs=get;list;watch;create;update;patch;delete

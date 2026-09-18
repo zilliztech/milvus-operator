@@ -311,10 +311,14 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 	assert.NoError(t, r.ReconcileEtcd(ctx, m))
 
 	m.Spec.Dep.Storage.InCluster = icc
+	storageHelm := helm.NewMockClient(env.Ctrl)
+	helm.SetDefaultClient(storageHelm)
+	mockHelm.EXPECT().NewHelmCfg(gomock.Any()).Return(&action.Configuration{})
+	storageHelm.EXPECT().ReleaseExist(gomock.Any(), gomock.Any()).Return(false, nil)
 	// internal reconcile helm
 	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, request helm.ChartRequest, mc v1beta1.Milvus) error {
-			assert.Equal(t, request.Chart, helm.GetChartPathByName(Minio))
+			assert.Equal(t, request.Chart, helm.GetChartPathByName(values.Silo))
 			return nil
 		})
 	assert.NoError(t, r.ReconcileMinio(ctx, m))

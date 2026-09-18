@@ -3098,6 +3098,16 @@ spec:
                           type: object
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
+                      statefulSet:
+                        properties:
+                          enabled:
+                            type: boolean
+                          volumeClaimTemplates:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
                       tolerations:
                         items:
                           properties:
@@ -4607,6 +4617,16 @@ spec:
                           type: object
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
+                      statefulSet:
+                        properties:
+                          enabled:
+                            type: boolean
+                          volumeClaimTemplates:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
                       tolerations:
                         items:
                           properties:
@@ -8710,6 +8730,16 @@ spec:
                           type: object
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
+                      statefulSet:
+                        properties:
+                          enabled:
+                            type: boolean
+                          volumeClaimTemplates:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
                       tolerations:
                         items:
                           properties:
@@ -16594,6 +16624,16 @@ spec:
                           type: object
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
+                      statefulSet:
+                        properties:
+                          enabled:
+                            type: boolean
+                          volumeClaimTemplates:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
                       tolerations:
                         items:
                           properties:
@@ -18103,6 +18143,16 @@ spec:
                           type: object
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
+                      statefulSet:
+                        properties:
+                          enabled:
+                            type: boolean
+                          volumeClaimTemplates:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
                       tolerations:
                         items:
                           properties:
@@ -22206,6 +22256,16 @@ spec:
                           type: object
                         type: array
                         x-kubernetes-preserve-unknown-fields: true
+                      statefulSet:
+                        properties:
+                          enabled:
+                            type: boolean
+                          volumeClaimTemplates:
+                            items:
+                              type: object
+                            type: array
+                            x-kubernetes-preserve-unknown-fields: true
+                        type: object
                       tolerations:
                         items:
                           properties:

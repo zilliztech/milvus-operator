@@ -31,6 +31,7 @@ const (
 	EtcdV6   = "etcdv6" // etcd chart 6.3.3 directory
 	EtcdV8   = "etcdv8" // etcd chart 8.12.0 directory
 	Minio    = "minio"
+	Silo     = "silo"
 	Pulsar   = "pulsar"
 	PulsarV3 = "pulsarv3"
 	Kafka    = "kafka"
@@ -69,11 +70,17 @@ func MustInitDefaultValuesProvider() {
 	// but milvus uses we use $milvus-pulsar
 	pulsarV3Values["name"] = "pulsar"
 	pulsarV3Values["nameOverride"] = ""
+	storageValues := values[Minio].(Values)
+	// Preserve the public minio values namespace and resource names while using Silo.
+	storageValues["nameOverride"] = "minio"
+	storageValues["image"] = Values{"repository": "pgsty/silo", "tag": "RELEASE.2026-09-03T13-18-01Z", "pullPolicy": "IfNotPresent"}
+	storageValues["mcImage"] = Values{"repository": "pgsty/mc", "tag": "RELEASE.2026-09-13T00-00-00Z", "pullPolicy": "IfNotPresent"}
+	storageValues["replicas"] = 4
 
 	globalDefaultValues = &DefaultValuesProviderImpl{
 		chartDefaultValues: map[Chart]Values{
 			Etcd:     values[Etcd].(Values),
-			Minio:    values[Minio].(Values),
+			Minio:    storageValues,
 			Pulsar:   values[Pulsar].(Values),
 			PulsarV3: pulsarV3Values,
 			Kafka:    values[Kafka].(Values),
