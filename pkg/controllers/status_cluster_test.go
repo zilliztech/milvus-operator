@@ -127,6 +127,24 @@ func TestMilvusStatusSyncer_GetDependencyCondition(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, corev1.ConditionTrue, ret.Status)
 	})
+	t.Run("GetMsgStreamCondition_woodpecker_embedded", func(t *testing.T) {
+		defer ctrl.Finish()
+		milvus.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeWoodPecker
+		ret, err := s.GetMsgStreamCondition(ctx, milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionTrue, ret.Status)
+	})
+	t.Run("GetMsgStreamCondition_woodpecker_external", func(t *testing.T) {
+		defer ctrl.Finish()
+		milvus.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeWoodPecker
+		milvus.Spec.Dep.WoodPecker.External = true
+		milvus.Spec.Dep.WoodPecker.QuorumBufferPools = []v1beta1.WoodpeckerBufferPool{
+			{Name: "p1", Seeds: []string{"woodpecker"}},
+		}
+		ret, err := s.GetMsgStreamCondition(ctx, milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionFalse, ret.Status)
+	})
 }
 
 var updatedCondition = v1beta1.MilvusCondition{
@@ -514,6 +532,61 @@ func TestComponentsDeployStatusUpdaterImpl_Update(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 3, len(m1.Status.ComponentsDeployStatus))
 	})
+
+	t.Run("querynode statefulset success", func(t *testing.T) {
+		m1 := m.DeepCopy()
+		m1.Spec.Mode = v1beta1.MilvusModeCluster
+		m1.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
+		m1.Default()
+		m1.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
+		scheme, _ := v1beta1.SchemeBuilder.Build()
+		// deployment list returns nothing for querynode (it's an STS)
+		mockCli.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+		// STS-backed querynode is fetched by name
+		mockCli.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
+			DoAndReturn(func(_ context.Context, _ client.ObjectKey, obj client.Object, _ ...any) error {
+				sts := obj.(*appsv1.StatefulSet)
+				sts.Name = QueryNode.GetDeploymentName(m1.Name)
+				sts.Namespace = m1.Namespace
+				_ = runtimectrl.SetControllerReference(m1, sts, scheme)
+				return nil
+			})
+		err := r.Update(ctx, m1)
+		assert.NoError(t, err)
+		_, ok := m1.Status.ComponentsDeployStatus[QueryNodeName]
+		assert.True(t, ok)
+	})
+
+	t.Run("querynode statefulset with groups aggregates", func(t *testing.T) {
+		m1 := m.DeepCopy()
+		m1.Spec.Mode = v1beta1.MilvusModeCluster
+		m1.Spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
+		m1.Default()
+		replicas := int32(1)
+		m1.Spec.Com.QueryNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
+		m1.Spec.Com.QueryNode.Groups = []v1beta1.DeploymentGroup{
+			{Name: "g1", Replicas: &replicas},
+			{Name: "g2", Replicas: &replicas},
+		}
+		scheme, _ := v1beta1.SchemeBuilder.Build()
+		mockCli.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil)
+		// one Get per group STS
+		mockCli.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
+			DoAndReturn(func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...any) error {
+				sts := obj.(*appsv1.StatefulSet)
+				sts.Name = key.Name
+				sts.Namespace = m1.Namespace
+				_ = runtimectrl.SetControllerReference(m1, sts, scheme)
+				return nil
+			}).Times(2)
+		err := r.Update(ctx, m1)
+		assert.NoError(t, err)
+		_, ok := m1.Status.ComponentsDeployStatus[QueryNodeName]
+		assert.True(t, ok)
+		assert.Equal(t, 2, len(m1.Status.DeploymentGroupsDeployStatus[QueryNodeName]))
+	})
 }
 
 func TestMilvusHealthStatusInfo_GetMilvusHealthStatus(t *testing.T) {
@@ -653,5 +726,93 @@ func TestGetMilvusUpdatedCondition(t *testing.T) {
 		assert.Equal(t, corev1.ConditionFalse, cond.Status)
 		assert.Equal(t, v1beta1.ReasonMilvusDowngradingImage, cond.Reason)
 		assert.Contains(t, cond.Message, ProxyName)
+	})
+}
+
+func TestMilvusStatusSyncer_GetMsgStreamCondition_KafkaSecretRef(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockCli := NewMockK8sClient(ctrl)
+	ctx := context.Background()
+	s := NewMilvusStatusSyncer(ctx, mockCli, logf.Log.WithName("test"))
+
+	milvus := v1beta1.Milvus{}
+	milvus.Namespace = "ns"
+	milvus.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+	milvus.Spec.Dep.Kafka.SecretRef = "kafka-sasl-secret"
+	// plaintext credentials in the config are overridden by the secret
+	milvus.Spec.Conf.Data = map[string]interface{}{
+		"kafka": map[string]interface{}{
+			"securityProtocol": "SASL_SSL",
+			"saslMechanisms":   "PLAIN",
+			"saslUsername":     "plaintext-user",
+			"saslPassword":     "plaintext-pass",
+		},
+	}
+
+	expectGetSecret := func(data map[string][]byte) {
+		mockCli.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				obj.(*corev1.Secret).Data = data
+				return nil
+			})
+	}
+	stubCheckKafkaNotCalled := func() *gostub.Stubs {
+		return gostub.Stub(&checkKafka, func(conf external.CheckKafkaConfig) error {
+			t.Error("kafka should not be probed with unresolved credentials")
+			return nil
+		})
+	}
+
+	t.Run("credentials read from secret", func(t *testing.T) {
+		milvus.Spec.Dep.Kafka.BrokerList = []string{"broker-ok:9092"}
+		var probed external.CheckKafkaConfig
+		stubs := gostub.Stub(&checkKafka, func(conf external.CheckKafkaConfig) error {
+			probed = conf
+			return nil
+		})
+		defer stubs.Reset()
+		saslSecret := map[string][]byte{
+			KafkaSaslUsernameKey: []byte("kafka-user"),
+			KafkaSaslPasswordKey: []byte("kafka-pass"),
+			KafkaCACertKey:       []byte("-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----"),
+		}
+		expectGetSecret(saslSecret)
+
+		ret, err := s.GetMsgStreamCondition(ctx, milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionTrue, ret.Status)
+		assert.Equal(t, "kafka-user", probed.SASLUsername)
+		assert.Equal(t, "kafka-pass", probed.SASLPassword)
+		assert.Equal(t, "SASL_SSL", probed.SecurityProtocol)
+		assert.Equal(t, milvus.Spec.Dep.Kafka.BrokerList, probed.BrokerList)
+		assert.Contains(t, string(probed.CACert), "BEGIN CERTIFICATE")
+	})
+
+	t.Run("secret not found", func(t *testing.T) {
+		milvus.Spec.Dep.Kafka.BrokerList = []string{"broker-notfound:9092"}
+		stubs := stubCheckKafkaNotCalled()
+		defer stubs.Reset()
+		mockCli.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(kerrors.NewNotFound(schema.GroupResource{}, "mockErr"))
+
+		ret, err := s.GetMsgStreamCondition(ctx, milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionUnknown, ret.Status)
+		assert.Contains(t, ret.Message, milvus.Spec.Dep.Kafka.SecretRef)
+	})
+
+	t.Run("secret missing password key", func(t *testing.T) {
+		milvus.Spec.Dep.Kafka.BrokerList = []string{"broker-nokey:9092"}
+		stubs := stubCheckKafkaNotCalled()
+		defer stubs.Reset()
+		expectGetSecret(map[string][]byte{KafkaSaslUsernameKey: []byte("kafka-user")})
+
+		ret, err := s.GetMsgStreamCondition(ctx, milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionUnknown, ret.Status)
+		assert.Contains(t, ret.Message, KafkaSaslPasswordKey)
 	})
 }

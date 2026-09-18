@@ -8,7 +8,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -229,5 +231,54 @@ func TestMilvusReconciler_ReconcileLegacyValues(t *testing.T) {
 		err := r.syncLegacyValues(ctx, obj)
 		assert.NoError(t, err)
 		assert.Equal(t, false, obj.LegacyNeedSyncValues())
+	})
+}
+
+func TestMilvusReconciler_mapSecretToMilvusRequests(t *testing.T) {
+	testEnv := newTestEnv(t)
+	defer testEnv.checkMocks()
+	r := testEnv.Reconciler
+	ctx := context.Background()
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "kafka-sasl-secret"},
+	}
+
+	newMilvus := func(name, secretRef string, msgStreamType v1beta1.MsgStreamType) v1beta1.Milvus {
+		mc := v1beta1.Milvus{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: name},
+		}
+		mc.Default()
+		mc.Spec.Dep.MsgStreamType = msgStreamType
+		mc.Spec.Dep.Kafka.SecretRef = secretRef
+		return mc
+	}
+
+	expectList := func(items ...v1beta1.Milvus) {
+		testEnv.MockClient.EXPECT().
+			List(gomock.Any(), gomock.AssignableToTypeOf(&v1beta1.MilvusList{}), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+				list.(*v1beta1.MilvusList).Items = items
+				return nil
+			})
+	}
+
+	t.Run("only referencing instances enqueued", func(t *testing.T) {
+		expectList(
+			newMilvus("referencing", "kafka-sasl-secret", v1beta1.MsgStreamTypeKafka),
+			newMilvus("other-secret", "another-secret", v1beta1.MsgStreamTypeKafka),
+			newMilvus("not-kafka", "kafka-sasl-secret", v1beta1.MsgStreamTypePulsar),
+			newMilvus("no-secret", "", v1beta1.MsgStreamTypeKafka),
+		)
+		requests := r.mapSecretToMilvusRequests(ctx, secret)
+		assert.Equal(t, []reconcile.Request{
+			{NamespacedName: types.NamespacedName{Namespace: "ns", Name: "referencing"}},
+		}, requests)
+	})
+
+	t.Run("list failed", func(t *testing.T) {
+		testEnv.MockClient.EXPECT().
+			List(gomock.Any(), gomock.Any(), gomock.Any()).Return(errMock)
+		assert.Nil(t, r.mapSecretToMilvusRequests(ctx, secret))
 	})
 }

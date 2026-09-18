@@ -239,14 +239,38 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("error getting statefulset", func(t *testing.T) {
+	t.Run("sts not found and no saved object, skip reconciliation", func(t *testing.T) {
 		fakeClientset := fakekubernetes.NewSimpleClientset()
 		rec.clientset = fakeClientset
 
 		mc := v1beta1.Milvus{}
 		mc.Default()
 
+		// STS not found, saved ControllerRevision also not found → should skip (return nil)
 		err = rec.reconcilePVCs(ctx, "test-namespace", "non-existent", "5Gi", "10Gi", mc)
+		assert.NoError(t, err)
+	})
+
+	t.Run("sts not found, saved object get error (non-NotFound)", func(t *testing.T) {
+		fakeClientset := fakekubernetes.NewSimpleClientset()
+		rec.clientset = fakeClientset
+
+		// Insert a ControllerRevision with malformed data to trigger unmarshal error in GetSavedObject
+		cr := &appsv1.ControllerRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bad-sts-old-sts",
+				Namespace: "test-namespace",
+			},
+			Data: runtime.RawExtension{Raw: []byte("not-valid-yaml{{{")},
+		}
+		err = fakeClient.Create(ctx, cr)
+		assert.NoError(t, err)
+		defer fakeClient.Delete(ctx, cr) //nolint:errcheck
+
+		mc := v1beta1.Milvus{}
+		mc.Default()
+
+		err = rec.reconcilePVCs(ctx, "test-namespace", "bad-sts", "5Gi", "10Gi", mc)
 		assert.Error(t, err)
 	})
 
@@ -280,7 +304,8 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 		mc := v1beta1.Milvus{}
 		mc.Default()
 
-		err = rec.reconcilePVCs(ctx, "test-namespace", "test-etcd", "invalid", "10Gi", mc)
+		// newSize is unparseable → should fail at resource.ParseQuantity before touching the STS
+		err = rec.reconcilePVCs(ctx, "test-namespace", "test-etcd", "5Gi", "invalid", mc)
 		assert.Error(t, err)
 	})
 }
@@ -311,10 +336,14 @@ func TestClusterReconciler_ReconcileDeps(t *testing.T) {
 	assert.NoError(t, r.ReconcileEtcd(ctx, m))
 
 	m.Spec.Dep.Storage.InCluster = icc
+	storageHelm := helm.NewMockClient(env.Ctrl)
+	helm.SetDefaultClient(storageHelm)
+	mockHelm.EXPECT().NewHelmCfg(gomock.Any()).Return(&action.Configuration{})
+	storageHelm.EXPECT().ReleaseExist(gomock.Any(), gomock.Any()).Return(false, nil)
 	// internal reconcile helm
 	mockHelm.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, request helm.ChartRequest, mc v1beta1.Milvus) error {
-			assert.Equal(t, request.Chart, helm.GetChartPathByName(Minio))
+			assert.Equal(t, request.Chart, helm.GetChartPathByName(values.Silo))
 			return nil
 		})
 	assert.NoError(t, r.ReconcileMinio(ctx, m))

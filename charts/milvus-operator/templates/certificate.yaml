@@ -6,6 +6,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   dnsNames:
+  - {{ include "chart.fullname" . }}-webhook-service.{{ .Release.Namespace }}.svc
+  - {{ include "chart.fullname" . }}-webhook-service.{{ .Release.Namespace }}.svc.cluster.local
   - milvus-operator-webhook-service.{{ .Release.Namespace }}.svc
   - milvus-operator-webhook-service.{{ .Release.Namespace }}.svc.cluster.local
   issuerRef:

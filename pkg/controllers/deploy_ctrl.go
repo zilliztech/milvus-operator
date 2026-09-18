@@ -161,14 +161,14 @@ func (c *DeployControllerBizImpl) CheckDeployMode(ctx context.Context, mc v1beta
 	case v1beta1.RollingModeV3:
 		return v1beta1.TwoDeployMode, nil
 	case v1beta1.RollingModeV2:
-		if c.component == QueryNode {
+		if c.component.Is(QueryNode) {
 			return v1beta1.TwoDeployMode, nil
 		}
 		fallthrough
 	default:
 		// check in cluster
 	}
-	if v1beta1.Labels().IsChangingMode(mc, c.component.Name) {
+	if v1beta1.Labels().IsChangingMode(mc, c.component.GetStateKey()) {
 		return v1beta1.OneDeployMode, nil
 	}
 	mode, err := c.checkDeployModeInCluster(ctx, mc)
@@ -190,7 +190,7 @@ func (c *DeployControllerBizImpl) checkDeployModeInCluster(ctx context.Context, 
 }
 
 func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Milvus) (bool, error) {
-	if v1beta1.Labels().IsChangingMode(mc, c.component.Name) {
+	if v1beta1.Labels().IsChangingMode(mc, c.component.GetStateKey()) {
 		return false, nil
 	}
 	if mc.Spec.IsStopping() {
@@ -214,9 +214,9 @@ func (c *DeployControllerBizImpl) IsPaused(ctx context.Context, mc v1beta1.Milvu
 }
 
 func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.Milvus) error {
-	_, _, err := c.util.GetDeploys(ctx, mc)
+	currentDeployment, lastDeployment, err := c.util.GetDeploys(ctx, mc)
 	if err == nil {
-		return nil
+		return c.reconcileDeploymentGroupMetadata(ctx, mc, currentDeployment, lastDeployment)
 	}
 	switch err {
 	case ErrNotFound:
@@ -236,6 +236,34 @@ func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.M
 	return nil
 }
 
+func (c *DeployControllerBizImpl) reconcileDeploymentGroupMetadata(ctx context.Context, mc v1beta1.Milvus, deployments ...*appsv1.Deployment) error {
+	if c.component.DeploymentGroup == nil {
+		return nil
+	}
+	updated := false
+	for _, deployment := range deployments {
+		if deployment == nil {
+			continue
+		}
+		rolloutSlot := v1beta1.Labels().GetLabelGroupID(c.component.Name, deployment)
+		labels := desiredDeploymentLabels(mc.Name, c.component, rolloutSlot, deployment.Labels)
+		annotations := desiredDeploymentAnnotations(c.component, deployment.Annotations)
+		if IsEqual(labels, deployment.Labels) && IsEqual(annotations, deployment.Annotations) {
+			continue
+		}
+		deployment.Labels = labels
+		deployment.Annotations = annotations
+		if err := c.cli.Update(ctx, deployment); err != nil {
+			return errors.Wrap(err, "update deployment group metadata")
+		}
+		updated = true
+	}
+	if !updated {
+		return nil
+	}
+	return errors.Wrap(ErrRequeue, "deployment group metadata updated")
+}
+
 func (c *DeployControllerBizImpl) HandleStop(ctx context.Context, mc v1beta1.Milvus) error {
 	currentDeploy, lastDeploy, err := c.util.GetDeploys(ctx, mc)
 	if err != nil {
@@ -249,11 +277,11 @@ func (c *DeployControllerBizImpl) HandleStop(ctx context.Context, mc v1beta1.Mil
 	if err != nil {
 		return errors.Wrap(err, "stop last deployment")
 	}
-	if !v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
+	if !v1beta1.Labels().IsComponentRolling(mc, c.component.GetStateKey()) {
 		return nil
 	}
 	// mark rolling finished
-	v1beta1.Labels().SetComponentRolling(&mc, c.component.Name, false)
+	v1beta1.Labels().SetComponentRolling(&mc, c.component.GetStateKey(), false)
 	ctrl.LoggerFrom(ctx).Info("component stopped, mark rolling finished", "component", c.component.Name)
 	return c.cli.Update(ctx, &mc)
 }
@@ -287,7 +315,7 @@ func (c *DeployControllerBizImpl) HandleRolling(ctx context.Context, mc v1beta1.
 	if currentDeploy == nil {
 		return errors.Errorf("[%s]'s current deployment not found", c.component.Name)
 	}
-	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, false)
+	podTemplate := c.util.RenderPodTemplateWithoutGroupID(ctx, mc, &currentDeploy.Spec.Template, c.component, false)
 
 	if c.util.ShouldRollback(ctx, currentDeploy, lastDeploy, podTemplate) {
 		currentDeploy = lastDeploy
@@ -324,13 +352,18 @@ func (c *DeployControllerBizImpl) HandleManualMode(ctx context.Context, mc v1bet
 	}
 	logger := ctrl.LoggerFrom(ctx).WithName("manual-mode").WithValues("component", c.component.Name)
 	ctx = ctrl.LoggerInto(ctx, logger)
+	podTemplate := c.util.RenderPodTemplateWithoutGroupID(ctx, mc, &currentDeploy.Spec.Template, c.component, true)
+	templateChanged := c.util.IsPodTemplateChanged(ctx, currentDeploy, podTemplate)
 	// should not update deploy with replicas if it's in manual mode
 	if getDeployReplicas(currentDeploy) != 0 {
+		if templateChanged {
+			return errors.Wrapf(ErrRequeue,
+				"[%s]'s active deployment pod template is out of sync in manual mode", c.component.Name)
+		}
 		return nil
 	}
-	podTemplate := c.util.RenderPodTemplateWithoutGroupID(mc, &currentDeploy.Spec.Template, c.component, true)
 	needUpdate := c.util.RenewDeployAnnotation(ctx, mc, currentDeploy)
-	if c.util.IsPodTemplateChanged(ctx, currentDeploy, podTemplate) {
+	if templateChanged {
 		needUpdate = true
 		updatePodTemplateTwoDeployMode(ctx, c.component, currentDeploy, podTemplate)
 	}

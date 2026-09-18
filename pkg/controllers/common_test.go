@@ -6,9 +6,11 @@ import (
 
 	"go.uber.org/mock/gomock"
 	"helm.sh/helm/v3/pkg/cli"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -58,6 +60,7 @@ func newMilvusReconcilerForTest(ctrl *gomock.Controller) *MilvusReconciler {
 	logger := ctrlRuntime.Log.WithName("test")
 	scheme := runtime.NewScheme()
 	v1beta1.AddToScheme(scheme)
+	storagev1.AddToScheme(scheme)
 	helmSetting := cli.New()
 
 	mockManager := NewMockManager(ctrl)
@@ -75,6 +78,7 @@ func newMilvusReconcilerForTest(ctrl *gomock.Controller) *MilvusReconciler {
 		logger:         logger,
 		Scheme:         scheme,
 		helmReconciler: helmReconciler,
+		record:         record.NewFakeRecorder(100),
 	}
 	return &r
 }

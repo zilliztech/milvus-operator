@@ -18,7 +18,7 @@ Generally, you will need to scale out the Milvus cluster you created if it is ov
 - Massive volumes of large datasets need to be processed.
 - High availability of the Milvus service needs to be ensured.
 
-For now autoscaling is not supported. You need to manually scale out the cluster.
+You can also enable autoscaling with the native HPA support — see [Autoscaling with HPA](#autoscaling-with-hpa) below.
 
 #### Example
 
@@ -55,7 +55,7 @@ Scaling in refers to decreasing the number of nodes in a cluster. Generally, you
 - Higher speed for indexing is not required.
 - The size of the dataset to be processed is small.
 
-For now autoscaling is not supported. You need to manually scale in the cluster.
+You can also use HPA to handle scale-in automatically — see [Autoscaling with HPA](#autoscaling-with-hpa) below.
 
 #### Example
 
@@ -77,6 +77,62 @@ spec:
 
 > You can also stop the Milvus cluster without deleting the related resource by scaling component replicas to 0. You can later quickly restart the Milvus cluster by scaling in the component replicas to 1 or more.
 
+## Autoscaling with HPA
+
+The operator supports native Horizontal Pod Autoscaler (HPA) configuration directly in the Milvus CR. When enabled, the operator creates and manages HPA resources for the specified components.
+
+Add an `hpa` block to any component to enable autoscaling:
+
+```yaml
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+spec:
+  mode: cluster
+  components:
+    queryNode:
+      replicas: 2
+      hpa:
+        minReplicas: 2
+        maxReplicas: 10
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+```
+
+The `hpa` field supports `minReplicas`, `maxReplicas`, `metrics`, and `behavior` — matching the standard Kubernetes [HPA spec](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/). The operator handles the HPA lifecycle, including safe deletion during rolling updates for components like queryNode.
+
+For a full example with multiple metrics, scale behavior, and the `replicas: -1` approach for external replica control, see [config/samples/hpa.yaml](../../config/samples/hpa.yaml).
+
+> **Note:** Make sure your components have resource `requests` set, since HPA needs them to calculate utilization-based metrics.
+
+## Scale deployment groups
+
+Proxy, DataNode, QueryNode, and StreamingNode can be scaled as independent deployment groups. When groups are configured, the component-level replica count is ignored:
+
+```yaml
+spec:
+  components:
+    dataNode:
+      groups:
+        - name: g1
+          replicas: 2
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1a
+        - name: g2
+          replicas: 3
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1b
+```
+
+Set every group to `replicas: 0` to stop a grouped component. Set `replicas: -1` to let an externally managed HPA control that group. For this externally managed HPA mode, external automation must target the generated Deployment name and clean up or retarget the HPA after a group rename or removal.
+
+One-Deployment workloads are named `<milvus>-milvus-<component>-<group>`. QueryNode always retains its two rollout slots, named `...-<group>-0` and `...-<group>-1`; all supported components use those two slots with `rollingMode: 3`. Suspend external HPAs and use static replica counts before a full stop or `MilvusUpgrade`.
+
 ## Scale up
 Described in [Allocate Resources](./allocate-resources.md).
-
