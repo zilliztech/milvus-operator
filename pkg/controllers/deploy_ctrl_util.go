@@ -307,10 +307,18 @@ func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v
 
 func (c *DeployControllerBizUtilImpl) checkCanScaleNow(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
 	scaleKind := c.checkScaleKind(mc, lastDeployment)
-	if scaleKind != scaleKindRollout {
+	if scaleKind == scaleKindHPA || scaleKind == scaleKindForce {
 		return nil
 	}
-	err := c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
+	strategy := GetDeploymentStrategy(&mc, c.component)
+	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
+	surge, unavailable := rolloutSteps(strategy, expectedReplicas)
+	if scaleKind != scaleKindRollout && surge != 0 {
+		return nil
+	}
+	// With no surge, wait for the last old pod to terminate even after the old
+	// Deployment's desired replicas reach zero and this becomes normal scaling.
+	err := c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment, surge == 0 && unavailable > 0)
 	return errors.Wrap(err, "check deployments stable")
 }
 
@@ -449,6 +457,32 @@ func compareDeployResourceLimitEqual(currentDeployment, lastDeployment *appsv1.D
 	return true
 }
 
+// rolloutSteps preserves explicit zero values. Like Kubernetes, a positive
+// percentage that rounds down to zero must still allow progress with no surge.
+func rolloutSteps(strategy appsv1.DeploymentStrategy, replicas int) (surge, unavailable int) {
+	surge = 1
+	if strategy.Type != appsv1.RollingUpdateDeploymentStrategyType || strategy.RollingUpdate == nil {
+		return surge, unavailable
+	}
+	ru := strategy.RollingUpdate
+	if ru.MaxSurge != nil {
+		if v, err := intstr.GetScaledValueFromIntOrPercent(ru.MaxSurge, replicas, true); err == nil && v >= 0 {
+			surge = v
+		}
+	}
+	if ru.MaxUnavailable != nil {
+		if v, err := intstr.GetScaledValueFromIntOrPercent(ru.MaxUnavailable, replicas, false); err == nil && v >= 0 {
+			unavailable = v
+			if surge == 0 && unavailable == 0 {
+				if percent, err := intstr.GetScaledValueFromIntOrPercent(ru.MaxUnavailable, 100, false); err == nil && percent > 0 {
+					unavailable = 1
+				}
+			}
+		}
+	}
+	return surge, min(unavailable, max(0, replicas))
+}
+
 // planScaleForRollout, if not hpa ,return nil
 func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
 	lastDeployReplicas := getDeployReplicas(lastDeployment)
@@ -457,21 +491,20 @@ func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, cur
 	currentReplicas := lastDeployReplicas + currentDeployReplicas
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
 
-	// Default surge/unavailable steps: surge=1 allows one extra pod, unavailable=1 allows one pod down
-	surgeStep := 1
-	unavailableStep := 1
-	if currentDeployment.Spec.Strategy.Type == appsv1.RollingUpdateDeploymentStrategyType &&
-		currentDeployment.Spec.Strategy.RollingUpdate != nil {
-		if currentDeployment.Spec.Strategy.RollingUpdate.MaxSurge != nil {
-			if v, err := intstr.GetScaledValueFromIntOrPercent(currentDeployment.Spec.Strategy.RollingUpdate.MaxSurge, expectedReplicas, true); err == nil && v >= 1 {
-				surgeStep = v
-			}
+	surgeStep, unavailableStep := rolloutSteps(currentDeployment.Spec.Strategy, expectedReplicas)
+	if surgeStep == 0 {
+		// An explicit no-surge policy also applies when resource limits change.
+		// Refill released slots before spending any more availability budget.
+		if currentReplicas < expectedReplicas {
+			return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentReplicas}
 		}
-		if currentDeployment.Spec.Strategy.RollingUpdate.MaxUnavailable != nil {
-			if v, err := intstr.GetScaledValueFromIntOrPercent(currentDeployment.Spec.Strategy.RollingUpdate.MaxUnavailable, expectedReplicas, false); err == nil && v >= 1 {
-				unavailableStep = v
-			}
+		availableReplicas := min(int(currentDeployment.Status.AvailableReplicas), currentDeployReplicas) +
+			min(int(lastDeployment.Status.AvailableReplicas), lastDeployReplicas)
+		scaleDown := min(lastDeployReplicas, availableReplicas-max(0, expectedReplicas-unavailableStep))
+		if scaleDown > 0 {
+			return scaleAction{deploy: lastDeployment, replicaChange: -scaleDown}
 		}
+		return noScaleAction
 	}
 
 	if compareDeployResourceLimitEqual(currentDeployment, lastDeployment) {
@@ -483,14 +516,14 @@ func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, cur
 		} else if currentReplicas > expectedReplicas {
 			if lastDeployReplicas > 0 {
 				// continue rollout by scale in last deployment
-				return scaleAction{deploy: lastDeployment, replicaChange: -min(unavailableStep, lastDeployReplicas)}
+				return scaleAction{deploy: lastDeployment, replicaChange: -min(max(1, unavailableStep), lastDeployReplicas)}
 			}
 			// scale in is not allowed during a rollout
 			return noScaleAction
 		}
 		// case currentReplicas < expectedReplicas
 		// scale out
-		return scaleAction{deploy: currentDeployment, replicaChange: min(surgeStep, expectedReplicas-currentDeployReplicas)}
+		return scaleAction{deploy: currentDeployment, replicaChange: min(surgeStep, expectedReplicas-currentDeployReplicas, expectedReplicas+surgeStep-currentReplicas)}
 	} else {
 		// Resource is changed.
 		// If the lastDeployReplicas have not been scaled down to 0, we need to first scale up the currentDeployReplicas to the maximum value among the expectedReplicas or the lastDeployReplicas.
@@ -506,11 +539,11 @@ func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, cur
 				return scaleAction{deploy: currentDeployment, replicaChange: lastDeployReplicas - currentDeployReplicas}
 			}
 			// continue rollout by scale in last deployment
-			return scaleAction{deploy: lastDeployment, replicaChange: -min(unavailableStep, lastDeployReplicas)}
+			return scaleAction{deploy: lastDeployment, replicaChange: -min(max(1, unavailableStep), lastDeployReplicas)}
 		}
 		if currentDeployReplicas > expectedReplicas {
 			// scale current deploy replica to expected
-			return scaleAction{deploy: currentDeployment, replicaChange: -min(unavailableStep, currentDeployReplicas-expectedReplicas)}
+			return scaleAction{deploy: currentDeployment, replicaChange: -min(max(1, unavailableStep), currentDeployReplicas-expectedReplicas)}
 		} else if currentDeployReplicas < expectedReplicas {
 			// scale current deploy replica to expected
 			// This branch seems unlikely to occur.
@@ -553,7 +586,7 @@ func (c *DeployControllerBizUtilImpl) markDeployAsCurrent(ctx context.Context, m
 	return errors.Wrapf(err, "mark group id to %d", groupId)
 }
 
-func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment) error {
+func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment, allowUnavailable bool) error {
 	lastDeployPods, err := c.ListDeployPods(ctx, lastDeployment, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list last deploy pods")
@@ -568,6 +601,16 @@ func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context
 		return errors.Wrap(err, "list current deploy pods")
 	}
 	isStable, reason = c.DeploymentIsStable(currentDeployment, currentDeployPods)
+	if !isStable && allowUnavailable {
+		// A previously surged pod can be Pending on a full pool. Permit the
+		// planner to release old capacity within maxUnavailable, but only once
+		// the preceding scale has been observed and all terminations finished.
+		isStable = currentDeployment.Status.ObservedGeneration == currentDeployment.Generation &&
+			int(currentDeployment.Status.Replicas) == getDeployReplicas(currentDeployment) &&
+			currentDeployment.Status.UpdatedReplicas == currentDeployment.Status.Replicas &&
+			len(currentDeployPods) == getDeployReplicas(currentDeployment) &&
+			len(GetTerminatingPods(currentDeployPods)) == 0
+	}
 	if !isStable {
 		return errors.Wrapf(ErrRequeue, "current deploy is not stable[%s]", reason)
 	}

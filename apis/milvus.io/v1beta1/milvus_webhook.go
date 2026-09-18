@@ -78,6 +78,8 @@ func (r *Milvus) ValidateCreate() (admission.Warnings, error) {
 
 	allErrs = append(allErrs, r.validateComponentStatefulSets()...)
 
+	allErrs = append(allErrs, r.validateRollingUpdates()...)
+
 	if len(allErrs) == 0 {
 		return nil, nil
 	}
@@ -152,6 +154,8 @@ func (r *Milvus) ValidateUpdate(old runtime.Object) (admission.Warnings, error) 
 	allErrs = append(allErrs, r.validateDeploymentGroups()...)
 
 	allErrs = append(allErrs, r.validateComponentStatefulSets()...)
+
+	allErrs = append(allErrs, r.validateRollingUpdates()...)
 
 	if len(allErrs) == 0 {
 		return nil, nil
