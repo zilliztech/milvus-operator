@@ -326,6 +326,25 @@ func TestMergeComponentSpec(t *testing.T) {
 		merged = MergeComponentSpec(src, dst).SecurityContext
 		assert.Equal(t, int(2000), merged.Data["runAsUser"])
 	})
+
+	t.Run("merge rollingUpdate", func(t *testing.T) {
+		dst.RollingUpdate = &appsv1.RollingUpdateDeployment{
+			MaxSurge: &intstr.IntOrString{
+				Type:   intstr.Int,
+				IntVal: 1,
+			},
+		}
+		merged := MergeComponentSpec(src, dst).RollingUpdate
+		assert.Equal(t, "1", merged.MaxSurge.String())
+		src.RollingUpdate = &appsv1.RollingUpdateDeployment{
+			MaxSurge: &intstr.IntOrString{
+				Type:   intstr.String,
+				StrVal: "100%",
+			},
+		}
+		merged = MergeComponentSpec(src, dst).RollingUpdate
+		assert.Equal(t, "100%", merged.MaxSurge.String())
+	})
 }
 
 func TestMilvusComponent_GetReplicas(t *testing.T) {
@@ -571,49 +590,65 @@ func TestMilvusComponent_GetLivenessProbe_GetReadinessProbe(t *testing.T) {
 }
 
 func TestMilvusComponent_GetDeploymentStrategy(t *testing.T) {
-	com := QueryNode
-	configs := map[string]interface{}{}
+	ms := newSpecCluster()
+	ms.Conf.Data = map[string]interface{}{}
 
 	t.Run("default strategy", func(t *testing.T) {
-		strategy := com.GetDeploymentStrategy(configs)
+		com := QueryNode
+
+		strategy := com.GetDeploymentStrategy(&ms)
 		assert.Equal(t, appsv1.RollingUpdateDeploymentStrategyType, strategy.Type)
-		assert.Equal(t, intstr.FromInt(0), *strategy.RollingUpdate.MaxUnavailable)
-		assert.Equal(t, intstr.FromInt(1), *strategy.RollingUpdate.MaxSurge)
+		assert.Equal(t, intstr.FromInt32(0), *strategy.RollingUpdate.MaxUnavailable)
+		assert.Equal(t, intstr.FromInt32(1), *strategy.RollingUpdate.MaxSurge)
 
 		com = DataCoord
-		assert.Equal(t, appsv1.RecreateDeploymentStrategyType, com.GetDeploymentStrategy(configs).Type)
+		assert.Equal(t, appsv1.RecreateDeploymentStrategyType, com.GetDeploymentStrategy(&ms).Type)
 
+	})
+
+	t.Run("custom strategy", func(t *testing.T) {
+		com := QueryNode
+		surge := intstr.FromString("20%")
+		ms.Com.QueryNode.RollingUpdate = &appsv1.RollingUpdateDeployment{
+			MaxSurge: &surge,
+		}
+		strategy := com.GetDeploymentStrategy(&ms)
+		assert.Equal(t, appsv1.RollingUpdateDeploymentStrategyType, strategy.Type)
+		assert.Equal(t, intstr.FromInt32(0), *strategy.RollingUpdate.MaxUnavailable)
+		assert.Equal(t, intstr.FromString("20%"), *strategy.RollingUpdate.MaxSurge)
 	})
 
 	enableActiveStandByMap := map[string]interface{}{
 		v1beta1.EnableActiveStandByConfig: true,
 	}
-	configs = map[string]interface{}{
+	ms.Com.DataCoord = &v1beta1.MilvusDataCoord{}
+	ms.Conf.Data = map[string]interface{}{
 		"dataCoord": enableActiveStandByMap,
 	}
+
 	t.Run("datacoord enableActiveStandby", func(t *testing.T) {
-		com = DataCoord
-		assert.Equal(t, appsv1.RollingUpdateDeploymentStrategyType, com.GetDeploymentStrategy(configs).Type)
+		com := DataCoord
+		assert.Equal(t, appsv1.RollingUpdateDeploymentStrategyType, com.GetDeploymentStrategy(&ms).Type)
 	})
 
 	t.Run("mixcoord or standalone not all enableActiveStandby", func(t *testing.T) {
-		com = MixCoord
-		assert.Equal(t, appsv1.RecreateDeploymentStrategyType, com.GetDeploymentStrategy(configs).Type)
+		com := MixCoord
+		assert.Equal(t, appsv1.RecreateDeploymentStrategyType, com.GetDeploymentStrategy(&ms).Type)
 		com = MilvusStandalone
-		assert.Equal(t, appsv1.RecreateDeploymentStrategyType, com.GetDeploymentStrategy(configs).Type)
+		assert.Equal(t, appsv1.RecreateDeploymentStrategyType, com.GetDeploymentStrategy(&ms).Type)
 	})
 
-	configs = map[string]interface{}{
+	ms.Conf.Data = map[string]interface{}{
 		"dataCoord":  enableActiveStandByMap,
 		"indexCoord": enableActiveStandByMap,
 		"queryCoord": enableActiveStandByMap,
 		"rootCoord":  enableActiveStandByMap,
 	}
 	t.Run("mixcoord or standalone all enableActiveStandby", func(t *testing.T) {
-		com = MixCoord
-		assert.Equal(t, appsv1.RollingUpdateDeploymentStrategyType, com.GetDeploymentStrategy(configs).Type)
+		com := MixCoord
+		assert.Equal(t, appsv1.RollingUpdateDeploymentStrategyType, com.GetDeploymentStrategy(&ms).Type)
 		com = MilvusStandalone
-		assert.Equal(t, appsv1.RollingUpdateDeploymentStrategyType, com.GetDeploymentStrategy(configs).Type)
+		assert.Equal(t, appsv1.RollingUpdateDeploymentStrategyType, com.GetDeploymentStrategy(&ms).Type)
 	})
 
 }
@@ -746,6 +781,31 @@ func TestMilvusComponent_IsImageUpdated(t *testing.T) {
 	s.Image = m.Spec.Com.Image
 	m.Status.ComponentsDeployStatus[StandaloneName] = s
 	assert.True(t, MilvusStandalone.IsImageUpdated(m))
+}
+
+func TestDeploymentStrategyRollingUpdateInheritance(t *testing.T) {
+	zero, one, two := intstr.FromInt(0), intstr.FromInt(1), intstr.FromInt(2)
+	mc := v1beta1.Milvus{}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	mc.Spec.Com.RollingUpdate = &appsv1.RollingUpdateDeployment{MaxSurge: &zero, MaxUnavailable: &one}
+	original := mc.DeepCopy()
+	strategy := GetDeploymentStrategy(&mc, QueryNode)
+	assert.Equal(t, zero, *strategy.RollingUpdate.MaxSurge)
+	assert.Equal(t, one, *strategy.RollingUpdate.MaxUnavailable)
+	mc.Spec.Com.QueryNode.RollingUpdate = &appsv1.RollingUpdateDeployment{MaxSurge: &two}
+	strategy = GetDeploymentStrategy(&mc, QueryNode)
+	assert.Equal(t, two, *strategy.RollingUpdate.MaxSurge)
+	assert.Equal(t, one, *strategy.RollingUpdate.MaxUnavailable)
+	merged := MergeComponentSpec(mc.Spec.Com.QueryNode.ComponentSpec, mc.Spec.Com.ComponentSpec)
+	assert.Equal(t, two, *merged.RollingUpdate.MaxSurge)
+	*merged.RollingUpdate.MaxUnavailable = two
+	*strategy.RollingUpdate.MaxSurge = one
+	assert.Equal(t, original.Spec.Com.RollingUpdate, mc.Spec.Com.RollingUpdate)
+	assert.Equal(t, two, *mc.Spec.Com.QueryNode.RollingUpdate.MaxSurge)
+	other := GetDeploymentStrategy(&mc, DataNode)
+	assert.Equal(t, zero, *other.RollingUpdate.MaxSurge)
+	assert.Equal(t, one, *other.RollingUpdate.MaxUnavailable)
 }
 
 func TestPulsarEndpointsCheckSum(t *testing.T) {

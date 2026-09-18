@@ -706,7 +706,8 @@ func GetDefaultReadinessProbe() *corev1.Probe {
 		SuccessThreshold: 1,
 	}
 }
-func (c MilvusComponent) GetDeploymentStrategy(configs map[string]interface{}) appsv1.DeploymentStrategy {
+func (c MilvusComponent) GetDeploymentStrategy(ms *v1beta1.MilvusSpec) appsv1.DeploymentStrategy {
+	configs := ms.Conf.Data
 	var useRollingUpdate bool
 	switch {
 	case c.IsCoord() && c.Name != MixCoordName:
@@ -727,12 +728,15 @@ func (c MilvusComponent) GetDeploymentStrategy(configs map[string]interface{}) a
 	}
 
 	if useRollingUpdate {
+		rollingUpdate := &appsv1.RollingUpdateDeployment{
+			MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 0},
+			MaxSurge:       &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
+		}
+		effective := v1beta1.MergeRollingUpdate(ms.Com.RollingUpdate, c.GetComponentSpec(*ms).RollingUpdate)
+		rollingUpdate = v1beta1.MergeRollingUpdate(rollingUpdate, effective)
 		return appsv1.DeploymentStrategy{
-			Type: appsv1.RollingUpdateDeploymentStrategyType,
-			RollingUpdate: &appsv1.RollingUpdateDeployment{
-				MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 0},
-				MaxSurge:       &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
-			},
+			Type:          appsv1.RollingUpdateDeploymentStrategyType,
+			RollingUpdate: rollingUpdate,
 		}
 	}
 	return appsv1.DeploymentStrategy{
@@ -863,6 +867,7 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 		dst.SecurityContext = src.SecurityContext
 	}
 
+	dst.RollingUpdate = v1beta1.MergeRollingUpdate(dst.RollingUpdate, src.RollingUpdate)
 	return dst
 }
 
