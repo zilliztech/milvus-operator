@@ -180,6 +180,7 @@ func TestReconciler_ReconcilePodMonitor_AddMetricLabels(t *testing.T) {
 
 	err := r.updatePodMonitor(mc, podmonitor)
 	assert.NoError(t, err)
+	assert.Contains(t, podmonitor.Spec.PodTargetLabels, v1beta1.DeploymentGroupLabel)
 
 	// Verify metrics relabeling configs
 	assert.Greater(t, len(podmonitor.Spec.PodMetricsEndpoints), 1)

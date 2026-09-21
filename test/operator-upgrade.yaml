@@ -1,0 +1,40 @@
+# Keep the v0.9.17 baseline and its legacy dependency charts: this test asserts
+# that upgrading the operator neither upgrades dependencies nor restarts Milvus.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+spec:
+  components:
+    image: milvusdb/milvus:v2.4.5
+    standalone:
+      replicas: 1
+      serviceType: ClusterIP
+  dependencies:
+    etcd:
+      inCluster:
+        values:
+          replicaCount: 1
+        deletionPolicy: Delete
+        pvcDeletion: true
+    storage:
+      inCluster:
+        values:
+          mode: standalone
+          # The retired minio/minio image is no longer publicly pullable.
+          # Silo retains the MinIO entrypoint used by the legacy chart.
+          image:
+            repository: pgsty/silo
+            tag: RELEASE.2026-09-03T13-18-01Z
+          accessKey: minioadmin
+          secretKey: minioadmin
+          environment:
+            MINIO_ROOT_USER: minioadmin
+            MINIO_ROOT_PASSWORD: minioadmin
+          resources:
+            requests:
+              memory: 100Mi
+          persistence:
+            size: 20Gi
+        deletionPolicy: Delete
+        pvcDeletion: true

@@ -82,7 +82,7 @@ func (r *MilvusReconciler) updatePodMonitor(
 	delete(matchLabels, AppLabelManagedBy)
 	podmonitor.Spec.Selector.MatchLabels = matchLabels
 	podmonitor.Spec.PodTargetLabels = []string{
-		AppLabelInstance, AppLabelName, AppLabelComponent,
+		AppLabelInstance, AppLabelName, AppLabelComponent, v1beta1.DeploymentGroupLabel,
 	}
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -30,8 +31,15 @@ const (
 	HookYaml                   = "hook.yaml"
 	AccessKey                  = "accesskey"
 	SecretKey                  = "secretkey"
+	KafkaSaslUsernameKey       = "username"
+	KafkaSaslPasswordKey       = "password"
+	KafkaCACertKey             = "ca.pem"
 	AnnotationCheckSum         = "checksum/config"
 	AnnotationMilvusGeneration = v1beta1.AnnotationMilvusGeneration
+
+	KafkaCAVolumeName = "kafka-ca"
+	KafkaCAMountPath  = MilvusConfigRootPath + "/kafka-ca"
+	KafkaCACertPath   = KafkaCAMountPath + "/" + KafkaCACertKey
 
 	ToolsVolumeName = "tools"
 	ToolsMountPath  = "/milvus/tools"
@@ -44,6 +52,69 @@ var (
 	DefaultSecretMode    = corev1.SecretVolumeSourceDefaultMode
 	ErrRequeue           = errors.New("requeue")
 )
+
+func GetStorageHostPort(endpoint string, useSSL bool) (string, int32) {
+	defaultPort := int32(80)
+	if useSSL {
+		defaultPort = 443
+	}
+	return util.GetHostPortWithDefault(endpoint, defaultPort)
+}
+
+func GetStorageEndpointEnv(endpoint string, useSSL bool) []corev1.EnvVar {
+	if endpoint == "" {
+		return nil
+	}
+
+	_, port := GetStorageHostPort(endpoint, useSSL)
+	return []corev1.EnvVar{
+		{
+			Name:  "MINIO_PORT",
+			Value: strconv.Itoa(int(port)),
+		},
+	}
+}
+
+// getMinioPortEnvIfServiceExists returns an override for the Kubernetes service-link
+// variable only in namespaces where a Service named "minio" can cause the collision.
+func (r *MilvusReconciler) getMinioPortEnvIfServiceExists(ctx context.Context, mc v1beta1.Milvus) ([]corev1.EnvVar, error) {
+	service := &corev1.Service{}
+	err := r.Get(ctx, NamespacedName(mc.Namespace, Minio), service)
+	if kerrors.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, pkgerr.Wrap(err, "check minio service")
+	}
+
+	return GetStorageEndpointEnv(mc.Spec.Dep.Storage.Endpoint, GetMinioSecure(mc.Spec.Conf.Data)), nil
+}
+
+// GetKafkaSecretRefEnv passes the SASL credentials to milvus as env vars, which
+// override kafka.saslUsername & kafka.saslPassword from the config file.
+func GetKafkaSecretRefEnv(secretRef string) []corev1.EnvVar {
+	env := []corev1.EnvVar{}
+	if secretRef == "" {
+		return env
+	}
+	for _, ref := range []struct{ name, key string }{
+		{"KAFKA_SASLPASSWORD", KafkaSaslPasswordKey},
+		{"KAFKA_SASLUSERNAME", KafkaSaslUsernameKey},
+	} {
+		env = append(env, corev1.EnvVar{
+			Name: ref.name,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: secretRef,
+					},
+					Key: ref.key,
+				},
+			},
+		})
+	}
+	return env
+}
 
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 	env := []corev1.EnvVar{}
@@ -100,7 +171,9 @@ func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 func (r *MilvusReconciler) updateDeployment(
 	ctx context.Context, mc v1beta1.Milvus, deployment *appsv1.Deployment, component MilvusComponent,
 ) error {
-	updater := newMilvusDeploymentUpdater(mc, r.Scheme, component)
+	updater := newMilvusDeploymentUpdaterWithStorageEndpointEnv(
+		mc, r.Scheme, component, storageEndpointEnvFromContext(ctx),
+	)
 	hasTerminatingPod, err := CheckComponentHasTerminatingPod(ctx, r.Client, mc, component)
 	if err != nil {
 		return pkgerr.Wrap(err, "check component has terminating pod")
@@ -184,7 +257,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 	}
 
 	diff := util.DiffStr(old, cur)
-	ctrl.LoggerFrom(ctx).Info("Update Deployment", "diff", string(diff))
+	ctrl.LoggerFrom(ctx).Info("Update Deployment", "diff", diff)
 	return r.Update(ctx, cur)
 }
 
@@ -196,7 +269,7 @@ func (r *MilvusReconciler) handleOldInstanceChangingMode(ctx context.Context, mc
 	// and raise err to requeue the reconcile
 	if !mc.IsPodServiceLabelAdded() &&
 		mc.IsChangingMode() &&
-		component == MilvusStandalone {
+		component.Is(MilvusStandalone) {
 
 		err := r.labelServicePods(ctx, mc)
 		if err != nil {
@@ -266,15 +339,36 @@ func (r *MilvusReconciler) RemoveOldStandlone(ctx context.Context, mc v1beta1.Mi
 }
 
 func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.Milvus) error {
-	err := r.RemoveOldStandlone(ctx, mc)
+	storageEndpointEnv, err := r.getMinioPortEnvIfServiceExists(ctx, mc)
 	if err != nil {
 		return err
 	}
+	storageSecretEnv, err := r.resolveStorageSecretRefEnv(ctx, mc)
+	if err != nil {
+		return err
+	}
+	ctx = contextWithStorageEndpointEnv(ctx, append(storageEndpointEnv, storageSecretEnv...))
+
+	err = r.RemoveOldStandlone(ctx, mc)
+	if err != nil {
+		return err
+	}
+
+	// Reconcile the QueryNode workload kind before creating workloads. Switching
+	// between StatefulSet and Deployment mode must remove the now-undesired
+	// workload first, because the surviving workload's creation flow can requeue
+	// (e.g. the two-deployment rollout marks a group id and requeues), which would
+	// otherwise return early and never reach cleanup — leaving both kinds stuck.
+	if err := r.cleanupStatefulSetWorkloadModes(ctx, mc); err != nil {
+		return err
+	}
+
 	var errs = []error{}
-	for _, component := range GetComponentsBySpec(mc.Spec) {
+	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
 		switch {
-		case component == QueryNode ||
-			mc.Spec.Com.RollingMode == v1beta1.RollingModeV3:
+		case componentUsesStatefulSet(mc, component):
+			err = r.ReconcileComponentStatefulSet(ctx, mc, component)
+		case componentUsesTwoDeployments(mc, component):
 			err = r.deployCtrl.Reconcile(ctx, mc, component)
 		default:
 			err = r.ReconcileComponentDeployment(ctx, mc, component)
@@ -291,6 +385,10 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 			}
 		}
 		return fmt.Errorf("reconcile milvus deployments errs: %w", errors.Join(errs...))
+	}
+
+	if err := r.cleanupStaleDeploymentGroups(ctx, mc); err != nil {
+		return err
 	}
 
 	err = r.CleanupDeploymentClusterToStandalone(ctx, mc)
@@ -311,6 +409,117 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 	return nil
 }
 
+func componentUsesTwoDeployments(mc v1beta1.Milvus, component MilvusComponent) bool {
+	return component.Is(QueryNode) || mc.Spec.Com.RollingMode == v1beta1.RollingModeV3
+}
+
+// cleanupStaleDeploymentGroups prunes only owned workloads whose stable
+// deployment-group identity is no longer desired. Stale topology is discovered
+// from Deployment labels rather than status because group status describes only
+// the current desired topology and may be cleared before grouped-to-legacy
+// cleanup runs. Desired workloads are made ready first so topology transitions
+// do not remove the serving deployment prematurely.
+func (r *MilvusReconciler) cleanupStaleDeploymentGroups(ctx context.Context, mc v1beta1.Milvus) error {
+	deployments := &appsv1.DeploymentList{}
+	if err := r.List(ctx, deployments,
+		client.InNamespace(mc.Namespace),
+		client.MatchingLabels(NewAppLabels(mc.Name))); err != nil {
+		return pkgerr.Wrap(err, "list deployments for deployment-group cleanup")
+	}
+
+	workloads := GetComponentWorkloadsBySpec(mc.Spec)
+	desiredGroups := map[string]map[string]struct{}{}
+	for _, workload := range workloads {
+		if desiredGroups[workload.Name] == nil {
+			desiredGroups[workload.Name] = map[string]struct{}{}
+		}
+		desiredGroups[workload.Name][workload.GetDeploymentGroupName()] = struct{}{}
+	}
+
+	staleDeployments := []*appsv1.Deployment{}
+	componentsWithStaleDeployments := map[string]struct{}{}
+	for i := range deployments.Items {
+		deployment := &deployments.Items[i]
+		if !metav1.IsControlledBy(deployment, &mc) {
+			continue
+		}
+		componentName := deployment.Labels[AppLabelComponent]
+		groups, managedComponent := desiredGroups[componentName]
+		if !managedComponent {
+			continue
+		}
+		if _, desired := groups[deployment.Labels[v1beta1.DeploymentGroupLabel]]; desired {
+			continue
+		}
+		staleDeployments = append(staleDeployments, deployment)
+		componentsWithStaleDeployments[componentName] = struct{}{}
+	}
+	if len(staleDeployments) == 0 {
+		return nil
+	}
+	workloadsToGate := make([]MilvusComponent, 0, len(workloads))
+	for _, workload := range workloads {
+		if _, needsGate := componentsWithStaleDeployments[workload.Name]; needsGate {
+			workloadsToGate = append(workloadsToGate, workload)
+		}
+	}
+	if !desiredWorkloadsReadyForCleanup(mc, workloadsToGate, deployments.Items) {
+		return nil
+	}
+
+	for _, deployment := range staleDeployments {
+		ctrl.LoggerFrom(ctx).Info("Delete stale deployment group workload",
+			"component", deployment.Labels[AppLabelComponent],
+			"deploymentGroup", deployment.Labels[v1beta1.DeploymentGroupLabel],
+			"deployment", deployment.Name)
+		if err := r.Delete(ctx, deployment); err != nil && !kerrors.IsNotFound(err) {
+			return pkgerr.Wrapf(err, "delete stale deployment %s/%s", deployment.Namespace, deployment.Name)
+		}
+	}
+	return nil
+}
+
+func desiredWorkloadsReadyForCleanup(mc v1beta1.Milvus, workloads []MilvusComponent, deployments []appsv1.Deployment) bool {
+	for _, workload := range workloads {
+		var desired *appsv1.Deployment
+		if componentUsesTwoDeployments(mc, workload) {
+			currentSlot := v1beta1.Labels().GetCurrentGroupId(&mc, workload.GetStateKey())
+			if currentSlot == "" {
+				return false
+			}
+			for i := range deployments {
+				deployment := &deployments[i]
+				if !metav1.IsControlledBy(deployment, &mc) ||
+					deployment.Labels[AppLabelComponent] != workload.Name ||
+					!workload.MatchesDeploymentGroup(deployment.Labels) ||
+					v1beta1.Labels().GetLabelGroupID(workload.Name, deployment) != currentSlot {
+					continue
+				}
+				desired = deployment
+				break
+			}
+		} else {
+			name := workload.GetDeploymentName(mc.Name)
+			for i := range deployments {
+				if deployments[i].Name == name && metav1.IsControlledBy(&deployments[i], &mc) {
+					desired = &deployments[i]
+					break
+				}
+			}
+		}
+		if desired == nil {
+			return false
+		}
+		if getDeployReplicas(desired) == 0 {
+			continue
+		}
+		if !DeploymentReady(desired.Status) {
+			return false
+		}
+	}
+	return true
+}
+
 // cleanupIndexNodeIfNeeded is part of the upgrade process to remove IndexNode which is no longer needed in 2.6+
 func (r *MilvusReconciler) cleanupIndexNodeIfNeeded(ctx context.Context, mc v1beta1.Milvus) error {
 	// offline indexnode for version >= 2.6, when proxy component's image has been updated
@@ -320,6 +529,12 @@ func (r *MilvusReconciler) cleanupIndexNodeIfNeeded(ctx context.Context, mc v1be
 
 		err := r.DeleteDeploymentsIfExists(ctx, mc, IndexNode)
 		if err != nil {
+			return err
+		}
+		// IndexNode may have been running as a StatefulSet; remove it (and its
+		// per-replica PVCs + headless service) too, otherwise it lingers as an
+		// orphan since spec.Com.IndexNode is about to be cleared.
+		if err := r.deleteComponentStatefulSetIfExists(ctx, mc, IndexNode); err != nil {
 			return err
 		}
 
@@ -437,11 +652,36 @@ var (
 		ReadOnly:  true,
 		MountPath: MilvusConfigmapMountPath,
 	}
+
+	kafkaCAVolumeMount = corev1.VolumeMount{
+		Name:      KafkaCAVolumeName,
+		ReadOnly:  true,
+		MountPath: KafkaCAMountPath,
+	}
 )
 
+// kafkaCAVolumeBySecret mounts only the CA cert out of the kafka secret, so the
+// credentials in it are not exposed as files. It is optional: a secret without a
+// CA cert is the normal case for publicly trusted brokers.
+func kafkaCAVolumeBySecret(name string) corev1.Volume {
+	readOnlyMode := int32(0444)
+	optional := true
+	return corev1.Volume{
+		Name: KafkaCAVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName:  name,
+				Items:       []corev1.KeyToPath{{Key: KafkaCACertKey, Path: KafkaCACertKey}},
+				DefaultMode: &readOnlyMode,
+				Optional:    &optional,
+			},
+		},
+	}
+}
+
 func configVolumeByName(name string) corev1.Volume {
-	// so that non root user can change the config
-	configmapMode := int32(0777)
+	// ConfigMap volumes are read-only; configuration files only need read access.
+	configmapMode := int32(0644)
 	return corev1.Volume{
 		Name: MilvusConfigVolumeName,
 		VolumeSource: corev1.VolumeSource{

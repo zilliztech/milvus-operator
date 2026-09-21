@@ -1,14 +1,12 @@
 package external
 
 import (
-	"time"
+	"fmt"
+	"strings"
 
-	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/apache/pulsar-client-go/pulsar/log"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
-	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
 type ConditionGetter interface {
@@ -22,18 +20,8 @@ type PulsarConditionGetter struct {
 var _ ConditionGetter = &PulsarConditionGetter{}
 
 func NewPulsarConditionGetter(m *v1beta1.Milvus) *PulsarConditionGetter {
-
 	return &PulsarConditionGetter{
 		m: m,
-	}
-}
-
-func newErrMsgStreamCondResult(reason, message string) v1beta1.MilvusCondition {
-	return v1beta1.MilvusCondition{
-		Type:    v1beta1.MsgStreamReady,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
 	}
 }
 
@@ -44,32 +32,34 @@ var MQReadyCondition = v1beta1.MilvusCondition{
 }
 
 func (p PulsarConditionGetter) GetCondition() v1beta1.MilvusCondition {
-	conf := p.m.Spec.Conf
-	authPlugin, _ := util.GetStringValue(conf.Data, "pulsar", "authPlugin")
-	endpoint := p.m.Spec.Dep.Pulsar.Endpoint
-	if authPlugin != "" {
-		return NewTCPDialConditionGetter(v1beta1.MsgStreamReady, []string{endpoint}).GetCondition()
+	endpoints := p.m.Spec.Dep.Pulsar.GetEndpoints()
+	if len(endpoints) == 0 {
+		return v1beta1.MilvusCondition{
+			Type:    v1beta1.MsgStreamReady,
+			Status:  corev1.ConditionFalse,
+			Reason:  "ConnectionFailed",
+			Message: "no pulsar endpoint configured",
+		}
 	}
-
-	client, err := pulsarNewClient(pulsar.ClientOptions{
-		URL:               "pulsar://" + endpoint,
-		ConnectionTimeout: 2 * time.Second,
-		OperationTimeout:  3 * time.Second,
-		Logger:            log.DefaultNopLogger(),
-	})
-
-	if err != nil {
-		return newErrMsgStreamCondResult("CreateClientFailed", err.Error())
+	// Any reachable broker counts as ready: the others may be mid-restart,
+	// same policy as the kafka check.
+	var errMsgs []string
+	for _, endpoint := range endpoints {
+		conn, err := netDialTimeout("tcp", endpoint, dialTimeout)
+		if err == nil {
+			conn.Close()
+			return v1beta1.MilvusCondition{
+				Type:   v1beta1.MsgStreamReady,
+				Status: corev1.ConditionTrue,
+				Reason: "ConnectionOK",
+			}
+		}
+		errMsgs = append(errMsgs, fmt.Sprintf("connect %s failed: %s", endpoint, err.Error()))
 	}
-	defer client.Close()
-
-	reader, err := client.CreateReader(pulsar.ReaderOptions{
-		Topic:          "milvus-operator-topic",
-		StartMessageID: pulsar.EarliestMessageID(),
-	})
-	if err != nil {
-		return newErrMsgStreamCondResult("ConnectionFailed", err.Error())
+	return v1beta1.MilvusCondition{
+		Type:    v1beta1.MsgStreamReady,
+		Status:  corev1.ConditionFalse,
+		Reason:  "ConnectionFailed",
+		Message: strings.Join(errMsgs, "; "),
 	}
-	defer reader.Close()
-	return MQReadyCondition
 }
