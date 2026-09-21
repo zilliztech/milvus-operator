@@ -9,7 +9,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -21,7 +22,7 @@ import (
 
 // DeployControllerBizUtil are the business logics of DeployControllerBizImpl, abstracted for unit test
 type DeployControllerBizUtil interface {
-	RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent, forceUpdateAll bool) *corev1.PodTemplateSpec
+	RenderPodTemplateWithoutGroupID(ctx context.Context, mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent, forceUpdateAll bool) *corev1.PodTemplateSpec
 
 	// GetDeploys returns currentDeployment, lastDeployment when there is exactly one currentDeployment, one lastDeployment
 	// otherwise return err. in particular:
@@ -89,13 +90,15 @@ func NewDeployControllerBizUtil(component MilvusComponent, cli client.Client, k8
 	}
 }
 
-func (c *DeployControllerBizUtilImpl) RenderPodTemplateWithoutGroupID(mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent, forceUpdateAll bool) *corev1.PodTemplateSpec {
+func (c *DeployControllerBizUtilImpl) RenderPodTemplateWithoutGroupID(ctx context.Context, mc v1beta1.Milvus, currentTemplate *corev1.PodTemplateSpec, component MilvusComponent, forceUpdateAll bool) *corev1.PodTemplateSpec {
 	ret := new(corev1.PodTemplateSpec)
 	if currentTemplate != nil {
 		ret = currentTemplate.DeepCopy()
 	}
-	updater := newMilvusDeploymentUpdater(mc, c.cli.Scheme(), component)
-	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponent().Name)
+	updater := newMilvusDeploymentUpdaterWithStorageEndpointEnv(
+		mc, c.cli.Scheme(), component, storageEndpointEnvFromContext(ctx),
+	)
+	appLabels := component.GetSelectorLabels(updater.GetIntanceName())
 	if !forceUpdateAll {
 		isCreating := currentTemplate == nil
 		isStopped := ReplicasValue(component.GetReplicas(mc.Spec)) == 0
@@ -112,19 +115,20 @@ var (
 
 func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error) {
 	deploys := appsv1.DeploymentList{}
-	commonlabels := NewComponentAppLabels(mc.Name, c.component.Name)
+	commonlabels := c.component.GetSelectorLabels(mc.Name)
 	err = c.cli.List(ctx, &deploys, client.InNamespace(mc.Namespace), client.MatchingLabels(commonlabels))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "list querynode deployments")
 	}
 	var items = []*appsv1.Deployment{}
 	for i := range deploys.Items {
-		if v1beta1.Labels().GetLabelGroupID(c.component.Name, &deploys.Items[i]) != "" {
+		if c.component.MatchesDeploymentGroup(deploys.Items[i].Labels) &&
+			v1beta1.Labels().GetLabelGroupID(c.component.Name, &deploys.Items[i]) != "" {
 			items = append(items, &deploys.Items[i])
 		}
 	}
 	if len(items) > 2 {
-		return nil, nil, errors.Errorf("unexpected: more than 2 querynode deployments found %d, admin please fix this, leave only 2 deployments", len(deploys.Items))
+		return nil, nil, errors.Errorf("unexpected: more than 2 %s deployments found %d, admin please fix this, leave only 2 deployments", c.component.GetDisplayName(), len(items))
 	}
 	if len(items) < 1 {
 		return nil, nil, ErrNotFound
@@ -151,23 +155,23 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 	}
 	// last == nil
 
-	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.Name) != "0" {
+	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.GetStateKey()) != "0" {
 		return nil, nil, errors.Errorf("unexpected: first deployment is not for group 0, admin please fix this by setting a last deployment for group 0")
 	}
 	return nil, nil, ErrNoLastDeployment
 }
 
 func componentDeployIsCurrentGroup(mc v1beta1.Milvus, component MilvusComponent, deploy *appsv1.Deployment) bool {
-	return v1beta1.Labels().GetLabelGroupID(component.Name, deploy) == v1beta1.Labels().GetCurrentGroupId(&mc, component.Name)
+	return v1beta1.Labels().GetLabelGroupID(component.Name, deploy) == v1beta1.Labels().GetCurrentGroupId(&mc, component.GetStateKey())
 }
 
 func formatComponentDeployName(mc v1beta1.Milvus, component MilvusComponent, groupId int) string {
-	return fmt.Sprintf("%s-milvus-%s-%d", mc.Name, component.Name, groupId)
+	return fmt.Sprintf("%s-%d", component.GetDeploymentName(mc.Name), groupId)
 }
 
 func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error {
 	if podTemplate == nil {
-		podTemplate = c.RenderPodTemplateWithoutGroupID(mc, nil, c.component, true)
+		podTemplate = c.RenderPodTemplateWithoutGroupID(ctx, mc, nil, c.component, true)
 	}
 	if groupId != 0 {
 		// is not the first deploy, set image to dummy to avoid rolling back and forth
@@ -184,9 +188,14 @@ func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1bet
 	if err != nil {
 		return errors.Wrap(err, "set controller reference")
 	}
-	labels := NewComponentAppLabels(mc.Name, c.component.Name)
+	labels := c.component.GetSelectorLabels(mc.Name)
 	v1beta1.Labels().SetGroupID(c.component.Name, labels, groupId)
-	deploy.Labels = labels
+	if c.component.DeploymentGroup != nil {
+		deploy.Labels = MergeLabels(c.component.DeploymentGroup.Labels, labels)
+		deploy.Annotations = MergeAnnotations(c.component.DeploymentGroup.Annotations)
+	} else {
+		deploy.Labels = labels
+	}
 	deploy.Spec.Selector = &metav1.LabelSelector{
 		MatchLabels: labels,
 	}
@@ -218,7 +227,7 @@ func (c *DeployControllerBizUtilImpl) ShouldRollback(ctx context.Context, curren
 }
 
 func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) (bool, error) {
-	if !v1beta1.Labels().IsComponentRolling(mc, c.component.Name) {
+	if !v1beta1.Labels().IsComponentRolling(mc, c.component.GetStateKey()) {
 		return true, nil
 	}
 
@@ -250,7 +259,7 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	)
 	logger := ctrl.LoggerFrom(ctx)
 	if !deploymentShowsRolloutFinished {
-		logger.Info("rollout not finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.Name), "reason", reasons[failedIndex])
+		logger.Info("rollout not finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.GetStateKey()), "reason", reasons[failedIndex])
 		return false, nil
 	}
 	// make sure all old pods are down
@@ -261,8 +270,8 @@ func (c *DeployControllerBizUtilImpl) LastRolloutFinished(ctx context.Context, m
 	if len(pods) != 0 {
 		return false, nil
 	}
-	logger.Info("rollout finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.Name))
-	v1beta1.Labels().SetComponentRolling(&mc, c.component.Name, false)
+	logger.Info("rollout finished", "id", v1beta1.Labels().GetComponentRollingId(mc, c.component.GetStateKey()))
+	v1beta1.Labels().SetComponentRolling(&mc, c.component.GetStateKey(), false)
 	return false, c.UpdateAndRequeue(ctx, &mc)
 }
 
@@ -298,10 +307,22 @@ func (c *DeployControllerBizUtilImpl) ScaleDeployments(ctx context.Context, mc v
 
 func (c *DeployControllerBizUtilImpl) checkCanScaleNow(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) error {
 	scaleKind := c.checkScaleKind(mc, lastDeployment)
-	if scaleKind != scaleKindRollout {
+	if scaleKind == scaleKindHPA || scaleKind == scaleKindForce {
 		return nil
 	}
-	err := c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment)
+	strategy := GetDeploymentStrategy(&mc, c.component)
+	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
+	surge, unavailable := rolloutSteps(strategy, expectedReplicas)
+	if scaleKind != scaleKindRollout {
+		// Normal downscaling must work even when a quota prevents the current
+		// Deployment from creating all its desired pods. Only adding pods with
+		// no surge needs to wait for the last old pod to finish terminating.
+		if surge == 0 && getDeployReplicas(currentDeployment) < expectedReplicas {
+			return errors.Wrap(c.checkLastDeploymentStable(ctx, lastDeployment), "check deployments stable")
+		}
+		return nil
+	}
+	err := c.checkDeploymentsStable(ctx, currentDeployment, lastDeployment, surge == 0 && unavailable > 0)
 	return errors.Wrap(err, "check deployments stable")
 }
 
@@ -335,6 +356,8 @@ func (c *DeployControllerBizUtilImpl) planNextScaleAction(ctx context.Context, m
 	switch scaleKind {
 	case scaleKindHPA:
 		return c.planScaleForHPA(ctx, mc, currentDeployment, lastDeployment)
+	case scaleKindExternalHPA:
+		return c.planScaleForExternalHPA(ctx, mc, currentDeployment, lastDeployment)
 	case scaleKindRollout:
 		return c.planScaleForRollout(mc, currentDeployment, lastDeployment)
 	case scaleKindForce:
@@ -350,6 +373,7 @@ const (
 	scaleKindNormal scaleKind = iota
 	scaleKindRollout
 	scaleKindHPA
+	scaleKindExternalHPA
 	scaleKindForce
 )
 
@@ -357,10 +381,15 @@ func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus, lastDepl
 	if mc.Spec.Com.ImageUpdateMode == v1beta1.ImageUpdateModeForce {
 		return scaleKindForce
 	}
+	// Check HPA spec first (new approach)
+	if c.component.IsHPAEnabled(mc.Spec) {
+		return scaleKindHPA
+	}
+	// Fallback to replicas = -1 convention (backward compatibility)
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
 	isHpa := expectedReplicas < 0
 	if isHpa {
-		return scaleKindHPA
+		return scaleKindExternalHPA
 	}
 	if getDeployReplicas(lastDeploy) > 0 {
 		return scaleKindRollout
@@ -368,7 +397,65 @@ func (c *DeployControllerBizUtilImpl) checkScaleKind(mc v1beta1.Milvus, lastDepl
 	return scaleKindNormal
 }
 
+// planScaleForHPA plans scaling action when HPA is enabled
+// During rollouts, ensures new deployment matches old deployment's capacity before scaling down
+// This prevents capacity loss when HPA has scaled up the old deployment
 func (c *DeployControllerBizUtilImpl) planScaleForHPA(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
+	logger := ctrl.LoggerFrom(ctx)
+	currentDeployReplicas := getDeployReplicas(currentDeployment)
+	lastDeployReplicas := getDeployReplicas(lastDeployment)
+
+	// Get minReplicas from HPA spec if available
+	minReplicas := 1
+	if hpaSpec := c.component.GetHPASpec(mc.Spec); hpaSpec != nil && hpaSpec.MinReplicas != nil {
+		minReplicas = int(*hpaSpec.MinReplicas)
+	}
+
+	// During rollout: scale up current deployment to match last deployment's capacity first
+	if lastDeployReplicas > 0 {
+		// Target replicas should be at least minReplicas or lastDeployReplicas (whichever is greater)
+		// This ensures we maintain capacity during rollout even if HPA scaled up the old deployment
+		targetReplicas := minReplicas
+		if lastDeployReplicas > targetReplicas {
+			targetReplicas = lastDeployReplicas
+		}
+
+		// Scale up current deployment if it doesn't have enough replicas
+		if currentDeployReplicas < targetReplicas {
+			logger.Info("HPA rollout: scaling up current deployment",
+				"currentReplicas", currentDeployReplicas, "targetReplicas", targetReplicas)
+			return scaleAction{deploy: currentDeployment, replicaChange: targetReplicas - currentDeployReplicas}
+		}
+		// Current deployment has enough desired replicas; ensure enough are Ready before scaling down
+		readyReplicas := int(currentDeployment.Status.ReadyReplicas)
+		if readyReplicas < targetReplicas {
+			logger.Info("HPA rollout: waiting for current deployment readiness before scaling down last deployment",
+				"currentReplicas", currentDeployReplicas,
+				"readyReplicas", readyReplicas,
+				"targetReplicas", targetReplicas,
+				"lastDeployReplicas", lastDeployReplicas)
+			return noScaleAction
+		}
+
+		// Current deployment has enough ready capacity, scale down last deployment one at a time
+		logger.Info("HPA rollout: scaling down last deployment",
+			"lastDeployReplicas", lastDeployReplicas, "currentDeployReplicas", currentDeployReplicas, "readyReplicas", readyReplicas)
+		return scaleAction{deploy: lastDeployment, replicaChange: -1}
+	}
+
+	// Normal HPA mode (no rollout): just ensure current deployment has at least minReplicas
+	// HPA will handle scaling beyond minReplicas based on load
+	if currentDeployReplicas == 0 {
+		logger.Info("HPA: bootstrapping current deployment to minReplicas", "minReplicas", minReplicas)
+		return scaleAction{deploy: currentDeployment, replicaChange: minReplicas}
+	}
+
+	return noScaleAction
+}
+
+// planScaleForExternalHPA preserves the original scaling logic for users with external (user-managed) HPAs
+// using the replicas=-1 convention. This avoids changing behavior for existing users.
+func (c *DeployControllerBizUtilImpl) planScaleForExternalHPA(ctx context.Context, mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
 	currentDeployReplicas := getDeployReplicas(currentDeployment)
 	lastDeployReplicas := getDeployReplicas(lastDeployment)
 
@@ -383,7 +470,7 @@ func (c *DeployControllerBizUtilImpl) planScaleForHPA(ctx context.Context, mc v1
 		return scaleAction{deploy: currentDeployment, replicaChange: (lastDeployReplicas - currentDeployReplicas)}
 	}
 
-	isRolling := v1beta1.Labels().IsComponentRolling(mc, c.component.Name)
+	isRolling := v1beta1.Labels().IsComponentRolling(mc, c.component.GetStateKey())
 
 	// During rolling update, scale down old deployment once new one is ready
 	if isRolling && lastDeployReplicas > 0 {
@@ -440,34 +527,73 @@ func compareDeployResourceLimitEqual(currentDeployment, lastDeployment *appsv1.D
 	return true
 }
 
+// rolloutSteps preserves explicit zero values. Like Kubernetes, a positive
+// percentage that rounds down to zero must still allow progress with no surge.
+func rolloutSteps(strategy appsv1.DeploymentStrategy, replicas int) (surge, unavailable int) {
+	surge = 1
+	if strategy.Type != appsv1.RollingUpdateDeploymentStrategyType || strategy.RollingUpdate == nil {
+		return surge, unavailable
+	}
+	ru := strategy.RollingUpdate
+	if ru.MaxSurge != nil {
+		if v, err := intstr.GetScaledValueFromIntOrPercent(ru.MaxSurge, replicas, true); err == nil && v >= 0 {
+			surge = v
+		}
+	}
+	if ru.MaxUnavailable != nil {
+		if v, err := intstr.GetScaledValueFromIntOrPercent(ru.MaxUnavailable, replicas, false); err == nil && v >= 0 {
+			unavailable = v
+			if surge == 0 && unavailable == 0 {
+				if percent, err := intstr.GetScaledValueFromIntOrPercent(ru.MaxUnavailable, 100, false); err == nil && percent > 0 {
+					unavailable = 1
+				}
+			}
+		}
+	}
+	return surge, min(unavailable, max(0, replicas))
+}
+
 // planScaleForRollout, if not hpa ,return nil
 func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, currentDeployment, lastDeployment *appsv1.Deployment) scaleAction {
-	currentDeployReplicas := getDeployReplicas(currentDeployment)
 	lastDeployReplicas := getDeployReplicas(lastDeployment)
+	currentDeployReplicas := getDeployReplicas(currentDeployment)
 
-	currentReplicas := currentDeployReplicas + lastDeployReplicas
+	currentReplicas := lastDeployReplicas + currentDeployReplicas
 	expectedReplicas := int(ReplicasValue(c.component.GetReplicas(mc.Spec)))
+
+	surgeStep, unavailableStep := rolloutSteps(currentDeployment.Spec.Strategy, expectedReplicas)
+	if surgeStep == 0 {
+		// An explicit no-surge policy also applies when resource limits change.
+		// Refill released slots before spending any more availability budget.
+		if currentReplicas < expectedReplicas {
+			return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentReplicas}
+		}
+		availableReplicas := min(int(currentDeployment.Status.AvailableReplicas), currentDeployReplicas) +
+			min(int(lastDeployment.Status.AvailableReplicas), lastDeployReplicas)
+		scaleDown := min(lastDeployReplicas, availableReplicas-max(0, expectedReplicas-unavailableStep))
+		if scaleDown > 0 {
+			return scaleAction{deploy: lastDeployment, replicaChange: -scaleDown}
+		}
+		return noScaleAction
+	}
+
 	if compareDeployResourceLimitEqual(currentDeployment, lastDeployment) {
-		switch {
-		case currentReplicas > expectedReplicas:
-			if lastDeployReplicas > 0 {
-				// continue rollout by scale in last deployment
-				return scaleAction{deploy: lastDeployment, replicaChange: -1}
-			}
-			// scale in is not allowed during a rollout
-			return noScaleAction
-		case currentReplicas == expectedReplicas:
+		if currentReplicas == expectedReplicas {
 			if lastDeployReplicas == 0 {
 				// stable state
 				return noScaleAction
 			}
-			// continue rollout by scale out last deployment
-			return scaleAction{deploy: currentDeployment, replicaChange: 1}
-		default:
-			// case currentReplicas < expectedReplicas
-			// scale out
-			return scaleAction{deploy: currentDeployment, replicaChange: expectedReplicas - currentReplicas}
+		} else if currentReplicas > expectedReplicas {
+			if lastDeployReplicas > 0 {
+				// continue rollout by scale in last deployment
+				return scaleAction{deploy: lastDeployment, replicaChange: -min(max(1, unavailableStep), lastDeployReplicas)}
+			}
+			// scale in is not allowed during a rollout
+			return noScaleAction
 		}
+		// case currentReplicas < expectedReplicas
+		// scale out
+		return scaleAction{deploy: currentDeployment, replicaChange: min(surgeStep, expectedReplicas-currentDeployReplicas, expectedReplicas+surgeStep-currentReplicas)}
 	} else {
 		// Resource is changed.
 		// If the lastDeployReplicas have not been scaled down to 0, we need to first scale up the currentDeployReplicas to the maximum value among the expectedReplicas or the lastDeployReplicas.
@@ -483,11 +609,11 @@ func (c *DeployControllerBizUtilImpl) planScaleForRollout(mc v1beta1.Milvus, cur
 				return scaleAction{deploy: currentDeployment, replicaChange: lastDeployReplicas - currentDeployReplicas}
 			}
 			// continue rollout by scale in last deployment
-			return scaleAction{deploy: lastDeployment, replicaChange: -1}
+			return scaleAction{deploy: lastDeployment, replicaChange: -min(max(1, unavailableStep), lastDeployReplicas)}
 		}
 		if currentDeployReplicas > expectedReplicas {
 			// scale current deploy replica to expected
-			return scaleAction{deploy: currentDeployment, replicaChange: -1}
+			return scaleAction{deploy: currentDeployment, replicaChange: -min(max(1, unavailableStep), currentDeployReplicas-expectedReplicas)}
 		} else if currentDeployReplicas < expectedReplicas {
 			// scale current deploy replica to expected
 			// This branch seems unlikely to occur.
@@ -530,7 +656,7 @@ func (c *DeployControllerBizUtilImpl) markDeployAsCurrent(ctx context.Context, m
 	return errors.Wrapf(err, "mark group id to %d", groupId)
 }
 
-func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment) error {
+func (c *DeployControllerBizUtilImpl) checkLastDeploymentStable(ctx context.Context, lastDeployment *appsv1.Deployment) error {
 	lastDeployPods, err := c.ListDeployPods(ctx, lastDeployment, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list last deploy pods")
@@ -540,11 +666,43 @@ func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context
 		return errors.Wrapf(ErrRequeue, "last deploy is not stable[%s]", reason)
 	}
 
+	return nil
+}
+
+func (c *DeployControllerBizUtilImpl) checkDeploymentsStable(ctx context.Context, currentDeployment, lastDeployment *appsv1.Deployment, allowUnavailable bool) error {
+	if err := c.checkLastDeploymentStable(ctx, lastDeployment); err != nil {
+		return err
+	}
+
 	currentDeployPods, err := c.ListDeployPods(ctx, currentDeployment, c.component)
 	if err != nil {
 		return errors.Wrap(err, "list current deploy pods")
 	}
-	isStable, reason = c.DeploymentIsStable(currentDeployment, currentDeployPods)
+	if allowUnavailable {
+		// Pod readiness can change before Deployment status catches up without
+		// changing its generation. Never spend an overstated availability budget.
+		readyPods := 0
+		for _, pod := range currentDeployPods {
+			if pod.DeletionTimestamp == nil && pod.Status.Phase == corev1.PodRunning &&
+				GetPodConditionByType(pod.Status.Conditions, corev1.PodReady).Status == corev1.ConditionTrue {
+				readyPods++
+			}
+		}
+		if int(currentDeployment.Status.AvailableReplicas) > readyPods {
+			return errors.Wrap(ErrRequeue, "current deploy available replicas exceed ready pods")
+		}
+	}
+	isStable, reason := c.DeploymentIsStable(currentDeployment, currentDeployPods)
+	if !isStable && allowUnavailable {
+		// A previously surged pod can be Pending on a full pool. Permit the
+		// planner to release old capacity within maxUnavailable, but only once
+		// the preceding scale has been observed and all terminations finished.
+		isStable = currentDeployment.Status.ObservedGeneration == currentDeployment.Generation &&
+			int(currentDeployment.Status.Replicas) == getDeployReplicas(currentDeployment) &&
+			currentDeployment.Status.UpdatedReplicas == currentDeployment.Status.Replicas &&
+			len(currentDeployPods) == getDeployReplicas(currentDeployment) &&
+			len(GetTerminatingPods(currentDeployPods)) == 0
+	}
 	if !isStable {
 		return errors.Wrapf(ErrRequeue, "current deploy is not stable[%s]", reason)
 	}
@@ -563,8 +721,8 @@ func (c *DeployControllerBizUtilImpl) PrepareNewRollout(ctx context.Context, mc 
 		return errors.Wrap(err, "updateDeployTemplate failed")
 	}
 	logger.Info("stage 2: setRolling", "currentGroupId", currentGroupIdStr)
-	labelHelper.SetCurrentGroupIDStr(&mc, c.component.Name, currentGroupIdStr)
-	labelHelper.SetComponentRolling(&mc, c.component.Name, true)
+	labelHelper.SetCurrentGroupIDStr(&mc, c.component.GetStateKey(), currentGroupIdStr)
+	labelHelper.SetComponentRolling(&mc, c.component.GetStateKey(), true)
 	return c.UpdateAndRequeue(ctx, &mc)
 }
 

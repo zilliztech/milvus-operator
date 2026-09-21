@@ -1,14 +1,18 @@
 package controllers
 
 import (
+	"context"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/blang/semver/v4"
+	"github.com/google/go-cmp/cmp"
 	pkgErrs "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -29,10 +33,102 @@ type deploymentUpdater interface {
 	GetMergedComponentSpec() ComponentSpec
 	GetArgs() []string
 	GetSecretRef() string
+	GetKafkaSecretRef() string
+	GetStorageEndpointEnv() []corev1.EnvVar
 	GetMilvus() *v1beta1.Milvus
 	RollingUpdateImageDependencyReady() bool
 	HasHookConfig() bool
 	IsHPAEnabled() bool
+	GetHPASpec() *v1beta1.HPASpec
+}
+
+var preservedMetadataPrefixes = []string{
+	"kubectl.kubernetes.io/",
+	v1beta1.MilvusIO,
+	"deployment.kubernetes.io/",
+}
+
+// preserveExistingMetadataKeys copies explicitly shared system metadata into a
+// freshly rendered desired map. CR-rendered values win when a key is present in
+// both maps.
+func preserveExistingMetadataKeys(desired, existing map[string]string, keys ...string) map[string]string {
+	result := MergeLabels(desired)
+	for _, key := range keys {
+		if _, desiredByCR := result[key]; desiredByCR {
+			continue
+		}
+		if value, exists := existing[key]; exists {
+			result[key] = value
+		}
+	}
+	return result
+}
+
+// preserveExistingMetadataPrefixes retains labels and annotations in
+// namespaces owned by kubectl, Kubernetes Deployment controllers, and the
+// Milvus operator. Deployment groups cannot use these prefixes, so preserved
+// keys cannot conflict with declaratively managed group metadata.
+func preserveExistingMetadataPrefixes(desired, existing map[string]string) map[string]string {
+	result := MergeLabels(desired)
+	for key, value := range existing {
+		if _, desiredByCR := result[key]; desiredByCR {
+			continue
+		}
+		for _, prefix := range preservedMetadataPrefixes {
+			if strings.HasPrefix(key, prefix) {
+				result[key] = value
+				break
+			}
+		}
+	}
+	return result
+}
+
+// desiredDeploymentLabels returns the labels a grouped Deployment would
+// receive if it were created from the current CR. rolloutSlot is empty for
+// one-Deployment workloads.
+func desiredDeploymentLabels(instance string, component MilvusComponent, rolloutSlot string, existing map[string]string) map[string]string {
+	labels := component.GetSelectorLabels(instance)
+	if component.DeploymentGroup != nil {
+		labels = MergeLabels(component.DeploymentGroup.Labels, labels)
+	}
+	labels = preserveExistingMetadataPrefixes(labels, existing)
+	if rolloutSlot != "" {
+		v1beta1.Labels().SetGroupIDStr(component.Name, labels, rolloutSlot)
+	}
+	return labels
+}
+
+func desiredDeploymentAnnotations(component MilvusComponent, existing map[string]string) map[string]string {
+	if component.DeploymentGroup == nil {
+		return MergeAnnotations(existing)
+	}
+	return preserveExistingMetadataPrefixes(component.DeploymentGroup.Annotations, existing)
+}
+
+func desiredPodTemplateLabels(updater deploymentUpdater, appLabels, existing map[string]string) map[string]string {
+	component := updater.GetComponent()
+	labels := MergeLabels(updater.GetMergedComponentSpec().PodLabels, appLabels)
+	if component.Name == ProxyName || component.Name == StandaloneName {
+		labels[v1beta1.ServiceLabel] = v1beta1.TrueStr
+	}
+	labels = preserveExistingMetadataPrefixes(labels, existing)
+	rolloutSlotKey := v1beta1.GetComponentGroupIdLabel(component.Name)
+	if rolloutSlot, exists := existing[rolloutSlotKey]; exists {
+		labels[rolloutSlotKey] = rolloutSlot
+	}
+	return labels
+}
+
+func desiredPodTemplateAnnotations(updater deploymentUpdater, existing map[string]string) map[string]string {
+	annotations := MergeAnnotations(updater.GetMergedComponentSpec().PodAnnotations)
+	annotations[v1beta1.PodAnnotationUsingConfigMap] = updater.GetMilvus().GetActiveConfigMap()
+	if !updater.GetMilvus().IsUpdateConfigMapOnly() {
+		annotations[AnnotationCheckSum] = updater.GetConfCheckSum()
+	} else {
+		annotations = preserveExistingMetadataKeys(annotations, existing, AnnotationCheckSum)
+	}
+	return preserveExistingMetadataPrefixes(annotations, existing)
 }
 
 func updateDeploymentWithoutPodTemplate(deployment *appsv1.Deployment, updater deploymentUpdater) error {
@@ -53,15 +149,28 @@ func updateDeploymentReplicas(deployment *appsv1.Deployment, updater deploymentU
 	// mutate replicas if HPA is not enabled
 	if !updater.IsHPAEnabled() {
 		deployment.Spec.Replicas = updater.GetReplicas()
-	} else if getDeployReplicas(deployment) == 0 {
-		// hpa cannot scale from 0, so we set replicas to 1
-		deployment.Spec.Replicas = int32Ptr(1)
+		return
+	}
+
+	// HPA enabled - only set replicas if currently 0 (HPA cannot scale from 0)
+	if getDeployReplicas(deployment) == 0 {
+		minReplicas := int32(1)
+		if hpaSpec := updater.GetHPASpec(); hpaSpec != nil && hpaSpec.MinReplicas != nil {
+			minReplicas = *hpaSpec.MinReplicas
+		}
+		deployment.Spec.Replicas = int32Ptr(int(minReplicas))
 	}
 }
 
 func updateDeployment(deployment *appsv1.Deployment, updater deploymentUpdater) error {
-	appLabels := NewComponentAppLabels(updater.GetIntanceName(), updater.GetComponent().Name)
-	deployment.Labels = MergeLabels(deployment.Labels, appLabels)
+	component := updater.GetComponent()
+	appLabels := component.GetSelectorLabels(updater.GetIntanceName())
+	if component.DeploymentGroup != nil {
+		deployment.Labels = desiredDeploymentLabels(updater.GetIntanceName(), component, "", deployment.Labels)
+		deployment.Annotations = desiredDeploymentAnnotations(component, deployment.Annotations)
+	} else {
+		deployment.Labels = MergeLabels(deployment.Labels, appLabels)
+	}
 	if err := SetControllerReference(updater.GetControllerRef(), deployment, updater.GetScheme()); err != nil {
 		return pkgErrs.Wrap(err, "set controller reference")
 	}
@@ -113,7 +222,7 @@ func updatePodTemplate(
 		podTemplateLogger.WithValues(
 			"namespace", updater.GetMilvus().Namespace,
 			"milvus", updater.GetMilvus().Name).
-			Info("pod template updated by crd", "diff", diff.ObjectDiff(currentTemplate, template))
+			Info("pod template updated by crd", "diff", cmp.Diff(currentTemplate, template))
 	case forceUpdateAll:
 	default:
 		// no updates, no default changes
@@ -136,6 +245,11 @@ func updateNetworkSettings(template *corev1.PodTemplateSpec, updater deploymentU
 
 func updatePodMeta(template *corev1.PodTemplateSpec, appLabels map[string]string, updater deploymentUpdater) {
 	mergedComSpec := updater.GetMergedComponentSpec()
+	if updater.GetComponent().DeploymentGroup != nil {
+		template.Labels = desiredPodTemplateLabels(updater, appLabels, template.Labels)
+		template.Annotations = desiredPodTemplateAnnotations(updater, template.Annotations)
+		return
+	}
 	if template.Labels == nil {
 		template.Labels = map[string]string{}
 	}
@@ -235,6 +349,9 @@ func updateBuiltInVolumes(template *corev1.PodTemplateSpec, updater deploymentUp
 		configVolumeByName(updater.GetMilvus().GetActiveConfigMap()),
 		toolVolume,
 	}
+	if secretRef := updater.GetKafkaSecretRef(); secretRef != "" {
+		builtInVolumes = append(builtInVolumes, kafkaCAVolumeBySecret(secretRef))
+	}
 	for _, volume := range builtInVolumes {
 		addVolume(&template.Spec.Volumes, volume)
 	}
@@ -252,9 +369,23 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 		containerIdx = len(template.Spec.Containers) - 1
 	}
 	container := &template.Spec.Containers[containerIdx]
+	const layeredEnv = "MILVUS_OPERATOR_LAYERED_CONFIG"
+	previouslyLayered := false
+	for _, e := range container.Env {
+		if e.Name == layeredEnv && e.Value == "true" {
+			previouslyLayered = true
+		}
+	}
 	container.Args = updater.GetArgs()
-	env := mergedComSpec.Env
-	env = append(env, GetStorageSecretRefEnv(updater.GetSecretRef())...)
+	env := MergeEnvVar(updater.GetStorageEndpointEnv(), mergedComSpec.Env)
+	env = MergeEnvVar(env, GetStorageSecretRefEnv(updater.GetSecretRef()))
+	env = MergeEnvVar(env, GetKafkaSecretRefEnv(updater.GetKafkaSecretRef()))
+	// Resolved storage Secret keys override the legacy default key names.
+	for _, resolved := range updater.GetStorageEndpointEnv() {
+		if resolved.ValueFrom != nil && resolved.ValueFrom.SecretKeyRef != nil {
+			env = MergeEnvVar(env, []corev1.EnvVar{resolved})
+		}
+	}
 	container.Env = MergeEnvVar(container.Env, env)
 	metricPort := corev1.ContainerPort{
 		Name:          MetricPortName,
@@ -305,6 +436,16 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	}
 
 	container.Resources = *mergedComSpec.Resources
+	version := ""
+	if container.Image == mergedComSpec.Image {
+		version = mergedComSpec.Version
+	}
+	layered := supportsLayeredConfig(container.Image, version)
+	container.Env = MergeEnvVar(container.Env, []corev1.EnvVar{{Name: layeredEnv, Value: strconv.FormatBool(layered)}})
+	if layered && !previouslyLayered {
+		// The new startup path requires the new script, including on existing CRs.
+		updateConfigContainer(template, updater)
+	}
 
 	if mergedComSpec.SecurityContext.Data != nil {
 		if container.SecurityContext == nil {
@@ -312,6 +453,22 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 		}
 		mergedComSpec.SecurityContext.MustAsObj(&container.SecurityContext)
 	}
+}
+
+// Explicit versions support custom tags/digests. Unknown versions keep legacy behavior.
+func supportsLayeredConfig(image, version string) bool {
+	if version == "" {
+		if strings.Contains(image, "@") {
+			return false
+		}
+		tag := strings.LastIndex(image, ":")
+		if tag <= strings.LastIndex(image, "/") {
+			return false
+		}
+		version = image[tag+1:]
+	}
+	v, err := semver.ParseTolerant(version)
+	return err == nil && (v.Major > 2 || v.Major == 2 && v.Minor >= 5)
 }
 
 func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
@@ -323,6 +480,9 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 	builtInVolumeMounts := []corev1.VolumeMount{
 		configVolumeMount,
 		toolVolumeMount,
+	}
+	if updater.GetKafkaSecretRef() != "" {
+		builtInVolumeMounts = append(builtInVolumeMounts, kafkaCAVolumeMount)
 	}
 	removeVolumeMounts(&container.VolumeMounts, MilvusConfigVolumeName)
 	for _, volumeMount := range builtInVolumeMounts {
@@ -413,8 +573,9 @@ func updateSidecars(template *corev1.PodTemplateSpec, updater deploymentUpdater)
 // milvusDeploymentUpdater implements deploymentUpdater for milvus
 type milvusDeploymentUpdater struct {
 	v1beta1.Milvus
-	scheme    *runtime.Scheme
-	component MilvusComponent
+	scheme             *runtime.Scheme
+	component          MilvusComponent
+	storageEndpointEnv []corev1.EnvVar
 }
 
 func newMilvusDeploymentUpdater(m v1beta1.Milvus, scheme *runtime.Scheme, component MilvusComponent) *milvusDeploymentUpdater {
@@ -423,6 +584,33 @@ func newMilvusDeploymentUpdater(m v1beta1.Milvus, scheme *runtime.Scheme, compon
 		scheme:    scheme,
 		component: component,
 	}
+}
+
+func newMilvusDeploymentUpdaterWithStorageEndpointEnv(
+	m v1beta1.Milvus,
+	scheme *runtime.Scheme,
+	component MilvusComponent,
+	storageEndpointEnv []corev1.EnvVar,
+) *milvusDeploymentUpdater {
+	updater := newMilvusDeploymentUpdater(m, scheme, component)
+	updater.storageEndpointEnv = storageEndpointEnv
+	return updater
+}
+
+type storageEndpointEnvContextKey struct{}
+
+// contextWithStorageEndpointEnv keeps the generated override reconcile-scoped so
+// deployment controllers cannot accidentally persist it into the Milvus spec.
+func contextWithStorageEndpointEnv(ctx context.Context, env []corev1.EnvVar) context.Context {
+	if len(env) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, storageEndpointEnvContextKey{}, env)
+}
+
+func storageEndpointEnvFromContext(ctx context.Context) []corev1.EnvVar {
+	env, _ := ctx.Value(storageEndpointEnvContextKey{}).([]corev1.EnvVar)
+	return env
 }
 
 func (m milvusDeploymentUpdater) GetPersistenceConfig() *v1beta1.Persistence {
@@ -441,6 +629,10 @@ func (m milvusDeploymentUpdater) GetComponent() MilvusComponent {
 	return m.component
 }
 
+func (m milvusDeploymentUpdater) GetStorageEndpointEnv() []corev1.EnvVar {
+	return m.storageEndpointEnv
+}
+
 func (m milvusDeploymentUpdater) GetRestfulPort() int32 {
 	return m.component.GetRestfulPort(m.Spec)
 }
@@ -457,10 +649,23 @@ func (m milvusDeploymentUpdater) GetReplicas() *int32 {
 	return m.component.GetReplicas(m.Spec)
 }
 
-// when replicas is -1, HPA is enabled
+// IsHPAEnabled returns true if HPA is enabled for the component
+// HPA is enabled when either:
+// 1. The component has an HPA spec defined (new approach)
+// 2. The replicas is set to -1 (legacy convention for backward compatibility)
 func (m milvusDeploymentUpdater) IsHPAEnabled() bool {
+	// Check HPA spec first (new approach takes precedence)
+	if m.component.GetHPASpec(m.Spec) != nil {
+		return true
+	}
+	// Fallback to replicas = -1 convention (backward compatibility)
 	replicas := m.component.GetReplicas(m.Spec)
 	return replicas != nil && *replicas < 0
+}
+
+// GetHPASpec returns the HPA spec for the component
+func (m milvusDeploymentUpdater) GetHPASpec() *v1beta1.HPASpec {
+	return m.component.GetHPASpec(m.Spec)
 }
 
 func (m milvusDeploymentUpdater) GetSideCars() []corev1.Container {
@@ -482,7 +687,7 @@ func (m milvusDeploymentUpdater) GetDeploymentStrategy() appsv1.DeploymentStrate
 			},
 		}
 	}
-	return m.component.GetDeploymentStrategy(m.Spec.Conf.Data)
+	return m.component.GetDeploymentStrategy(&m.Spec)
 }
 
 func GetDeploymentStrategy(milvus *v1beta1.Milvus, component MilvusComponent) appsv1.DeploymentStrategy {
@@ -497,18 +702,19 @@ func GetDeploymentStrategy(milvus *v1beta1.Milvus, component MilvusComponent) ap
 			},
 		}
 	}
-	return component.GetDeploymentStrategy(milvus.Spec.Conf.Data)
+	return component.GetDeploymentStrategy(&milvus.Spec)
 }
 
 func (m milvusDeploymentUpdater) GetConfCheckSum() string {
-	return GetConfCheckSum(m.Spec)
+	return GetConfCheckSumWithRefs(m.GetMilvus())
 }
 
 func (m milvusDeploymentUpdater) GetMergedComponentSpec() ComponentSpec {
-	return MergeComponentSpec(
+	merged := MergeComponentSpec(
 		m.component.GetComponentSpec(m.Spec),
 		m.Spec.Com.ComponentSpec,
 	)
+	return ApplyDeploymentGroupOverrides(merged, m.component.DeploymentGroup)
 }
 
 func (m milvusDeploymentUpdater) GetArgs() []string {
@@ -526,6 +732,13 @@ func (m milvusDeploymentUpdater) GetArgs() []string {
 }
 func (m milvusDeploymentUpdater) GetSecretRef() string {
 	return m.Spec.Dep.Storage.SecretRef
+}
+
+func (m milvusDeploymentUpdater) GetKafkaSecretRef() string {
+	if m.Spec.Dep.MsgStreamType != v1beta1.MsgStreamTypeKafka {
+		return ""
+	}
+	return m.Spec.Dep.Kafka.SecretRef
 }
 
 func (m milvusDeploymentUpdater) GetMilvus() *v1beta1.Milvus {

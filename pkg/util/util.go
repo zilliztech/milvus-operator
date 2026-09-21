@@ -95,14 +95,18 @@ func MergeValues(origin, patch map[string]interface{}) {
 }
 
 func GetHostPort(endpoint string) (string, int32) {
+	return GetHostPortWithDefault(endpoint, 80)
+}
+
+func GetHostPortWithDefault(endpoint string, defaultPort int32) (string, int32) {
 	host, port, err := net.SplitHostPort(endpoint)
 	if err != nil {
-		return endpoint, 80
+		return endpoint, defaultPort
 	}
 
 	portInt, err := strconv.Atoi(port)
 	if err != nil {
-		return host, 80
+		return host, defaultPort
 	}
 
 	return host, int32(portInt)

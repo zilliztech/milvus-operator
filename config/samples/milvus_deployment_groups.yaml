@@ -1,0 +1,67 @@
+# Split selected Milvus components into independent Kubernetes workloads.
+# Deployment groups do not create Milvus resource groups; use the Milvus
+# resource-group environment variable explicitly where membership is desired.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-release
+spec:
+  mode: cluster
+  dependencies: {}
+  components:
+    proxy:
+      groups:
+        - name: g1
+          replicas: 1
+          labels:
+            topology.milvus.io/az: zone-a
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1a
+        - name: g2
+          replicas: 1
+          labels:
+            topology.milvus.io/az: zone-b
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1b
+    dataNode:
+      groups:
+        - name: g1
+          replicas: 2
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1a
+        - name: g2
+          replicas: 2
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1b
+    queryNode:
+      groups:
+        - name: g1
+          replicas: 2
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1a
+          extraEnv:
+            - name: MILVUS_SERVER_LABEL_RESOURCE_GROUP
+              value: g1
+        - name: g2
+          replicas: 2
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1b
+          extraEnv:
+            - name: MILVUS_SERVER_LABEL_RESOURCE_GROUP
+              value: g2
+    streamingNode:
+      groups:
+        - name: g1
+          replicas: 1
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1a
+          extraEnv:
+            - name: MILVUS_SERVER_LABEL_RESOURCE_GROUP
+              value: g1
+        - name: g2
+          replicas: 1
+          nodeSelector:
+            topology.kubernetes.io/zone: us-east-1b
+          extraEnv:
+            - name: MILVUS_SERVER_LABEL_RESOURCE_GROUP
+              value: g2

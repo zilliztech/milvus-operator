@@ -283,6 +283,10 @@ func (l *LocalHelmReconciler) reconcilePVCs(ctx context.Context, namespace, rele
 			key := client.ObjectKey{Name: saveName, Namespace: namespace}
 			err = k8sUtil.GetSavedObject(ctx, key, savedSts)
 			if err != nil {
+				if kerrors.IsNotFound(err) {
+					logger.Info("StatefulSet not found and no saved StatefulSet to restore, skipping PVC reconciliation", "saveName", saveName)
+					return nil
+				}
 				return fmt.Errorf("failed to get saved StatefulSet: %v", err)
 			}
 
@@ -554,6 +558,23 @@ func (r *MilvusReconciler) ReconcileMinio(ctx context.Context, mc v1beta1.Milvus
 		return nil
 	}
 	request := helm.GetChartRequest(mc, values.DependencyKindStorage, Minio)
+	// Existing MinIO releases require an explicit data migration. Do not replace
+	// their StatefulSets/PVCs as a side effect of upgrading the operator.
+	helmCfg := r.helmReconciler.NewHelmCfg(mc.Namespace)
+	exists, err := helm.ReleaseExist(helmCfg, request.ReleaseName)
+	if err != nil {
+		return err
+	}
+	if exists {
+		version, err := helm.GetChartVersion(helmCfg, request.ReleaseName)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(version, "8.") {
+			request.Chart = helm.GetChartPathByName(Minio)
+			request.Values = mc.Spec.Dep.Storage.InCluster.Values.Data
+		}
+	}
 
 	return r.helmReconciler.Reconcile(ctx, request, mc)
 }

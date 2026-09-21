@@ -136,6 +136,12 @@ type MilvusUpgradeStatus struct {
 	// +optional
 	ReplicasBeforeUpgrade *MilvusReplicas `json:"replicasBeforeUprade,omitempty"`
 
+	// DeploymentGroupReplicasBeforeUpgrade records replicas for grouped
+	// workloads. It is keyed first by component name and then by deployment
+	// group name.
+	// +optional
+	DeploymentGroupReplicasBeforeUpgrade map[string]map[string]int32 `json:"deploymentGroupReplicasBeforeUpgrade,omitempty"`
+
 	// BackupPVC is pvc stores meta backup
 	// +optional
 	BackupPVC string `json:"backupPVC,omitempty"`

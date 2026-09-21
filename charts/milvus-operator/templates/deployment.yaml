@@ -11,7 +11,7 @@ spec:
   template:
     metadata:
       annotations: {{- toYaml .Values.podAnnotations | nindent 8 }}
-      labels: {{- include "chart.selectorLabels" . | nindent 8 }}
+      labels: {{- merge (include "chart.selectorLabels" . | fromYaml) .Values.podLabels | toYaml | nindent 8 }}
     spec:
       affinity: {{- toYaml .Values.affinity | nindent 8 }}
       containers:
@@ -25,6 +25,9 @@ spec:
         - --leader-elect
         {{- if .Values.enableWebhook }}
         - --webhook=true
+        {{- end }}
+        {{- if .Values.watchNamespaceEnabled }}
+        - --watch-namespace={{ join "," .Values.watchNamespace }}
         {{- end }}
         command:
         - /manager
