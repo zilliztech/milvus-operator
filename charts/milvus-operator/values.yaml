@@ -13,7 +13,7 @@ image:
   # image.pullPolicy -- The image pull policy for the controller.
   pullPolicy: IfNotPresent
   # image.tag -- The image tag whose default is the chart appVersion.
-  tag: "v1.3.7"
+  tag: "v1.3.10"
 
 # installCRDs -- If true, CRD resources will be installed as part of the Helm chart. If enabled, when uninstalling CRD resources will be deleted causing all installed custom resources to be DELETED
 installCRDs: true
@@ -110,7 +110,7 @@ deploymentAnnotations: {}
 # podAnnotations -- Additional annotations to add to the controller Pods
 podAnnotations: {}
 
-# podLabels -- Additional labels to add to the controller Pods
+# podLabels -- Additional labels to add to the controller Pods. Selector labels take precedence.
 podLabels: {}
 
 # podSecurityContext -- Expects input structure as per specification <https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#podsecuritycontext-v1-core>
@@ -195,5 +195,8 @@ tolerations: []
 #   }
 # }`
 affinity: {}
+
+# watchNamespaceEnabled -- Restrict the operator to watchNamespace when enabled.
 watchNamespaceEnabled: false
+# watchNamespace -- Namespaces to watch; an empty list watches all namespaces.
 watchNamespace: []
