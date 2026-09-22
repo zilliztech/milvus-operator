@@ -660,6 +660,9 @@ func GetMilvusUpdatedCondition(m *v1beta1.Milvus) v1beta1.MilvusCondition {
 	var updatingComponent []string
 	var isUpdatingImage bool
 	for _, workload := range workloads {
+		if IsIdleClusterStandalone(m.Spec, workload) {
+			continue
+		}
 		var componentStatus v1beta1.ComponentDeployStatus
 		if workload.DeploymentGroup == nil {
 			componentStatus = m.Status.ComponentsDeployStatus[workload.Name]

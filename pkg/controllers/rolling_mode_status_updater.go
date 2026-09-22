@@ -30,7 +30,14 @@ func NewRollingModeStatusUpdater(cli client.Client, bizFactory DeployControllerB
 func GetExpectedTwoDeployComponents(spec v1beta1.MilvusSpec) []MilvusComponent {
 	switch spec.Com.RollingMode {
 	case v1beta1.RollingModeV3:
-		return GetComponentWorkloadsBySpec(spec)
+		ret := []MilvusComponent{}
+		for _, workload := range GetComponentWorkloadsBySpec(spec) {
+			if IsIdleClusterStandalone(spec, workload) {
+				continue
+			}
+			ret = append(ret, workload)
+		}
+		return ret
 	default:
 		if spec.Mode == v1beta1.MilvusModeStandalone {
 			return []MilvusComponent{}
