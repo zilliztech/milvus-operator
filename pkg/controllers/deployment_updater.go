@@ -353,6 +353,26 @@ func updateBuiltInVolumes(template *corev1.PodTemplateSpec, updater deploymentUp
 	}
 }
 
+// pruneStorageCredentialEnv removes credentials absent from the desired env.
+// Keep existing positions for desired names so reconciliation stays idempotent.
+func pruneStorageCredentialEnv(env, desired []corev1.EnvVar) []corev1.EnvVar {
+	desiredNames := make(map[string]bool, len(desired))
+	for _, variable := range desired {
+		desiredNames[variable.Name] = true
+	}
+	result := make([]corev1.EnvVar, 0, len(env))
+	for _, variable := range env {
+		switch variable.Name {
+		case "MINIO_ACCESS_KEY", "MINIO_ACCESS_KEY_ID", "MINIO_SECRET_KEY", "MINIO_SECRET_ACCESS_KEY":
+			if !desiredNames[variable.Name] {
+				continue
+			}
+		}
+		result = append(result, variable)
+	}
+	return result
+}
+
 func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentUpdater, forceUpdateImage bool) {
 	mergedComSpec := updater.GetMergedComponentSpec()
 
@@ -382,7 +402,9 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 			env = MergeEnvVar(env, []corev1.EnvVar{resolved})
 		}
 	}
-	container.Env = MergeEnvVar(container.Env, env)
+	// Storage credentials are regenerated from the current spec. A merge alone
+	// retains SecretKeyRefs after storage.secretRef is removed (for example, IAM).
+	container.Env = MergeEnvVar(pruneStorageCredentialEnv(container.Env, env), env)
 	metricPort := corev1.ContainerPort{
 		Name:          MetricPortName,
 		ContainerPort: MetricPort,

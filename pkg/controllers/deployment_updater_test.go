@@ -756,3 +756,50 @@ func Test_updateMilvusContainer_volumeMountRemoval(t *testing.T) {
 		})
 	}
 }
+
+func TestMilvusDeploymentUpdater_StorageSecretMigration(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	for _, tc := range []struct {
+		name     string
+		secret   string
+		explicit bool
+	}{
+		{"remove secret for IAM", "", false},
+		{"replace secret", "new-storage", false},
+		{"preserve explicit credentials", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inst := env.Inst.DeepCopy()
+			inst.Spec.Dep.Storage.External = true
+			inst.Spec.Dep.Storage.SecretRef = "old-storage"
+			template := &corev1.PodTemplateSpec{}
+			updateMilvusContainer(template, newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone), true)
+			idx := GetContainerIndex(template.Spec.Containers, MilvusStandalone.Name)
+			unrelated := corev1.EnvVar{Name: "UNRELATED", Value: "keep"}
+			template.Spec.Containers[idx].Env = append(template.Spec.Containers[idx].Env, unrelated)
+			inst.Spec.Dep.Storage.SecretRef = tc.secret
+			inst.Spec.Conf.Data["minio"] = map[string]interface{}{"useIAM": tc.secret == ""}
+			explicit := corev1.EnvVar{Name: "MINIO_ACCESS_KEY_ID", Value: "explicit"}
+			if tc.explicit {
+				inst.Spec.Com.Env = append(inst.Spec.Com.Env, explicit)
+			}
+			updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+			updateMilvusContainer(template, updater, true)
+			got := template.Spec.Containers[idx].Env
+			assert.Contains(t, got, unrelated)
+			for _, old := range GetStorageSecretRefEnv("old-storage") {
+				assert.NotContains(t, got, old)
+			}
+			for _, expected := range GetStorageSecretRefEnv(tc.secret) {
+				assert.Contains(t, got, expected)
+			}
+			if tc.explicit {
+				assert.Contains(t, got, explicit)
+			}
+			before := template.DeepCopy()
+			updateMilvusContainer(template, updater, true)
+			assert.Equal(t, before, template)
+		})
+	}
+}
