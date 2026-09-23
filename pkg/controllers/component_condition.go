@@ -42,23 +42,40 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 		return v1beta1.MilvusCondition{}, err
 	}
 
-	allComponents := GetComponentsBySpec(mc.Spec)
+	allComponents := GetComponentWorkloadsBySpec(mc.Spec)
 	var notReadyComponents []string
 	var errDetail *ComponentErrorDetail
 	var err error
-	componentDeploy := makeComponentDeploymentMap(mc, deployList.Items)
+	componentDeploy := makeWorkloadDeploymentMap(mc, deployList.Items)
 	hasEntryReplicas := false
 	for _, component := range allComponents {
-		deployment := componentDeploy[component.Name]
+		if componentUsesStatefulSet(mc, component) {
+			sts, err := getStatefulSetForComponent(ctx, cli, mc, component)
+			if err != nil {
+				return v1beta1.MilvusCondition{}, errors.Wrapf(err, "get %s statefulset", component.Name)
+			}
+			if sts != nil && DeploymentReady(synthesizeStatefulSetStatus(component, sts).Status) {
+				continue
+			}
+			notReadyComponents = append(notReadyComponents, component.GetDisplayName())
+			if errDetail == nil {
+				errDetail, err = getStatefulSetErrorDetail(ctx, cli, component.GetDisplayName(), sts)
+				if err != nil {
+					return v1beta1.MilvusCondition{}, errors.Wrap(err, "failed to get component err detail")
+				}
+			}
+			continue
+		}
+		deployment := componentDeploy[component.GetStateKey()]
 		if deployment != nil && DeploymentReady(deployment.Status) {
 			if component.IsService() && deployment.Status.ReadyReplicas > 0 {
 				hasEntryReplicas = true
 			}
 			continue
 		}
-		notReadyComponents = append(notReadyComponents, component.Name)
+		notReadyComponents = append(notReadyComponents, component.GetDisplayName())
 		if errDetail == nil {
-			errDetail, err = getComponentErrorDetail(ctx, cli, component.Name, deployment)
+			errDetail, err = getComponentErrorDetail(ctx, cli, component.GetDisplayName(), deployment)
 			if err != nil {
 				return v1beta1.MilvusCondition{}, errors.Wrap(err, "failed to get component err detail")
 			}
@@ -136,30 +153,62 @@ var getComponentErrorDetail = func(ctx context.Context, cli client.Client, compo
 		return ret, err
 	}
 
+	if err := collectPodErrorDetail(ctx, cli, ret, deploy.Namespace, deploy.Spec.Selector.MatchLabels); err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+// getStatefulSetErrorDetail collects the same pod/container-level diagnostics as
+// getComponentErrorDetail for a StatefulSet-backed component, so an unready
+// StatefulSet reports a real reason instead of <nil>. StatefulSet has no
+// Deployment-style conditions, so only the pod-level detail is populated.
+var getStatefulSetErrorDetail = func(ctx context.Context, cli client.Client, component string, sts *appsv1.StatefulSet) (*ComponentErrorDetail, error) {
+	ret := &ComponentErrorDetail{ComponentName: component, WorkloadKind: "statefulset"}
+	if sts == nil {
+		return ret, nil
+	}
+	if sts.Status.ObservedGeneration < sts.Generation {
+		ret.NotObserved = true
+		return ret, nil
+	}
+	if sts.Spec.Selector == nil {
+		return ret, nil
+	}
+	if err := collectPodErrorDetail(ctx, cli, ret, sts.Namespace, sts.Spec.Selector.MatchLabels); err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+// collectPodErrorDetail finds the first not-ready pod matching the selector and
+// records its condition and first not-ready container into ret. Shared by the
+// Deployment and StatefulSet error-detail paths.
+func collectPodErrorDetail(ctx context.Context, cli client.Client, ret *ComponentErrorDetail, namespace string, selector map[string]string) error {
 	pods := &corev1.PodList{}
 	opts := &client.ListOptions{
-		Namespace: deploy.Namespace,
+		Namespace: namespace,
 	}
-	opts.LabelSelector = labels.SelectorFromSet(deploy.Spec.Selector.MatchLabels)
+	opts.LabelSelector = labels.SelectorFromSet(selector)
 	if err := cli.List(ctx, pods, opts); err != nil {
-		return nil, errors.Wrap(err, "list pods")
+		return errors.Wrap(err, "list pods")
 	}
 	if len(pods.Items) == 0 {
-		return ret, nil
+		return nil
 	}
 	for _, pod := range pods.Items {
 		if !PodReady(pod) {
 			podCondition, err := GetPodFalseCondition(pod)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			ret.PodName = pod.Name
 			ret.Pod = podCondition
 			ret.Container = getFirstNotReadyContainerStatus(pod.Status.ContainerStatuses)
-			return ret, nil
+			return nil
 		}
 	}
-	return ret, nil
+	return nil
 }
 
 func GetComponentConditionGetter() ComponentConditionGetter {
@@ -180,7 +229,7 @@ var CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Clien
 	opts := &client.ListOptions{
 		Namespace: mc.Namespace,
 	}
-	opts.LabelSelector = labels.SelectorFromSet(NewComponentAppLabels(mc.Name, component.Name))
+	opts.LabelSelector = labels.SelectorFromSet(component.GetSelectorLabels(mc.Name))
 	list, err := listTerminatingPodByOpts(ctx, cli, opts)
 	if err != nil {
 		return false, err

@@ -11,6 +11,96 @@ import (
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
+func TestMilvusDeploymentUpdater_KafkaSecretRefEnv(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+
+	t.Run("no env for a non-kafka msgstream", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypePulsar
+		inst.Spec.Dep.Kafka.SecretRef = "stale-secret"
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		assert.Empty(t, updater.GetKafkaSecretRef())
+	})
+
+	t.Run("CA volume follows secretRef", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		inst.Spec.Dep.Kafka.SecretRef = "kafka-secret"
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+
+		template := new(corev1.PodTemplateSpec)
+		template.Annotations = map[string]string{}
+		updateMilvusContainer(template, updater, true)
+		updateBuiltInVolumes(template, updater)
+		updateBuiltInVolumeMounts(template, updater)
+
+		var volume *corev1.Volume
+		for i := range template.Spec.Volumes {
+			if template.Spec.Volumes[i].Name == KafkaCAVolumeName {
+				volume = &template.Spec.Volumes[i]
+			}
+		}
+		assert.NotNil(t, volume)
+		assert.Equal(t, "kafka-secret", volume.Secret.SecretName)
+		// only the CA is projected, so the credentials are not exposed as files
+		assert.Equal(t, []corev1.KeyToPath{{Key: KafkaCACertKey, Path: KafkaCACertKey}}, volume.Secret.Items)
+		assert.True(t, *volume.Secret.Optional)
+
+		idx := GetContainerIndex(template.Spec.Containers, MilvusStandalone.Name)
+		var mounted bool
+		for _, m := range template.Spec.Containers[idx].VolumeMounts {
+			if m.Name == KafkaCAVolumeName {
+				mounted = true
+				assert.Equal(t, KafkaCAMountPath, m.MountPath)
+				assert.True(t, m.ReadOnly)
+			}
+		}
+		assert.True(t, mounted)
+	})
+
+	t.Run("no CA volume without secretRef", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		inst.Spec.Dep.Kafka.SecretRef = ""
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+
+		template := new(corev1.PodTemplateSpec)
+		template.Annotations = map[string]string{}
+		updateBuiltInVolumes(template, updater)
+		for _, v := range template.Spec.Volumes {
+			assert.NotEqual(t, KafkaCAVolumeName, v.Name)
+		}
+	})
+
+	t.Run("credentials reach the container", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypeKafka
+		inst.Spec.Dep.Kafka.SecretRef = "kafka-secret"
+		updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+		assert.Equal(t, "kafka-secret", updater.GetKafkaSecretRef())
+
+		template := new(corev1.PodTemplateSpec)
+		updateMilvusContainer(template, updater, true)
+		idx := GetContainerIndex(template.Spec.Containers, MilvusStandalone.Name)
+		assert.GreaterOrEqual(t, idx, 0)
+
+		byName := map[string]corev1.EnvVar{}
+		for _, e := range template.Spec.Containers[idx].Env {
+			byName[e.Name] = e
+		}
+		for name, key := range map[string]string{
+			"KAFKA_SASLUSERNAME": KafkaSaslUsernameKey,
+			"KAFKA_SASLPASSWORD": KafkaSaslPasswordKey,
+		} {
+			env, found := byName[name]
+			assert.True(t, found, name)
+			assert.Equal(t, "kafka-secret", env.ValueFrom.SecretKeyRef.Name)
+			assert.Equal(t, key, env.ValueFrom.SecretKeyRef.Key)
+		}
+	})
+}
+
 func TestMilvus_UpdateDeployment(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.checkMocks()
@@ -33,6 +123,41 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"/milvus/tools/run.sh", "milvus", "run", "mycomponent"}, deployment.Spec.Template.Spec.Containers[0].Args)
+	})
+
+	t.Run("set generated storage port env", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		updater := newMilvusDeploymentUpdaterWithStorageEndpointEnv(
+			*inst,
+			env.Reconciler.Scheme,
+			MilvusStandalone,
+			[]corev1.EnvVar{{Name: "MINIO_PORT", Value: "80"}},
+		)
+		deployment := sampleDeployment.DeepCopy()
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Contains(t, deployment.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
+			Name:  "MINIO_PORT",
+			Value: "80",
+		})
+	})
+
+	t.Run("user storage port env takes precedence", func(t *testing.T) {
+		inst := env.Inst.DeepCopy()
+		inst.Spec.Com.Env = []corev1.EnvVar{{Name: "MINIO_PORT", Value: "9000"}}
+		updater := newMilvusDeploymentUpdaterWithStorageEndpointEnv(
+			*inst,
+			env.Reconciler.Scheme,
+			MilvusStandalone,
+			[]corev1.EnvVar{{Name: "MINIO_PORT", Value: "80"}},
+		)
+		deployment := sampleDeployment.DeepCopy()
+		err := updateDeployment(deployment, updater)
+		assert.NoError(t, err)
+		assert.Contains(t, deployment.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
+			Name:  "MINIO_PORT",
+			Value: "9000",
+		})
 	})
 
 	t.Run("test replicas", func(t *testing.T) {
@@ -628,6 +753,53 @@ func Test_updateMilvusContainer_volumeMountRemoval(t *testing.T) {
 
 			assert.Len(t, container.VolumeMounts, tt.expectedLength)
 			assert.Equal(t, tt.expectedMounts, container.VolumeMounts)
+		})
+	}
+}
+
+func TestMilvusDeploymentUpdater_StorageSecretMigration(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	for _, tc := range []struct {
+		name     string
+		secret   string
+		explicit bool
+	}{
+		{"remove secret for IAM", "", false},
+		{"replace secret", "new-storage", false},
+		{"preserve explicit credentials", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inst := env.Inst.DeepCopy()
+			inst.Spec.Dep.Storage.External = true
+			inst.Spec.Dep.Storage.SecretRef = "old-storage"
+			template := &corev1.PodTemplateSpec{}
+			updateMilvusContainer(template, newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone), true)
+			idx := GetContainerIndex(template.Spec.Containers, MilvusStandalone.Name)
+			unrelated := corev1.EnvVar{Name: "UNRELATED", Value: "keep"}
+			template.Spec.Containers[idx].Env = append(template.Spec.Containers[idx].Env, unrelated)
+			inst.Spec.Dep.Storage.SecretRef = tc.secret
+			inst.Spec.Conf.Data["minio"] = map[string]interface{}{"useIAM": tc.secret == ""}
+			explicit := corev1.EnvVar{Name: "MINIO_ACCESS_KEY_ID", Value: "explicit"}
+			if tc.explicit {
+				inst.Spec.Com.Env = append(inst.Spec.Com.Env, explicit)
+			}
+			updater := newMilvusDeploymentUpdater(*inst, env.Reconciler.Scheme, MilvusStandalone)
+			updateMilvusContainer(template, updater, true)
+			got := template.Spec.Containers[idx].Env
+			assert.Contains(t, got, unrelated)
+			for _, old := range GetStorageSecretRefEnv("old-storage") {
+				assert.NotContains(t, got, old)
+			}
+			for _, expected := range GetStorageSecretRefEnv(tc.secret) {
+				assert.Contains(t, got, expected)
+			}
+			if tc.explicit {
+				assert.Contains(t, got, explicit)
+			}
+			before := template.DeepCopy()
+			updateMilvusContainer(template, updater, true)
+			assert.Equal(t, before, template)
 		})
 	}
 }
