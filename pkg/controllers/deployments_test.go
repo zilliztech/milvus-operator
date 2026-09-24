@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -160,6 +161,152 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, stsCreated)
 	})
+}
+
+// Standalone must not be reconciled for an ordinary cluster-mode Milvus.
+func TestClusterReconciler_ReconcileDeployments_SkipsStandaloneForOrdinaryClusterMode(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	mockQnController := NewMockDeployController(env.Ctrl)
+	r.deployCtrl = mockQnController
+	mockClient := env.MockClient
+	ctx := env.ctx
+
+	mc := v1beta1.Milvus{}
+	mc.Namespace = "ns"
+	mc.Name = "mc"
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	assert.False(t, mc.IsChangingMode(), "fixture must reflect an ordinary cluster-mode CR, not a mode transition")
+
+	bak := CheckComponentHasTerminatingPod
+	CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus, component MilvusComponent) (bool, error) {
+		return false, nil
+	}
+	defer func() { CheckComponentHasTerminatingPod = bak }()
+
+	expectMinioServiceNotFound(mockClient)
+	expectComponentStatefulSetNotFound(mockClient)
+	// RemoveOldStandlone's list + our own existence check for the idle standalone component.
+	mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil).Times(2)
+	mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
+
+	var requestedDeploymentNames []string
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+		DoAndReturn(func(_ context.Context, name client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+			requestedDeploymentNames = append(requestedDeploymentNames, name.Name)
+			return k8sErrors.NewNotFound(schema.GroupResource{}, "")
+		}).
+		Times(len(MixtureComponents) - 2) // MixtureComponents minus QueryNode (two-deploy path) minus MilvusStandalone (skipped)
+	mockClient.EXPECT().
+		Create(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+		Return(nil).
+		Times(len(MixtureComponents) - 2)
+	mockQnController.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+	err := r.ReconcileDeployments(ctx, mc)
+	assert.NoError(t, err)
+	assert.NotContains(t, requestedDeploymentNames, MilvusStandalone.GetDeploymentName(mc.Name),
+		"MilvusStandalone must not be reconciled for an ordinary cluster-mode CR")
+}
+
+// Idle standalone must use the plain single-deployment path even under
+// RollingModeV3, since the two-deployment machinery requires a stable pair
+// and would create an unsized companion Deployment to establish one.
+func TestComponentUsesTwoDeployments_IdleStandaloneUsesPlainPath(t *testing.T) {
+	mc := v1beta1.Milvus{}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	mc.Spec.Com.RollingMode = v1beta1.RollingModeV3
+
+	assert.True(t, IsIdleClusterStandalone(mc.Spec, MilvusStandalone))
+	assert.False(t, componentUsesTwoDeployments(mc, MilvusStandalone))
+	assert.True(t, componentUsesTwoDeployments(mc, QueryNode), "other components must be unaffected")
+
+	one := int32(1)
+	mc.Spec.Com.Standalone.Replicas = &one
+	assert.False(t, IsIdleClusterStandalone(mc.Spec, MilvusStandalone), "no longer idle once transitioning")
+	assert.True(t, componentUsesTwoDeployments(mc, MilvusStandalone), "a genuinely-transitioning standalone is unaffected")
+}
+
+// A leftover standalone Deployment must still be scaled down, not abandoned.
+func TestClusterReconciler_ReconcileDeployments_ScalesDownExistingStandalone(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	mockQnController := NewMockDeployController(env.Ctrl)
+	r.deployCtrl = mockQnController
+	mockClient := env.MockClient
+	ctx := env.ctx
+
+	mc := v1beta1.Milvus{}
+	mc.Namespace = "ns"
+	mc.Name = "mc"
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	assert.True(t, IsIdleClusterStandalone(mc.Spec, MilvusStandalone))
+
+	bak := CheckComponentHasTerminatingPod
+	CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus, component MilvusComponent) (bool, error) {
+		return false, nil
+	}
+	defer func() { CheckComponentHasTerminatingPod = bak }()
+
+	expectMinioServiceNotFound(mockClient)
+	expectComponentStatefulSetNotFound(mockClient)
+
+	standaloneName := MilvusStandalone.GetDeploymentName(mc.Name)
+	oneReplica := int32(1)
+
+	mockClient.EXPECT().
+		List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
+		DoAndReturn(func(_ context.Context, list *appsv1.DeploymentList, opts ...client.ListOption) error {
+			lo := opts[0].(*client.ListOptions)
+			if lo.LabelSelector.Matches(labels.Set(NewComponentAppLabels(mc.Name, MilvusStandalone.Name))) {
+				list.Items = []appsv1.Deployment{{
+					ObjectMeta: metav1.ObjectMeta{Name: standaloneName, Namespace: mc.Namespace},
+				}}
+			}
+			return nil
+		}).
+		Times(2) // RemoveOldStandlone's list + our existence check
+	mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
+
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+		DoAndReturn(func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
+			if key.Name != standaloneName {
+				return k8sErrors.NewNotFound(schema.GroupResource{}, "")
+			}
+			d := obj.(*appsv1.Deployment)
+			d.Name = standaloneName
+			d.Namespace = mc.Namespace
+			d.Spec.Replicas = &oneReplica
+			return nil
+		}).
+		Times(len(MixtureComponents) - 1) // MixtureComponents minus QueryNode (two-deploy path)
+	mockClient.EXPECT().
+		Create(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+		Return(nil).
+		Times(len(MixtureComponents) - 2) // everyone except QueryNode and standalone (already exists)
+
+	var standaloneUpdated *appsv1.Deployment
+	mockClient.EXPECT().
+		Update(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+		DoAndReturn(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
+			standaloneUpdated = obj.(*appsv1.Deployment)
+			return nil
+		})
+	mockQnController.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+	err := r.ReconcileDeployments(ctx, mc)
+	assert.NoError(t, err)
+	if assert.NotNil(t, standaloneUpdated, "leftover standalone Deployment must still be reconciled") {
+		assert.Equal(t, standaloneName, standaloneUpdated.Name)
+		assert.Equal(t, int32(0), *standaloneUpdated.Spec.Replicas)
+	}
 }
 
 func TestClusterReconciler_ReconcileDeployments_DeleteIfExists(t *testing.T) {

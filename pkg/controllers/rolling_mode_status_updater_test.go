@@ -36,13 +36,13 @@ func Test_GetExpectedTwoDeployComponents(t *testing.T) {
 	spec.Com.RollingMode = v1beta1.RollingModeV3
 	t.Run("v3 cluster", func(t *testing.T) {
 		components := GetExpectedTwoDeployComponents(spec)
-		assert.Equal(t, MilvusComponents, components)
+		assert.Equal(t, MilvusComponents[:len(MilvusComponents)-1], components)
 	})
 
 	t.Run("v3 mixture", func(t *testing.T) {
 		spec.Com.MixCoord = &v1beta1.MilvusMixCoord{}
 		components := GetExpectedTwoDeployComponents(spec)
-		assert.Equal(t, MixtureComponents, components)
+		assert.Equal(t, MixtureComponents[:len(MixtureComponents)-1], components)
 	})
 
 }

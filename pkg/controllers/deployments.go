@@ -338,6 +338,20 @@ func (r *MilvusReconciler) RemoveOldStandlone(ctx context.Context, mc v1beta1.Mi
 	return nil
 }
 
+// componentDeploymentExists reports whether any Deployment for this component
+// already exists, regardless of one/two-deployment naming.
+func (r *MilvusReconciler) componentDeploymentExists(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (bool, error) {
+	deployments := &appsv1.DeploymentList{}
+	opts := &client.ListOptions{
+		Namespace:     mc.Namespace,
+		LabelSelector: labels.SelectorFromSet(NewComponentAppLabels(mc.Name, component.Name)),
+	}
+	if err := r.List(ctx, deployments, opts); err != nil {
+		return false, err
+	}
+	return len(deployments.Items) > 0, nil
+}
+
 func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.Milvus) error {
 	storageEndpointEnv, err := r.getMinioPortEnvIfServiceExists(ctx, mc)
 	if err != nil {
@@ -365,6 +379,16 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 
 	var errs = []error{}
 	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
+		if IsIdleClusterStandalone(mc.Spec, component) {
+			exists, err := r.componentDeploymentExists(ctx, mc, component)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			if !exists {
+				continue
+			}
+		}
 		switch {
 		case componentUsesStatefulSet(mc, component):
 			err = r.ReconcileComponentStatefulSet(ctx, mc, component)
@@ -410,6 +434,9 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 }
 
 func componentUsesTwoDeployments(mc v1beta1.Milvus, component MilvusComponent) bool {
+	if IsIdleClusterStandalone(mc.Spec, component) {
+		return false
+	}
 	return component.Is(QueryNode) || mc.Spec.Com.RollingMode == v1beta1.RollingModeV3
 }
 

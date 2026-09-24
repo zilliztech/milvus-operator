@@ -162,6 +162,15 @@ func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
 	return ret
 }
 
+// IsIdleClusterStandalone reports whether component is MilvusStandalone with zero desired replicas in cluster mode.
+func IsIdleClusterStandalone(spec v1beta1.MilvusSpec, component MilvusComponent) bool {
+	if !component.Is(MilvusStandalone) || spec.Mode != v1beta1.MilvusModeCluster {
+		return false
+	}
+	standalone := spec.Com.Standalone
+	return standalone == nil || standalone.Replicas == nil || *standalone.Replicas <= 0
+}
+
 // containsComponent reports whether components contains a component with the given name.
 func containsComponent(components []MilvusComponent, name string) bool {
 	for _, c := range components {

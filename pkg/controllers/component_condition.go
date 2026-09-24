@@ -73,6 +73,9 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 			}
 			continue
 		}
+		if deployment == nil && IsIdleClusterStandalone(mc.Spec, component) {
+			continue
+		}
 		notReadyComponents = append(notReadyComponents, component.GetDisplayName())
 		if errDetail == nil {
 			errDetail, err = getComponentErrorDetail(ctx, cli, component.GetDisplayName(), deployment)
