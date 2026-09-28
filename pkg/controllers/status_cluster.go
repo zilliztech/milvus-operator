@@ -389,19 +389,10 @@ func (r *MilvusStatusSyncer) GetMilvusEndpoint(ctx context.Context, mc v1beta1.M
 
 // GetKafkaConfFromCR get kafka config from CR
 func GetKafkaConfFromCR(mc v1beta1.Milvus) (*external.CheckKafkaConfig, error) {
-	kafkaConf := new(external.CheckKafkaConfig)
-	allConf := mc.Spec.Conf
-	kafkaConfData, exist := allConf.Data["kafka"]
-	if exist {
-		kafkaConfValues := v1beta1.Values{
-			Data: kafkaConfData.(map[string]interface{}),
-		}
-		err := kafkaConfValues.AsObject(kafkaConf)
-		if err != nil {
-			return nil, errors.Wrap(err, "decode kafka config failed")
-		}
+	if _, err := parseKafkaSecretRefs(&mc); err != nil {
+		return nil, err
 	}
-	return kafkaConf, nil
+	return external.GetKafkaConfFromCR(mc)
 }
 
 func (r *MilvusStatusSyncer) GetMsgStreamCondition(
@@ -435,6 +426,7 @@ func (r *MilvusStatusSyncer) GetMsgStreamCondition(
 			kafkaConf.SASLPassword = kafkaSecret.Password
 			kafkaConf.CACert = kafkaSecret.CACert
 		}
+		kafkaConf.SecretReader = kafkaSecretReader(ctx, r.Client)
 		kafkaConf.BrokerList = mc.Spec.Dep.Kafka.BrokerList
 		getter = wrapKafkaConditonGetter(ctx, r.logger, mc.Spec.Dep.Kafka, *kafkaConf)
 		eps = mc.Spec.Dep.Kafka.BrokerList

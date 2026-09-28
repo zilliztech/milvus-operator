@@ -1,30 +1,21 @@
 package controllers
 
 import (
-	"crypto/sha256"
+	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	milvusv1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	v1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
+	"github.com/zilliztech/milvus-operator/pkg/external"
+	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
-type SecretKeyRef struct {
-	Name      string `json:"name"`
-	Key       string `json:"key"`
-	Namespace string `json:"namespace,omitempty"`
-}
-
-type SSLConfigRefs struct {
-	Enabled           bool          `json:"enabled"`
-	CACertSecret      *SecretKeyRef `json:"caCertSecret,omitempty"`
-	CertSecret        *SecretKeyRef `json:"certSecret,omitempty"`
-	KeySecret         *SecretKeyRef `json:"keySecret,omitempty"`
-	KeyPasswordSecret *SecretKeyRef `json:"keyPasswordSecret,omitempty"`
-}
+type SecretKeyRef = external.SecretKeyRef
+type SSLConfigRefs = external.SSLConfig
 
 type KafkaSecretRefs struct {
 	SASLUsernameSecret *SecretKeyRef `json:"saslUsernameSecret,omitempty"`
@@ -32,241 +23,173 @@ type KafkaSecretRefs struct {
 	SSL                SSLConfigRefs `json:"ssl,omitempty"`
 }
 
-func parseKafkaSecretRefs(mc *milvusv1beta1.Milvus) (KafkaSecretRefs, error) {
-	var out KafkaSecretRefs
-
-	rawKafka, ok := mc.Spec.Conf.Data["kafka"]
-	if !ok {
-		return out, nil
-	}
-	m, ok := rawKafka.(map[string]interface{})
-	if !ok {
-		return out, nil
-	}
-
-	getRef := func(path ...string) *SecretKeyRef {
-		curr := m
-		for i, p := range path {
-			if i == len(path)-1 {
-				leaf, ok := curr[p].(map[string]interface{})
-				if !ok {
-					return nil
-				}
-				ref := &SecretKeyRef{}
-				if v, ok := leaf["name"].(string); ok && v != "" {
-					ref.Name = v
-				}
-				if v, ok := leaf["key"].(string); ok && v != "" {
-					ref.Key = v
-				}
-				if v, ok := leaf["namespace"].(string); ok && v != "" {
-					ref.Namespace = v
-				}
-				if ref.Name == "" || ref.Key == "" {
-					return nil
-				}
-				if ref.Namespace == "" {
-					ref.Namespace = mc.Namespace
-				}
-				return ref
-			}
-			next, ok := curr[p].(map[string]interface{})
-			if !ok {
-				return nil
-			}
-			curr = next
-		}
-		return nil
-	}
-
-	enabled := false
-	if ssl, ok := m["ssl"].(map[string]interface{}); ok {
-		if ev, ok := ssl["enabled"]; ok {
-			switch v := ev.(type) {
-			case bool:
-				enabled = v
-			case string:
-				enabled = strings.EqualFold(v, "true")
-			}
-		}
-	}
-
-	out.SASLUsernameSecret = getRef("saslUsernameSecret")
-	out.SASLPasswordSecret = getRef("saslPasswordSecret")
-	out.SSL.Enabled = enabled
-	out.SSL.CACertSecret = getRef("ssl", "caCertSecret")
-	out.SSL.CertSecret = getRef("ssl", "certSecret")
-	out.SSL.KeySecret = getRef("ssl", "keySecret")
-	out.SSL.KeyPasswordSecret = getRef("ssl", "keyPasswordSecret")
-	return out, nil
+func (r KafkaSecretRefs) all() []*SecretKeyRef {
+	return []*SecretKeyRef{r.SASLUsernameSecret, r.SASLPasswordSecret, r.SSL.CACertSecret, r.SSL.CertSecret, r.SSL.KeySecret, r.SSL.KeyPasswordSecret}
 }
 
-func checksumKafkaRefs(refs KafkaSecretRefs) (string, string) {
-	type pw struct {
-		U *SecretKeyRef `json:"u,omitempty"`
-		P *SecretKeyRef `json:"p,omitempty"`
-		K *SecretKeyRef `json:"k,omitempty"`
+func parseKafkaSecretRefs(mc *v1.Milvus) (KafkaSecretRefs, error) {
+	var refs KafkaSecretRefs
+	raw, ok := mc.Spec.Conf.Data["kafka"]
+	if !ok {
+		return refs, nil
 	}
-	type ssl struct {
-		CA  *SecretKeyRef `json:"ca,omitempty"`
-		Crt *SecretKeyRef `json:"crt,omitempty"`
-		Key *SecretKeyRef `json:"key,omitempty"`
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return refs, err
 	}
-	sum := func(v any) string {
-		j, _ := json.Marshal(v)
-		h := sha256.Sum256(j)
-		return fmt.Sprintf("%x", h[:])
+	if err = json.Unmarshal(data, &refs); err != nil {
+		return refs, fmt.Errorf("decode Kafka Secret refs: %w", err)
 	}
-	return sum(pw{refs.SASLUsernameSecret, refs.SASLPasswordSecret, refs.SSL.KeyPasswordSecret}),
-		sum(ssl{refs.SSL.CACertSecret, refs.SSL.CertSecret, refs.SSL.KeySecret})
+	for _, ref := range refs.all() {
+		if ref == nil {
+			continue
+		}
+		if ref.Name == "" || ref.Key == "" {
+			return refs, fmt.Errorf("Kafka Secret refs require name and key")
+		}
+		if ref.Namespace == "" {
+			ref.Namespace = mc.Namespace
+		}
+		if ref.Namespace != mc.Namespace {
+			return refs, fmt.Errorf("Kafka Secret %s must be in Milvus namespace %s", ref.Name, mc.Namespace)
+		}
+	}
+	if (refs.SSL.CertSecret == nil) != (refs.SSL.KeySecret == nil) {
+		return refs, fmt.Errorf("Kafka client certificate and key Secret refs must be configured together")
+	}
+	if refs.SSL.KeyPasswordSecret != nil && refs.SSL.KeySecret == nil {
+		return refs, fmt.Errorf("Kafka key password requires a client key Secret ref")
+	}
+	return refs, nil
 }
 
-func injectKafkaSecretsIntoTemplate(t *corev1.PodTemplateSpec, mc *milvusv1beta1.Milvus) {
-	refs, _ := parseKafkaSecretRefs(mc)
-	if len(t.Spec.Containers) == 0 {
+// Reads are bound to the reconcile context, never a process-global client.
+func kafkaSecretReader(ctx context.Context, cli client.Client) func(string, string, string) ([]byte, error) {
+	return func(namespace, name, key string) ([]byte, error) {
+		var secret corev1.Secret
+		if err := cli.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
+			return nil, err
+		}
+		value := secret.Data[key]
+		if len(value) == 0 {
+			return nil, fmt.Errorf("Kafka Secret %s/%s missing or empty key %q", namespace, name, key)
+		}
+		return value, nil
+	}
+}
+
+// Include both identity and exact bytes. JSON framing avoids ambiguous concatenation.
+func kafkaSecretRefsChecksum(ctx context.Context, cli client.Client, mc *v1.Milvus) (string, error) {
+	refs, err := parseKafkaSecretRefs(mc)
+	if err != nil {
+		return "", err
+	}
+	type entry struct {
+		Ref   *SecretKeyRef
+		Value []byte
+	}
+	var entries []entry
+	read := kafkaSecretReader(ctx, cli)
+	for _, ref := range refs.all() {
+		if ref == nil {
+			continue
+		}
+		data, err := read(ref.Namespace, ref.Name, ref.Key)
+		if err != nil {
+			return "", err
+		}
+		entries = append(entries, entry{ref, data})
+	}
+	if len(entries) == 0 {
+		return "", nil
+	}
+	data, _ := json.Marshal(entries)
+	return util.CheckSum(data), nil
+}
+
+func kafkaSecretEnv(refs KafkaSecretRefs) []corev1.EnvVar {
+	var env []corev1.EnvVar
+	for _, item := range []struct {
+		name string
+		ref  *SecretKeyRef
+	}{
+		{"KAFKA_SASLUSERNAME", refs.SASLUsernameSecret},
+		{"KAFKA_SASLPASSWORD", refs.SASLPasswordSecret},
+		{"KAFKA_SSL_TLSKEYPASSWORD", refs.SSL.KeyPasswordSecret},
+	} {
+		if item.ref != nil {
+			env = append(env, corev1.EnvVar{Name: item.name, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: item.ref.Name}, Key: item.ref.Key}}})
+		}
+	}
+	return env
+}
+
+// Called for creation and updates of all workload kinds, targeting only Milvus.
+// Remove only operator-owned volumes/mounts, including the old password overlay.
+func injectKafkaSecretsIntoTemplate(t *corev1.PodTemplateSpec, mc *v1.Milvus, component string) {
+	idx := GetContainerIndex(t.Spec.Containers, component)
+	if idx < 0 {
 		return
 	}
-	c := &t.Spec.Containers[0]
-
-	vols := t.Spec.Volumes
-	mnts := c.VolumeMounts
-
-	addVol := func(name, secName string, items []corev1.KeyToPath, optional bool) {
-		for i := range vols {
-			if vols[i].Name == name {
-				return
-			}
-		}
-		vols = append(vols, corev1.Volume{
-			Name: name,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: secName,
-					Optional:   boolPtr(optional),
-					Items:      items,
-				},
-			},
-		})
+	c := &t.Spec.Containers[idx]
+	refs := KafkaSecretRefs{}
+	if mc.Spec.Dep.MsgStreamType == v1.MsgStreamTypeKafka {
+		refs, _ = parseKafkaSecretRefs(mc)
 	}
-
-	addMount := func(name, mountPath string) {
-		for i := range mnts {
-			if mnts[i].Name == name {
-				return
-			}
-		}
-		mnts = append(mnts, corev1.VolumeMount{
-			Name:      name,
-			MountPath: mountPath,
-			ReadOnly:  true,
-		})
-	}
-
-	// /secrets/kafka/passwords: sasl-username, sasl-password, tls-key-password
-	passSecretName := ""
-	if refs.SASLPasswordSecret != nil {
-		passSecretName = refs.SASLPasswordSecret.Name
-	} else if refs.SASLUsernameSecret != nil {
-		passSecretName = refs.SASLUsernameSecret.Name
-	}
-	if passSecretName != "" {
-		items := []corev1.KeyToPath{}
-		if refs.SASLUsernameSecret != nil && refs.SASLUsernameSecret.Name == passSecretName {
-			items = append(items, corev1.KeyToPath{Key: refs.SASLUsernameSecret.Key, Path: "sasl-username"})
-		}
-		if refs.SASLPasswordSecret != nil && refs.SASLPasswordSecret.Name == passSecretName {
-			items = append(items, corev1.KeyToPath{Key: refs.SASLPasswordSecret.Key, Path: "sasl-password"})
-		}
-		if refs.SSL.KeyPasswordSecret != nil && refs.SSL.KeyPasswordSecret.Name == passSecretName {
-			items = append(items, corev1.KeyToPath{Key: refs.SSL.KeyPasswordSecret.Key, Path: "tls-key-password"})
-		}
-		addVol("kafka-passwords", passSecretName, items, true)
-		addMount("kafka-passwords", "/secrets/kafka/passwords")
-	}
-
-	// /secrets/kafka/ssl: ca-cert, tls.crt, tls.key (only mount what exists)
-	if refs.SSL.CACertSecret != nil || refs.SSL.CertSecret != nil || refs.SSL.KeySecret != nil {
-		sslSecretName := ""
-		switch {
-		case refs.SSL.CertSecret != nil:
-			sslSecretName = refs.SSL.CertSecret.Name
-		case refs.SSL.KeySecret != nil:
-			sslSecretName = refs.SSL.KeySecret.Name
-		case refs.SSL.CACertSecret != nil:
-			sslSecretName = refs.SSL.CACertSecret.Name
-		}
-		if sslSecretName != "" {
-			items := []corev1.KeyToPath{}
-			if refs.SSL.CACertSecret != nil && refs.SSL.CACertSecret.Name == sslSecretName {
-				items = append(items, corev1.KeyToPath{Key: refs.SSL.CACertSecret.Key, Path: "ca-cert"})
-			}
-			if refs.SSL.CertSecret != nil && refs.SSL.CertSecret.Name == sslSecretName {
-				items = append(items, corev1.KeyToPath{Key: refs.SSL.CertSecret.Key, Path: "tls.crt"})
-			}
-			if refs.SSL.KeySecret != nil && refs.SSL.KeySecret.Name == sslSecretName {
-				items = append(items, corev1.KeyToPath{Key: refs.SSL.KeySecret.Key, Path: "tls.key"})
-			}
-			addVol("kafka-ssl", sslSecretName, items, true)
-			addMount("kafka-ssl", "/secrets/kafka/ssl")
+	hasTLS := refs.SSL.CACertSecret != nil || refs.SSL.CertSecret != nil || refs.SSL.KeySecret != nil
+	vols := make([]corev1.Volume, 0, len(t.Spec.Volumes))
+	for _, v := range t.Spec.Volumes {
+		if v.Name != "kafka-passwords" && (v.Name != "kafka-ssl" || hasTLS) {
+			vols = append(vols, v)
 		}
 	}
-
 	t.Spec.Volumes = vols
-	c.VolumeMounts = mnts
-
-	// Rolling restart on SecretRef changes
-	pw, ssl := checksumKafkaRefs(refs)
-	if t.Annotations == nil {
-		t.Annotations = map[string]string{}
-	}
-	t.Annotations["checksum/kafka-passwords"] = pw
-	t.Annotations["checksum/kafka-ssl"] = ssl
-}
-
-// renderKafkaCertPaths mutates mc.Spec.Conf.Data["kafka"] to include concrete file paths.
-// IMPORTANT: only render cert/key paths if those secrets are provided.
-func renderKafkaCertPaths(mc *milvusv1beta1.Milvus) {
-	refs, _ := parseKafkaSecretRefs(mc)
-	if !refs.SSL.Enabled {
-		return
-	}
-
-	rawKafka, ok := mc.Spec.Conf.Data["kafka"]
-	if !ok {
-		rawKafka = map[string]any{}
-		mc.Spec.Conf.Data["kafka"] = rawKafka
-	}
-	km, ok := rawKafka.(map[string]any)
-	if !ok {
-		return
-	}
-
-	// Map operator-style keys -> librdkafka dotted keys (do not overwrite user overrides)
-	setIfEmpty := func(k, v string) {
-		if cur, exists := km[k]; !exists || cur == "" {
-			km[k] = v
+	mounts := make([]corev1.VolumeMount, 0, len(c.VolumeMounts))
+	for _, m := range c.VolumeMounts {
+		if m.Name != "kafka-passwords" && (m.Name != "kafka-ssl" || hasTLS) {
+			mounts = append(mounts, m)
 		}
 	}
-
-	if v, ok := km["securityProtocol"].(string); ok && v != "" {
-		setIfEmpty("security.protocol", v)
+	c.VolumeMounts = mounts
+	delete(t.Annotations, "checksum/kafka-passwords")
+	delete(t.Annotations, "checksum/kafka-ssl")
+	var sources []corev1.VolumeProjection
+	for _, item := range []struct {
+		ref  *SecretKeyRef
+		path string
+	}{
+		{refs.SSL.CACertSecret, "ca-cert"}, {refs.SSL.CertSecret, "tls.crt"}, {refs.SSL.KeySecret, "tls.key"},
+	} {
+		if item.ref == nil {
+			continue
+		}
+		sources = append(sources, corev1.VolumeProjection{Secret: &corev1.SecretProjection{LocalObjectReference: corev1.LocalObjectReference{Name: item.ref.Name}, Items: []corev1.KeyToPath{{Key: item.ref.Key, Path: item.path}}}})
 	}
-	if v, ok := km["saslMechanisms"].(string); ok && v != "" {
-		setIfEmpty("sasl.mechanisms", v)
-	}
-
-	// TLS file paths (ONLY for the secrets that exist)
-	if refs.SSL.CACertSecret != nil {
-		setIfEmpty("ssl.ca.location", "/secrets/kafka/ssl/ca-cert")
-	}
-	if refs.SSL.CertSecret != nil {
-		setIfEmpty("ssl.certificate.location", "/secrets/kafka/ssl/tls.crt")
-	}
-	if refs.SSL.KeySecret != nil {
-		setIfEmpty("ssl.key.location", "/secrets/kafka/ssl/tls.key")
+	if len(sources) != 0 {
+		mode := int32(0644)
+		addVolume(&t.Spec.Volumes, corev1.Volume{Name: "kafka-ssl", VolumeSource: corev1.VolumeSource{Projected: &corev1.ProjectedVolumeSource{DefaultMode: &mode, Sources: sources}}})
+		addVolumeMount(&c.VolumeMounts, corev1.VolumeMount{Name: "kafka-ssl", MountPath: "/secrets/kafka/ssl", ReadOnly: true})
 	}
 }
 
-func injectKafkaSecretsDeployment(dep *appsv1.Deployment, mc *milvusv1beta1.Milvus) {
-	injectKafkaSecretsIntoTemplate(&dep.Spec.Template, mc)
+// Render on a copy of the config, never the CR. Explicit refs override literal paths.
+func renderKafkaCertPaths(mc *v1.Milvus) error {
+	refs, err := parseKafkaSecretRefs(mc)
+	if err != nil {
+		return err
+	}
+	for _, item := range []struct {
+		ref         *SecretKeyRef
+		field, path string
+	}{
+		{refs.SSL.CACertSecret, "tlsCaCert", "/secrets/kafka/ssl/ca-cert"},
+		{refs.SSL.CertSecret, "tlsCert", "/secrets/kafka/ssl/tls.crt"},
+		{refs.SSL.KeySecret, "tlsKey", "/secrets/kafka/ssl/tls.key"},
+	} {
+		if item.ref != nil {
+			util.SetValue(mc.Spec.Conf.Data, true, "kafka", "ssl", "enabled")
+			util.SetValue(mc.Spec.Conf.Data, item.path, "kafka", "ssl", item.field)
+		}
+	}
+	return nil
 }

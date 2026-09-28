@@ -203,6 +203,8 @@ func updatePodTemplate(
 	updateUserDefinedVolumes(template, updater)
 	updateScheduleSpec(template, updater)
 	updateMilvusContainer(template, updater, forceUpdateAll)
+	mc := updater.GetMilvus()
+	injectKafkaSecretsIntoTemplate(template, mc, updater.GetComponent().Name)
 	updateSidecars(template, updater)
 	updateNetworkSettings(template, updater)
 
@@ -363,7 +365,7 @@ func pruneStorageCredentialEnv(env, desired []corev1.EnvVar) []corev1.EnvVar {
 	result := make([]corev1.EnvVar, 0, len(env))
 	for _, variable := range env {
 		switch variable.Name {
-		case "MINIO_ACCESS_KEY", "MINIO_ACCESS_KEY_ID", "MINIO_SECRET_KEY", "MINIO_SECRET_ACCESS_KEY":
+		case "MINIO_ACCESS_KEY", "MINIO_ACCESS_KEY_ID", "MINIO_SECRET_KEY", "MINIO_SECRET_ACCESS_KEY", "KAFKA_SASLUSERNAME", "KAFKA_SASLPASSWORD", "KAFKA_SSL_TLSKEYPASSWORD":
 			if !desiredNames[variable.Name] {
 				continue
 			}
@@ -396,6 +398,11 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	env := MergeEnvVar(updater.GetStorageEndpointEnv(), mergedComSpec.Env)
 	env = MergeEnvVar(env, GetStorageSecretRefEnv(updater.GetSecretRef()))
 	env = MergeEnvVar(env, GetKafkaSecretRefEnv(updater.GetKafkaSecretRef()))
+	mc := updater.GetMilvus()
+	refs, _ := parseKafkaSecretRefs(mc)
+	if mc.Spec.Dep.MsgStreamType == v1beta1.MsgStreamTypeKafka {
+		env = MergeEnvVar(env, kafkaSecretEnv(refs))
+	}
 	// Resolved storage Secret keys override the legacy default key names.
 	for _, resolved := range updater.GetStorageEndpointEnv() {
 		if resolved.ValueFrom != nil && resolved.ValueFrom.SecretKeyRef != nil {

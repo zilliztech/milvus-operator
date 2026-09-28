@@ -314,3 +314,31 @@ spec:
 ```
 
 Find the complete configuration items to configure an internal Kafka service [here](https://github.com/bitnami/charts/blob/1fdd2283f0e5a8772e4a763b455733c77e01b119/bitnami/kafka/values.yaml). Add configuration items as needed under `kafka.inCluster.values`.
+
+
+### Independent Kafka Secret references
+
+For CA-only TLS, mTLS, or credentials stored in different Secrets, use
+`spec.config.kafka.saslUsernameSecret`, `saslPasswordSecret`, and
+`ssl.caCertSecret`, `ssl.certSecret`, `ssl.keySecret`, `ssl.keyPasswordSecret`.
+Each reference requires `name` and `key`. The optional `namespace` defaults to
+that of the Milvus resource; cross-namespace references are rejected because
+Kubernetes Pods cannot mount Secrets from another namespace. Client certificate
+and key references must be supplied together; a key password requires a key.
+
+Explicit references override the corresponding literal values and legacy
+`dependencies.kafka.secretRef` values. A missing Secret or missing/empty key is
+an error, not a fallback to literal credentials. Keep legacy `secretRef` unset
+when using only independent references; if set, that Secret must remain valid.
+Credentials are injected as Secret-backed environment variables (including the
+TLS key password), preserving whitespace and special characters. Certificates
+and keys are projected as files, with paths rendered into Milvus's
+`kafka.ssl.tlsCaCert`, `tlsCert`, and `tlsKey` settings. Secret values are never
+copied into the generated ConfigMap. This also works with layered non-root
+configuration.
+
+Secret changes enqueue reconciliation and update the existing Kafka content
+checksum, triggering component rollout. Removing a reference removes the
+operator-managed environment variable or certificate projection on the next
+reconcile; explicit literal configuration remains available as a fallback after
+removal. See [the independent Secret example](../../../config/samples/milvus_external_kafka_secrets.yaml).

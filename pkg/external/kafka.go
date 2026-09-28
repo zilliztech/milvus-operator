@@ -23,10 +23,6 @@ import (
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
-// ---- Dependency injection hook (wired from controller) ----
-// SecretReader returns s.Data[key] for Secret (ns,name).
-var SecretReader func(ns, name, key string) ([]byte, error)
-
 // ---- types ----
 
 type SecretKeyRef struct {
@@ -44,33 +40,35 @@ type SSLConfig struct {
 }
 
 type CheckKafkaConfig struct {
-	CACert             []byte        `json:"-"`
-	Namespace          string        `json:"-"` // CR namespace; used as fallback for Secret refs
-	BrokerList         []string      `json:"-"`
-	SecurityProtocol   string        `json:"securityProtocol"`
-	SASLMechanisms     string        `json:"saslMechanisms"`
-	SASLUsername       string        `json:"saslUsername,omitempty"` // fallback if Secret not set
-	SASLPassword       string        `json:"saslPassword,omitempty"` // fallback if Secret not set
-	SASLUsernameSecret *SecretKeyRef `json:"saslUsernameSecret,omitempty"`
-	SASLPasswordSecret *SecretKeyRef `json:"saslPasswordSecret,omitempty"`
-	SSL                SSLConfig     `json:"ssl,omitempty"`
+	SecretReader       func(ns, name, key string) ([]byte, error) `json:"-"`
+	CACert             []byte                                     `json:"-"`
+	Namespace          string                                     `json:"-"` // CR namespace; used as fallback for Secret refs
+	BrokerList         []string                                   `json:"-"`
+	SecurityProtocol   string                                     `json:"securityProtocol"`
+	SASLMechanisms     string                                     `json:"saslMechanisms"`
+	SASLUsername       string                                     `json:"saslUsername,omitempty"` // fallback if Secret not set
+	SASLPassword       string                                     `json:"saslPassword,omitempty"` // fallback if Secret not set
+	SASLUsernameSecret *SecretKeyRef                              `json:"saslUsernameSecret,omitempty"`
+	SASLPasswordSecret *SecretKeyRef                              `json:"saslPasswordSecret,omitempty"`
+	SSL                SSLConfig                                  `json:"ssl,omitempty"`
 }
 
 // ---- helpers ----
-func getFromSecret(ref *SecretKeyRef, nsDefault string) ([]byte, error) {
+func (conf CheckKafkaConfig) getFromSecret(ref *SecretKeyRef, nsDefault string) ([]byte, error) {
 	if ref == nil {
 		return nil, errors.New("nil secret ref")
 	}
-	if SecretReader == nil {
+	if conf.SecretReader == nil {
 		return nil, errors.New("SecretReader not configured by controller")
 	}
 	ns := ref.Namespace
 	if ns == "" {
 		ns = nsDefault
 	}
-	// NOTE: do not log secret values
-	fmt.Printf("[kafka] reading secret ns=%q name=%q key=%q\n", ns, ref.Name, ref.Key)
-	secretValue, err := SecretReader(ns, ref.Name, ref.Key)
+	if ref.Name == "" || ref.Key == "" || ns == "" || ns != nsDefault {
+		return nil, errors.New("Kafka Secret must have name/key and belong to the Milvus namespace")
+	}
+	secretValue, err := conf.SecretReader(ns, ref.Name, ref.Key)
 	if err != nil {
 		return nil, fmt.Errorf("read secret (ns=%q, name=%q, key=%q): %w", ns, ref.Name, ref.Key, err)
 	}
@@ -154,9 +152,11 @@ func GetKafkaConfFromCR(mc v1beta1.Milvus) (*CheckKafkaConfig, error) {
 	allConf := mc.Spec.Conf
 	kafkaConfData, exist := allConf.Data["kafka"]
 	if exist {
-		kafkaConfValues := v1beta1.Values{
-			Data: kafkaConfData.(map[string]interface{}),
+		data, ok := kafkaConfData.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("kafka config must be an object")
 		}
+		kafkaConfValues := v1beta1.Values{Data: data}
 		if err := kafkaConfValues.AsObject(kafkaConf); err != nil {
 			return nil, errors.Wrap(err, "decode kafka config failed")
 		}
@@ -181,7 +181,7 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 		tlsConfig = &tls.Config{}
 
 		// Retain dependencies.kafka.secretRef support from main.
-		if len(conf.CACert) > 0 {
+		if len(conf.CACert) > 0 && conf.SSL.CACertSecret == nil {
 			pool := x509.NewCertPool()
 			if !pool.AppendCertsFromPEM(conf.CACert) {
 				return nil, errors.New("no certificate found in kafka CA cert")
@@ -191,7 +191,7 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 
 		// Private CA
 		if conf.SSL.CACertSecret != nil {
-			caPEM, err := getFromSecret(conf.SSL.CACertSecret, conf.Namespace)
+			caPEM, err := conf.getFromSecret(conf.SSL.CACertSecret, conf.Namespace)
 			if err != nil {
 				return nil, fmt.Errorf("read CA cert (ns=%q, name=%q, key=%q): %w",
 					firstNonEmpty(conf.SSL.CACertSecret.Namespace, conf.Namespace),
@@ -205,18 +205,24 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 		}
 
 		// Optional mTLS
+		if (conf.SSL.CertSecret == nil) != (conf.SSL.KeySecret == nil) {
+			return nil, errors.New("client certificate and key Secret refs must be configured together")
+		}
 		if conf.SSL.CertSecret != nil && conf.SSL.KeySecret != nil {
-			certPEM, err := getFromSecret(conf.SSL.CertSecret, conf.Namespace)
+			certPEM, err := conf.getFromSecret(conf.SSL.CertSecret, conf.Namespace)
 			if err != nil {
 				return nil, fmt.Errorf("read client cert: %w", err)
 			}
-			keyPEM, err := getFromSecret(conf.SSL.KeySecret, conf.Namespace)
+			keyPEM, err := conf.getFromSecret(conf.SSL.KeySecret, conf.Namespace)
 			if err != nil {
 				return nil, fmt.Errorf("read client key: %w", err)
 			}
 			var pw []byte
 			if conf.SSL.KeyPasswordSecret != nil {
-				pw, _ = getFromSecret(conf.SSL.KeyPasswordSecret, conf.Namespace)
+				pw, err = conf.getFromSecret(conf.SSL.KeyPasswordSecret, conf.Namespace)
+				if err != nil {
+					return nil, fmt.Errorf("read client key password: %w", err)
+				}
 			}
 			if len(pw) > 0 {
 				keyPEM, err = normalizePrivateKeyPEM(keyPEM, pw)
@@ -239,20 +245,22 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 
 	var mech sasl.Mechanism
 	if useSASL {
-		// Prefer secrets; fallback to literals. For PLAIN we do NOT hard-fail if empty.
+		// Explicit Secret refs take precedence; read failures must not fall back to literals.
 		user := conf.SASLUsername
 		pass := conf.SASLPassword
 		if conf.SASLUsernameSecret != nil {
-			if value, err := getFromSecret(conf.SASLUsernameSecret, conf.Namespace); err == nil {
-				user = string(value)
-				user = strings.TrimSpace(user)
+			value, err := conf.getFromSecret(conf.SASLUsernameSecret, conf.Namespace)
+			if err != nil {
+				return nil, fmt.Errorf("read SASL username: %w", err)
 			}
+			user = string(value)
 		}
 		if conf.SASLPasswordSecret != nil {
-			if value, err := getFromSecret(conf.SASLPasswordSecret, conf.Namespace); err == nil {
-				pass = string(value)
-				pass = strings.TrimSpace(pass)
+			value, err := conf.getFromSecret(conf.SASLPasswordSecret, conf.Namespace)
+			if err != nil {
+				return nil, fmt.Errorf("read SASL password: %w", err)
 			}
+			pass = string(value)
 		}
 
 		var err error

@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
@@ -40,7 +39,6 @@ import (
 
 	milvusv1beta1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/config"
-	external "github.com/zilliztech/milvus-operator/pkg/external"
 )
 
 const (
@@ -249,27 +247,6 @@ func (r *MilvusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			MaxConcurrentReconciles: config.MaxConcurrentReconcile,
 		})
 
-	external.SecretReader = func(ns, name, key string) ([]byte, error) {
-		if ns == "" || name == "" || key == "" {
-			return nil, fmt.Errorf("secret ref incomplete (ns=%q name=%q key=%q)", ns, name, key)
-		}
-		var s corev1.Secret
-		// Using a non-cancelled context at setup time is fine; reads happen later during reconcile.
-		if err := mgr.GetClient().Get(context.TODO(), types.NamespacedName{
-			Namespace: ns, Name: name,
-		}, &s); err != nil {
-			return nil, fmt.Errorf("get secret %s/%s: %w", ns, name, err)
-		}
-		b, ok := s.Data[key]
-		if !ok {
-			return nil, fmt.Errorf("secret %s/%s missing key %q", ns, name, key)
-		}
-		if len(b) == 0 {
-			return nil, fmt.Errorf("secret %s/%s key %q is empty", ns, name, key)
-		}
-		return b, nil
-	}
-
 	/* if config.IsDebug() {
 		builder.WithEventFilter(DebugPredicate())
 	} */
@@ -297,8 +274,22 @@ func (r *MilvusReconciler) mapSecretToMilvusRequests(ctx context.Context, obj cl
 }
 
 func milvusReferencesSecret(milvus *milvusv1beta1.Milvus, secretName string) bool {
-	return milvus.Spec.Dep.MsgStreamType == milvusv1beta1.MsgStreamTypeKafka &&
-		milvus.Spec.Dep.Kafka.SecretRef == secretName
+	if milvus.Spec.Dep.MsgStreamType != milvusv1beta1.MsgStreamTypeKafka {
+		return false
+	}
+	if milvus.Spec.Dep.Kafka.SecretRef == secretName {
+		return true
+	}
+	refs, err := parseKafkaSecretRefs(milvus)
+	if err != nil {
+		return false
+	}
+	for _, ref := range refs.all() {
+		if ref != nil && ref.Name == secretName {
+			return true
+		}
+	}
+	return false
 }
 
 var predicateLog = logf.Log.WithName("predicates").WithName("Milvus")
