@@ -7,9 +7,11 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	stderrors "errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -37,6 +39,34 @@ type SSLConfig struct {
 	CertSecret        *SecretKeyRef `json:"certSecret,omitempty"`        // optional: mTLS
 	KeySecret         *SecretKeyRef `json:"keySecret,omitempty"`         // optional: mTLS
 	KeyPasswordSecret *SecretKeyRef `json:"keyPasswordSecret,omitempty"` // optional
+}
+
+// UnmarshalJSON accepts the bool and string forms supported by Milvus config.
+func (c *SSLConfig) UnmarshalJSON(data []byte) error {
+	type plainSSLConfig SSLConfig
+	var decoded plainSSLConfig
+	wire := struct {
+		*plainSSLConfig
+		Enabled json.RawMessage `json:"enabled"`
+	}{plainSSLConfig: &decoded}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	if len(wire.Enabled) != 0 && string(wire.Enabled) != "null" {
+		if err := json.Unmarshal(wire.Enabled, &decoded.Enabled); err != nil {
+			var value string
+			if err := json.Unmarshal(wire.Enabled, &value); err != nil {
+				return fmt.Errorf("invalid kafka.ssl.enabled: %w", err)
+			}
+			enabled, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("invalid kafka.ssl.enabled: %w", err)
+			}
+			decoded.Enabled = enabled
+		}
+	}
+	*c = SSLConfig(decoded)
+	return nil
 }
 
 type CheckKafkaConfig struct {

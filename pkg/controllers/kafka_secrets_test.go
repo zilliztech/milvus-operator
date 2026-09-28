@@ -198,7 +198,7 @@ func TestKafkaRefsReadFailures(t *testing.T) {
 	require.False(t, milvusReferencesSecret(mc, "user"))
 	mc.Spec.Dep.MsgStreamType = v1.MsgStreamTypePulsar
 	require.False(t, milvusReferencesSecret(mc, "user"))
-	injectKafkaSecretsIntoTemplate(&corev1.PodTemplateSpec{}, mc, "missing")
+	injectKafkaSecretsIntoTemplate(&corev1.PodTemplateSpec{}, mc, "missing", nil)
 	mc.Spec.Conf.Data = map[string]interface{}{"kafka": make(chan int)}
 	_, err = parseKafkaSecretRefs(mc)
 	require.Error(t, err)

@@ -126,7 +126,7 @@ func kafkaSecretEnv(refs KafkaSecretRefs) []corev1.EnvVar {
 
 // Called for creation and updates of all workload kinds, targeting only Milvus.
 // Remove only operator-owned volumes/mounts, including the old password overlay.
-func injectKafkaSecretsIntoTemplate(t *corev1.PodTemplateSpec, mc *v1.Milvus, component string) {
+func injectKafkaSecretsIntoTemplate(t *corev1.PodTemplateSpec, mc *v1.Milvus, component string, userVolumes []v1.Values) {
 	idx := GetContainerIndex(t.Spec.Containers, component)
 	if idx < 0 {
 		return
@@ -136,21 +136,40 @@ func injectKafkaSecretsIntoTemplate(t *corev1.PodTemplateSpec, mc *v1.Milvus, co
 	if mc.Spec.Dep.MsgStreamType == v1.MsgStreamTypeKafka {
 		refs, _ = parseKafkaSecretRefs(mc)
 	}
-	hasTLS := refs.SSL.CACertSecret != nil || refs.SSL.CertSecret != nil || refs.SSL.KeySecret != nil
+	// User-declared volumes belong to the user, even when their names match
+	// the names used by older versions of this feature.
+	userNames := map[string]bool{}
+	for _, volume := range userVolumes {
+		if name, ok := volume.Data["name"].(string); ok {
+			userNames[name] = true
+		}
+	}
+	managedNames := map[string]bool{"kafka-ssl": true, "kafka-passwords": true}
+	// Discover a previous collision-free name from the managed mount, so it
+	// can be removed when refs change or disappear.
+	for _, mount := range c.VolumeMounts {
+		if mount.MountPath == "/secrets/kafka/ssl" {
+			managedNames[mount.Name] = true
+		}
+	}
 	vols := make([]corev1.Volume, 0, len(t.Spec.Volumes))
-	for _, v := range t.Spec.Volumes {
-		if v.Name != "kafka-passwords" && (v.Name != "kafka-ssl" || hasTLS) {
-			vols = append(vols, v)
+	for _, volume := range t.Spec.Volumes {
+		if !managedNames[volume.Name] || userNames[volume.Name] {
+			vols = append(vols, volume)
 		}
 	}
 	t.Spec.Volumes = vols
 	mounts := make([]corev1.VolumeMount, 0, len(c.VolumeMounts))
-	for _, m := range c.VolumeMounts {
-		if m.Name != "kafka-passwords" && (m.Name != "kafka-ssl" || hasTLS) {
-			mounts = append(mounts, m)
+	for _, mount := range c.VolumeMounts {
+		if !managedNames[mount.Name] || userNames[mount.Name] {
+			mounts = append(mounts, mount)
 		}
 	}
 	c.VolumeMounts = mounts
+	volumeName := "kafka-ssl"
+	for userNames[volumeName] {
+		volumeName += "-operator"
+	}
 	delete(t.Annotations, "checksum/kafka-passwords")
 	delete(t.Annotations, "checksum/kafka-ssl")
 	var sources []corev1.VolumeProjection
@@ -167,8 +186,8 @@ func injectKafkaSecretsIntoTemplate(t *corev1.PodTemplateSpec, mc *v1.Milvus, co
 	}
 	if len(sources) != 0 {
 		mode := int32(0644)
-		addVolume(&t.Spec.Volumes, corev1.Volume{Name: "kafka-ssl", VolumeSource: corev1.VolumeSource{Projected: &corev1.ProjectedVolumeSource{DefaultMode: &mode, Sources: sources}}})
-		addVolumeMount(&c.VolumeMounts, corev1.VolumeMount{Name: "kafka-ssl", MountPath: "/secrets/kafka/ssl", ReadOnly: true})
+		addVolume(&t.Spec.Volumes, corev1.Volume{Name: volumeName, VolumeSource: corev1.VolumeSource{Projected: &corev1.ProjectedVolumeSource{DefaultMode: &mode, Sources: sources}}})
+		addVolumeMount(&c.VolumeMounts, corev1.VolumeMount{Name: volumeName, MountPath: "/secrets/kafka/ssl", ReadOnly: true})
 	}
 }
 

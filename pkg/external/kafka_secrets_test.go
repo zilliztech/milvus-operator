@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"math/big"
@@ -91,4 +92,29 @@ func TestKafkaTLSSecretErrorsAndEncryptedKey(t *testing.T) {
 	conf.SSL.CertSecret = nil
 	_, err = GetKafkaDialer(conf)
 	require.ErrorContains(t, err, "together")
+}
+
+func TestSSLConfigBoolAndString(t *testing.T) {
+	for _, tc := range []struct {
+		json    string
+		enabled bool
+	}{
+		{`{"enabled":true}`, true}, {`{"enabled":"true"}`, true},
+		{`{"enabled":false}`, false}, {`{"enabled":"false"}`, false},
+		{`{"enabled":"TRUE"}`, true}, {`{"enabled":null}`, false}, {`{}`, false},
+	} {
+		var config SSLConfig
+		require.NoError(t, json.Unmarshal([]byte(tc.json), &config))
+		require.Equal(t, tc.enabled, config.Enabled)
+	}
+	for _, data := range []string{`{"enabled":1}`, `{"enabled":"invalid"}`, `{"certSecret":"invalid"}`} {
+		var config SSLConfig
+		require.Error(t, json.Unmarshal([]byte(data), &config))
+	}
+	var config SSLConfig
+	require.NoError(t, json.Unmarshal([]byte(`{"enabled":"true","caCertSecret":{"name":"ca","key":"cert"}}`), &config))
+	require.Equal(t, "ca", config.CACertSecret.Name)
+	require.NoError(t, json.Unmarshal([]byte(`{}`), &config))
+	require.False(t, config.Enabled)
+	require.Nil(t, config.CACertSecret)
 }

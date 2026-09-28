@@ -1,6 +1,3 @@
-//go:build pulsar
-// +build pulsar
-
 package external
 
 import (
