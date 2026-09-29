@@ -6,20 +6,21 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 func TestReconcileDeployments_IdleStandaloneTopology(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		v3, manual bool
-		suffixes   []string
+		name            string
+		v3, manual, hpa bool
+		suffixes        []string
 	}{
 		{name: "absent"},
 		{name: "single", suffixes: []string{""}},
@@ -27,6 +28,7 @@ func TestReconcileDeployments_IdleStandaloneTopology(t *testing.T) {
 		{name: "v3 pair", v3: true, suffixes: []string{"-0", "-1"}},
 		{name: "v3 missing companion", v3: true, suffixes: []string{"-0"}},
 		{name: "mixed leftover topology", v3: true, suffixes: []string{"", "-0", "-1"}},
+		{name: "v3 explicit HPA", v3: true, hpa: true, suffixes: []string{"-0", "-1"}},
 		{name: "manual", v3: true, manual: true, suffixes: []string{"-0", "-1"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -37,6 +39,9 @@ func TestReconcileDeployments_IdleStandaloneTopology(t *testing.T) {
 			mc.Default()
 			mc.Spec.Dep.Storage.SecretRef = ""
 			mc.Spec.Com.EnableManualMode = tc.manual
+			if tc.hpa {
+				mc.Spec.Com.Standalone.HPA = &v1beta1.HPASpec{MinReplicas: int32Ptr(1), MaxReplicas: 3}
+			}
 			if tc.v3 {
 				mc.Spec.Com.RollingMode = v1beta1.RollingModeV3
 			}
@@ -53,20 +58,27 @@ func TestReconcileDeployments_IdleStandaloneTopology(t *testing.T) {
 			}
 			cli := fake.NewClientBuilder().WithScheme(env.Reconciler.Scheme).WithObjects(objects...).Build()
 			env.Reconciler.Client = cli
+			standaloneReconciles := 0
 			dc := NewMockDeployController(env.Ctrl)
 			dc.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, _ v1beta1.Milvus, c MilvusComponent) error {
-				require.False(t, c.Is(MilvusStandalone))
+				if c.Is(MilvusStandalone) {
+					require.True(t, tc.hpa)
+					standaloneReconciles++
+				}
 				return nil
 			}).AnyTimes()
 			env.Reconciler.deployCtrl = dc
 			for i := 0; i < 2; i++ {
 				require.NoError(t, env.Reconciler.ReconcileDeployments(env.ctx, mc))
+				if tc.hpa {
+					require.Equal(t, i+1, standaloneReconciles, "HPA workload must use the normal rollout controller")
+				}
 				list := &appsv1.DeploymentList{}
 				require.NoError(t, cli.List(env.ctx, list, client.InNamespace(mc.Namespace), client.MatchingLabels(NewComponentAppLabels(mc.Name, StandaloneName))))
 				require.Len(t, list.Items, len(tc.suffixes), "must not create missing deployments")
 				for _, d := range list.Items {
 					expected := int32(0)
-					if tc.manual {
+					if tc.manual || tc.hpa {
 						expected = 1
 					}
 					require.Equal(t, expected, *d.Spec.Replicas)
@@ -138,4 +150,15 @@ func TestIsIdleClusterStandalone(t *testing.T) {
 	mc.Spec.Mode = v1beta1.MilvusModeStandalone
 	mc.Spec.Com.Standalone.Replicas = int32Ptr(0)
 	require.False(t, IsIdleClusterStandalone(mc.Spec, MilvusStandalone))
+}
+
+func TestIsIdleClusterStandalone_ExplicitHPA(t *testing.T) {
+	mc := v1beta1.Milvus{}
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	mc.Spec.Com.Standalone.HPA = &v1beta1.HPASpec{MinReplicas: int32Ptr(1), MaxReplicas: 3}
+	for _, replicas := range []*int32{nil, int32Ptr(0), int32Ptr(-1), int32Ptr(1)} {
+		mc.Spec.Com.Standalone.Replicas = replicas
+		require.False(t, IsIdleClusterStandalone(mc.Spec, MilvusStandalone))
+	}
 }

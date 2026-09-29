@@ -162,12 +162,16 @@ func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
 	return ret
 }
 
-// IsIdleClusterStandalone reports whether component is MilvusStandalone with zero desired replicas in cluster mode.
+// IsIdleClusterStandalone reports whether standalone has zero desired replicas
+// in cluster mode and is not managed by an explicit HPA.
 func IsIdleClusterStandalone(spec v1beta1.MilvusSpec, component MilvusComponent) bool {
 	if !component.Is(MilvusStandalone) || spec.Mode != v1beta1.MilvusModeCluster {
 		return false
 	}
 	standalone := spec.Com.Standalone
+	if standalone != nil && standalone.HPA != nil {
+		return false
+	}
 	return standalone == nil || standalone.Replicas == nil || *standalone.Replicas == 0
 }
 
