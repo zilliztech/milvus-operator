@@ -230,7 +230,7 @@ func (r *MilvusStatusSyncer) UpdateStatusRoutine(ctx context.Context, mc *v1beta
 }
 
 func (r *MilvusStatusSyncer) checkDependencyConditions(ctx context.Context, mc *v1beta1.Milvus) error {
-	if !mc.Spec.IsStopping() {
+	if !isMilvusStoppingForReconcile(*mc) {
 		funcs := []Func{
 			r.GetEtcdCondition,
 			r.GetMinioCondition,
@@ -306,7 +306,7 @@ func (r *MilvusStatusSyncer) UpdateStatusForNewGeneration(ctx context.Context, m
 
 	statusInfo := MilvusHealthStatusInfo{
 		LastState:  mc.Status.Status,
-		IsStopping: mc.Spec.IsStopping(),
+		IsStopping: isMilvusStoppingForReconcile(*mc),
 		IsHealthy:  milvusCond.Status == corev1.ConditionTrue,
 	}
 	mc.Status.Status = statusInfo.GetMilvusHealthStatus()

@@ -194,7 +194,7 @@ func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Mil
 	if v1beta1.Labels().IsChangingMode(mc, c.component.GetStateKey()) {
 		return false, nil
 	}
-	if mc.Spec.IsStopping() {
+	if isMilvusStoppingForReconcile(mc) {
 		return false, nil
 	}
 	if mc.Status.ObservedGeneration < mc.Generation {

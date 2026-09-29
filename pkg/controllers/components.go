@@ -162,6 +162,23 @@ func GetComponentsBySpec(spec v1beta1.MilvusSpec) []MilvusComponent {
 	return ret
 }
 
+// isMilvusStoppingForReconcile accounts for autoscaled workloads when deciding
+// whether to stop dependency checks, health evaluation, and rollout tracking.
+// An upgrade explicitly suspends HPA control while all static replicas are zero.
+func isMilvusStoppingForReconcile(mc v1beta1.Milvus) bool {
+	if !mc.Spec.IsStopping() {
+		return false
+	}
+	if !isUpgradeStopping(mc) {
+		for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
+			if component.IsHPAEnabled(mc.Spec) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // IsIdleClusterStandalone reports whether standalone has zero desired replicas
 // in cluster mode and is not managed by an explicit HPA.
 func IsIdleClusterStandalone(spec v1beta1.MilvusSpec, component MilvusComponent) bool {
