@@ -54,7 +54,10 @@ func (r *MilvusReconciler) ReconcileAll(ctx context.Context, mc v1beta1.Milvus) 
 }
 
 func (r *MilvusReconciler) ReconcileMilvus(ctx context.Context, mc v1beta1.Milvus) error {
-	if !IsDependencyReady(mc.Status.Conditions) {
+	// Status sync can clear dependency conditions before workloads observe an
+	// upgrade stop. Still reconcile zero replicas and suspend managed HPAs.
+	upgradeStopping := isUpgradeStopping(mc) && isMilvusStoppingForReconcile(mc)
+	if !IsDependencyReady(mc.Status.Conditions) && !upgradeStopping {
 		return nil
 	}
 

@@ -679,6 +679,9 @@ func (m milvusDeploymentUpdater) GetReplicas() *int32 {
 // 1. The component has an HPA spec defined (new approach)
 // 2. The replicas is set to -1 (legacy convention for backward compatibility)
 func (m milvusDeploymentUpdater) IsHPAEnabled() bool {
+	if isUpgradeStopping(m.Milvus) {
+		return false
+	}
 	// Check HPA spec first (new approach takes precedence)
 	if m.component.GetHPASpec(m.Spec) != nil {
 		return true
