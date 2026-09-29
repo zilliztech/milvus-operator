@@ -45,20 +45,20 @@ func parseKafkaSecretRefs(mc *v1.Milvus) (KafkaSecretRefs, error) {
 			continue
 		}
 		if ref.Name == "" || ref.Key == "" {
-			return refs, fmt.Errorf("Kafka Secret refs require name and key")
+			return refs, fmt.Errorf("kafka Secret refs require name and key")
 		}
 		if ref.Namespace == "" {
 			ref.Namespace = mc.Namespace
 		}
 		if ref.Namespace != mc.Namespace {
-			return refs, fmt.Errorf("Kafka Secret %s must be in Milvus namespace %s", ref.Name, mc.Namespace)
+			return refs, fmt.Errorf("kafka Secret %s must be in Milvus namespace %s", ref.Name, mc.Namespace)
 		}
 	}
 	if (refs.SSL.CertSecret == nil) != (refs.SSL.KeySecret == nil) {
-		return refs, fmt.Errorf("Kafka client certificate and key Secret refs must be configured together")
+		return refs, fmt.Errorf("kafka client certificate and key Secret refs must be configured together")
 	}
 	if refs.SSL.KeyPasswordSecret != nil && refs.SSL.KeySecret == nil {
-		return refs, fmt.Errorf("Kafka key password requires a client key Secret ref")
+		return refs, fmt.Errorf("kafka key password requires a client key Secret ref")
 	}
 	return refs, nil
 }
@@ -72,7 +72,7 @@ func kafkaSecretReader(ctx context.Context, cli client.Client) func(string, stri
 		}
 		value := secret.Data[key]
 		if len(value) == 0 {
-			return nil, fmt.Errorf("Kafka Secret %s/%s missing or empty key %q", namespace, name, key)
+			return nil, fmt.Errorf("kafka Secret %s/%s missing or empty key %q", namespace, name, key)
 		}
 		return value, nil
 	}
@@ -126,7 +126,7 @@ func kafkaSecretEnv(refs KafkaSecretRefs) []corev1.EnvVar {
 
 // Called for creation and updates of all workload kinds, targeting only Milvus.
 // Remove only operator-owned volumes/mounts, including the old password overlay.
-func injectKafkaSecretsIntoTemplate(t *corev1.PodTemplateSpec, mc *v1.Milvus, component string, userVolumes []v1.Values) {
+func injectKafkaSecretsIntoTemplate(t, previous *corev1.PodTemplateSpec, mc *v1.Milvus, component string, userVolumes []v1.Values) {
 	idx := GetContainerIndex(t.Spec.Containers, component)
 	if idx < 0 {
 		return
@@ -145,11 +145,13 @@ func injectKafkaSecretsIntoTemplate(t *corev1.PodTemplateSpec, mc *v1.Milvus, co
 		}
 	}
 	managedNames := map[string]bool{"kafka-ssl": true, "kafka-passwords": true}
-	// Discover a previous collision-free name from the managed mount, so it
-	// can be removed when refs change or disappear.
-	for _, mount := range c.VolumeMounts {
-		if mount.MountPath == "/secrets/kafka/ssl" {
-			managedNames[mount.Name] = true
+	// Inspect the original mount before updateMilvusContainer restores user
+	// mounts at the same path, hiding the previous operator-managed name.
+	if previousIdx := GetContainerIndex(previous.Spec.Containers, component); previousIdx >= 0 {
+		for _, mount := range previous.Spec.Containers[previousIdx].VolumeMounts {
+			if mount.MountPath == "/secrets/kafka/ssl" {
+				managedNames[mount.Name] = true
+			}
 		}
 	}
 	vols := make([]corev1.Volume, 0, len(t.Spec.Volumes))

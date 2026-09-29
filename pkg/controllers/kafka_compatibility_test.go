@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	v1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	v1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 func TestKafkaUserVolumesSurviveReconciliation(t *testing.T) {
@@ -79,5 +80,40 @@ func TestKafkaStringSSLFlagCompatibility(t *testing.T) {
 		cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "rendered", Namespace: mc.Namespace}}
 		require.NoError(t, env.Reconciler.updateConfigMap(context.Background(), *mc, cm))
 		require.Equal(t, value, mc.Spec.Conf.Data["kafka"].(map[string]interface{})["ssl"].(map[string]interface{})["enabled"], "must not mutate the CR")
+	}
+}
+
+func TestKafkaCollidingMountCleanup(t *testing.T) {
+	for _, switchToPulsar := range []bool{false, true} {
+		t.Run(map[bool]string{false: "remove refs", true: "switch to Pulsar"}[switchToPulsar], func(t *testing.T) {
+			env := newTestEnv(t)
+			defer env.checkMocks()
+			mc := kafkaRefsInstance()
+			mc.Spec.Com.Volumes = []v1.Values{{Data: map[string]interface{}{"name": "kafka-ssl", "secret": map[string]interface{}{"secretName": "manual-ca"}}}}
+			mount := corev1.VolumeMount{Name: "kafka-ssl", MountPath: "/secrets/kafka/ssl", ReadOnly: true}
+			mc.Spec.Com.VolumeMounts = []corev1.VolumeMount{mount}
+			p := &corev1.PodTemplateSpec{}
+			update := func() {
+				updatePodTemplate(newMilvusDeploymentUpdater(*mc, env.Reconciler.Scheme, QueryNode), p, map[string]string{}, true)
+			}
+			update()
+			update()
+			require.GreaterOrEqual(t, GetVolumeIndex(p.Spec.Volumes, "kafka-ssl-operator"), 0)
+			if switchToPulsar {
+				mc.Spec.Dep.MsgStreamType = v1.MsgStreamTypePulsar
+			} else {
+				mc.Spec.Conf.Data = map[string]interface{}{}
+			}
+			for range 2 {
+				update()
+				require.Equal(t, -1, GetVolumeIndex(p.Spec.Volumes, "kafka-ssl-operator"))
+				idx := GetVolumeIndex(p.Spec.Volumes, "kafka-ssl")
+				require.GreaterOrEqual(t, idx, 0)
+				require.NotNil(t, p.Spec.Volumes[idx].Secret)
+				require.Equal(t, "manual-ca", p.Spec.Volumes[idx].Secret.SecretName)
+				c := p.Spec.Containers[GetContainerIndex(p.Spec.Containers, QueryNode.Name)]
+				require.Contains(t, c.VolumeMounts, mount)
+			}
+		})
 	}
 }

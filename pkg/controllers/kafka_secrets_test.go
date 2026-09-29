@@ -6,13 +6,14 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
-	v1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
+
+	v1 "github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
 func kafkaRefsInstance() *v1.Milvus {
@@ -198,7 +199,7 @@ func TestKafkaRefsReadFailures(t *testing.T) {
 	require.False(t, milvusReferencesSecret(mc, "user"))
 	mc.Spec.Dep.MsgStreamType = v1.MsgStreamTypePulsar
 	require.False(t, milvusReferencesSecret(mc, "user"))
-	injectKafkaSecretsIntoTemplate(&corev1.PodTemplateSpec{}, mc, "missing", nil)
+	injectKafkaSecretsIntoTemplate(&corev1.PodTemplateSpec{}, &corev1.PodTemplateSpec{}, mc, "missing", nil)
 	mc.Spec.Conf.Data = map[string]interface{}{"kafka": make(chan int)}
 	_, err = parseKafkaSecretRefs(mc)
 	require.Error(t, err)
