@@ -6,8 +6,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -110,6 +113,63 @@ func TestZeroReplicaHPAStatusLifecycle(t *testing.T) {
 			updating, err := biz.IsUpdating(context.Background(), mc)
 			require.NoError(t, err)
 			require.True(t, updating, "zero static replicas must not suppress V3 rollout tracking")
+		})
+	}
+}
+
+// The status syncer may remove dependency conditions before the workload
+// reconciler observes the upgrade stop. Stopping must work in that ordering too.
+func TestUpgradeStopAfterDependencyConditionsCleared(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	mc := env.Inst
+	mc.UID = "upgrade-stop-ordering"
+	mc.Spec.Com.DisableMetric = true
+	mc.Spec.Dep.Storage.SecretRef = ""
+	mc.Spec.Com.Standalone.HPA = &v1beta1.HPASpec{MinReplicas: int32Ptr(1), MaxReplicas: 3}
+	require.NoError(t, clientgoscheme.AddToScheme(env.Reconciler.Scheme))
+	yes := true
+	deploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+		Name: MilvusStandalone.GetDeploymentName(mc.Name), Namespace: mc.Namespace,
+		Labels:          NewComponentAppLabels(mc.Name, StandaloneName),
+		OwnerReferences: []metav1.OwnerReference{{APIVersion: v1beta1.GroupVersion.String(), Kind: "Milvus", Name: mc.Name, UID: mc.UID, Controller: &yes}},
+	}, Spec: appsv1.DeploymentSpec{Replicas: int32Ptr(2)}}
+	cli := fake.NewClientBuilder().WithScheme(env.Reconciler.Scheme).WithObjects(&mc, deploy).Build()
+	env.Reconciler.Client = cli
+	previous := defaultGroupRunner
+	defaultGroupRunner = &ParallelGroupRunner{}
+	t.Cleanup(func() { defaultGroupRunner = previous })
+	require.NoError(t, env.Reconciler.ReconcileHPAs(env.ctx, mc))
+	require.NoError(t, stopMilvus(env.ctx, cli, &v1beta1.MilvusUpgrade{}, &mc))
+	syncer := &MilvusStatusSyncer{Client: cli}
+	require.NoError(t, syncer.checkDependencyConditions(env.ctx, &mc))
+	require.False(t, IsDependencyReady(mc.Status.Conditions))
+	require.NoError(t, env.Reconciler.ReconcileMilvus(env.ctx, mc))
+	require.NoError(t, cli.Get(env.ctx, client.ObjectKeyFromObject(deploy), deploy))
+	require.Zero(t, *deploy.Spec.Replicas)
+	hpas := &autoscalingv2.HorizontalPodAutoscalerList{}
+	require.NoError(t, cli.List(env.ctx, hpas))
+	require.Empty(t, hpas.Items)
+}
+
+func TestDependencyGateOnlyBypassedForExplicitUpgradeStop(t *testing.T) {
+	for _, scenario := range []string{"no marker", "nonzero replicas", "manual mode"} {
+		t.Run(scenario, func(t *testing.T) {
+			env := newTestEnv(t)
+			defer env.checkMocks()
+			mc := env.Inst
+			mc.Annotations = map[string]string{upgradeStoppingAnnotation: v1beta1.TrueStr}
+			mc.Spec.Com.Standalone.Replicas = int32Ptr(0)
+			switch scenario {
+			case "no marker":
+				delete(mc.Annotations, upgradeStoppingAnnotation)
+			case "nonzero replicas":
+				mc.Spec.Com.Standalone.Replicas = int32Ptr(1)
+			case "manual mode":
+				mc.Spec.Com.EnableManualMode = true
+			}
+			// No API operations are expected while the dependency gate is closed.
+			require.NoError(t, env.Reconciler.ReconcileMilvus(env.ctx, mc))
 		})
 	}
 }
