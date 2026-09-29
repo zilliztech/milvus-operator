@@ -120,6 +120,15 @@ func (r *MilvusReconciler) SyncKafkaSaslCheckSum(ctx context.Context, mc *v1beta
 		// the CA is mounted into the pods too, and is read only at startup
 		newCheckSum = util.CheckSum([]byte(kafkaSecret.Username + ":" + kafkaSecret.Password + ":" + string(kafkaSecret.CACert)))
 	}
+	if mc.Spec.Dep.MsgStreamType == v1beta1.MsgStreamTypeKafka {
+		sum, err := kafkaSecretRefsChecksum(ctx, r.Client, mc)
+		if err != nil {
+			return err
+		}
+		if sum != "" {
+			newCheckSum = util.CheckSum([]byte(newCheckSum + ":" + sum))
+		}
+	}
 	if oldCheckSum == newCheckSum {
 		return nil
 	}
@@ -138,6 +147,7 @@ func (r *MilvusReconciler) SyncKafkaSaslCheckSum(ctx context.Context, mc *v1beta
 }
 
 func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvus, configmap *corev1.ConfigMap) error {
+	mc = *mc.DeepCopy() // Config rendering must not mutate the informer object or persisted CR.
 	confYaml, err := util.GetTemplatedValues(config.GetMilvusConfigTemplate(), mc)
 	if err != nil {
 		return err
@@ -177,6 +187,11 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 				util.SetValue(conf, KafkaCACertPath, "kafka", "ssl", "tlsCaCert")
 			}
 		}
+		rendered := mc.DeepCopy()
+		rendered.Spec.Conf.Data = conf
+		if err := renderKafkaCertPaths(rendered); err != nil {
+			return err
+		}
 		// delete other mq config to make milvus use kafka
 		delete(conf, "pulsar")
 		delete(conf, "rocksmq")
@@ -190,7 +205,7 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 		host, port = util.GetHostPort(pulsarEndpoint)
 		util.SetValue(conf, host, "pulsar", "address")
 		util.SetValue(conf, int64(port), "pulsar", "port")
-		// delete other mq config to make milvus use kafka
+		// Delete other message queue configuration.
 		delete(conf, "kafka")
 		delete(conf, "rocksmq")
 	case v1beta1.MsgStreamTypeRocksMQ:

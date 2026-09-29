@@ -232,6 +232,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 				Namespace: mc.Namespace,
 			},
 		}
+
 		if err := r.updateDeployment(ctx, mc, new, component); err != nil {
 			return err
 		}
@@ -248,6 +249,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 	}
 
 	cur := old.DeepCopy()
+
 	if err := r.updateDeployment(ctx, mc, cur, component); err != nil {
 		return err
 	}

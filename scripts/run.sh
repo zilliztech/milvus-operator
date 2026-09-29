@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+
 MilvusConfigRootPath="/milvus/configs"
 OperatorConfigMountPath="${MilvusConfigRootPath}/operator"
 ConfigMapFiles=("user.yaml" "hook.yaml")
@@ -49,7 +50,9 @@ for (( i=0; i<$config_file_count; i++ )); do
     -s "${OperatorConfigMountPath}/${ConfigMapFiles[i]}" \
     -d "${MilvusConfigRootPath}/${MilvusConfigFiles[i]}"
 done
+
 # verify iam
 /milvus/tools/iam-verify
+
 # run commands
 exec "$@"

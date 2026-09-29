@@ -274,8 +274,22 @@ func (r *MilvusReconciler) mapSecretToMilvusRequests(ctx context.Context, obj cl
 }
 
 func milvusReferencesSecret(milvus *milvusv1beta1.Milvus, secretName string) bool {
-	return milvus.Spec.Dep.MsgStreamType == milvusv1beta1.MsgStreamTypeKafka &&
-		milvus.Spec.Dep.Kafka.SecretRef == secretName
+	if milvus.Spec.Dep.MsgStreamType != milvusv1beta1.MsgStreamTypeKafka {
+		return false
+	}
+	if milvus.Spec.Dep.Kafka.SecretRef == secretName {
+		return true
+	}
+	refs, err := parseKafkaSecretRefs(milvus)
+	if err != nil {
+		return false
+	}
+	for _, ref := range refs.all() {
+		if ref != nil && ref.Name == secretName {
+			return true
+		}
+	}
+	return false
 }
 
 var predicateLog = logf.Log.WithName("predicates").WithName("Milvus")
