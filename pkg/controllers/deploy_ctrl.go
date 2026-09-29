@@ -98,7 +98,8 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return biz.HandleManualMode(ctx, mc)
 	}
 
-	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 {
+	// An explicit HPA owns replica counts even when the static field is zero.
+	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 && !component.IsHPAEnabled(mc.Spec) {
 		return biz.HandleStop(ctx, mc)
 	}
 
