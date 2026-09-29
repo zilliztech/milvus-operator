@@ -168,7 +168,7 @@ func IsIdleClusterStandalone(spec v1beta1.MilvusSpec, component MilvusComponent)
 		return false
 	}
 	standalone := spec.Com.Standalone
-	return standalone == nil || standalone.Replicas == nil || *standalone.Replicas <= 0
+	return standalone == nil || standalone.Replicas == nil || *standalone.Replicas == 0
 }
 
 // containsComponent reports whether components contains a component with the given name.

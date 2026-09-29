@@ -338,18 +338,31 @@ func (r *MilvusReconciler) RemoveOldStandlone(ctx context.Context, mc v1beta1.Mi
 	return nil
 }
 
-// componentDeploymentExists reports whether any Deployment for this component
-// already exists, regardless of one/two-deployment naming.
-func (r *MilvusReconciler) componentDeploymentExists(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) (bool, error) {
+// scaleDownIdleStandalone reconciles existing deployments without creating a
+// missing rollout slot or changing their pod templates or workload topology.
+func (r *MilvusReconciler) scaleDownIdleStandalone(ctx context.Context, mc v1beta1.Milvus) error {
+	if mc.Spec.Com.EnableManualMode {
+		return nil
+	}
 	deployments := &appsv1.DeploymentList{}
 	opts := &client.ListOptions{
 		Namespace:     mc.Namespace,
-		LabelSelector: labels.SelectorFromSet(NewComponentAppLabels(mc.Name, component.Name)),
+		LabelSelector: labels.SelectorFromSet(NewComponentAppLabels(mc.Name, MilvusStandalone.Name)),
 	}
 	if err := r.List(ctx, deployments, opts); err != nil {
-		return false, err
+		return pkgerr.Wrap(err, "list idle standalone deployments")
 	}
-	return len(deployments.Items) > 0, nil
+	for i := range deployments.Items {
+		deployment := &deployments.Items[i]
+		if !metav1.IsControlledBy(deployment, &mc) || getDeployReplicas(deployment) == 0 {
+			continue
+		}
+		deployment.Spec.Replicas = int32Ptr(0)
+		if err := r.Update(ctx, deployment); err != nil {
+			return pkgerr.Wrapf(err, "scale down idle standalone deployment %s", deployment.Name)
+		}
+	}
+	return nil
 }
 
 func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.Milvus) error {
@@ -380,14 +393,10 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 	var errs = []error{}
 	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
 		if IsIdleClusterStandalone(mc.Spec, component) {
-			exists, err := r.componentDeploymentExists(ctx, mc, component)
-			if err != nil {
+			if err := r.scaleDownIdleStandalone(ctx, mc); err != nil {
 				errs = append(errs, err)
-				continue
 			}
-			if !exists {
-				continue
-			}
+			continue
 		}
 		switch {
 		case componentUsesStatefulSet(mc, component):
@@ -434,9 +443,6 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 }
 
 func componentUsesTwoDeployments(mc v1beta1.Milvus, component MilvusComponent) bool {
-	if IsIdleClusterStandalone(mc.Spec, component) {
-		return false
-	}
 	return component.Is(QueryNode) || mc.Spec.Com.RollingMode == v1beta1.RollingModeV3
 }
 
