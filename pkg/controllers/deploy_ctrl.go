@@ -98,8 +98,8 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return biz.HandleManualMode(ctx, mc)
 	}
 
-	// An explicit HPA owns replica counts even when the static field is zero.
-	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 && !component.IsHPAEnabled(mc.Spec) {
+	// An upgrade stop overrides HPA ownership until startMilvus restores it.
+	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 && (!component.IsHPAEnabled(mc.Spec) || isUpgradeStopping(mc)) {
 		return biz.HandleStop(ctx, mc)
 	}
 

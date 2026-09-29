@@ -20,6 +20,14 @@ import (
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
+// upgradeStoppingAnnotation distinguishes an upgrade stop from static replica
+// defaults on HPA-managed components. HPA specs stay intact for restart/rollback.
+const upgradeStoppingAnnotation = v1beta1.MilvusIO + "upgrade-stopping"
+
+func isUpgradeStopping(m v1beta1.Milvus) bool {
+	return m.Annotations[upgradeStoppingAnnotation] == v1beta1.TrueStr
+}
+
 const (
 	ConditionCheckingUpgrationState = "CheckingUpgrationState"
 	ConditionUpgraded               = "Upgraded"
@@ -340,6 +348,7 @@ func startMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.Milvus
 		// Ignore errors from SetReplicas()
 		_ = component.SetReplicas(milvus.Spec, &replica)
 	}
+	delete(milvus.Annotations, upgradeStoppingAnnotation)
 	milvus.RemoveStoppedAtAnnotation()
 	err := cli.Update(ctx, milvus)
 	if err != nil {
@@ -500,12 +509,21 @@ func stopMilvus(ctx context.Context, cli client.Client, upgrade *v1beta1.MilvusU
 		// Ignore errors from SetReplicas()
 		_ = component.SetReplicas(milvus.Spec, int32Ptr(0))
 	}
+	if milvus.Annotations == nil {
+		milvus.Annotations = map[string]string{}
+	}
+	milvus.Annotations[upgradeStoppingAnnotation] = v1beta1.TrueStr
 	return cli.Update(ctx, milvus)
 }
 
 func isMilvusStopping(ctx context.Context, cli client.Client, milvus *v1beta1.Milvus) bool {
 	components := GetComponentWorkloadsBySpec(milvus.Spec)
 	for _, component := range components {
+		// An upgrade started before this marker was introduced may already have
+		// zero static replicas while an explicit HPA keeps the workload running.
+		if component.IsHPAEnabled(milvus.Spec) && !isUpgradeStopping(*milvus) {
+			return false
+		}
 		replicas := component.GetReplicas(milvus.Spec)
 		if replicas == nil || *replicas != 0 {
 			return false

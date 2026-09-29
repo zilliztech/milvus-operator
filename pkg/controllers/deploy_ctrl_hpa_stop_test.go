@@ -27,10 +27,14 @@ func (b replicaReconcileBiz) HandleScaling(ctx context.Context, mc v1beta1.Milvu
 
 func TestDeployController_ZeroReplicasWithHPA(t *testing.T) {
 	for _, component := range []MilvusComponent{MilvusStandalone, QueryNode} {
-		for _, hpa := range []bool{false, true} {
+		for _, scenario := range []struct{ hpa, upgrade bool }{{false, false}, {true, false}, {true, true}} {
+			hpa := scenario.hpa
 			name := component.Name + " static"
 			if hpa {
 				name = component.Name + " HPA"
+				if scenario.upgrade {
+					name += " upgrade stop"
+				}
 			}
 			t.Run(name, func(t *testing.T) {
 				env := newTestEnv(t)
@@ -48,12 +52,17 @@ func TestDeployController_ZeroReplicasWithHPA(t *testing.T) {
 						mc.Spec.Com.QueryNode.HPA = spec
 					}
 				}
+				if scenario.upgrade {
+					env.MockClient.EXPECT().Update(gomock.Any(), &mc).Return(nil)
+					require.NoError(t, stopMilvus(env.ctx, env.MockClient, &v1beta1.MilvusUpgrade{}, &mc))
+					require.True(t, isUpgradeStopping(mc))
+				}
 				preparation := NewMockDeployControllerBiz(env.Ctrl)
 				preparation.EXPECT().CheckDeployMode(gomock.Any(), gomock.Any()).Return(v1beta1.TwoDeployMode, nil)
 				preparation.EXPECT().MarkDeployModeChanging(gomock.Any(), gomock.Any(), false).Return(nil)
 				preparation.EXPECT().HandleCreate(gomock.Any(), gomock.Any()).Return(nil)
 				preparation.EXPECT().IsPaused(gomock.Any(), gomock.Any()).Return(false)
-				if hpa {
+				if hpa && !scenario.upgrade {
 					preparation.EXPECT().HandleRolling(gomock.Any(), gomock.Any()).Return(nil)
 				}
 				current := &appsv1.Deployment{Spec: appsv1.DeploymentSpec{Replicas: int32Ptr(2)}}
@@ -65,7 +74,7 @@ func TestDeployController_ZeroReplicasWithHPA(t *testing.T) {
 				// Real ScaleDeployments applies HPA precedence and decides whether to update.
 				k8s := NewMockK8sUtil(env.Ctrl)
 				realUtil := NewDeployControllerBizUtil(component, env.MockClient, k8s)
-				if hpa {
+				if hpa && !scenario.upgrade {
 					k8s.EXPECT().MarkMilvusComponentGroupId(gomock.Any(), gomock.Any(), component, 0).Return(nil)
 					util.EXPECT().ScaleDeployments(gomock.Any(), gomock.Any(), current, last).DoAndReturn(realUtil.ScaleDeployments)
 				}
@@ -79,7 +88,7 @@ func TestDeployController_ZeroReplicasWithHPA(t *testing.T) {
 				controller := NewDeployController(factory, nil, status)
 				require.NoError(t, controller.Reconcile(env.ctx, mc, component))
 				expected := int32(0)
-				if hpa {
+				if hpa && !scenario.upgrade {
 					expected = 2
 				}
 				require.Equal(t, expected, *current.Spec.Replicas)

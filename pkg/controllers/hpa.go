@@ -26,7 +26,7 @@ func (r *MilvusReconciler) ReconcileHPAs(ctx context.Context, mc v1beta1.Milvus)
 func (r *MilvusReconciler) reconcileComponentHPA(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
 	hpaSpec := component.GetHPASpec(mc.Spec)
 
-	if hpaSpec == nil {
+	if hpaSpec == nil || isUpgradeStopping(mc) {
 		return r.deleteHPAIfExists(ctx, mc, component)
 	}
 
