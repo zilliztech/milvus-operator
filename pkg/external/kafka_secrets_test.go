@@ -118,3 +118,23 @@ func TestSSLConfigBoolAndString(t *testing.T) {
 	require.False(t, config.Enabled)
 	require.Nil(t, config.CACertSecret)
 }
+
+func TestKafkaTransportFollowsSecurityProtocol(t *testing.T) {
+	for _, tc := range []struct {
+		protocol  string
+		tls, sasl bool
+	}{
+		{"", false, false}, {"PLAINTEXT", false, false},
+		{"SASL_PLAINTEXT", false, true}, {"SSL", true, false}, {"SASL_SSL", true, true},
+	} {
+		t.Run(tc.protocol, func(t *testing.T) {
+			for _, enabled := range []bool{false, true} {
+				conf := CheckKafkaConfig{SecurityProtocol: tc.protocol, SSL: SSLConfig{Enabled: enabled}}
+				dialer, err := GetKafkaDialer(conf)
+				require.NoError(t, err)
+				require.Equal(t, tc.tls, dialer.TLS != nil)
+				require.Equal(t, tc.sasl, dialer.SASLMechanism != nil)
+			}
+		})
+	}
+}

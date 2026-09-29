@@ -203,7 +203,9 @@ func GetKafkaDialer(conf CheckKafkaConfig) (*kafka.Dialer, error) {
 	protocol := strings.ToUpper(strings.TrimSpace(conf.SecurityProtocol))
 	saslMechanism := strings.ToUpper(strings.TrimSpace(conf.SASLMechanisms))
 
-	useTLS := conf.SSL.Enabled || protocol == "SSL" || protocol == "SASL_SSL"
+	// Match Milvus: securityProtocol selects the transport; ssl.enabled only
+	// controls TLS file options and must not turn a plaintext probe into TLS.
+	useTLS := protocol == "SSL" || protocol == "SASL_SSL"
 	useSASL := protocol == "SASL_PLAINTEXT" || protocol == "SASL_SSL"
 
 	var tlsConfig *tls.Config
