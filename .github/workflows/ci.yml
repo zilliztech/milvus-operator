@@ -75,7 +75,7 @@ jobs:
           key: ${{ matrix.os }}-testbin
           restore-keys: ${{ matrix.os }}-testbin
       - name: Kubernetes KinD Cluster
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
         with:
           cluster_name: kind
       - name: Unit Test
@@ -109,7 +109,7 @@ jobs:
         run: |
           make sit-prepare-images
       - name: Setup KinD Cluster
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
         with:
           cluster_name: kind
       - name: Deploy to KinD
@@ -137,7 +137,7 @@ jobs:
         run: |
           make sit-prepare-images
       - name: Setup KinD Cluster
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
         with:
           cluster_name: kind
       - name: Deploy to KinD
@@ -164,7 +164,7 @@ jobs:
         run: |
           make sit-prepare-images
       - name: Setup KinD Cluster
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
         with:
           cluster_name: kind
       - name: Deploy to KinD
@@ -191,7 +191,7 @@ jobs:
         run: |
           make sit-prepare-images
       - name: Setup KinD Cluster
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
         with:
           cluster_name: kind
       - name: Deploy to KinD
@@ -215,7 +215,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Setup KinD Cluster
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
         with:
           cluster_name: kind
       - name: Prepare Docker Images
