@@ -677,6 +677,11 @@ func updateConfigSecurityContext(container *corev1.Container, values v1beta1.Val
 	if len(values.Data) > 0 {
 		values.MustAsObj(context)
 	}
+	// An explicit root UID must not conflict with our implicit non-root default.
+	// Preserve an explicitly supplied constraint, including null (Pod inheritance).
+	if _, specified := values.Data["runAsNonRoot"]; !specified && context.RunAsUser != nil && *context.RunAsUser == 0 {
+		context.RunAsNonRoot = boolPtr(false)
+	}
 	container.SecurityContext = context
 }
 

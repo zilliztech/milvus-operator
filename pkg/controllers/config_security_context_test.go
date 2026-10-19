@@ -11,6 +11,32 @@ import (
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
+func TestConfigSecurityContextUserDefaults(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		data    map[string]interface{}
+		uid     *int64
+		nonroot *bool
+	}{
+		{name: "defaults", uid: int64Ptr(1000), nonroot: boolPtr(true)},
+		{name: "explicit root", data: map[string]interface{}{"runAsUser": int64(0)}, uid: int64Ptr(0), nonroot: boolPtr(false)},
+		{name: "explicit nonroot UID", data: map[string]interface{}{"runAsUser": int64(2000)}, uid: int64Ptr(2000), nonroot: boolPtr(true)},
+		{name: "explicit constraint retained", data: map[string]interface{}{"runAsUser": int64(0), "runAsNonRoot": true}, uid: int64Ptr(0), nonroot: boolPtr(true)},
+		{name: "explicit false retained", data: map[string]interface{}{"runAsUser": int64(2000), "runAsNonRoot": false}, uid: int64Ptr(2000), nonroot: boolPtr(false)},
+		{name: "explicit null retained", data: map[string]interface{}{"runAsUser": int64(0), "runAsNonRoot": nil}, uid: int64Ptr(0)},
+		{name: "inherited UID", data: map[string]interface{}{"runAsUser": nil}, nonroot: boolPtr(true)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			container := renderInitContainer(&corev1.Container{}, "tools:test", v1beta1.Values{Data: tc.data})
+			assert.Equal(t, tc.uid, container.SecurityContext.RunAsUser)
+			assert.Equal(t, tc.nonroot, container.SecurityContext.RunAsNonRoot)
+			renderInitContainer(container, "tools:test", v1beta1.Values{})
+			assert.Equal(t, int64Ptr(1000), container.SecurityContext.RunAsUser)
+			assert.Equal(t, boolPtr(true), container.SecurityContext.RunAsNonRoot)
+		})
+	}
+}
+
 func TestConfigSecurityContextIsolation(t *testing.T) {
 	custom := v1beta1.Values{Data: map[string]interface{}{
 		"runAsUser": int64(2000), "runAsGroup": int64(2000),
