@@ -44,6 +44,15 @@ spec:
         successThreshold: 1
     rollingMode: 3
     runWithSubProcess: true
+    runAsNonRoot: true
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
     cdc:
       replicas: 1
     dummyImage: 'my-registry/my-dummy-image'
