@@ -24,7 +24,7 @@ type ComponentConditionGetter interface {
 type ComponentConditionGetterImpl struct{}
 
 func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (v1beta1.MilvusCondition, error) {
-	if mc.Spec.IsStopping() {
+	if isMilvusStoppingForReconcile(mc) {
 		return c.getStoppingCondition(ctx, cli, mc)
 	}
 
@@ -71,6 +71,9 @@ func (c ComponentConditionGetterImpl) GetMilvusInstanceCondition(ctx context.Con
 			if component.IsService() && deployment.Status.ReadyReplicas > 0 {
 				hasEntryReplicas = true
 			}
+			continue
+		}
+		if deployment == nil && IsIdleClusterStandalone(mc.Spec, component) {
 			continue
 		}
 		notReadyComponents = append(notReadyComponents, component.GetDisplayName())

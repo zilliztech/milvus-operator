@@ -182,6 +182,27 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 		assert.Equal(t, corev1.ConditionFalse, ret.Status)
 	})
 
+	t.Run("cluster mode, idle standalone with no deployment is still ready", func(t *testing.T) {
+		milvus.Spec.Com.Standalone.Replicas = &replica0
+		assert.True(t, IsIdleClusterStandalone(milvus.Spec, MilvusStandalone))
+		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx interface{}, list *appsv1.DeploymentList, opts interface{}) {
+				list.Items = make([]appsv1.Deployment, 8)
+				for i := 0; i < 8; i++ {
+					list.Items[i].Labels = map[string]string{
+						AppLabelComponent: MilvusComponents[i].Name,
+					}
+					list.Items[i].OwnerReferences = []metav1.OwnerReference{
+						{Controller: &trueVal, UID: "uid"},
+					}
+					list.Items[i].Status = readyDeployStatus
+				}
+			})
+		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *milvus)
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.ConditionTrue, ret.Status)
+	})
+
 	ins26 := metav1.ObjectMeta{
 		Namespace: "ns26",
 		Name:      "mc26",

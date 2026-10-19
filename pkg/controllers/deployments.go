@@ -236,6 +236,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 				Namespace: mc.Namespace,
 			},
 		}
+
 		if err := r.updateDeployment(ctx, mc, new, component); err != nil {
 			return err
 		}
@@ -252,6 +253,7 @@ func (r *MilvusReconciler) ReconcileComponentDeployment(
 	}
 
 	cur := old.DeepCopy()
+
 	if err := r.updateDeployment(ctx, mc, cur, component); err != nil {
 		return err
 	}
@@ -342,6 +344,33 @@ func (r *MilvusReconciler) RemoveOldStandlone(ctx context.Context, mc v1beta1.Mi
 	return nil
 }
 
+// scaleDownIdleStandalone reconciles existing deployments without creating a
+// missing rollout slot or changing their pod templates or workload topology.
+func (r *MilvusReconciler) scaleDownIdleStandalone(ctx context.Context, mc v1beta1.Milvus) error {
+	if mc.Spec.Com.EnableManualMode {
+		return nil
+	}
+	deployments := &appsv1.DeploymentList{}
+	opts := &client.ListOptions{
+		Namespace:     mc.Namespace,
+		LabelSelector: labels.SelectorFromSet(NewComponentAppLabels(mc.Name, MilvusStandalone.Name)),
+	}
+	if err := r.List(ctx, deployments, opts); err != nil {
+		return pkgerr.Wrap(err, "list idle standalone deployments")
+	}
+	for i := range deployments.Items {
+		deployment := &deployments.Items[i]
+		if !metav1.IsControlledBy(deployment, &mc) || getDeployReplicas(deployment) == 0 {
+			continue
+		}
+		deployment.Spec.Replicas = int32Ptr(0)
+		if err := r.Update(ctx, deployment); err != nil {
+			return pkgerr.Wrapf(err, "scale down idle standalone deployment %s", deployment.Name)
+		}
+	}
+	return nil
+}
+
 func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.Milvus) error {
 	storageEndpointEnv, err := r.getMinioPortEnvIfServiceExists(ctx, mc)
 	if err != nil {
@@ -369,6 +398,12 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 
 	var errs = []error{}
 	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
+		if IsIdleClusterStandalone(mc.Spec, component) {
+			if err := r.scaleDownIdleStandalone(ctx, mc); err != nil {
+				errs = append(errs, err)
+			}
+			continue
+		}
 		switch {
 		case componentUsesStatefulSet(mc, component):
 			err = r.ReconcileComponentStatefulSet(ctx, mc, component)

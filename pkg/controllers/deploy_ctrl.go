@@ -98,7 +98,8 @@ func (c *DeployControllerImpl) Reconcile(ctx context.Context, mc v1beta1.Milvus,
 		return biz.HandleManualMode(ctx, mc)
 	}
 
-	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 {
+	// An upgrade stop overrides HPA ownership until startMilvus restores it.
+	if ReplicasValue(component.GetReplicas(mc.Spec)) == 0 && (!component.IsHPAEnabled(mc.Spec) || isUpgradeStopping(mc)) {
 		return biz.HandleStop(ctx, mc)
 	}
 
@@ -193,7 +194,7 @@ func (c *DeployControllerBizImpl) IsUpdating(ctx context.Context, mc v1beta1.Mil
 	if v1beta1.Labels().IsChangingMode(mc, c.component.GetStateKey()) {
 		return false, nil
 	}
-	if mc.Spec.IsStopping() {
+	if isMilvusStoppingForReconcile(mc) {
 		return false, nil
 	}
 	if mc.Status.ObservedGeneration < mc.Generation {

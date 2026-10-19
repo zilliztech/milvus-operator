@@ -204,6 +204,8 @@ func updatePodTemplate(
 	updateUserDefinedVolumes(template, updater)
 	updateScheduleSpec(template, updater)
 	updateMilvusContainer(template, updater, forceUpdateAll)
+	mc := updater.GetMilvus()
+	injectKafkaSecretsIntoTemplate(template, currentTemplate, mc, updater.GetComponent().Name, updater.GetMergedComponentSpec().Volumes)
 	updateSidecars(template, updater)
 	updateNetworkSettings(template, updater)
 
@@ -357,6 +359,26 @@ func updateBuiltInVolumes(template *corev1.PodTemplateSpec, updater deploymentUp
 	}
 }
 
+// pruneStorageCredentialEnv removes credentials absent from the desired env.
+// Keep existing positions for desired names so reconciliation stays idempotent.
+func pruneStorageCredentialEnv(env, desired []corev1.EnvVar) []corev1.EnvVar {
+	desiredNames := make(map[string]bool, len(desired))
+	for _, variable := range desired {
+		desiredNames[variable.Name] = true
+	}
+	result := make([]corev1.EnvVar, 0, len(env))
+	for _, variable := range env {
+		switch variable.Name {
+		case "MINIO_ACCESS_KEY", "MINIO_ACCESS_KEY_ID", "MINIO_SECRET_KEY", "MINIO_SECRET_ACCESS_KEY", "KAFKA_SASLUSERNAME", "KAFKA_SASLPASSWORD", "KAFKA_SSL_TLSKEYPASSWORD":
+			if !desiredNames[variable.Name] {
+				continue
+			}
+		}
+		result = append(result, variable)
+	}
+	return result
+}
+
 func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentUpdater, forceUpdateImage bool) {
 	mergedComSpec := updater.GetMergedComponentSpec()
 
@@ -380,13 +402,20 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	env := MergeEnvVar(updater.GetStorageEndpointEnv(), mergedComSpec.Env)
 	env = MergeEnvVar(env, GetStorageSecretRefEnv(updater.GetSecretRef()))
 	env = MergeEnvVar(env, GetKafkaSecretRefEnv(updater.GetKafkaSecretRef()))
+	mc := updater.GetMilvus()
+	refs, _ := parseKafkaSecretRefs(mc)
+	if mc.Spec.Dep.MsgStreamType == v1beta1.MsgStreamTypeKafka {
+		env = MergeEnvVar(env, kafkaSecretEnv(refs))
+	}
 	// Resolved storage Secret keys override the legacy default key names.
 	for _, resolved := range updater.GetStorageEndpointEnv() {
 		if resolved.ValueFrom != nil && resolved.ValueFrom.SecretKeyRef != nil {
 			env = MergeEnvVar(env, []corev1.EnvVar{resolved})
 		}
 	}
-	container.Env = MergeEnvVar(container.Env, env)
+	// Storage credentials are regenerated from the current spec. A merge alone
+	// retains SecretKeyRefs after storage.secretRef is removed (for example, IAM).
+	container.Env = MergeEnvVar(pruneStorageCredentialEnv(container.Env, env), env)
 	metricPort := corev1.ContainerPort{
 		Name:          MetricPortName,
 		ContainerPort: MetricPort,
@@ -654,6 +683,9 @@ func (m milvusDeploymentUpdater) GetReplicas() *int32 {
 // 1. The component has an HPA spec defined (new approach)
 // 2. The replicas is set to -1 (legacy convention for backward compatibility)
 func (m milvusDeploymentUpdater) IsHPAEnabled() bool {
+	if isUpgradeStopping(m.Milvus) {
+		return false
+	}
 	// Check HPA spec first (new approach takes precedence)
 	if m.component.GetHPASpec(m.Spec) != nil {
 		return true

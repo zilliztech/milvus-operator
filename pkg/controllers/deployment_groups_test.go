@@ -68,7 +68,14 @@ func TestDeploymentGroupRolloutTopologyMatchesComponentMode(t *testing.T) {
 
 	mc.Spec.Com.RollingMode = v1beta1.RollingModeV3
 	v3 := GetExpectedTwoDeployComponents(mc.Spec)
-	assert.Equal(t, GetComponentWorkloadsBySpec(mc.Spec), v3)
+	var expectedV3 []MilvusComponent
+	for _, workload := range GetComponentWorkloadsBySpec(mc.Spec) {
+		if IsIdleClusterStandalone(mc.Spec, workload) {
+			continue
+		}
+		expectedV3 = append(expectedV3, workload)
+	}
+	assert.Equal(t, expectedV3, v3)
 	for _, workload := range v3 {
 		assert.True(t, componentUsesTwoDeployments(mc, workload))
 	}

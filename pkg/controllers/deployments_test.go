@@ -162,6 +162,55 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 	})
 }
 
+// Standalone must not be reconciled for an ordinary cluster-mode Milvus.
+func TestClusterReconciler_ReconcileDeployments_SkipsStandaloneForOrdinaryClusterMode(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	r := env.Reconciler
+	mockQnController := NewMockDeployController(env.Ctrl)
+	r.deployCtrl = mockQnController
+	mockClient := env.MockClient
+	ctx := env.ctx
+
+	mc := v1beta1.Milvus{}
+	mc.Namespace = "ns"
+	mc.Name = "mc"
+	mc.Spec.Mode = v1beta1.MilvusModeCluster
+	mc.Default()
+	assert.False(t, mc.IsChangingMode(), "fixture must reflect an ordinary cluster-mode CR, not a mode transition")
+
+	bak := CheckComponentHasTerminatingPod
+	CheckComponentHasTerminatingPod = func(ctx context.Context, cli client.Client, mc v1beta1.Milvus, component MilvusComponent) (bool, error) {
+		return false, nil
+	}
+	defer func() { CheckComponentHasTerminatingPod = bak }()
+
+	expectMinioServiceNotFound(mockClient)
+	expectComponentStatefulSetNotFound(mockClient)
+	// RemoveOldStandlone's list + our own existence check for the idle standalone component.
+	mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).Return(nil).Times(2)
+	mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any(), gomock.Any()).Return(nil)
+
+	var requestedDeploymentNames []string
+	mockClient.EXPECT().
+		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+		DoAndReturn(func(_ context.Context, name client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+			requestedDeploymentNames = append(requestedDeploymentNames, name.Name)
+			return k8sErrors.NewNotFound(schema.GroupResource{}, "")
+		}).
+		Times(len(MixtureComponents) - 2) // MixtureComponents minus QueryNode (two-deploy path) minus MilvusStandalone (skipped)
+	mockClient.EXPECT().
+		Create(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).
+		Return(nil).
+		Times(len(MixtureComponents) - 2)
+	mockQnController.EXPECT().Reconcile(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+	err := r.ReconcileDeployments(ctx, mc)
+	assert.NoError(t, err)
+	assert.NotContains(t, requestedDeploymentNames, MilvusStandalone.GetDeploymentName(mc.Name),
+		"MilvusStandalone must not be reconciled for an ordinary cluster-mode CR")
+}
+
 func TestClusterReconciler_ReconcileDeployments_DeleteIfExists(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.checkMocks()
