@@ -1,5 +1,9 @@
 name: Weekly Test
 on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/weekly.yml
   schedule:
     # * is a special character in YAML so you have to quote this string
     #         ┌───────────── minute (0 - 59)
@@ -33,7 +37,10 @@ jobs:
           cluster_name: kind
       - name: Deploy to KinD
         run: |
-          make sit-deploy
+          make deploy-cert-manager
+          make sit-deploy SIT_HELM_ARGS="--set enableWebhook=true"
+          kubectl -n milvus-operator wait --for=condition=Ready certificate/milvus-operator-serving-cert --timeout=3m
+          kubectl wait --for=jsonpath='{.spec.conversion.webhook.clientConfig.caBundle}' crd/milvuses.milvus.io --timeout=3m
       - name: Integration Test
         run: |
           make sit-test test_mode=alpha

@@ -277,9 +277,11 @@ sit-load-and-cleanup-images: sit-load-images
 sit-generate-manifest:
 	cat deploy/manifests/deployment.yaml | sed  "s#${RELEASE_IMG}#${SIT_IMG}#g" > test/test_gen.yaml
 
+SIT_HELM_ARGS ?=
+
 sit-deploy: sit-load-and-cleanup-images
 	@echo "Deploying"
-	$(HELM) -n milvus-operator install --set image.repository=milvus-operator,image.tag=sit,resources.requests.cpu=10m --create-namespace milvus-operator ./charts/milvus-operator
+	$(HELM) -n milvus-operator install --set image.repository=milvus-operator,image.tag=sit,resources.requests.cpu=10m --create-namespace milvus-operator ./charts/milvus-operator $(SIT_HELM_ARGS)
 	kubectl -n milvus-operator describe pods
 	@echo "Waiting for operator to be ready"
 	kubectl -n milvus-operator rollout restart deploy/milvus-operator
