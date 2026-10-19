@@ -212,6 +212,7 @@ func updatePodTemplate(
 		template.Spec.SecurityContext = &corev1.PodSecurityContext{
 			RunAsNonRoot: &updater.GetMilvus().Spec.Com.RunAsNonRoot,
 			RunAsUser:    int64Ptr(1000),
+			FSGroup:      int64Ptr(1000),
 		}
 	}
 
@@ -269,6 +270,9 @@ func updateInitContainers(template *corev1.PodTemplateSpec, updater deploymentUp
 	spec := updater.GetMilvus().Spec
 	if configContainerIdx < 0 || spec.Com.UpdateToolImage {
 		updateConfigContainer(template, updater)
+	} else {
+		// Security settings follow the CR even when the tools image is retained.
+		updateConfigSecurityContext(&template.Spec.InitContainers[configContainerIdx], updater.GetMergedComponentSpec().SecurityContext)
 	}
 
 	initContainers := updater.GetInitContainers()
@@ -292,9 +296,9 @@ func updateConfigContainer(template *corev1.PodTemplateSpec, updater deploymentU
 		if len(template.Spec.InitContainers) < 1 {
 			template.Spec.InitContainers = []corev1.Container{}
 		}
-		template.Spec.InitContainers = append(template.Spec.InitContainers, *renderInitContainer(container, spec.Com.ToolImage))
+		template.Spec.InitContainers = append(template.Spec.InitContainers, *renderInitContainer(container, spec.Com.ToolImage, updater.GetMergedComponentSpec().SecurityContext))
 	} else {
-		renderInitContainer(&template.Spec.InitContainers[configContainerIdx], spec.Com.ToolImage)
+		renderInitContainer(&template.Spec.InitContainers[configContainerIdx], spec.Com.ToolImage, updater.GetMergedComponentSpec().SecurityContext)
 	}
 }
 
@@ -334,6 +338,13 @@ func updateUserDefinedVolumes(template *corev1.PodTemplateSpec, updater deployme
 		} else {
 			userDefinedVolumes = append(userDefinedVolumes, emptyDirDataVolume())
 		}
+	}
+
+	// External MQ still needs a writable local data directory in non-root mode.
+	// Keep an explicitly supplied data volume, including an existing PVC.
+	if builtInMq == nil && updater.GetMilvus().Spec.Com.RunAsNonRoot &&
+		GetVolumeIndex(userDefinedVolumes, MilvusDataVolumeName) < 0 {
+		userDefinedVolumes = append(userDefinedVolumes, emptyDirDataVolume())
 	}
 
 	for _, volume := range userDefinedVolumes {
@@ -518,7 +529,8 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 func getUserDefinedVolumeMounts(updater deploymentUpdater) []corev1.VolumeMount {
 	ret := updater.GetMergedComponentSpec().VolumeMounts
 	builtInMq := updater.GetMilvus().Spec.Dep.GetMilvusBuiltInMQ()
-	if builtInMq != nil {
+	if builtInMq != nil || (updater.GetMilvus().Spec.Com.RunAsNonRoot &&
+		GetVolumeMountIndex(ret, dataVolumeMount().MountPath) < 0) {
 		ret = append(ret, dataVolumeMount())
 	}
 	return ret

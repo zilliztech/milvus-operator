@@ -236,11 +236,7 @@ func TestMilvus_UpdateDeployment(t *testing.T) {
 		deployment := sampleDeployment.DeepCopy()
 		err := updateDeployment(deployment, updater)
 		assert.NoError(t, err)
-		deployment.Spec.Template.Spec.InitContainers = []corev1.Container{
-			{
-				Name: configContainerName,
-			},
-		}
+		deployment.Spec.Template.Spec.InitContainers[0].Image = ""
 		err = updateDeployment(deployment, updater)
 		assert.NoError(t, err)
 		assert.Empty(t, deployment.Spec.Template.Spec.InitContainers[0].Image)

@@ -648,7 +648,7 @@ func addVolumeMount(volumeMounts *[]corev1.VolumeMount, volumeMount corev1.Volum
 
 const configContainerName = "config"
 
-func renderInitContainer(container *corev1.Container, toolImage string) *corev1.Container {
+func renderInitContainer(container *corev1.Container, toolImage string, securityContext v1beta1.Values) *corev1.Container {
 	imageInfo := globalCommonInfo.OperatorImageInfo
 	if toolImage == "" {
 		toolImage = imageInfo.Image
@@ -662,12 +662,27 @@ func renderInitContainer(container *corev1.Container, toolImage string) *corev1.
 		configVolumeMount,
 		toolVolumeMount,
 	}
-	container.SecurityContext = &corev1.SecurityContext{
+	updateConfigSecurityContext(container, securityContext)
+	fillContainerDefaultValues(container)
+	return container
+}
+
+// Allocate defaults on every render: decoding into an existing context retains
+// removed fields, and sharing defaults lets one instance mutate another.
+func updateConfigSecurityContext(container *corev1.Container, values v1beta1.Values) {
+	context := &corev1.SecurityContext{
 		RunAsNonRoot: boolPtr(true),
 		RunAsUser:    int64Ptr(1000),
 	}
-	fillContainerDefaultValues(container)
-	return container
+	if len(values.Data) > 0 {
+		values.MustAsObj(context)
+	}
+	// An explicit root UID must not conflict with our implicit non-root default.
+	// Preserve an explicitly supplied constraint, including null (Pod inheritance).
+	if _, specified := values.Data["runAsNonRoot"]; !specified && context.RunAsUser != nil && *context.RunAsUser == 0 {
+		context.RunAsNonRoot = boolPtr(false)
+	}
+	container.SecurityContext = context
 }
 
 var (
