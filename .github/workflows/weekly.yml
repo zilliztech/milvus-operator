@@ -1,5 +1,9 @@
 name: Weekly Test
 on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/weekly.yml
   schedule:
     # * is a special character in YAML so you have to quote this string
     #         ┌───────────── minute (0 - 59)
