@@ -33,7 +33,10 @@ jobs:
           cluster_name: kind
       - name: Deploy to KinD
         run: |
-          make sit-deploy
+          make deploy-cert-manager
+          make sit-deploy SIT_HELM_ARGS="--set enableWebhook=true"
+          kubectl -n milvus-operator wait --for=condition=Ready certificate/milvus-operator-serving-cert --timeout=3m
+          kubectl wait --for=jsonpath='{.spec.conversion.webhook.clientConfig.caBundle}' crd/milvuses.milvus.io --timeout=3m
       - name: Integration Test
         run: |
           make sit-test test_mode=alpha
