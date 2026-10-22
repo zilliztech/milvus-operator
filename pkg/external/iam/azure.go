@@ -2,8 +2,10 @@ package iam
 
 import (
 	"context"
+	"fmt"
 	"os"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/service"
@@ -15,12 +17,20 @@ type VerifyAzureParams struct {
 	ContainerName  string
 }
 
+func newAzureVerificationCredential() (azcore.TokenCredential, error) {
+	if os.Getenv("AZURE_CLIENT_SECRET") != "" {
+		for _, v := range []string{"AZURE_CLIENT_ID", "AZURE_TENANT_ID"} {
+			if os.Getenv(v) == "" {
+				return nil, fmt.Errorf("%s must be set when AZURE_CLIENT_SECRET is set", v)
+			}
+		}
+		return azidentity.NewDefaultAzureCredential(nil)
+	}
+	return azidentity.NewWorkloadIdentityCredential(nil)
+}
+
 func VerifyAzure(ctx context.Context, params VerifyAzureParams) error {
-	cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
-		ClientID:      os.Getenv("AZURE_CLIENT_ID"),
-		TenantID:      os.Getenv("AZURE_TENANT_ID"),
-		TokenFilePath: os.Getenv("AZURE_FEDERATED_TOKEN_FILE"),
-	})
+	cred, err := newAzureVerificationCredential()
 	if err != nil {
 		return errors.Wrap(err, "init azure workload identity credential failed")
 	}
