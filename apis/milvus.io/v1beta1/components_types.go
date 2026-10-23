@@ -103,6 +103,13 @@ type ComponentSpec struct {
 	// +kubebuilder:validation:Optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 
+	// ToolResources is the compute resources of the config init container.
+	// Defaults to the component's CPU and memory, which keeps the pod's effective request
+	// and QoS class unchanged. Set to {} to leave the init container without resources.
+	// The default is applied on the next rollout, an explicit value immediately.
+	// +kubebuilder:validation:Optional
+	ToolResources *corev1.ResourceRequirements `json:"toolResources,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 

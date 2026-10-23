@@ -158,6 +158,11 @@ func (in *ComponentSpec) DeepCopyInto(out *ComponentSpec) {
 		*out = new(v1.ResourceRequirements)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.ToolResources != nil {
+		in, out := &in.ToolResources, &out.ToolResources
+		*out = new(v1.ResourceRequirements)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.VolumeMounts != nil {
 		in, out := &in.VolumeMounts, &out.VolumeMounts
 		*out = make([]v1.VolumeMount, len(*in))

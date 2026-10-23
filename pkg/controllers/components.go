@@ -851,6 +851,11 @@ func MergeComponentSpec(src, dst ComponentSpec) ComponentSpec {
 		dst.Resources = &corev1.ResourceRequirements{}
 	}
 
+	// Keep nil distinct from {}: nil means default to Resources.
+	if src.ToolResources != nil {
+		dst.ToolResources = src.ToolResources
+	}
+
 	if src.VolumeMounts != nil {
 		if dst.VolumeMounts == nil {
 			dst.VolumeMounts = []corev1.VolumeMount{}

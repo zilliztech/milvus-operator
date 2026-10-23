@@ -272,7 +272,13 @@ func updateInitContainers(template *corev1.PodTemplateSpec, updater deploymentUp
 		updateConfigContainer(template, updater)
 	} else {
 		// Security settings follow the CR even when the tools image is retained.
-		updateConfigSecurityContext(&template.Spec.InitContainers[configContainerIdx], updater.GetMergedComponentSpec().SecurityContext)
+		mergedComSpec := updater.GetMergedComponentSpec()
+		updateConfigSecurityContext(&template.Spec.InitContainers[configContainerIdx], mergedComSpec.SecurityContext)
+		// Explicit resources apply now; the default waits for the next rollout,
+		// so upgrading the operator does not restart pods.
+		if mergedComSpec.ToolResources != nil {
+			template.Spec.InitContainers[configContainerIdx].Resources = configContainerResources(mergedComSpec, updater.GetInitContainers())
+		}
 	}
 
 	initContainers := updater.GetInitContainers()
@@ -291,14 +297,16 @@ func updateInitContainers(template *corev1.PodTemplateSpec, updater deploymentUp
 func updateConfigContainer(template *corev1.PodTemplateSpec, updater deploymentUpdater) {
 	configContainerIdx := GetContainerIndex(template.Spec.InitContainers, configContainerName)
 	spec := updater.GetMilvus().Spec
+	mergedComSpec := updater.GetMergedComponentSpec()
+	resources := configContainerResources(mergedComSpec, updater.GetInitContainers())
 	if configContainerIdx < 0 {
 		var container = new(corev1.Container)
 		if len(template.Spec.InitContainers) < 1 {
 			template.Spec.InitContainers = []corev1.Container{}
 		}
-		template.Spec.InitContainers = append(template.Spec.InitContainers, *renderInitContainer(container, spec.Com.ToolImage, updater.GetMergedComponentSpec().SecurityContext))
+		template.Spec.InitContainers = append(template.Spec.InitContainers, *renderInitContainer(container, spec.Com.ToolImage, mergedComSpec.SecurityContext, resources))
 	} else {
-		renderInitContainer(&template.Spec.InitContainers[configContainerIdx], spec.Com.ToolImage, updater.GetMergedComponentSpec().SecurityContext)
+		renderInitContainer(&template.Spec.InitContainers[configContainerIdx], spec.Com.ToolImage, mergedComSpec.SecurityContext, resources)
 	}
 }
 
