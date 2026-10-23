@@ -53,6 +53,13 @@ spec:
         drop: [ALL]
       seccompProfile:
         type: RuntimeDefault
+    toolResources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
     cdc:
       replicas: 1
     dummyImage: 'my-registry/my-dummy-image'

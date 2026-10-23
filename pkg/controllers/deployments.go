@@ -648,7 +648,7 @@ func addVolumeMount(volumeMounts *[]corev1.VolumeMount, volumeMount corev1.Volum
 
 const configContainerName = "config"
 
-func renderInitContainer(container *corev1.Container, toolImage string, securityContext v1beta1.Values) *corev1.Container {
+func renderInitContainer(container *corev1.Container, toolImage string, securityContext v1beta1.Values, resources corev1.ResourceRequirements) *corev1.Container {
 	imageInfo := globalCommonInfo.OperatorImageInfo
 	if toolImage == "" {
 		toolImage = imageInfo.Image
@@ -663,8 +663,38 @@ func renderInitContainer(container *corev1.Container, toolImage string, security
 		toolVolumeMount,
 	}
 	updateConfigSecurityContext(container, securityContext)
+	container.Resources = resources
 	fillContainerDefaultValues(container)
 	return container
+}
+
+// configContainerResources defaults to the component's CPU and memory: Guaranteed QoS
+// requires every container, init containers included, to set them with requests equal to limits,
+// and an init container no larger than the main one leaves the pod's effective request unchanged.
+// Other resources such as GPUs are not copied, since QoS ignores them.
+func configContainerResources(spec ComponentSpec) corev1.ResourceRequirements {
+	if spec.ToolResources != nil {
+		return *spec.ToolResources.DeepCopy()
+	}
+	ret := corev1.ResourceRequirements{}
+	if spec.Resources != nil {
+		ret.Limits = cpuAndMemory(spec.Resources.Limits)
+		ret.Requests = cpuAndMemory(spec.Resources.Requests)
+	}
+	return ret
+}
+
+func cpuAndMemory(list corev1.ResourceList) corev1.ResourceList {
+	var ret corev1.ResourceList
+	for _, name := range []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
+		if quantity, ok := list[name]; ok {
+			if ret == nil {
+				ret = corev1.ResourceList{}
+			}
+			ret[name] = quantity.DeepCopy()
+		}
+	}
+	return ret
 }
 
 // Allocate defaults on every render: decoding into an existing context retains

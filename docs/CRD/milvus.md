@@ -138,6 +138,15 @@ spec:
     # UpdateToolImage specifies when milvus-operator upgraded, whether milvus should restart to update the tool image, too
     updateToolImage: false # Optional
 
+    # ToolResources is the compute resources of the config init container, which runs the tool image.
+    # Defaults to the component's CPU and memory, which keeps the pod's effective request and QoS class unchanged.
+    # Set to {} to leave the init container without resources.
+    # The default is applied on the next rollout (or on operator upgrade when updateToolImage is true),
+    # an explicit value immediately.
+    toolResources: # Optional
+      limits: {} # Optional
+      requests: {} # Optional
+
     # Components private specifications
     # ... Skipped fields
 ```

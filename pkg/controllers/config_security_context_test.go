@@ -27,10 +27,10 @@ func TestConfigSecurityContextUserDefaults(t *testing.T) {
 		{name: "inherited UID", data: map[string]interface{}{"runAsUser": nil}, nonroot: boolPtr(true)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			container := renderInitContainer(&corev1.Container{}, "tools:test", v1beta1.Values{Data: tc.data})
+			container := renderInitContainer(&corev1.Container{}, "tools:test", v1beta1.Values{Data: tc.data}, corev1.ResourceRequirements{})
 			assert.Equal(t, tc.uid, container.SecurityContext.RunAsUser)
 			assert.Equal(t, tc.nonroot, container.SecurityContext.RunAsNonRoot)
-			renderInitContainer(container, "tools:test", v1beta1.Values{})
+			renderInitContainer(container, "tools:test", v1beta1.Values{}, corev1.ResourceRequirements{})
 			assert.Equal(t, int64Ptr(1000), container.SecurityContext.RunAsUser)
 			assert.Equal(t, boolPtr(true), container.SecurityContext.RunAsNonRoot)
 		})
@@ -44,14 +44,14 @@ func TestConfigSecurityContextIsolation(t *testing.T) {
 		"capabilities":             map[string]interface{}{"drop": []interface{}{"ALL"}},
 		"seccompProfile":           map[string]interface{}{"type": "RuntimeDefault"},
 	}}
-	first := renderInitContainer(&corev1.Container{}, "tools:test", custom)
+	first := renderInitContainer(&corev1.Container{}, "tools:test", custom, corev1.ResourceRequirements{})
 	require.Equal(t, int64(2000), *first.SecurityContext.RunAsUser)
 	require.Equal(t, int64(2000), *first.SecurityContext.RunAsGroup)
 	assert.False(t, *first.SecurityContext.AllowPrivilegeEscalation)
 	assert.True(t, *first.SecurityContext.RunAsNonRoot)
 	assert.Equal(t, []corev1.Capability{"ALL"}, first.SecurityContext.Capabilities.Drop)
 	assert.Equal(t, corev1.SeccompProfileTypeRuntimeDefault, first.SecurityContext.SeccompProfile.Type)
-	second := renderInitContainer(&corev1.Container{}, "tools:test", v1beta1.Values{})
+	second := renderInitContainer(&corev1.Container{}, "tools:test", v1beta1.Values{}, corev1.ResourceRequirements{})
 	assert.Equal(t, int64(1000), *second.SecurityContext.RunAsUser)
 	assert.Nil(t, second.SecurityContext.Capabilities)
 	*first.SecurityContext.RunAsUser = 3000
@@ -59,12 +59,12 @@ func TestConfigSecurityContextIsolation(t *testing.T) {
 	assert.Equal(t, int64(2000), custom.Data["runAsUser"])
 
 	// Rendering an existing container must discard removed nested/scalar fields.
-	renderInitContainer(first, "tools:test", v1beta1.Values{Data: map[string]interface{}{"runAsUser": int64(4000)}})
+	renderInitContainer(first, "tools:test", v1beta1.Values{Data: map[string]interface{}{"runAsUser": int64(4000)}}, corev1.ResourceRequirements{})
 	assert.Equal(t, int64(4000), *first.SecurityContext.RunAsUser)
 	assert.Nil(t, first.SecurityContext.RunAsGroup)
 	assert.Nil(t, first.SecurityContext.Capabilities)
 	assert.Nil(t, first.SecurityContext.SeccompProfile)
-	renderInitContainer(first, "tools:test", v1beta1.Values{})
+	renderInitContainer(first, "tools:test", v1beta1.Values{}, corev1.ResourceRequirements{})
 	assert.Equal(t, second.SecurityContext, first.SecurityContext)
 	assert.NotSame(t, second.SecurityContext, first.SecurityContext)
 }
