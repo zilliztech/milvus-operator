@@ -277,7 +277,7 @@ func updateInitContainers(template *corev1.PodTemplateSpec, updater deploymentUp
 		// Explicit resources apply now; the default waits for the next rollout,
 		// so upgrading the operator does not restart pods.
 		if mergedComSpec.ToolResources != nil {
-			template.Spec.InitContainers[configContainerIdx].Resources = configContainerResources(mergedComSpec)
+			template.Spec.InitContainers[configContainerIdx].Resources = configContainerResources(mergedComSpec, updater.GetInitContainers())
 		}
 	}
 
@@ -298,7 +298,7 @@ func updateConfigContainer(template *corev1.PodTemplateSpec, updater deploymentU
 	configContainerIdx := GetContainerIndex(template.Spec.InitContainers, configContainerName)
 	spec := updater.GetMilvus().Spec
 	mergedComSpec := updater.GetMergedComponentSpec()
-	resources := configContainerResources(mergedComSpec)
+	resources := configContainerResources(mergedComSpec, updater.GetInitContainers())
 	if configContainerIdx < 0 {
 		var container = new(corev1.Container)
 		if len(template.Spec.InitContainers) < 1 {

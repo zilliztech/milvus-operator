@@ -141,6 +141,7 @@ spec:
     # ToolResources is the compute resources of the config init container, which runs the tool image.
     # Defaults to the component's CPU and memory, which keeps the pod's effective request and QoS class unchanged.
     # Set to {} to leave the init container without resources.
+    # A component initContainers entry named config overrides these resources, including when empty.
     # The default is applied on the next rollout (or on operator upgrade when updateToolImage is true),
     # an explicit value immediately.
     toolResources: # Optional

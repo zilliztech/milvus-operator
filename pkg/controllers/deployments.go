@@ -672,7 +672,14 @@ func renderInitContainer(container *corev1.Container, toolImage string, security
 // requires every container, init containers included, to set them with requests equal to limits,
 // and an init container no larger than the main one leaves the pod's effective request unchanged.
 // Other resources such as GPUs are not copied, since QoS ignores them.
-func configContainerResources(spec ComponentSpec) corev1.ResourceRequirements {
+func configContainerResources(spec ComponentSpec, initContainers []corev1.Container) corev1.ResourceRequirements {
+	// User-defined init containers already override the built-in config container.
+	// Keep that precedence during full renders too, including empty resources.
+	for i := len(initContainers) - 1; i >= 0; i-- {
+		if initContainers[i].Name == configContainerName {
+			return *initContainers[i].Resources.DeepCopy()
+		}
+	}
 	if spec.ToolResources != nil {
 		return *spec.ToolResources.DeepCopy()
 	}

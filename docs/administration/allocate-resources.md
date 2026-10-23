@@ -65,6 +65,8 @@ spec:
           memory: 32Gi
 ```
 
+If the component defines an `initContainers` entry named `config`, that entry's resources take precedence over `toolResources` and the default, including empty resources. This preserves existing overrides during rollouts and tool image updates.
+
 The default is applied the next time the pods roll out, such as on a Milvus upgrade or configuration change, so upgrading the operator does not restart Milvus. Set `updateToolImage: true` to apply it when the operator is upgraded. An explicit `toolResources` value is applied immediately.
 
 > **Tip:** If you plan to use [HPA autoscaling](./scale-a-milvus-cluster.md#autoscaling-with-hpa), make sure to set resource `requests` (not just `limits`) on your components. HPA calculates utilization as a percentage of requested resources.
