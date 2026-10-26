@@ -17,14 +17,20 @@ type VerifyAzureParams struct {
 	ContainerName  string
 }
 
+// newAzureVerificationCredential selects the Azure token credential using WI → SPN priority.
+// WI is checked first so that pods with valid Workload Identity config are not silently
+// switched when AZURE_CLIENT_SECRET is also present in the environment.
 func newAzureVerificationCredential() (azcore.TokenCredential, error) {
-	if os.Getenv("AZURE_CLIENT_SECRET") != "" {
-		for _, v := range []string{"AZURE_CLIENT_ID", "AZURE_TENANT_ID"} {
-			if os.Getenv(v) == "" {
-				return nil, fmt.Errorf("%s must be set when AZURE_CLIENT_SECRET is set", v)
-			}
+	if os.Getenv("AZURE_FEDERATED_TOKEN_FILE") != "" {
+		return azidentity.NewWorkloadIdentityCredential(nil)
+	}
+	if secret := os.Getenv("AZURE_CLIENT_SECRET"); secret != "" {
+		tenantID := os.Getenv("AZURE_TENANT_ID")
+		clientID := os.Getenv("AZURE_CLIENT_ID")
+		if tenantID == "" || clientID == "" {
+			return nil, fmt.Errorf("SPN authentication requires AZURE_TENANT_ID, AZURE_CLIENT_ID and AZURE_CLIENT_SECRET")
 		}
-		return azidentity.NewDefaultAzureCredential(nil)
+		return azidentity.NewClientSecretCredential(tenantID, clientID, secret, nil)
 	}
 	return azidentity.NewWorkloadIdentityCredential(nil)
 }
