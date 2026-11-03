@@ -123,14 +123,14 @@ func (c ComponentConditionGetterImpl) logReasonMsgIfDependencyNotReady(ctx conte
 
 func (c ComponentConditionGetterImpl) getStoppingCondition(ctx context.Context, cli client.Client, mc v1beta1.Milvus) (v1beta1.MilvusCondition, error) {
 	reason := v1beta1.ReasonMilvusStopping
-	msg := MessageMilvusStopped
+	msg := MessageMilvusStopping
 	stopped, err := CheckMilvusStopped(ctx, cli, mc)
 	if err != nil {
 		return v1beta1.MilvusCondition{}, err
 	}
 	if stopped {
 		reason = v1beta1.ReasonMilvusStopped
-		msg = MessageMilvusStopping
+		msg = MessageMilvusStopped
 	}
 
 	return v1beta1.MilvusCondition{

@@ -58,6 +58,7 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *milvus)
 		assert.NoError(t, err)
 		assert.Equal(t, v1beta1.ReasonMilvusStopped, ret.Reason)
+		assert.Equal(t, MessageMilvusStopped, ret.Message)
 		assert.Equal(t, corev1.ConditionFalse, ret.Status)
 	})
 
@@ -70,6 +71,7 @@ func TestComponentConditionGetter_GetMilvusInstanceCondition(t *testing.T) {
 		ret, err := GetComponentConditionGetter().GetMilvusInstanceCondition(ctx, mockClient, *milvus)
 		assert.NoError(t, err)
 		assert.Equal(t, v1beta1.ReasonMilvusStopping, ret.Reason)
+		assert.Equal(t, MessageMilvusStopping, ret.Message)
 		assert.Equal(t, corev1.ConditionFalse, ret.Status)
 	})
 
