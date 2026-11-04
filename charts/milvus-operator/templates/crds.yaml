@@ -7316,6 +7316,12 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      serviceIPFamilyPolicy:
+                        enum:
+                        - SingleStack
+                        - PreferDualStack
+                        - RequireDualStack
+                        type: string
                       serviceLabels:
                         additionalProperties:
                           type: string
@@ -11219,6 +11225,12 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      serviceIPFamilyPolicy:
+                        enum:
+                        - SingleStack
+                        - PreferDualStack
+                        - RequireDualStack
+                        type: string
                       serviceLabels:
                         additionalProperties:
                           type: string
@@ -14408,6 +14420,12 @@ spec:
                 additionalProperties:
                   type: string
                 type: object
+              serviceIPFamilyPolicy:
+                enum:
+                - SingleStack
+                - PreferDualStack
+                - RequireDualStack
+                type: string
               serviceLabels:
                 additionalProperties:
                   type: string
@@ -22078,6 +22096,12 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      serviceIPFamilyPolicy:
+                        enum:
+                        - SingleStack
+                        - PreferDualStack
+                        - RequireDualStack
+                        type: string
                       serviceLabels:
                         additionalProperties:
                           type: string
@@ -25981,6 +26005,12 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      serviceIPFamilyPolicy:
+                        enum:
+                        - SingleStack
+                        - PreferDualStack
+                        - RequireDualStack
+                        type: string
                       serviceLabels:
                         additionalProperties:
                           type: string

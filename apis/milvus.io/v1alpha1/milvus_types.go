@@ -49,6 +49,13 @@ type MilvusSpec struct {
 	// +kubebuilder:default="ClusterIP"
 	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
 
+	// ServiceIPFamilyPolicy controls IP family allocation for the client Service.
+	// When omitted, Kubernetes defaults apply to new Services and existing Services
+	// keep their current policy. Removing this field does not reset the policy.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=SingleStack;PreferDualStack;RequireDualStack
+	ServiceIPFamilyPolicy *corev1.IPFamilyPolicy `json:"serviceIPFamilyPolicy,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	DisableMetric bool `json:"disableMetric,omitempty"`
 

@@ -34,6 +34,10 @@ func (r *MilvusReconciler) updateService(
 	}
 
 	service.Spec.Type = component.GetServiceType(mc.Spec)
+	if policy := mc.Spec.GetServiceComponent().ServiceIPFamilyPolicy; policy != nil {
+		value := *policy
+		service.Spec.IPFamilyPolicy = &value
+	}
 
 	if mc.Spec.Mode == v1beta1.MilvusModeCluster {
 		service.Labels = MergeLabels(service.Labels, mc.Spec.Com.Proxy.ServiceLabels)
