@@ -1,0 +1,10 @@
+# Requires a dual-stack cluster and IPv6-capable Milvus pods and listeners.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: milvus-dual-stack
+spec:
+  mode: cluster
+  components:
+    proxy:
+      serviceIPFamilyPolicy: PreferDualStack

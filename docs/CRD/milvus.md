@@ -258,7 +258,8 @@ spec:
   # ... Skipped fields
 ```
 
-The `proxy` & `standalone` component is special. These 2 spec have not only all basic fields as other components, but also specifications about its `serviceType`
+The `proxy` and `standalone` components also configure the client-facing Service
+through `serviceType` and `serviceIPFamilyPolicy`.
 
 proxy component:
 
@@ -270,6 +271,7 @@ spec:
       
     proxy: # Optional
       serviceType: ClusterIP # Optional ("ClusterIP", "NodePort", "LoadBalancer")
+      serviceIPFamilyPolicy: PreferDualStack # Optional ("SingleStack", "PreferDualStack", "RequireDualStack")
       # ... Skipped fields
 
     # ... Skipped fields
@@ -285,11 +287,28 @@ spec:
       
     standalone: # Optional
       serviceType: ClusterIP # Optional ("ClusterIP", "NodePort", "LoadBalancer")
+      serviceIPFamilyPolicy: PreferDualStack # Optional ("SingleStack", "PreferDualStack", "RequireDualStack")
       # ... Skipped fields
 
     # ... Skipped fields
   # ... Skipped fields
 ```
+
+When `serviceIPFamilyPolicy` is omitted, Kubernetes defaults apply to new Services
+and existing Services retain their policy. Removing the field does not reset the
+policy.
+
+`SingleStack` requests one IP family. `PreferDualStack` requests both IPv4 and
+IPv6 when the Kubernetes cluster supports dual-stack and falls back to a single
+family otherwise. `RequireDualStack` requires both families. The cluster network
+and Milvus listeners must support IPv6 to serve IPv6 clients.
+
+The operator updates the policy on existing Services and leaves address
+allocation to Kubernetes. Switching from dual-stack to `SingleStack` retains the
+primary ClusterIP and removes the secondary address and IP family. Clients using
+the removed address must reconnect through the remaining address. See the
+[Kubernetes dual-stack documentation](https://kubernetes.io/docs/concepts/services-networking/dual-stack/#switching-services-between-single-stack-and-dual-stack)
+for details on policy transitions.
 
 ### Config
 Config overrides the fields of Milvus Cluster's config file template. 

@@ -658,6 +658,11 @@ func (in *MilvusSpec) DeepCopyInto(out *MilvusSpec) {
 		*out = new(v1beta1.MilvusIngress)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.ServiceIPFamilyPolicy != nil {
+		in, out := &in.ServiceIPFamilyPolicy, &out.ServiceIPFamilyPolicy
+		*out = new(v1.IPFamilyPolicy)
+		**out = **in
+	}
 	if in.ServiceLabels != nil {
 		in, out := &in.ServiceLabels, &out.ServiceLabels
 		*out = make(map[string]string, len(*in))

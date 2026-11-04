@@ -51,10 +51,11 @@ func (r *MilvusSpec) ConvertSpecTo(dst *v1beta1.MilvusSpec) {
 					ComponentSpec: r.ComponentSpec,
 					Replicas:      r.Replicas,
 				},
-				ServiceType:        r.ServiceType,
-				ServiceLabels:      r.ServiceLabels,
-				ServiceAnnotations: r.ServiceAnnotations,
-				Ingress:            r.Ingress,
+				ServiceType:           r.ServiceType,
+				ServiceIPFamilyPolicy: r.ServiceIPFamilyPolicy,
+				ServiceLabels:         r.ServiceLabels,
+				ServiceAnnotations:    r.ServiceAnnotations,
+				Ingress:               r.Ingress,
 			},
 		},
 	}
@@ -73,6 +74,7 @@ func (r *Milvus) ConvertFrom(srcRaw conversion.Hub) error {
 
 	r.Spec.Replicas = src.Spec.Com.Standalone.Replicas
 	r.Spec.ServiceType = src.Spec.Com.Standalone.ServiceType
+	r.Spec.ServiceIPFamilyPolicy = src.Spec.Com.Standalone.ServiceIPFamilyPolicy
 	r.Spec.ServiceLabels = src.Spec.Com.Standalone.ServiceLabels
 	r.Spec.ServiceAnnotations = src.Spec.Com.Standalone.ServiceAnnotations
 	r.Spec.Ingress = src.Spec.Com.Standalone.Ingress
