@@ -2,10 +2,12 @@ package helm
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
 
@@ -111,9 +113,28 @@ func (d *LocalClient) Install(cfg *action.Configuration, request ChartRequest) e
 }
 
 func (d *LocalClient) Uninstall(cfg *action.Configuration, releaseName string) error {
-	_, err := cfg.Releases.History(releaseName)
+	rel, err := cfg.Releases.Last(releaseName)
 	if errors.Is(err, driver.ErrReleaseNotFound) {
 		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	// Helm reads retention annotations from the stored manifest, not the live PVC.
+	// Protect older releases too; Finalize owns explicit deletion via pvcDeletion.
+	if rel.Info.Status != release.StatusUninstalled {
+		manifest, changed, err := keepPVCs(rel.Manifest)
+		if err != nil {
+			return fmt.Errorf("protect PVCs in release %s: %w", releaseName, err)
+		}
+		if changed {
+			updated := *rel
+			updated.Manifest = manifest
+			if err := cfg.Releases.Update(&updated); err != nil {
+				return fmt.Errorf("store PVC retention for release %s: %w", releaseName, err)
+			}
+		}
 	}
 
 	client := action.NewUninstall(cfg)
@@ -194,6 +215,18 @@ func GetChartRequest(mc v1beta1.Milvus, dep values.DependencyKind, chart string)
 		if name, _ := serviceAccount["name"].(string); name == "" {
 			serviceAccount["name"] = mc.Name + "-minio"
 		}
+		// Keep PVC deletion under the operator's pvcDeletion policy for every chart revision.
+		persistence, _ := chartValues["persistence"].(map[string]any)
+		if persistence == nil {
+			persistence = make(map[string]any)
+			chartValues["persistence"] = persistence
+		}
+		annotations, _ := persistence["annotations"].(map[string]any)
+		if annotations == nil {
+			annotations = make(map[string]any)
+			persistence["annotations"] = annotations
+		}
+		annotations[kube.ResourcePolicyAnno] = kube.KeepPolicy
 	}
 	return ChartRequest{
 		ReleaseName: mc.Name + "-" + chartKind,
