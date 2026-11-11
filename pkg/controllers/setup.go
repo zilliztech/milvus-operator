@@ -52,7 +52,8 @@ func SetupControllers(ctx context.Context, mgr manager.Manager, stopReconcilers 
 			logger:         logger.WithName("milvus"),
 			helmReconciler: helmReconciler,
 			statusSyncer:   statusSyncer,
-			record:         mgr.GetEventRecorderFor("milvus-operator"),
+			// Retain core/v1 events and existing RBAC during the security upgrade.
+			record: mgr.GetEventRecorderFor("milvus-operator"), //nolint:staticcheck // SA1019: preserve the existing events API.
 		}
 		k8sUtil := NewK8sUtil(mgr.GetClient())
 		bizUtilFactory := NewDeployControllerBizUtilFactory(mgr.GetClient(), k8sUtil)
