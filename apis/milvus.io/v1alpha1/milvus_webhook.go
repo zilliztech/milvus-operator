@@ -51,6 +51,7 @@ func (r *MilvusSpec) ConvertSpecTo(dst *v1beta1.MilvusSpec) {
 					Replicas:      r.Replicas,
 				},
 				ServiceType:           r.ServiceType,
+				AdditionalPort:        r.AdditionalPort,
 				ServiceIPFamilyPolicy: r.ServiceIPFamilyPolicy,
 				ServiceLabels:         r.ServiceLabels,
 				ServiceAnnotations:    r.ServiceAnnotations,
@@ -73,6 +74,7 @@ func (r *Milvus) ConvertFrom(srcRaw conversion.Hub) error {
 
 	r.Spec.Replicas = src.Spec.Com.Standalone.Replicas
 	r.Spec.ServiceType = src.Spec.Com.Standalone.ServiceType
+	r.Spec.AdditionalPort = src.Spec.Com.Standalone.AdditionalPort
 	r.Spec.ServiceIPFamilyPolicy = src.Spec.Com.Standalone.ServiceIPFamilyPolicy
 	r.Spec.ServiceLabels = src.Spec.Com.Standalone.ServiceLabels
 	r.Spec.ServiceAnnotations = src.Spec.Com.Standalone.ServiceAnnotations

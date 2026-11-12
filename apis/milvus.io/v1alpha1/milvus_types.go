@@ -56,6 +56,13 @@ type MilvusSpec struct {
 	// +kubebuilder:validation:Enum=SingleStack;PreferDualStack;RequireDualStack
 	ServiceIPFamilyPolicy *corev1.IPFamilyPolicy `json:"serviceIPFamilyPolicy,omitempty"`
 
+	// AdditionalPort exposes one additional TCP listener on the standalone client Service.
+	// Zero or omitted declares no additional port; configure the process listener separately.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=65535
+	AdditionalPort int32 `json:"additionalPort,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	DisableMetric bool `json:"disableMetric,omitempty"`
 

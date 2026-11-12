@@ -6009,6 +6009,11 @@ spec:
                     x-kubernetes-preserve-unknown-fields: true
                   proxy:
                     properties:
+                      additionalPort:
+                        format: int32
+                        maximum: 65535
+                        minimum: 0
+                        type: integer
                       affinity:
                         properties:
                           nodeAffinity:
@@ -10540,6 +10545,11 @@ spec:
                     type: string
                   standalone:
                     properties:
+                      additionalPort:
+                        format: int32
+                        maximum: 65535
+                        minimum: 0
+                        type: integer
                       affinity:
                         properties:
                           nodeAffinity:
