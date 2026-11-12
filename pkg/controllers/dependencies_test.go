@@ -255,13 +255,13 @@ func TestLocalHelmReconciler_reconcilePVCs(t *testing.T) {
 		fakeClientset := fakekubernetes.NewClientset()
 		rec.clientset = fakeClientset
 
-		// Insert a ControllerRevision with malformed data to trigger unmarshal error in GetSavedObject
+		// Keep the revision valid JSON while making the saved StatefulSet fail decoding.
 		cr := &appsv1.ControllerRevision{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "bad-sts-old-sts",
 				Namespace: "test-namespace",
 			},
-			Data: runtime.RawExtension{Raw: []byte("not-valid-yaml{{{")},
+			Data: runtime.RawExtension{Raw: []byte(`{"spec":{"replicas":"invalid"}}`)},
 		}
 		err = fakeClient.Create(ctx, cr)
 		assert.NoError(t, err)

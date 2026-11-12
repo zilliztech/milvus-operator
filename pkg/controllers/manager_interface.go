@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -15,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 )
 
 //go:generate mockgen -package=controllers -source=manager_interface.go -destination=manager_mock.go Manager
@@ -54,6 +56,9 @@ type Manager interface {
 	// GetEventRecorderFor returns a new record.EventRecorder for the provided name
 	GetEventRecorderFor(name string) record.EventRecorder
 
+	// GetEventRecorder returns a recorder for the events API.
+	GetEventRecorder(name string) events.EventRecorder
+
 	// GetRESTMapper returns the meta.RESTMapper used by the Manager
 	GetRESTMapper() meta.RESTMapper
 
@@ -62,6 +67,9 @@ type Manager interface {
 
 	// GetWebhookServer returns the webhook server used by the Manager
 	GetWebhookServer() webhook.Server
+
+	// GetConverterRegistry returns the webhook conversion registry.
+	GetConverterRegistry() conversion.Registry
 
 	// GetLogger returns the logger used by the Manager
 	GetLogger() logr.Logger

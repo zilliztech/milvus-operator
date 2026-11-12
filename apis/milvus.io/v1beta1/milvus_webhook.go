@@ -29,7 +29,6 @@ import (
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/zilliztech/milvus-operator/pkg/config"
@@ -38,8 +37,9 @@ import (
 )
 
 func (r *Milvus) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
+	return ctrl.NewWebhookManagedBy(mgr, r).
+		WithDefaulter(resourceWebhook[*Milvus]{}).
+		WithValidator(resourceWebhook[*Milvus]{}).
 		Complete()
 }
 
@@ -47,9 +47,7 @@ func (r *Milvus) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 //+kubebuilder:webhook:path=/mutate-milvus-io-v1beta1-milvus,mutating=true,failurePolicy=fail,sideEffects=None,groups=milvus.io,resources=milvuses,verbs=create;update,versions=v1beta1,name=mmilvus.kb.io,admissionReviewVersions=v1
 
-var _ webhook.Defaulter = &Milvus{}
-
-// Default implements webhook.Defaulter so a webhook will be registered for the type
+// Default applies the Milvus resource defaults.
 func (r *Milvus) Default() {
 	r.DefaultMeta()
 	r.DefaultMode()
@@ -61,9 +59,7 @@ func (r *Milvus) Default() {
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
 //+kubebuilder:webhook:path=/validate-milvus-io-v1beta1-milvus,mutating=false,failurePolicy=fail,sideEffects=None,groups=milvus.io,resources=milvuses,verbs=create;update,versions=v1beta1,name=vmilvus.kb.io,admissionReviewVersions=v1
 
-var _ webhook.Validator = &Milvus{}
-
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
+// ValidateCreate validates a new Milvus resource.
 func (r *Milvus) ValidateCreate() (admission.Warnings, error) {
 	var allErrs field.ErrorList
 	if err := r.validateCommon(); err != nil {
@@ -135,7 +131,7 @@ func (r *Milvus) validatePersistConfig() *field.Error {
 	return nil
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
+// ValidateUpdate validates an updated Milvus resource.
 func (r *Milvus) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	_, ok := old.(*Milvus)
 	if !ok {
