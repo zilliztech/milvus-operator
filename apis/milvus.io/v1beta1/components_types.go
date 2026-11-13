@@ -529,6 +529,15 @@ type ServiceComponent struct {
 	// +kubebuilder:validation:Optional
 	ServiceRestfulPort int32 `json:"serviceRestfulPort,omitempty"`
 
+	// AdditionalPort exposes one additional TCP listener on the Milvus container
+	// and client Service. The Service port is named "additional" and the
+	// container port is named "additional". Zero or omitted declares no additional port.
+	// The Milvus process must be configured separately to listen on this port.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=65535
+	AdditionalPort int32 `json:"additionalPort,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	ServiceLabels map[string]string `json:"serviceLabels,omitempty"`
 

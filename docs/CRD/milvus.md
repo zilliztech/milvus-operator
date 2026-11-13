@@ -259,7 +259,7 @@ spec:
 ```
 
 The `proxy` and `standalone` components also configure the client-facing Service
-through `serviceType` and `serviceIPFamilyPolicy`.
+through `serviceType`, `serviceIPFamilyPolicy`, and `additionalPort`.
 
 proxy component:
 
@@ -272,6 +272,7 @@ spec:
     proxy: # Optional
       serviceType: ClusterIP # Optional ("ClusterIP", "NodePort", "LoadBalancer")
       serviceIPFamilyPolicy: PreferDualStack # Optional ("SingleStack", "PreferDualStack", "RequireDualStack")
+      additionalPort: 19632 # Optional additional TCP listener; 0 or omitted declares no additional port
       # ... Skipped fields
 
     # ... Skipped fields
@@ -288,11 +289,20 @@ spec:
     standalone: # Optional
       serviceType: ClusterIP # Optional ("ClusterIP", "NodePort", "LoadBalancer")
       serviceIPFamilyPolicy: PreferDualStack # Optional ("SingleStack", "PreferDualStack", "RequireDualStack")
+      additionalPort: 19632 # Optional additional TCP listener; 0 or omitted declares no additional port
       # ... Skipped fields
 
     # ... Skipped fields
   # ... Skipped fields
 ```
+
+`additionalPort` exposes one TCP port named `additional` on the client
+Service, targeting the Milvus container port named `additional` on the same
+number. Configure the process to listen on that port separately. The port must
+be distinct from the primary, metrics, REST and sidecar TCP ports. Reconciliation
+uses the same Service port merge behavior as the primary and REST ports, preserving
+allocated NodePorts. Removing the setting stops declaring the port but does not
+prune its entry from an existing Service.
 
 When `serviceIPFamilyPolicy` is omitted, Kubernetes defaults apply to new Services
 and existing Services retain their policy. Removing the field does not reset the

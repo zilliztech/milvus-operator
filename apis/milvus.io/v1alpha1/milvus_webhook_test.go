@@ -43,3 +43,15 @@ func TestMilvus_ServiceIPFamilyPolicyConversion(t *testing.T) {
 		})
 	}
 }
+
+func TestMilvusAdditionalPortConversion(t *testing.T) {
+	for _, port := range []int32{0, 19632} {
+		original := &Milvus{Spec: MilvusSpec{AdditionalPort: port}}
+		hub := &v1beta1.Milvus{}
+		require.NoError(t, original.ConvertTo(hub))
+		require.Equal(t, port, hub.Spec.Com.Standalone.AdditionalPort)
+		roundTrip := &Milvus{}
+		require.NoError(t, roundTrip.ConvertFrom(hub))
+		require.Equal(t, port, roundTrip.Spec.AdditionalPort)
+	}
+}

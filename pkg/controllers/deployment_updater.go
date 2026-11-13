@@ -454,6 +454,11 @@ func updateMilvusContainer(template *corev1.PodTemplateSpec, updater deploymentU
 				Protocol:      corev1.ProtocolTCP,
 			})
 		}
+		if port := updater.GetMilvus().Spec.GetServiceComponent().AdditionalPort; port > 0 {
+			container.Ports = append(container.Ports, corev1.ContainerPort{
+				Name: AdditionalPortName, ContainerPort: port, Protocol: corev1.ProtocolTCP,
+			})
+		}
 	} else {
 		container.Ports = []corev1.ContainerPort{metricPort}
 	}

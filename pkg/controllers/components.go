@@ -23,7 +23,8 @@ const (
 	MetricPortName     = "metrics"
 	MetricPath         = "/metrics"
 
-	RestfulPortName = "restful"
+	RestfulPortName    = "restful"
+	AdditionalPortName = "additional"
 
 	MixCoordName      = v1beta1.MixCoordName
 	RootCoordName     = v1beta1.RootCoordName
@@ -519,6 +520,18 @@ func (c MilvusComponent) GetServicePorts(spec v1beta1.MilvusSpec) []corev1.Servi
 		})
 	}
 
+	if c.IsService() {
+		if port := spec.GetServiceComponent().AdditionalPort; port > 0 {
+			targetPort = intstr.FromString(AdditionalPortName)
+			if spec.Com.TargetPortType == v1beta1.ServiceTargetPortTypInteger {
+				targetPort = intstr.FromInt32(port)
+			}
+			servicePorts = append(servicePorts, corev1.ServicePort{
+				Name: AdditionalPortName, Protocol: corev1.ProtocolTCP,
+				Port: port, TargetPort: targetPort,
+			})
+		}
+	}
 	return servicePorts
 }
 
