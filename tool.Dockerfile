@@ -1,4 +1,4 @@
-FROM golang:1.26.9 as builder
+FROM golang:1.27.4@sha256:fe517acaa580cc7915457080f850c37e618b3c1e750f98b58fc6429b605147a1 AS builder
 
 WORKDIR /workspace
 # ENV GOPROXY https://goproxy.cn
