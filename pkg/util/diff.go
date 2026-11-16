@@ -11,7 +11,7 @@ func typeAndKind(v interface{}) (reflect.Type, reflect.Kind) {
 	t := reflect.TypeOf(v)
 	k := t.Kind()
 
-	if k == reflect.Ptr {
+	if k == reflect.Pointer {
 		t = t.Elem()
 		k = t.Kind()
 	}

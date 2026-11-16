@@ -26,7 +26,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.26.9
+          go-version: 1.27.4
           cache: false
       - name: Cache Go Mod Pkg
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -43,7 +43,7 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           args: --verbose
-          version: v2.10.0
+          version: v2.15.0
   unit-test:
     name: Unit Test
     runs-on: ubuntu-latest
@@ -58,7 +58,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.26.9
+          go-version: 1.27.4
           cache: false
       - name: Cache Go Mod Pkg
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
