@@ -85,6 +85,24 @@ If your Milvus resource and OBC share a name, set `spec.components.activeConfigM
 
 If a Secret contains multiple supported formats, the operator checks `accesskey`/`secretkey` first, then `rootUser`/`rootPassword`, then `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`. The first format with either key present takes precedence and must contain both keys. The OBC keys must also have nonempty values.
 
+## Trust a custom CA for an HTTPS endpoint
+
+Store the PEM CA bundle in a ConfigMap in the Milvus namespace. For a self-signed endpoint, use its public certificate. Set `caConfigMapRef` to the ConfigMap name and enable TLS for both the operator and Milvus. The readiness probe uses the bundle to verify the endpoint. At startup, Milvus pods append it to the image's system CA bundle at `/etc/ssl/certs/ca-certificates.crt` and mount the combined bundle read-only. Restart the pods after replacing the CA bundle.
+
+```yaml
+spec:
+  dependencies:
+    storage:
+      ssl:
+        enabled: true
+        caConfigMapRef: s3-ca
+  config:
+    minio:
+      useSSL: true
+```
+
+The default ConfigMap key is `ca.crt`. Set `caConfigMapKey` under `storage.ssl` for bundles using another key, such as OpenShift's `service-ca.crt`. Use one CA reference per endpoint, either `caConfigMapRef` or the existing `caCertificateRef` for a Secret.
+
 
 # Use AWS S3 as External object storage
 Let's take a look at the [AWS S3 example](../../../config/samples/milvus_s3.yaml)

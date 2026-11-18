@@ -458,7 +458,13 @@ func (r *MilvusStatusSyncer) GetMinioCondition(
 		UseVirtualHost: ShouldUseVirtualHost(mc.Spec.Conf.Data),
 	}
 	getter := wrapMinioConditionGetter(ctx, r.logger, r.Client, info)
-	return GetCondition(getter, []string{mc.Spec.Dep.Storage.Endpoint}), nil
+	probeKey := []string{info.Storage.Endpoint}
+	if ssl := info.Storage.SSL; ssl != nil && ssl.Enabled && ssl.CAConfigMapRef != "" {
+		// A CA ConfigMap is namespace-scoped. Do not reuse a probe made for
+		// another Milvus resource that connects to the same endpoint.
+		probeKey = append(probeKey, "storage-ca:"+mc.Namespace+"/"+mc.Name)
+	}
+	return GetCondition(getter, probeKey), nil
 }
 
 func (r *MilvusStatusSyncer) GetEtcdCondition(ctx context.Context, mc v1beta1.Milvus) (v1beta1.MilvusCondition, error) {
