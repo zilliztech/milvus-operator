@@ -31,8 +31,6 @@ func TestStorageSecretFormats(t *testing.T) {
 		keys []string
 		want [2]string
 	}{
-		{"legacy", []string{"accesskey", "secretkey"}, [2]string{"accesskey", "secretkey"}},
-		{"silo", []string{"rootUser", "rootPassword"}, [2]string{"rootUser", "rootPassword"}},
 		{"obc", []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}, [2]string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}},
 		{"legacy takes precedence", []string{"accesskey", "secretkey", "rootUser", "rootPassword", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}, [2]string{"accesskey", "secretkey"}},
 		{"silo takes precedence over obc", []string{"rootUser", "rootPassword", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}, [2]string{"rootUser", "rootPassword"}},
@@ -86,17 +84,6 @@ func TestStorageSecretFormats(t *testing.T) {
 			assertStorageSecretEnv(t, env, secret.Name, tc.want)
 		})
 	}
-}
-
-func TestResolveStorageSecretRefEnvMissingSecret(t *testing.T) {
-	r := MilvusReconciler{Client: fake.NewClientBuilder().Build()}
-	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "test"}}
-	env, err := r.resolveStorageSecretRefEnv(context.Background(), mc)
-	require.NoError(t, err)
-	assert.Empty(t, env)
-	mc.Spec.Dep.Storage.SecretRef = "missing"
-	_, err = r.resolveStorageSecretRefEnv(context.Background(), mc)
-	require.ErrorContains(t, err, "get storage secret for pod environment")
 }
 
 func assertStorageSecretEnv(t *testing.T, env []corev1.EnvVar, secretName string, keys [2]string) {

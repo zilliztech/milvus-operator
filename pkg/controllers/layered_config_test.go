@@ -10,6 +10,8 @@ import (
 	"go.uber.org/mock/gomock"
 	"helm.sh/helm/v3/pkg/action"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/helm"
@@ -33,6 +35,31 @@ func TestSupportsLayeredConfig(t *testing.T) {
 		{"milvus:v2.6.20", "invalid", false},
 	} {
 		t.Run(tt.image+tt.version, func(t *testing.T) { assert.Equal(t, tt.want, supportsLayeredConfig(tt.image, tt.version)) })
+	}
+}
+
+func TestResolveStorageSecretRefEnv(t *testing.T) {
+	for _, keys := range [][2]string{{AccessKey, SecretKey}, {"rootUser", "rootPassword"}, {"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}} {
+		t.Run(keys[0], func(t *testing.T) {
+			secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "storage", Namespace: "test"}, Data: map[string][]byte{keys[0]: []byte("user"), keys[1]: []byte("password")}}
+			r := MilvusReconciler{Client: fake.NewClientBuilder().WithObjects(secret).Build()}
+			mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "test"}}
+			mc.Spec.Dep.Storage.SecretRef = "storage"
+			env, err := r.resolveStorageSecretRefEnv(context.Background(), mc)
+			require.NoError(t, err)
+			require.Len(t, env, 4)
+			for i, e := range env {
+				assert.Equal(t, keys[i/2], e.ValueFrom.SecretKeyRef.Key)
+				assert.Empty(t, e.Value)
+			}
+			mc.Spec.Dep.Storage.SecretRef = "missing"
+			_, err = r.resolveStorageSecretRefEnv(context.Background(), mc)
+			require.Error(t, err)
+			mc.Spec.Dep.Storage.SecretRef = ""
+			env, err = r.resolveStorageSecretRefEnv(context.Background(), mc)
+			require.NoError(t, err)
+			assert.Empty(t, env)
+		})
 	}
 }
 
@@ -100,4 +127,14 @@ func TestStorageChartCompatibility(t *testing.T) {
 			assert.ErrorIs(t, err, tc.err)
 		})
 	}
+}
+
+func TestStorageSecretKeys(t *testing.T) {
+	for _, names := range [][2]string{{"accesskey", "secretkey"}, {"rootUser", "rootPassword"}, {"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}} {
+		keys, ok := storageSecretKeys(map[string][]byte{names[0]: []byte("test-user"), names[1]: []byte("test-password")})
+		assert.True(t, ok)
+		assert.Equal(t, names, [2]string{keys.access, keys.secret})
+	}
+	_, ok := storageSecretKeys(map[string][]byte{"accesskey": []byte("user"), "rootPassword": []byte("password")})
+	assert.False(t, ok, "must not mix legacy and Silo credential pairs")
 }
