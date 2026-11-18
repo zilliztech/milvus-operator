@@ -69,14 +69,12 @@ metadata:
   name: milvus
   namespace: milvus
 spec:
-  components:
-    activeConfigMap: milvus-config
   dependencies:
     storage:
       external: true
       type: S3
       endpoint: rook-ceph-rgw-my-store.rook-ceph.svc:443
-      secretRef: milvus
+      secretRef: milvus-bucket
   config:
     minio:
       bucketName: milvus-test
@@ -85,7 +83,7 @@ spec:
 
 If the endpoint's certificate uses a private CA, configure `spec.dependencies.storage.ssl` with `enabled: true` and `caCertificateRef` to a Secret containing the CA under `ca.crt` for the operator's readiness check. Mount the CA into the Milvus pods using `spec.components.volumes` and `spec.components.volumeMounts`, and set `spec.config.minio.ssl.tlsCACert` to the mounted CA file path.
 
-When the Milvus and OBC resources have the same name, set `spec.components.activeConfigMap` to a different name for the Milvus configuration, as shown above.
+If your Milvus resource and OBC share a name, set `spec.components.activeConfigMap` to a separate name, such as `milvus-config`, to avoid a collision with the OBC's ConfigMap.
 
 If a Secret contains multiple supported formats, the operator checks `accesskey`/`secretkey` first, then `rootUser`/`rootPassword`, then `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`. The first format with either key present takes precedence and must contain both keys. The OBC keys must also have nonempty values.
 
