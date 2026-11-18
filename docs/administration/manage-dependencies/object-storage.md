@@ -60,7 +60,7 @@ Milvus Operator supports Secrets from provisioners that implement the `ObjectBuc
 
 When the claim is bound, set `spec.dependencies.storage.secretRef` to the name of its generated Secret in the Milvus namespace. The operator uses the pair for storage readiness and passes it to Milvus pods through Secret key references.
 
-Use `BUCKET_HOST`, `BUCKET_PORT`, and `BUCKET_NAME` from the generated ConfigMap to set the endpoint and bucket. Set `useSSL` according to the endpoint. This example uses Rook-Ceph RGW over HTTPS on port `443`.
+Use `BUCKET_HOST`, `BUCKET_PORT`, and `BUCKET_NAME` from the generated ConfigMap to set the endpoint and bucket. Set `spec.config.minio.useSSL` to match the endpoint. This example uses an OBC named `milvus-bucket` and a Rook-Ceph endpoint on HTTPS port `443`.
 
 ```yaml
 apiVersion: milvus.io/v1beta1
@@ -80,8 +80,6 @@ spec:
       bucketName: milvus-test
       useSSL: true
 ```
-
-If the endpoint's certificate uses a private CA, configure `spec.dependencies.storage.ssl` with `enabled: true` and `caCertificateRef` to a Secret containing the CA under `ca.crt` for the operator's readiness check. Mount the CA into the Milvus pods using `spec.components.volumes` and `spec.components.volumeMounts`, and set `spec.config.minio.ssl.tlsCACert` to the mounted CA file path.
 
 If your Milvus resource and OBC share a name, set `spec.components.activeConfigMap` to a separate name, such as `milvus-config`, to avoid a collision with the OBC's ConfigMap.
 
