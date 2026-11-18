@@ -54,6 +54,37 @@ Milvus supports any S3 compatible service as external object storage, for exampl
 
 To use an external object storage, you need to properly set fields under `spec.dependencies.storage` & `spec.config.minio` in the `Milvus` CRD. 
 
+## Use a Rook-Ceph ObjectBucketClaim
+
+When the [ObjectBucketClaim](https://rook.io/docs/rook/latest-release/Storage-Configuration/Object-Storage-RGW/ceph-object-bucket-claim/) is bound, set `spec.dependencies.storage.secretRef` to the name of its generated Secret in the Milvus namespace. Milvus Operator reads `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for the storage readiness check and passes them to Milvus pods through Secret key references.
+
+Use `BUCKET_HOST`, `BUCKET_PORT`, and `BUCKET_NAME` from the generated ConfigMap to set the endpoint and bucket. Set `useSSL` according to the selected RGW listener. This example uses HTTPS on port `443`.
+
+```yaml
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: milvus
+  namespace: milvus
+spec:
+  dependencies:
+    storage:
+      external: true
+      type: S3
+      endpoint: rook-ceph-rgw-my-store.rook-ceph.svc:443
+      secretRef: milvus
+  config:
+    minio:
+      bucketName: milvus-test
+      useSSL: true
+```
+
+If the RGW certificate uses a private CA, configure `spec.dependencies.storage.ssl` with `enabled: true` and `caCertificateRef` to a Secret containing the CA under `ca.crt` for the operator's readiness check. Mount the CA into the Milvus pods using `spec.components.volumes` and `spec.components.volumeMounts`, and set `spec.config.minio.ssl.tlsCACert` to the mounted CA file path.
+
+When the OBC owns the default ConfigMap name, the operator renders Milvus configuration into `<milvus-name>-config`. You can set `spec.components.activeConfigMap` to choose a different name.
+
+If a Secret contains multiple supported formats, the operator checks `accesskey`/`secretkey` first, then `rootUser`/`rootPassword`, then `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`. The first format with either key present takes precedence and must contain both keys. The OBC keys must also have nonempty values.
+
 
 # Use AWS S3 as External object storage
 Let's take a look at the [AWS S3 example](../../../config/samples/milvus_s3.yaml)

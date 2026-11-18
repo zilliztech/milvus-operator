@@ -1,11 +1,16 @@
 package external
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	madmin "github.com/minio/madmin-go"
+	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 	"github.com/zilliztech/milvus-operator/pkg/util"
@@ -116,6 +121,24 @@ func TestCheckMinIOAzure(t *testing.T) {
 		UseIAM:   true,
 	})
 	assert.NoError(t, err)
+}
+
+func TestCheckMinIORedactsCredentialsInEndpointError(t *testing.T) {
+	defer gostub.Stub(&util.DefaultMaxRetry, 1).Stub(&util.DefaultBackOffInterval, time.Duration(0)).Reset()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte("<Error><Code>InvalidAccessKeyId</Code><Message>denied obc-test-key and obc-test-key-secret</Message></Error>"))
+	}))
+	defer server.Close()
+	err := CheckMinIO(CheckMinIOArgs{
+		Type:     v1beta1.StorageTypeS3,
+		AK:       "obc-test-key",
+		SK:       "obc-test-key-secret",
+		Endpoint: strings.TrimPrefix(server.URL, "http://"),
+		Bucket:   "test-bucket",
+	})
+	require.ErrorContains(t, err, "denied [redacted] and [redacted]")
 }
 
 func TestIsHealthyByServerInfo(t *testing.T) {

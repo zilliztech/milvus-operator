@@ -34,7 +34,7 @@ const (
 	MessageMsgStreamReady    = "MsgStream is ready"
 	MessageMsgStreamNotReady = "MsgStream is not ready"
 	MessageSecretNotExist    = "Secret not exist"
-	MessageKeyNotExist       = "accesskey or secretkey not exist in secret"
+	MessageKeyNotExist       = "storage Secret requires a complete credential pair (accesskey/secretkey, rootUser/rootPassword, or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)"
 	MessageDecodeErr         = "accesskey or secretkey decode error"
 	MessageMilvusHealthy     = "All Milvus components are healthy"
 	MessageMilvusStopped     = "All Milvus components are stopped"

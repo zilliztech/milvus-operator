@@ -114,11 +114,11 @@ func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Clien
 		if k8sErrors.IsNotFound(err) {
 			return newErrStorageCondResult(v1beta1.ReasonSecretNotExist, MessageSecretNotExist)
 		}
-		var exist1, exist2 bool
-		accesskey, secretkey, exist1, exist2 = storageSecretKeys(secret.Data)
-		if !exist1 || !exist2 {
+		keys, ok := storageSecretKeys(secret.Data)
+		if !ok {
 			return newErrStorageCondResult(v1beta1.ReasonSecretNotExist, MessageKeyNotExist)
 		}
+		accesskey, secretkey = secret.Data[keys.access], secret.Data[keys.secret]
 	}
 	ak := string(accesskey)
 	if info.Storage.Type == v1beta1.StorageTypeAzure && len(ak) == 0 {

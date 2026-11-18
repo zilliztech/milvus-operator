@@ -61,6 +61,9 @@ func (r *MilvusReconciler) ReconcileMilvus(ctx context.Context, mc v1beta1.Milvu
 		return nil
 	}
 
+	if err := r.resolveActiveConfigMap(ctx, &mc); err != nil {
+		return fmt.Errorf("resolve active configmap: %w", err)
+	}
 	if err := r.ReconcileConfigMaps(ctx, mc); err != nil {
 		return fmt.Errorf("configmap: %w", err)
 	}

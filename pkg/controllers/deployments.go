@@ -116,7 +116,49 @@ func GetKafkaSecretRefEnv(secretRef string) []corev1.EnvVar {
 	return env
 }
 
+type storageCredentialKeys struct {
+	access string
+	secret string
+}
+
+var legacyStorageCredentialKeys = storageCredentialKeys{AccessKey, SecretKey}
+
+func storageSecretKeys(data map[string][]byte) (storageCredentialKeys, bool) {
+	// Preserve the existing format when either of its keys is present, even if
+	// the other key is missing. This prevents a partial pair from falling back.
+	for _, keys := range []storageCredentialKeys{legacyStorageCredentialKeys, {"rootUser", "rootPassword"}} {
+		_, hasAccess := data[keys.access]
+		_, hasSecret := data[keys.secret]
+		if hasAccess || hasSecret {
+			return keys, hasAccess && hasSecret
+		}
+	}
+	keys := storageCredentialKeys{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}
+	return keys, len(data[keys.access]) > 0 && len(data[keys.secret]) > 0
+}
+
+func (r *MilvusReconciler) resolveStorageSecretRefEnv(ctx context.Context, mc v1beta1.Milvus) ([]corev1.EnvVar, error) {
+	ref := mc.Spec.Dep.Storage.SecretRef
+	if ref == "" {
+		return nil, nil
+	}
+	namespacedName := NamespacedName(mc.Namespace, ref)
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, namespacedName, secret); err != nil {
+		return nil, pkgerr.Wrap(err, "get storage secret for pod environment")
+	}
+	keys, ok := storageSecretKeys(secret.Data)
+	if !ok {
+		return nil, fmt.Errorf("storage Secret %s: %s", namespacedName, MessageKeyNotExist)
+	}
+	return storageSecretRefEnv(ref, keys), nil
+}
+
 func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
+	return storageSecretRefEnv(secretRef, legacyStorageCredentialKeys)
+}
+
+func storageSecretRefEnv(secretRef string, keys storageCredentialKeys) []corev1.EnvVar {
 	env := []corev1.EnvVar{}
 	if secretRef == "" {
 		return env
@@ -131,7 +173,7 @@ func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: secretRef,
 				},
-				Key: AccessKey,
+				Key: keys.access,
 			},
 		},
 	}, corev1.EnvVar{
@@ -141,7 +183,7 @@ func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: secretRef,
 				},
-				Key: AccessKey,
+				Key: keys.access,
 			},
 		},
 	}, corev1.EnvVar{
@@ -151,7 +193,7 @@ func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: secretRef,
 				},
-				Key: SecretKey,
+				Key: keys.secret,
 			},
 		},
 	}, corev1.EnvVar{
@@ -161,7 +203,7 @@ func GetStorageSecretRefEnv(secretRef string) []corev1.EnvVar {
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: secretRef,
 				},
-				Key: SecretKey,
+				Key: keys.secret,
 			},
 		},
 	})
