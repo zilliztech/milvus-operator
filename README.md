@@ -55,7 +55,6 @@ Native HPA Autoscaling, ✅,  -->
   - Manage Dependencies:
     - [Configure Meta Storage](docs/administration/manage-dependencies/meta-storage.md)
     - [Configure Object Storage](docs/administration/manage-dependencies/object-storage.md)
-      - [Use an ObjectBucketClaim Secret](docs/administration/manage-dependencies/object-storage.md#use-an-objectbucketclaim) from a compatible provisioner such as Rook-Ceph or NooBaa.
     - [Configure Message Storage](docs/administration/manage-dependencies/message-storage.md)
   - [Monitor And Alert](docs/administration/monitor-and-alert.md)
   - [Allocate Resources](docs/administration/allocate-resources.md)
