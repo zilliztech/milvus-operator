@@ -103,6 +103,7 @@ var checkMinIO = external.CheckMinIO
 
 func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Client, info StorageConditionInfo) v1beta1.MilvusCondition {
 	var accesskey, secretkey []byte
+	var redactSecrets bool
 	if !info.UseIAM {
 		secret := &corev1.Secret{}
 		key := types.NamespacedName{Namespace: info.Namespace, Name: info.Storage.SecretRef}
@@ -114,11 +115,12 @@ func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Clien
 		if k8sErrors.IsNotFound(err) {
 			return newErrStorageCondResult(v1beta1.ReasonSecretNotExist, MessageSecretNotExist)
 		}
-		var exist1, exist2 bool
-		accesskey, secretkey, exist1, exist2 = storageSecretKeys(secret.Data)
-		if !exist1 || !exist2 {
+		keys, ok := storageSecretKeys(secret.Data)
+		if !ok {
 			return newErrStorageCondResult(v1beta1.ReasonSecretNotExist, MessageKeyNotExist)
 		}
+		accesskey, secretkey = secret.Data[keys.access], secret.Data[keys.secret]
+		redactSecrets = keys == obcStorageCredentialKeys
 	}
 	ak := string(accesskey)
 	if info.Storage.Type == v1beta1.StorageTypeAzure && len(ak) == 0 {
@@ -129,13 +131,27 @@ func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Clien
 	var caCertificate []byte
 	insecureSkipVerify := false
 
-	if info.Storage.SSL != nil && info.Storage.SSL.Enabled {
-		insecureSkipVerify = info.Storage.SSL.InsecureSkipVerify
+	if ssl := info.Storage.SSL; ssl != nil && ssl.Enabled {
+		insecureSkipVerify = ssl.InsecureSkipVerify
 
-		// Load CA certificate if specified
-		if info.Storage.SSL.CACertificateRef != "" {
+		if ssl.CAConfigMapRef != "" {
+			if ssl.CACertificateRef != "" {
+				return newErrStorageCondResult(v1beta1.ReasonClientErr, "set only one of storage.ssl.caConfigMapRef and storage.ssl.caCertificateRef")
+			}
+			if !info.UseSSL {
+				return newErrStorageCondResult(v1beta1.ReasonClientErr, "storage.ssl.caConfigMapRef requires spec.config.minio.useSSL: true")
+			}
+			if insecureSkipVerify {
+				return newErrStorageCondResult(v1beta1.ReasonClientErr, "storage.ssl.caConfigMapRef requires certificate verification")
+			}
+			var err error
+			caCertificate, err = loadStorageCAConfigMap(ctx, cli, info.Namespace, ssl)
+			if err != nil {
+				return newErrStorageCondResult(v1beta1.ReasonClientErr, err.Error())
+			}
+		} else if ssl.CACertificateRef != "" {
 			caSecret := &corev1.Secret{}
-			caKey := types.NamespacedName{Namespace: info.Namespace, Name: info.Storage.SSL.CACertificateRef}
+			caKey := types.NamespacedName{Namespace: info.Namespace, Name: ssl.CACertificateRef}
 			err := cli.Get(ctx, caKey, caSecret)
 			if err != nil {
 				if k8sErrors.IsNotFound(err) {
@@ -164,6 +180,7 @@ func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Clien
 		UseVirtualHost:     info.UseVirtualHost,
 		CACertificate:      caCertificate,
 		InsecureSkipVerify: insecureSkipVerify,
+		RedactSecrets:      redactSecrets,
 	})
 	if err != nil {
 		return newErrStorageCondResult(v1beta1.ReasonClientErr, err.Error())

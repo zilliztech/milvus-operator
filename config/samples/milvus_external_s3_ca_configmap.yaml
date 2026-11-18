@@ -1,0 +1,42 @@
+# Replace the example credentials, CA bundle, endpoint, and bucket name before applying.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: s3-credentials
+  namespace: milvus
+type: Opaque
+stringData:
+  accesskey: "<s3-access-key>"
+  secretkey: "<s3-secret-key>"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: s3-ca
+  namespace: milvus
+data:
+  ca.crt: |
+    <paste the PEM CA bundle, or the public certificate for a self-signed endpoint>
+---
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: my-milvus
+  namespace: milvus
+spec:
+  mode: standalone
+  dependencies:
+    storage:
+      type: S3
+      external: true
+      endpoint: s3.example.com:443
+      secretRef: s3-credentials
+      ssl:
+        enabled: true
+        caConfigMapRef: s3-ca
+  config:
+    common:
+      storageType: remote
+    minio:
+      useSSL: true
+      bucketName: milvus-bucket

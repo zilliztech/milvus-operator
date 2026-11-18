@@ -39,7 +39,7 @@ func TestSupportsLayeredConfig(t *testing.T) {
 }
 
 func TestResolveStorageSecretRefEnv(t *testing.T) {
-	for _, keys := range [][2]string{{AccessKey, SecretKey}, {"rootUser", "rootPassword"}} {
+	for _, keys := range [][2]string{{AccessKey, SecretKey}, {"rootUser", "rootPassword"}, {"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}} {
 		t.Run(keys[0], func(t *testing.T) {
 			secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "storage", Namespace: "test"}, Data: map[string][]byte{keys[0]: []byte("user"), keys[1]: []byte("password")}}
 			r := MilvusReconciler{Client: fake.NewClientBuilder().WithObjects(secret).Build()}
@@ -130,13 +130,11 @@ func TestStorageChartCompatibility(t *testing.T) {
 }
 
 func TestStorageSecretKeys(t *testing.T) {
-	for _, names := range [][2]string{{"accesskey", "secretkey"}, {"rootUser", "rootPassword"}} {
-		a, s, aok, sok := storageSecretKeys(map[string][]byte{names[0]: []byte("test-user"), names[1]: []byte("test-password")})
-		assert.True(t, aok && sok)
-		assert.Equal(t, "test-user", string(a))
-		assert.Equal(t, "test-password", string(s))
+	for _, names := range [][2]string{{"accesskey", "secretkey"}, {"rootUser", "rootPassword"}, {"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}} {
+		keys, ok := storageSecretKeys(map[string][]byte{names[0]: []byte("test-user"), names[1]: []byte("test-password")})
+		assert.True(t, ok)
+		assert.Equal(t, names, [2]string{keys.access, keys.secret})
 	}
-	_, _, aok, sok := storageSecretKeys(map[string][]byte{"accesskey": []byte("user"), "rootPassword": []byte("password")})
-	assert.True(t, aok)
-	assert.False(t, sok, "must not mix legacy and Silo credential pairs")
+	_, ok := storageSecretKeys(map[string][]byte{"accesskey": []byte("user"), "rootPassword": []byte("password")})
+	assert.False(t, ok, "must not mix legacy and Silo credential pairs")
 }

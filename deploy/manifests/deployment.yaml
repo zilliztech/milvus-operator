@@ -13161,6 +13161,10 @@ spec:
                         properties:
                           caCertificateRef:
                             type: string
+                          caConfigMapKey:
+                            type: string
+                          caConfigMapRef:
+                            type: string
                           enabled:
                             default: false
                             type: boolean
@@ -14136,6 +14140,10 @@ spec:
                       ssl:
                         properties:
                           caCertificateRef:
+                            type: string
+                          caConfigMapKey:
+                            type: string
+                          caConfigMapRef:
                             type: string
                           enabled:
                             default: false
@@ -27956,6 +27964,10 @@ spec:
                       ssl:
                         properties:
                           caCertificateRef:
+                            type: string
+                          caConfigMapKey:
+                            type: string
+                          caConfigMapRef:
                             type: string
                           enabled:
                             default: false

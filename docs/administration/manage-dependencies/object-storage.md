@@ -54,6 +54,57 @@ Milvus supports any S3 compatible service as external object storage, for exampl
 
 To use an external object storage, you need to properly set fields under `spec.dependencies.storage` & `spec.config.minio` in the `Milvus` CRD. 
 
+## Use an ObjectBucketClaim
+
+Milvus Operator supports Secrets from provisioners that implement the `ObjectBucketClaim` API (`objectbucket.io/v1alpha1`) and generate the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. Rook-Ceph and NooBaa are examples. See the [Rook-Ceph OBC guide](https://rook.io/docs/rook/latest-release/Storage-Configuration/Object-Storage-RGW/ceph-object-bucket-claim/) and the [NooBaa OBC guide](https://github.com/noobaa/noobaa-operator/blob/master/doc/obc-provisioner.md).
+
+When the claim is bound, set `spec.dependencies.storage.secretRef` to the name of its generated Secret in the Milvus namespace. The operator uses the pair for storage readiness and passes it to Milvus pods through Secret key references.
+
+Use `BUCKET_HOST`, `BUCKET_PORT`, and `BUCKET_NAME` from the generated ConfigMap to set the endpoint and bucket. Set `spec.config.minio.useSSL` to match the endpoint. This example uses an OBC named `milvus-bucket` and a Rook-Ceph endpoint on HTTPS port `443`.
+
+```yaml
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: milvus
+  namespace: milvus
+spec:
+  dependencies:
+    storage:
+      external: true
+      type: S3
+      endpoint: rook-ceph-rgw-my-store.rook-ceph.svc:443
+      secretRef: milvus-bucket
+  config:
+    minio:
+      bucketName: milvus-test
+      useSSL: true
+```
+
+If your Milvus resource and OBC share a name, set `spec.components.activeConfigMap` to a separate name, such as `milvus-config`, to avoid a collision with the OBC's ConfigMap.
+
+If a Secret contains multiple supported formats, the operator checks `accesskey`/`secretkey` first, then `rootUser`/`rootPassword`, then `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`. The first format with either key present takes precedence and must contain both keys. The OBC keys must also have nonempty values.
+
+## Trust a custom CA for an HTTPS endpoint
+
+Store the PEM CA bundle in a ConfigMap in the Milvus namespace. For a self-signed endpoint, use its public certificate. Set `caConfigMapRef` to the ConfigMap name and enable TLS for both the operator and Milvus. The readiness probe uses the bundle to verify the endpoint. At startup, Milvus pods append it to the image's system CA bundle at `/etc/ssl/certs/ca-certificates.crt` and mount the combined bundle read-only. Restart the pods after replacing the CA bundle.
+
+```yaml
+spec:
+  dependencies:
+    storage:
+      ssl:
+        enabled: true
+        caConfigMapRef: s3-ca
+  config:
+    minio:
+      useSSL: true
+```
+
+The default ConfigMap key is `ca.crt`. Set `caConfigMapKey` under `storage.ssl` for bundles using another key, such as OpenShift's `service-ca.crt`. Use one CA reference per endpoint, either `caConfigMapRef` or the existing `caCertificateRef` for a Secret.
+
+See the [external S3 sample with a CA ConfigMap](../../../config/samples/milvus_external_s3_ca_configmap.yaml).
+
 
 # Use AWS S3 as External object storage
 Let's take a look at the [AWS S3 example](../../../config/samples/milvus_s3.yaml)
