@@ -13,7 +13,7 @@ data:
   secretkey: bWluaW8xMjM=  # base64 encoded "minio123" - replace with your MinIO secret key
 
 ---
-# CA bundle for the MinIO endpoint
+# MinIO CA Certificate (Required for SSL)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -47,7 +47,8 @@ spec:
       secretRef: minio-credentials
       ssl:
         enabled: true
-        caConfigMapRef: minio-ca-cert
+        caCertificateRef: minio-ca-cert
+        insecureSkipVerify: false  # set to true only for testing
   
   # Milvus configuration - directly passed to Milvus components
   config:
@@ -57,3 +58,17 @@ spec:
       useSSL: true  # Required: enable SSL for Milvus components
       bucketName: milvus-bucket  # Optional: specify bucket name (default: a-bucket)
       rootPath: files           # Optional: specify root path for data storage
+      ssl:
+        tlsCACert: /etc/ssl/certs/minio-ca.crt  # Required: path to CA certificate in container
+  
+  # Volume mounts for SSL certificate (Required)
+  components:
+    volumeMounts:
+    - mountPath: /etc/ssl/certs/minio-ca.crt
+      name: minio-ca-cert
+      readOnly: true
+      subPath: ca.crt
+    volumes:
+    - configMap:
+        name: minio-ca-cert
+      name: minio-ca-cert

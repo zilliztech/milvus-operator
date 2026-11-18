@@ -103,6 +103,8 @@ spec:
 
 The default ConfigMap key is `ca.crt`. Set `caConfigMapKey` under `storage.ssl` for bundles using another key, such as OpenShift's `service-ca.crt`. Use one CA reference per endpoint, either `caConfigMapRef` or the existing `caCertificateRef` for a Secret.
 
+See the [external S3 sample with a CA ConfigMap](../../../config/samples/milvus_external_s3_ca_configmap.yaml).
+
 
 # Use AWS S3 as External object storage
 Let's take a look at the [AWS S3 example](../../../config/samples/milvus_s3.yaml)
