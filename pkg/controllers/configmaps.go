@@ -3,8 +3,6 @@ package controllers
 import (
 	"context"
 	"encoding/json"
-	"slices"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,6 +18,73 @@ import (
 	"github.com/zilliztech/milvus-operator/pkg/config"
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
+
+func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Milvus) (string, string) {
+	if mc.Spec.Dep.Storage.SecretRef == "" {
+		return "", ""
+	}
+	secret := &corev1.Secret{}
+	key := types.NamespacedName{Namespace: mc.Namespace, Name: mc.Spec.Dep.Storage.SecretRef}
+	if err := r.Get(ctx, key, secret); err != nil {
+		// TODO @shaoyue: handle error, or not get if no secret set
+		r.logger.Error(err, "get minio secret error")
+		return "", ""
+	}
+
+	keys, ok := storageSecretKeys(secret.Data)
+	if !ok || keys == obcStorageCredentialKeys {
+		// OBC credentials are supplied through the pod's Secret key references.
+		return "", ""
+	}
+	return string(secret.Data[keys.access]), string(secret.Data[keys.secret])
+}
+
+type storageCredentialKeys struct {
+	access string
+	secret string
+}
+
+var obcStorageCredentialKeys = storageCredentialKeys{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}
+
+func storageSecretKeys(data map[string][]byte) (storageCredentialKeys, bool) {
+	// Preserve the existing format precedence, even if a pair is incomplete.
+	for _, keys := range []storageCredentialKeys{{AccessKey, SecretKey}, {"rootUser", "rootPassword"}} {
+		_, hasAccess := data[keys.access]
+		_, hasSecret := data[keys.secret]
+		if hasAccess || hasSecret {
+			return keys, hasAccess && hasSecret
+		}
+	}
+	keys := obcStorageCredentialKeys
+	return keys, len(data[keys.access]) > 0 && len(data[keys.secret]) > 0
+}
+
+// resolveStorageSecretRefEnv selects the same key pair as the readiness check.
+func (r *MilvusReconciler) resolveStorageSecretRefEnv(ctx context.Context, mc v1beta1.Milvus) ([]corev1.EnvVar, error) {
+	ref := mc.Spec.Dep.Storage.SecretRef
+	env := GetStorageSecretRefEnv(ref)
+	if ref == "" {
+		return env, nil
+	}
+	secret := &corev1.Secret{}
+	key := NamespacedName(mc.Namespace, ref)
+	if err := r.Get(ctx, key, secret); err != nil {
+		return nil, errors.Wrap(err, "get storage secret for pod environment")
+	}
+	keys, ok := storageSecretKeys(secret.Data)
+	if !ok {
+		return nil, errors.Errorf("storage Secret %s: %s", key, MessageKeyNotExist)
+	}
+	for i := range env {
+		ref := env[i].ValueFrom.SecretKeyRef
+		if ref.Key == AccessKey {
+			ref.Key = keys.access
+		} else {
+			ref.Key = keys.secret
+		}
+	}
+	return env, nil
+}
 
 // kafkaSecret is the content of the secret named by spec.dependencies.kafka.secretRef.
 type kafkaSecret struct {
@@ -106,7 +171,10 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 		return err
 	}
 
-	// Storage Secret credentials are passed to the pods through secretKeyRefs.
+	key, secret := r.getMinioAccessInfo(ctx, mc)
+	util.SetValue(conf, key, "minio", "accessKeyID")
+	util.SetValue(conf, secret, "minio", "secretAccessKey")
+
 	util.MergeValues(conf, mc.Spec.Conf.Data)
 	util.SetStringSlice(conf, mc.Spec.Dep.Etcd.Endpoints, "etcd", "endpoints")
 
@@ -219,24 +287,6 @@ func (r *MilvusReconciler) updateConfigMap(ctx context.Context, mc v1beta1.Milvu
 	return nil
 }
 
-func (r *MilvusReconciler) resolveActiveConfigMap(ctx context.Context, mc *v1beta1.Milvus) error {
-	storage := mc.Spec.Dep.Storage
-	if !storage.External || storage.SecretRef != mc.Name || mc.Spec.Com.ActiveConfigMap != "" {
-		return nil
-	}
-	// An ObjectBucketClaim can provision a ConfigMap with the default Milvus
-	// configuration name. Use a separate name for both rendering and mounting.
-	cm := &corev1.ConfigMap{}
-	if err := r.Get(ctx, NamespacedName(mc.Namespace, mc.Name), cm); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	owner := metav1.GetControllerOf(cm)
-	if owner != nil && owner.Kind == "ObjectBucketClaim" && strings.HasPrefix(owner.APIVersion, "objectbucket.io/") {
-		mc.SetActiveConfigMap(mc.Name + "-config")
-	}
-	return nil
-}
-
 func (r *MilvusReconciler) ReconcileConfigMaps(ctx context.Context, mc v1beta1.Milvus) error {
 	if mc.Spec.Com.EnableManualMode {
 		namespacedName := NamespacedName(mc.Namespace, mc.GetActiveConfigMap())
@@ -252,13 +302,11 @@ func (r *MilvusReconciler) ReconcileConfigMaps(ctx context.Context, mc v1beta1.M
 	if err != nil {
 		return errors.Wrap(err, "list configmaps")
 	}
-	active := mc.GetActiveConfigMap()
-	if len(cmList.Items) == 0 || (active != mc.Name && !slices.ContainsFunc(cmList.Items, func(cm corev1.ConfigMap) bool {
-		return cm.Name == active
-	})) {
+	if len(cmList.Items) == 0 {
+		// when no configmap found, create one
 		cmList.Items = append(cmList.Items, corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      active,
+				Name:      mc.GetActiveConfigMap(),
 				Namespace: mc.Namespace,
 			},
 		})

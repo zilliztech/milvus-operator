@@ -88,6 +88,10 @@ func TestReconcileOneConfigMap_CreateIfNotfound(t *testing.T) {
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{})).
 			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "")),
+		// get secret of minio
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")),
 		mockClient.EXPECT().
 			Create(gomock.Any(), gomock.Any()).Return(nil),
 	)
@@ -158,6 +162,10 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 					cm.Name = "cm1"
 					return nil
 				}),
+			// get secret of minio
+			mockClient.EXPECT().
+				Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+				Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")),
 			mockClient.EXPECT().
 				Update(gomock.Any(), gomock.Any()).Return(nil),
 		)
@@ -179,6 +187,10 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 					r.updateConfigMap(ctx, mc, cm)
 					return nil
 				}),
+			// get secret of minio
+			mockClient.EXPECT().
+				Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+				Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")).Times(2),
 		)
 		err := reconcileOneConfigMap(r, ctx, mc, nn)
 		assert.NoError(t, err)
@@ -195,6 +207,10 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 					r.updateConfigMap(ctx, mc, cm)
 					return nil
 				}),
+			// get secret of minio
+			mockClient.EXPECT().
+				Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+				Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")).Times(2),
 		)
 		err := reconcileOneConfigMap(r, ctx, mc, nn)
 		assert.NoError(t, err)
@@ -211,6 +227,10 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		cm := &corev1.ConfigMap{}
 		cm.Namespace = "ns"
 		cm.Name = "cm1"
+		// get secret of minio
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")).Times(1)
 
 		err := r.updateConfigMap(ctx, mc, cm)
 		assert.NoError(t, err)
@@ -230,6 +250,9 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		}
 		cm := &corev1.ConfigMap{}
 		cm.Namespace = sslMC.Namespace
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr"))
 
 		err := r.updateConfigMap(ctx, *sslMC, cm)
 		assert.NoError(t, err)
@@ -260,6 +283,9 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		cm := &corev1.ConfigMap{}
 		cm.Namespace = "ns"
 		cm.Name = "cm1"
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")).Times(1)
 
 		err := r.updateConfigMap(ctx, mc, cm)
 		assert.NoError(t, err)
@@ -292,6 +318,9 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		cm := &corev1.ConfigMap{}
 		cm.Namespace = "ns"
 		cm.Name = "cm1"
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")).Times(1)
 
 		err := r.updateConfigMap(ctx, mc, cm)
 		assert.NoError(t, err)
@@ -315,17 +344,21 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		cm := &corev1.ConfigMap{}
 		cm.Namespace = "ns"
 		cm.Name = "cm1"
-		// Read the Kafka Secret for the CA certificate.
+		// the minio secret (NotFound) and the kafka secret, read for the CA only
 		mockClient.EXPECT().
-			Get(gomock.Any(), NamespacedName(mc.Namespace, mc.Spec.Dep.Kafka.SecretRef), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
 			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				if key.Name != mc.Spec.Dep.Kafka.SecretRef {
+					return k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")
+				}
 				obj.(*corev1.Secret).Data = map[string][]byte{
 					KafkaSaslUsernameKey: []byte("kafka-user"),
 					KafkaSaslPasswordKey: []byte("kafka-pass"),
 					KafkaCACertKey:       []byte("ca-cert-bytes"),
 				}
 				return nil
-			})
+			}).
+			Times(2)
 
 		err := r.updateConfigMap(ctx, mc, cm)
 		assert.NoError(t, err)
@@ -352,14 +385,18 @@ func TestReconcileOneConfigMap_Existed(t *testing.T) {
 		cm.Namespace = "ns"
 		cm.Name = "cm1"
 		mockClient.EXPECT().
-			Get(gomock.Any(), NamespacedName(mc.Namespace, mc.Spec.Dep.Kafka.SecretRef), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
 			DoAndReturn(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...any) error {
+				if key.Name != mc.Spec.Dep.Kafka.SecretRef {
+					return k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")
+				}
 				obj.(*corev1.Secret).Data = map[string][]byte{
 					KafkaSaslUsernameKey: []byte("kafka-user"),
 					KafkaSaslPasswordKey: []byte("kafka-pass"),
 				}
 				return nil
-			})
+			}).
+			Times(2)
 
 		err := r.updateConfigMap(ctx, mc, cm)
 		assert.NoError(t, err)
@@ -561,6 +598,7 @@ func TestUpdateConfigMapPulsarEndpoints(t *testing.T) {
 			mc := env.Inst
 			mc.Spec.Dep.MsgStreamType = v1beta1.MsgStreamTypePulsar
 			mc.Spec.Dep.Pulsar = v1beta1.MilvusPulsar{External: true, Endpoint: tc.endpoint, Endpoints: tc.endpoints}
+			env.MockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).Return(k8sErrors.NewNotFound(schema.GroupResource{}, "missing"))
 			cm := &corev1.ConfigMap{}
 			cm.Namespace = mc.Namespace
 			cm.Name = "pulsar-config"

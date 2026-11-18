@@ -132,13 +132,15 @@ func TestCheckMinIORedactsCredentialsInEndpointError(t *testing.T) {
 	}))
 	defer server.Close()
 	err := CheckMinIO(CheckMinIOArgs{
-		Type:     v1beta1.StorageTypeS3,
-		AK:       "obc-test-key",
-		SK:       "obc-test-key-secret",
-		Endpoint: strings.TrimPrefix(server.URL, "http://"),
-		Bucket:   "test-bucket",
+		Type:          v1beta1.StorageTypeS3,
+		AK:            "obc-test-key",
+		SK:            "obc-test-key-secret",
+		Endpoint:      strings.TrimPrefix(server.URL, "http://"),
+		Bucket:        "test-bucket",
+		RedactSecrets: true,
 	})
-	require.ErrorContains(t, err, "denied [redacted] and [redacted]")
+	require.ErrorContains(t, err, "storage endpoint error contained credentials")
+	assert.NotContains(t, err.Error(), "obc-test-key")
 }
 
 func TestIsHealthyByServerInfo(t *testing.T) {

@@ -103,6 +103,7 @@ var checkMinIO = external.CheckMinIO
 
 func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Client, info StorageConditionInfo) v1beta1.MilvusCondition {
 	var accesskey, secretkey []byte
+	var redactSecrets bool
 	if !info.UseIAM {
 		secret := &corev1.Secret{}
 		key := types.NamespacedName{Namespace: info.Namespace, Name: info.Storage.SecretRef}
@@ -119,6 +120,7 @@ func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Clien
 			return newErrStorageCondResult(v1beta1.ReasonSecretNotExist, MessageKeyNotExist)
 		}
 		accesskey, secretkey = secret.Data[keys.access], secret.Data[keys.secret]
+		redactSecrets = keys == obcStorageCredentialKeys
 	}
 	ak := string(accesskey)
 	if info.Storage.Type == v1beta1.StorageTypeAzure && len(ak) == 0 {
@@ -164,6 +166,7 @@ func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Clien
 		UseVirtualHost:     info.UseVirtualHost,
 		CACertificate:      caCertificate,
 		InsecureSkipVerify: insecureSkipVerify,
+		RedactSecrets:      redactSecrets,
 	})
 	if err != nil {
 		return newErrStorageCondResult(v1beta1.ReasonClientErr, err.Error())

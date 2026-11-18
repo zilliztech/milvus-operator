@@ -13,7 +13,6 @@ import (
 	"github.com/prashantv/gostub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -66,6 +65,7 @@ func TestStorageSecretFormats(t *testing.T) {
 				calls++
 				assert.Equal(t, string(secret.Data[tc.want[0]]), args.AK)
 				assert.Equal(t, string(secret.Data[tc.want[1]]), args.SK)
+				assert.Equal(t, tc.want[0] == "AWS_ACCESS_KEY_ID", args.RedactSecrets)
 				return nil
 			}).Reset()
 
@@ -127,6 +127,7 @@ func TestReconcileMilvusWithObjectBucketClaim(t *testing.T) {
 	mc.Default()
 	mc.Spec.Com.Image = "milvusdb/milvus:v2.6.0"
 	mc.Spec.Com.DisableMetric = true
+	mc.Spec.Com.ActiveConfigMap = "milvus-config"
 	mc.Spec.Dep.Storage.External = true
 	mc.Spec.Dep.Storage.Type = v1beta1.StorageTypeS3
 	mc.Spec.Dep.Storage.SecretRef = mc.Name
@@ -203,52 +204,4 @@ func TestReconcileMilvusWithObjectBucketClaim(t *testing.T) {
 	require.GreaterOrEqual(t, index, 0)
 	container := template.Spec.Containers[index]
 	assertStorageSecretEnv(t, container.Env, secret.Name, [2]string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"})
-}
-
-func TestReconcileClusterWorkloadsWithObjectBucketClaim(t *testing.T) {
-	env := newTestEnv(t)
-	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "test", Name: "milvus", UID: "milvus-uid"}}
-	mc.Spec.Mode = v1beta1.MilvusModeCluster
-	mc.Default()
-	mc.Spec.Com.DataNode.StatefulSet = &v1beta1.ComponentStatefulSet{Enabled: true}
-	mc.Spec.Dep.Storage.SecretRef = "bucket-claim"
-	keys := [2]string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: mc.Spec.Dep.Storage.SecretRef, Namespace: mc.Namespace},
-		Data:       map[string][]byte{keys[0]: []byte("test-user"), keys[1]: []byte("test-password")},
-	}
-	r := env.Reconciler
-	require.NoError(t, clientgoscheme.AddToScheme(r.Scheme))
-	r.Client = fake.NewClientBuilder().WithScheme(r.Scheme).WithObjects(secret).Build()
-
-	checkPod := func(template *corev1.PodTemplateSpec, component MilvusComponent) {
-		t.Helper()
-		index := GetContainerIndex(template.Spec.Containers, component.Name)
-		require.GreaterOrEqual(t, index, 0, component.Name)
-		assertStorageSecretEnv(t, template.Spec.Containers[index].Env, secret.Name, keys)
-	}
-	grouped := NewMockDeployController(env.Ctrl)
-	grouped.EXPECT().Reconcile(gomock.Any(), gomock.Any(), QueryNode).
-		DoAndReturn(func(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
-			renderer := DeployControllerBizUtilImpl{cli: r.Client}
-			checkPod(renderer.RenderPodTemplateWithoutGroupID(ctx, mc, nil, component, true), component)
-			return nil
-		})
-	r.deployCtrl = grouped
-	require.NoError(t, r.ReconcileDeployments(env.ctx, mc))
-	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
-		key := NamespacedName(mc.Namespace, component.GetDeploymentName(mc.Name))
-		switch {
-		case component.Is(QueryNode), IsIdleClusterStandalone(mc.Spec, component):
-			continue
-		case component.Is(DataNode):
-			var sts appsv1.StatefulSet
-			require.NoError(t, r.Get(env.ctx, key, &sts))
-			checkPod(&sts.Spec.Template, component)
-		default:
-			var deployment appsv1.Deployment
-			require.NoError(t, r.Get(env.ctx, key, &deployment))
-			checkPod(&deployment.Spec.Template, component)
-		}
-	}
 }

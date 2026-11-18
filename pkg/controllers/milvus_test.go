@@ -244,6 +244,10 @@ func TestCluster_ReconcileMilvus(t *testing.T) {
 		mockClient.EXPECT().
 			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{})).
 			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "")),
+		// get secret of minio
+		mockClient.EXPECT().
+			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).
+			Return(k8sErrors.NewNotFound(schema.GroupResource{}, "mockErr")),
 		mockClient.EXPECT().
 			Create(gomock.Any(), gomock.Any()).Return(nil),
 		mockGroup.EXPECT().Run(gomock.Len(6), gomock.Any(), m),

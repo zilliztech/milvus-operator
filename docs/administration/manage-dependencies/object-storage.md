@@ -67,6 +67,8 @@ metadata:
   name: milvus
   namespace: milvus
 spec:
+  components:
+    activeConfigMap: milvus-config
   dependencies:
     storage:
       external: true
@@ -81,7 +83,7 @@ spec:
 
 If the RGW certificate uses a private CA, configure `spec.dependencies.storage.ssl` with `enabled: true` and `caCertificateRef` to a Secret containing the CA under `ca.crt` for the operator's readiness check. Mount the CA into the Milvus pods using `spec.components.volumes` and `spec.components.volumeMounts`, and set `spec.config.minio.ssl.tlsCACert` to the mounted CA file path.
 
-When the OBC owns the default ConfigMap name, the operator renders Milvus configuration into `<milvus-name>-config`. You can set `spec.components.activeConfigMap` to choose a different name.
+When the Milvus and OBC resources have the same name, set `spec.components.activeConfigMap` to a different name for the Milvus configuration, as shown above.
 
 If a Secret contains multiple supported formats, the operator checks `accesskey`/`secretkey` first, then `rootUser`/`rootPassword`, then `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`. The first format with either key present takes precedence and must contain both keys. The OBC keys must also have nonempty values.
 

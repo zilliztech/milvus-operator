@@ -29,6 +29,8 @@ type CheckMinIOArgs struct {
 	UseIAM         bool
 	IAMEndpoint    string
 	UseVirtualHost bool
+	// RedactSecrets prevents a response from echoing the Secret values.
+	RedactSecrets bool
 	// SSL Configuration
 	CACertificate      []byte
 	InsecureSkipVerify bool
@@ -133,30 +135,22 @@ func CheckMinIO(args CheckMinIOArgs) error {
 			return isHealthyByServerInfo(st)
 		}
 	}
-	// An endpoint can echo credential values in an error response. Scrub the
-	// message before the retry helper logs it or the status check publishes it.
-	values := []string{args.AK, args.SK}
-	if len(values[0]) < len(values[1]) {
-		values[0], values[1] = values[1], values[0]
-	}
-	var replacements []string
-	for _, value := range values {
-		if value != "" {
-			replacements = append(replacements, value, "[redacted]")
+	// Scrub OBC credentials before the retry helper logs an endpoint error.
+	if args.RedactSecrets {
+		probe := checkMinio
+		checkMinio = func() error {
+			err := probe()
+			if err != nil {
+				message := err.Error()
+				if (args.AK != "" && strings.Contains(message, args.AK)) ||
+					(args.SK != "" && strings.Contains(message, args.SK)) {
+					return errors.New("storage endpoint error contained credentials")
+				}
+			}
+			return err
 		}
 	}
-	redact := strings.NewReplacer(replacements...)
-	return util.DoWithBackoff("checkMinIO", func() error {
-		err := checkMinio()
-		if err == nil {
-			return nil
-		}
-		message := err.Error()
-		if safe := redact.Replace(message); safe != message {
-			return errors.New(safe)
-		}
-		return err
-	}, util.DefaultMaxRetry, util.DefaultBackOffInterval)
+	return util.DoWithBackoff("checkMinIO", checkMinio, util.DefaultMaxRetry, util.DefaultBackOffInterval)
 }
 
 func isHealthyByServerInfo(st madmin.InfoMessage) error {
