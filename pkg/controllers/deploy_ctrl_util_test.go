@@ -255,6 +255,10 @@ func TestDeployControllerBizImpl_HandleCreateRestoresStandby(t *testing.T) {
 					list.(*appsv1.DeploymentList).Items = []appsv1.Deployment{current}
 					return nil
 				})
+			standbyLabels := NewComponentAppLabels(mc.Name, component.Name)
+			v1beta1.Labels().SetGroupIDStr(component.Name, standbyLabels, tc.standbyGroupID)
+			mockClient.EXPECT().List(ctx, gomock.AssignableToTypeOf(new(appsv1.ReplicaSetList)),
+				client.InNamespace(mc.Namespace), client.MatchingLabels(standbyLabels)).Return(nil)
 			mockClient.EXPECT().Scheme().Return(scheme).Times(3)
 			mockClient.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).
 				DoAndReturn(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
@@ -275,6 +279,50 @@ func TestDeployControllerBizImpl_HandleCreateRestoresStandby(t *testing.T) {
 			controller := NewDeployControllerBizImpl(component, deployUtil, nil, mockClient)
 			assert.NoError(t, controller.HandleCreate(ctx, mc))
 			assert.Equal(t, annotations, mc.Annotations)
+		})
+	}
+}
+
+func TestCreateDeployWaitsForStandbyReplicas(t *testing.T) {
+	ctx := context.Background()
+	mockCtrl := gomock.NewController(t)
+	mockClient := NewMockK8sClient(mockCtrl)
+	component := MilvusStandalone
+	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "instance", Namespace: "ns"}}
+	mc.Spec.Mode = v1beta1.MilvusModeStandalone
+	mc.Default()
+	v1beta1.Labels().SetCurrentGroupID(&mc, component.Name, 1)
+	standbyLabels := NewComponentAppLabels(mc.Name, component.Name)
+	v1beta1.Labels().SetGroupID(component.Name, standbyLabels, 0)
+	standby := appsv1.ReplicaSet{ObjectMeta: metav1.ObjectMeta{Name: "previous-standby"}}
+
+	util := NewDeployControllerBizUtil(component, mockClient, NewMockK8sUtil(mockCtrl))
+	for _, tc := range []struct {
+		name              string
+		desired, observed int32
+		wait              bool
+	}{
+		{name: "has desired replicas", desired: 1, wait: true},
+		{name: "has observed replicas", observed: 1, wait: true},
+		{name: "scaled to zero"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			standby.Spec.Replicas = &tc.desired
+			standby.Status.Replicas = tc.observed
+			mockClient.EXPECT().List(ctx, gomock.AssignableToTypeOf(new(appsv1.ReplicaSetList)),
+				client.InNamespace(mc.Namespace), client.MatchingLabels(standbyLabels)).
+				DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+					list.(*appsv1.ReplicaSetList).Items = []appsv1.ReplicaSet{standby}
+					return nil
+				})
+			template := &corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "milvus"}}}}
+			if tc.wait {
+				assert.ErrorIs(t, util.CreateDeploy(ctx, mc, template, 0), ErrRequeue)
+				return
+			}
+			mockClient.EXPECT().Scheme().Return(scheme).Times(2)
+			mockClient.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).Return(nil)
+			assert.NoError(t, util.CreateDeploy(ctx, mc, template, 0))
 		})
 	}
 }
@@ -317,7 +365,11 @@ func TestDeployControllerBizUtilImpl_CreateDeploy(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	standbyLabels := NewComponentAppLabels(mc.Name, DataNode.Name)
+	v1beta1.Labels().SetGroupID(DataNode.Name, standbyLabels, 1)
 	t.Run("groupId=1, image set to dummy", func(t *testing.T) {
+		mockcli.EXPECT().List(ctx, gomock.AssignableToTypeOf(new(appsv1.ReplicaSetList)),
+			client.InNamespace(mc.Namespace), client.MatchingLabels(standbyLabels)).Return(nil)
 		mockcli.EXPECT().Scheme().Return(scheme).Times(3)
 		mockcli.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).
 			DoAndReturn(func(ctx context.Context, obj client.Object, opt ...client.Options) error {
@@ -330,6 +382,8 @@ func TestDeployControllerBizUtilImpl_CreateDeploy(t *testing.T) {
 	})
 
 	t.Run("groupId=1, image set to spec.componenents.dummyImage", func(t *testing.T) {
+		mockcli.EXPECT().List(ctx, gomock.AssignableToTypeOf(new(appsv1.ReplicaSetList)),
+			client.InNamespace(mc.Namespace), client.MatchingLabels(standbyLabels)).Return(nil)
 		mc.Spec.Com.DummyImage = "my-registry/my-dummy-image"
 		mockcli.EXPECT().Scheme().Return(scheme).Times(3)
 		mockcli.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).
