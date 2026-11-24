@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	pkgErr "github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -234,12 +235,12 @@ func (r *MilvusReconciler) VerifyCR(ctx context.Context, milvus *milvusv1beta1.M
 func (r *MilvusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&milvusv1beta1.Milvus{}).
+		Owns(&appsv1.Deployment{}, ctrlbuilder.WithPredicates(rolloutDeploymentDeletionPredicate())).
 		// reconcile when a secret referenced by the milvus spec changes
 		Watches(&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.mapSecretToMilvusRequests),
 			ctrlbuilder.WithPredicates(predicate.ResourceVersionChangedPredicate{})).
 		// For(&milvusv1alpha1.MilvusCluster{}).
-		// Owns(&appsv1.Deployment{}).
 		// Owns(&corev1.ConfigMap{}).
 		// Owns(&corev1.Service{}).
 		// WithEventFilter(&MilvusPredicate{}).
@@ -252,6 +253,23 @@ func (r *MilvusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	} */
 
 	return builder.Complete(r)
+}
+
+// A standby deletion does not necessarily change the status of its Milvus owner.
+func rolloutDeploymentDeletionPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc:  func(event.CreateEvent) bool { return false },
+		UpdateFunc:  func(event.UpdateEvent) bool { return false },
+		GenericFunc: func(event.GenericEvent) bool { return false },
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			deployment, ok := e.Object.(*appsv1.Deployment)
+			if !ok || deployment == nil {
+				return false
+			}
+			groupID := milvusv1beta1.Labels().GetLabelGroupID(deployment.Labels[AppLabelComponent], deployment)
+			return groupID == "0" || groupID == "1"
+		},
+	}
 }
 
 // mapSecretToMilvusRequests returns the milvus instances that reference the secret

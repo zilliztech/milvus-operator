@@ -171,6 +171,8 @@ func formatComponentDeployName(mc v1beta1.Milvus, component MilvusComponent, gro
 }
 
 func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error {
+	labels := c.component.GetSelectorLabels(mc.Name)
+	v1beta1.Labels().SetGroupID(c.component.Name, labels, groupId)
 	if podTemplate == nil {
 		podTemplate = c.RenderPodTemplateWithoutGroupID(ctx, mc, nil, c.component, true)
 	}
@@ -179,6 +181,16 @@ func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1bet
 		currentGroupID = "0"
 	}
 	if strconv.Itoa(groupId) != currentGroupID {
+		// A zero-replica Deployment can adopt and scale down orphaned ReplicaSets.
+		var replicaSets appsv1.ReplicaSetList
+		if err := c.cli.List(ctx, &replicaSets, client.InNamespace(mc.Namespace), client.MatchingLabels(labels)); err != nil {
+			return errors.Wrap(err, "list standby ReplicaSets")
+		}
+		for _, replicaSet := range replicaSets.Items {
+			if replicaSet.Spec.Replicas == nil || *replicaSet.Spec.Replicas > 0 || replicaSet.Status.Replicas > 0 {
+				return errors.Wrapf(ErrRequeue, "standby ReplicaSet %s still has replicas", replicaSet.Name)
+			}
+		}
 		// Give the inactive deployment a dummy image so it never looks like a rollback target.
 		podTemplate.Spec.Containers[0].Image = "dummy"
 		if mc.Spec.Com.DummyImage != "" {
@@ -193,8 +205,6 @@ func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1bet
 	if err != nil {
 		return errors.Wrap(err, "set controller reference")
 	}
-	labels := c.component.GetSelectorLabels(mc.Name)
-	v1beta1.Labels().SetGroupID(c.component.Name, labels, groupId)
 	if c.component.DeploymentGroup != nil {
 		deploy.Labels = MergeLabels(c.component.DeploymentGroup.Labels, labels)
 		deploy.Annotations = MergeAnnotations(c.component.DeploymentGroup.Annotations)

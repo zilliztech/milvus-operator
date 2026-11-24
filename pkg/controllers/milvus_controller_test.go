@@ -8,10 +8,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
@@ -29,6 +31,22 @@ var mockCheckMilvusStop = func(ctx context.Context, cli client.Client, mc v1beta
 var mockFinalizeRet error
 var mockFinalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Milvus) error {
 	return mockFinalizeRet
+}
+
+func TestRolloutDeploymentDeletionPredicate(t *testing.T) {
+	filter := rolloutDeploymentDeletionPredicate()
+	deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+		Labels: NewComponentAppLabels("instance", MilvusStandalone.Name),
+	}}
+	assert.False(t, filter.Delete(event.DeleteEvent{Object: deployment}))
+
+	for _, groupID := range []int{0, 1} {
+		v1beta1.Labels().SetGroupID(MilvusStandalone.Name, deployment.Labels, groupID)
+		assert.True(t, filter.Delete(event.DeleteEvent{Object: deployment}))
+	}
+	assert.False(t, filter.Create(event.CreateEvent{Object: deployment}))
+	assert.False(t, filter.Update(event.UpdateEvent{ObjectOld: deployment, ObjectNew: deployment}))
+	assert.False(t, filter.Generic(event.GenericEvent{Object: deployment}))
 }
 
 func TestClusterReconciler(t *testing.T) {
