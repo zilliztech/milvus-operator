@@ -207,6 +207,22 @@ func TestDeployControllerBizUtilImpl_GetDeploys(t *testing.T) {
 		assert.Equal(t, ErrNoLastDeployment, errors.Cause(err))
 	})
 
+	t.Run("unsupported current group cannot be repaired", func(t *testing.T) {
+		invalid := mc.DeepCopy()
+		v1beta1.Labels().SetCurrentGroupID(invalid, DataNodeName, 2)
+		invalidDeploy := deploy.DeepCopy()
+		v1beta1.Labels().SetGroupID(DataNodeName, invalidDeploy.Labels, 2)
+		mockcli.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).
+			DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+				list.(*appsv1.DeploymentList).Items = []appsv1.Deployment{*invalidDeploy}
+				return nil
+			})
+		current, standby, err := bizUtil.GetDeploys(ctx, *invalid)
+		require.ErrorContains(t, err, "must be 0 or 1")
+		assert.Nil(t, current)
+		assert.Nil(t, standby)
+	})
+
 	t.Run("2 deploy saperate by group id", func(t *testing.T) {
 		mc.Default()
 		v1beta1.Labels().SetCurrentGroupID(&mc, DataNodeName, 0)
@@ -328,10 +344,11 @@ func TestDeployControllerBizImpl_HandleCreateRestoresStandby(t *testing.T) {
 	}
 }
 
-func TestCreateDeployWaitsForStandbyReplicas(t *testing.T) {
+func TestCreateDeployChecksLiveStandbyReplicas(t *testing.T) {
 	ctx := context.Background()
 	mockCtrl := gomock.NewController(t)
 	mockClient := NewMockK8sClient(mockCtrl)
+	apiReader := NewMockK8sClient(mockCtrl)
 	component := MilvusStandalone
 	mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "instance", Namespace: "ns"}}
 	mc.Spec.Mode = v1beta1.MilvusModeStandalone
@@ -341,33 +358,36 @@ func TestCreateDeployWaitsForStandbyReplicas(t *testing.T) {
 	v1beta1.Labels().SetGroupID(component.Name, standbyLabels, 0)
 	standby := appsv1.ReplicaSet{ObjectMeta: metav1.ObjectMeta{Name: "previous-standby"}}
 
-	util := NewDeployControllerBizUtil(component, mockClient, NewMockK8sUtil(mockCtrl))
+	factory := NewDeployControllerBizUtilFactory(mockClient, apiReader, NewMockK8sUtil(mockCtrl))
+	util := factory.GetBizUtil(component)
 	for _, tc := range []struct {
-		name              string
-		desired, observed int32
-		wait              bool
+		name     string
+		desired  *int32
+		observed int32
+		listErr  error
+		wantErr  error
 	}{
-		{name: "has desired replicas", desired: 1, wait: true},
-		{name: "has observed replicas", observed: 1, wait: true},
-		{name: "scaled to zero"},
+		{name: "has desired replicas", desired: int32Ptr(1), wantErr: ErrRequeue},
+		{name: "has observed replicas", desired: int32Ptr(0), observed: 1, wantErr: ErrRequeue},
+		{name: "default replica count", wantErr: ErrRequeue},
+		{name: "API Server read fails", listErr: errMock, wantErr: errMock},
+		{name: "scaled to zero", desired: int32Ptr(0)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			standby.Spec.Replicas = &tc.desired
+			standby.Spec.Replicas = tc.desired
 			standby.Status.Replicas = tc.observed
-			mockClient.EXPECT().List(ctx, gomock.AssignableToTypeOf(new(appsv1.ReplicaSetList)),
+			apiReader.EXPECT().List(ctx, gomock.AssignableToTypeOf(new(appsv1.ReplicaSetList)),
 				client.InNamespace(mc.Namespace), client.MatchingLabels(standbyLabels)).
 				DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
 					list.(*appsv1.ReplicaSetList).Items = []appsv1.ReplicaSet{standby}
-					return nil
+					return tc.listErr
 				})
 			template := &corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "milvus"}}}}
-			if tc.wait {
-				assert.ErrorIs(t, util.CreateDeploy(ctx, mc, template, 0), ErrRequeue)
-				return
+			if tc.wantErr == nil {
+				mockClient.EXPECT().Scheme().Return(scheme).Times(2)
+				mockClient.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).Return(nil)
 			}
-			mockClient.EXPECT().Scheme().Return(scheme).Times(2)
-			mockClient.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).Return(nil)
-			assert.NoError(t, util.CreateDeploy(ctx, mc, template, 0))
+			assert.ErrorIs(t, util.CreateDeploy(ctx, mc, template, 0), tc.wantErr)
 		})
 	}
 }

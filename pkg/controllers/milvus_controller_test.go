@@ -35,6 +35,8 @@ var mockFinalize = func(ctx context.Context, r *MilvusReconciler, mc v1beta1.Mil
 
 func TestRolloutDeploymentDeletionPredicate(t *testing.T) {
 	filter := rolloutDeploymentDeletionPredicate()
+	assert.False(t, filter.Delete(event.DeleteEvent{}))
+	assert.False(t, filter.Delete(event.DeleteEvent{Object: (*appsv1.Deployment)(nil)}))
 	deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
 		Labels: NewComponentAppLabels("instance", MilvusStandalone.Name),
 	}}
