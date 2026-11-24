@@ -222,6 +222,63 @@ func TestDeployControllerBizUtilImpl_GetDeploys(t *testing.T) {
 
 }
 
+func TestDeployControllerBizImpl_HandleCreateRestoresStandby(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		currentGroupID int
+		standbyName    string
+		standbyGroupID string
+	}{
+		{name: "group 0 active", currentGroupID: 0, standbyName: "instance-milvus-standalone-1", standbyGroupID: "1"},
+		{name: "group 1 active", currentGroupID: 1, standbyName: "instance-milvus-standalone-0", standbyGroupID: "0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			mockCtrl := gomock.NewController(t)
+			mockClient := NewMockK8sClient(mockCtrl)
+			component := MilvusStandalone
+			mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "instance", Namespace: "ns", UID: "test-uid"}}
+			mc.Spec.Mode = v1beta1.MilvusModeStandalone
+			mc.Default()
+			v1beta1.Labels().SetCurrentGroupID(&mc, component.Name, tc.currentGroupID)
+			annotations := mc.DeepCopy().Annotations
+
+			current := appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Name:   formatComponentDeployName(mc, component, tc.currentGroupID),
+				Labels: NewComponentAppLabels(mc.Name, component.Name),
+			}}
+			v1beta1.Labels().SetGroupID(component.Name, current.Labels, tc.currentGroupID)
+			current.Spec.Replicas = int32Ptr(1)
+
+			mockClient.EXPECT().List(ctx, gomock.Any(), client.InNamespace(mc.Namespace), gomock.Any()).
+				DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+					list.(*appsv1.DeploymentList).Items = []appsv1.Deployment{current}
+					return nil
+				})
+			mockClient.EXPECT().Scheme().Return(scheme).Times(3)
+			mockClient.EXPECT().Create(ctx, gomock.AssignableToTypeOf(new(appsv1.Deployment))).
+				DoAndReturn(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
+					standby := obj.(*appsv1.Deployment)
+					assert.Equal(t, tc.standbyName, standby.Name)
+					assert.Equal(t, mc.Namespace, standby.Namespace)
+					assert.True(t, metav1.IsControlledBy(standby, &mc))
+					assert.Equal(t, int32Ptr(0), standby.Spec.Replicas)
+					assert.Equal(t, "dummy", standby.Spec.Template.Spec.Containers[0].Image)
+					groupLabel := v1beta1.GetComponentGroupIdLabel(component.Name)
+					assert.Equal(t, tc.standbyGroupID, standby.Labels[groupLabel])
+					assert.Equal(t, tc.standbyGroupID, standby.Spec.Selector.MatchLabels[groupLabel])
+					assert.Equal(t, tc.standbyGroupID, standby.Spec.Template.Labels[groupLabel])
+					return nil
+				})
+
+			deployUtil := NewDeployControllerBizUtil(component, mockClient, NewMockK8sUtil(mockCtrl))
+			controller := NewDeployControllerBizImpl(component, deployUtil, nil, mockClient)
+			assert.NoError(t, controller.HandleCreate(ctx, mc))
+			assert.Equal(t, annotations, mc.Annotations)
+		})
+	}
+}
+
 func TestDeployControllerBizUtilImpl_CreateDeploy(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
