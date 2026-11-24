@@ -28,9 +28,9 @@ type DeployControllerBizUtil interface {
 	// otherwise return err. in particular:
 	// - return ErrNotFound when no deployment found
 	// - return ErrNoCurrentDeployment when no current deployment found
-	// - return ErrNoLastDeployment when no last deployment found
+	// - return the current deployment with ErrNoLastDeployment when its counterpart is missing
 	GetDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error)
-	// CreateDeploy with replica = 0, if groupId != 0, set image to dummy to avoid rolling back and forth
+	// CreateDeploy creates a zero-replica deployment with a dummy image for the inactive group.
 	CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error
 
 	ShouldRollback(ctx context.Context, currentDeploy, lastDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
@@ -155,10 +155,11 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 	}
 	// last == nil
 
-	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.GetStateKey()) != "0" {
-		return nil, nil, errors.Errorf("unexpected: first deployment is not for group 0, admin please fix this by setting a last deployment for group 0")
+	currentGroupID := v1beta1.Labels().GetCurrentGroupId(&mc, c.component.GetStateKey())
+	if currentGroupID != "0" && currentGroupID != "1" {
+		return nil, nil, errors.Errorf("unexpected: current deployment group ID %q must be 0 or 1", currentGroupID)
 	}
-	return nil, nil, ErrNoLastDeployment
+	return current, nil, ErrNoLastDeployment
 }
 
 func componentDeployIsCurrentGroup(mc v1beta1.Milvus, component MilvusComponent, deploy *appsv1.Deployment) bool {
@@ -173,8 +174,12 @@ func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1bet
 	if podTemplate == nil {
 		podTemplate = c.RenderPodTemplateWithoutGroupID(ctx, mc, nil, c.component, true)
 	}
-	if groupId != 0 {
-		// is not the first deploy, set image to dummy to avoid rolling back and forth
+	currentGroupID := v1beta1.Labels().GetCurrentGroupId(&mc, c.component.GetStateKey())
+	if currentGroupID == "" {
+		currentGroupID = "0"
+	}
+	if strconv.Itoa(groupId) != currentGroupID {
+		// Give the inactive deployment a dummy image so it never looks like a rollback target.
 		podTemplate.Spec.Containers[0].Image = "dummy"
 		if mc.Spec.Com.DummyImage != "" {
 			podTemplate.Spec.Containers[0].Image = mc.Spec.Com.DummyImage
