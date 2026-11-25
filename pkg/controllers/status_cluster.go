@@ -459,10 +459,11 @@ func (r *MilvusStatusSyncer) GetMinioCondition(
 	}
 	getter := wrapMinioConditionGetter(ctx, r.logger, r.Client, info)
 	probeKey := []string{info.Storage.Endpoint}
-	if ssl := info.Storage.SSL; ssl != nil && ssl.Enabled && ssl.CAConfigMapRef != "" {
-		// A CA ConfigMap is namespace-scoped. Do not reuse a probe made for
-		// another Milvus resource that connects to the same endpoint.
-		probeKey = append(probeKey, "storage-ca:"+mc.Namespace+"/"+mc.Name)
+	ssl := info.Storage.SSL
+	if info.Storage.External || (ssl != nil && ssl.Enabled && ssl.CAConfigMapRef != "") {
+		// External instances can share an endpoint but use distinct buckets,
+		// credentials, and CA bundles.
+		probeKey = append(probeKey, "storage:"+mc.Namespace+"/"+mc.Name)
 	}
 	return GetCondition(getter, probeKey), nil
 }

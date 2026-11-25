@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -31,8 +32,8 @@ func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Mi
 		return "", ""
 	}
 
-	keys, ok := storageSecretKeys(secret.Data)
-	if !ok || keys == obcStorageCredentialKeys {
+	keys, _ := storageSecretKeys(secret.Data)
+	if keys == obcStorageCredentialKeys {
 		// OBC credentials are supplied through the pod's Secret key references.
 		return "", ""
 	}
@@ -59,21 +60,34 @@ func storageSecretKeys(data map[string][]byte) (storageCredentialKeys, bool) {
 	return keys, len(data[keys.access]) > 0 && len(data[keys.secret]) > 0
 }
 
-// resolveStorageSecretRefEnv selects the same key pair as the readiness check.
-func (r *MilvusReconciler) resolveStorageSecretRefEnv(ctx context.Context, mc v1beta1.Milvus) ([]corev1.EnvVar, error) {
+const obcStorageSecretChecksumAnnotation = "milvus.io/obc-storage-secret-checksum"
+
+// resolveStorageSecretRef selects the same credential format as the readiness check.
+// Legacy key references are retained when a key is missing so workload updates
+// that do not start Pods can still run, including scaling down for an upgrade.
+func (r *MilvusReconciler) resolveStorageSecretRef(ctx context.Context, mc v1beta1.Milvus) ([]corev1.EnvVar, string, error) {
 	ref := mc.Spec.Dep.Storage.SecretRef
 	env := GetStorageSecretRefEnv(ref)
 	if ref == "" {
-		return env, nil
+		return env, "", nil
 	}
 	secret := &corev1.Secret{}
 	key := NamespacedName(mc.Namespace, ref)
 	if err := r.Get(ctx, key, secret); err != nil {
-		return nil, errors.Wrap(err, "get storage secret for pod environment")
+		return nil, "", errors.Wrap(err, "get storage secret for pod environment")
 	}
-	keys, ok := storageSecretKeys(secret.Data)
-	if !ok {
-		return nil, errors.Errorf("storage Secret %s: %s", key, MessageKeyNotExist)
+	keys, complete := storageSecretKeys(secret.Data)
+	var checksum string
+	if keys == obcStorageCredentialKeys {
+		access, hasAccess := secret.Data[keys.access]
+		secretKey, hasSecret := secret.Data[keys.secret]
+		if !hasAccess && !hasSecret {
+			return env, "", nil // retain the original key references
+		}
+		if !complete {
+			return nil, "", errors.Errorf("storage Secret %s: %s", key, MessageKeyNotExist)
+		}
+		checksum = util.CheckSum(fmt.Appendf(nil, "%q:%q", access, secretKey))
 	}
 	for i := range env {
 		ref := env[i].ValueFrom.SecretKeyRef
@@ -83,7 +97,7 @@ func (r *MilvusReconciler) resolveStorageSecretRefEnv(ctx context.Context, mc v1
 			ref.Key = keys.secret
 		}
 	}
-	return env, nil
+	return env, checksum, nil
 }
 
 // kafkaSecret is the content of the secret named by spec.dependencies.kafka.secretRef.

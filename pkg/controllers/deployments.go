@@ -372,9 +372,15 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 	if err != nil {
 		return err
 	}
-	storageSecretEnv, err := r.resolveStorageSecretRefEnv(ctx, mc)
+	storageSecretEnv, storageSecretChecksum, err := r.resolveStorageSecretRef(ctx, mc)
 	if err != nil {
 		return err
+	}
+	if storageSecretChecksum != "" {
+		// Carry the checksum to the Pod template without persisting it on the CR.
+		mc.Annotations = MergeAnnotations(mc.GetAnnotations(), map[string]string{
+			obcStorageSecretChecksumAnnotation: storageSecretChecksum,
+		})
 	}
 	ctx = contextWithStorageEndpointEnv(ctx, append(storageEndpointEnv, storageSecretEnv...))
 

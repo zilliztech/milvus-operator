@@ -68,19 +68,30 @@ func TestStorageSecretFormats(t *testing.T) {
 			}).Reset()
 
 			condition := GetMinioCondition(ctx, logr.Discard(), cli, StorageConditionInfo{Namespace: mc.Namespace, Storage: mc.Spec.Dep.Storage})
-			env, err := r.resolveStorageSecretRefEnv(ctx, mc)
+			env, checksum, err := r.resolveStorageSecretRef(ctx, mc)
 			if tc.want == [2]string{} {
-				require.ErrorContains(t, err, MessageKeyNotExist)
-				assert.Empty(t, env)
 				assert.Equal(t, corev1.ConditionFalse, condition.Status)
 				assert.Equal(t, v1beta1.ReasonSecretNotExist, condition.Reason)
 				assert.Zero(t, calls)
+				assert.Empty(t, checksum)
+				switch tc.name {
+				case "missing obc secret key", "missing obc access key", "empty obc secret key":
+					require.ErrorContains(t, err, MessageKeyNotExist)
+					assert.Empty(t, env)
+				case "partial silo blocks obc":
+					require.NoError(t, err)
+					assertStorageSecretEnv(t, env, secret.Name, [2]string{"rootUser", "rootPassword"})
+				default:
+					require.NoError(t, err)
+					assertStorageSecretEnv(t, env, secret.Name, [2]string{AccessKey, SecretKey})
+				}
 				return
 			}
 
 			require.NoError(t, err)
 			assert.Equal(t, corev1.ConditionTrue, condition.Status)
 			assert.Equal(t, 1, calls)
+			assert.Equal(t, tc.want == [2]string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}, checksum != "")
 			assertStorageSecretEnv(t, env, secret.Name, tc.want)
 		})
 	}
@@ -191,4 +202,21 @@ func TestReconcileMilvusWithObjectBucketClaim(t *testing.T) {
 	require.GreaterOrEqual(t, index, 0)
 	container := template.Spec.Containers[index]
 	assertStorageSecretEnv(t, container.Env, secret.Name, [2]string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"})
+	require.True(t, milvusReferencesSecret(&mc, secret.Name))
+	require.False(t, milvusReferencesSecret(&mc, "other-secret"))
+	oldChecksum := template.Annotations[obcStorageSecretChecksumAnnotation]
+	require.NotEmpty(t, oldChecksum)
+
+	// Updating values in the same Secret must update the workload template.
+	actualSecret.Data["AWS_SECRET_ACCESS_KEY"] = []byte("rotated-test-password")
+	require.NoError(t, r.Update(env.ctx, &actualSecret))
+	require.NoError(t, r.ReconcileDeployments(env.ctx, mc))
+	require.NoError(t, r.Get(env.ctx, client.ObjectKeyFromObject(&deployment), &deployment))
+	newChecksum := deployment.Spec.Template.Annotations[obcStorageSecretChecksumAnnotation]
+	assert.NotEqual(t, oldChecksum, newChecksum)
+	assert.NotContains(t, mc.GetAnnotations(), obcStorageSecretChecksumAnnotation)
+
+	require.NoError(t, r.ReconcileDeployments(env.ctx, mc))
+	require.NoError(t, r.Get(env.ctx, client.ObjectKeyFromObject(&deployment), &deployment))
+	assert.Equal(t, newChecksum, deployment.Spec.Template.Annotations[obcStorageSecretChecksumAnnotation])
 }
