@@ -1,8 +1,32 @@
 #!/bin/bash
-set -ex
+set -eEx
+
+# Preserve diagnostics before CI tears down the kind cluster.
+diagnostics() {
+    status=$?
+    trap - ERR
+    set +e
+    kubectl get milvus,pods,deployments,statefulsets,pvc -A -o wide
+    kubectl get events -A --sort-by=.metadata.creationTimestamp
+    kubectl -n milvus-operator logs deployment/milvus-operator --all-containers --tail=200
+    for pod in $(kubectl -n default get pods -o name); do
+        kubectl -n default describe "$pod"
+        kubectl -n default logs "$pod" --all-containers --tail=100
+    done
+    exit "$status"
+}
+trap diagnostics ERR
+
 echo "Deploying old operator"
 helm -n milvus-operator install --timeout 20m --wait --wait-for-jobs --set resources.requests.cpu=10m --create-namespace milvus-operator https://github.com/zilliztech/milvus-operator/releases/download/v0.9.17/milvus-operator-0.9.17.tgz
-kubectl apply -f config/samples/demo.yaml
+# Helm readiness can precede the admission webhook accepting connections.
+for attempt in {1..30}; do
+    if kubectl apply --dry-run=server -f test/operator-upgrade.yaml; then
+        break
+    fi
+    sleep 2
+done
+kubectl apply -f test/operator-upgrade.yaml
 echo "Deploying milvus"
 kubectl --timeout 20m wait --for=condition=MilvusReady milvus my-release
 echo "Deploying upgrade"

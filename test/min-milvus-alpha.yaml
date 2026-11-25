@@ -35,6 +35,15 @@ spec:
         deletionPolicy: Delete
         pvcDeletion: true
         values:
+          image:
+            repository: pgsty/silo
+            tag: RELEASE.2026-09-03T13-18-01Z
+          mcImage:
+            repository: pgsty/mc
+            tag: RELEASE.2026-09-13T00-00-00Z
+          environment:
+            MINIO_ROOT_USER: $(MINIO_ACCESS_KEY)
+            MINIO_ROOT_PASSWORD: $(MINIO_SECRET_KEY)
           mode: standalone
           persistence:
             size: 20Gi

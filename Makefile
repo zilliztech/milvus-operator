@@ -3,6 +3,8 @@
 IMG ?= milvusdb/milvus-operator:dev-latest
 TOOL_IMG ?= milvus-config-tool:dev-latest
 SIT_IMG ?= milvus-operator:sit
+SILO_IMAGE ?= pgsty/silo:RELEASE.2026-09-03T13-18-01Z
+SILO_MC_IMAGE ?= pgsty/mc:RELEASE.2026-09-13T00-00-00Z
 VERSION ?= 1.3.6
 TOOL_VERSION ?= 1.0.0
 MILVUS_HELM_VERSION ?= milvus-5.0.13
@@ -241,7 +243,8 @@ sit-prepare-images: sit-prepare-operator-images
 	# docker pull -q apachepulsar/pulsar:2.8.2
 	docker pull -q bitnamilegacy/kafka:3.1.0
 	docker pull -q milvusdb/etcd:3.5.25-r1
-	docker pull -q minio/minio:RELEASE.2024-12-18T13-15-44Z
+	docker pull -q $(SILO_IMAGE)
+	docker pull -q $(SILO_MC_IMAGE)
 	docker pull -q bitnamilegacy/pymilvus:2.4.6
 
 sit-load-operator-images:
@@ -254,7 +257,8 @@ sit-load-images: sit-load-operator-images
 	# kind load docker-image apachepulsar/pulsar:2.8.2 --name $(KIND_CLUSTER)
 	kind load docker-image bitnamilegacy/kafka:3.1.0 --name $(KIND_CLUSTER)
 	kind load docker-image milvusdb/etcd:3.5.25-r1 --name $(KIND_CLUSTER)
-	kind load docker-image minio/minio:RELEASE.2024-12-18T13-15-44Z --name $(KIND_CLUSTER)
+	kind load docker-image $(SILO_IMAGE) --name $(KIND_CLUSTER)
+	kind load docker-image $(SILO_MC_IMAGE) --name $(KIND_CLUSTER)
 	kind load docker-image bitnamilegacy/pymilvus:2.4.6 --name $(KIND_CLUSTER)
 
 sit-load-and-cleanup-images: sit-load-images
@@ -263,14 +267,17 @@ sit-load-and-cleanup-images: sit-load-images
 	# docker rmi apachepulsar/pulsar:2.8.2
 	docker rmi bitnamilegacy/kafka:3.1.0
 	docker rmi milvusdb/etcd:3.5.25-r1
-	docker rmi minio/minio:RELEASE.2024-12-18T13-15-44Z
+	docker rmi $(SILO_IMAGE)
+	docker rmi $(SILO_MC_IMAGE)
 
 sit-generate-manifest:
 	cat deploy/manifests/deployment.yaml | sed  "s#${RELEASE_IMG}#${SIT_IMG}#g" > test/test_gen.yaml
 
+SIT_HELM_ARGS ?=
+
 sit-deploy: sit-load-and-cleanup-images
 	@echo "Deploying"
-	$(HELM) -n milvus-operator install --set image.repository=milvus-operator,image.tag=sit,resources.requests.cpu=10m --create-namespace milvus-operator ./charts/milvus-operator
+	$(HELM) -n milvus-operator install --set image.repository=milvus-operator,image.tag=sit,resources.requests.cpu=10m --create-namespace milvus-operator ./charts/milvus-operator $(SIT_HELM_ARGS)
 	kubectl -n milvus-operator describe pods
 	@echo "Waiting for operator to be ready"
 	kubectl -n milvus-operator rollout restart deploy/milvus-operator
