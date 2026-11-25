@@ -18,7 +18,7 @@ func (r *Milvus) validateRollingUpdates() field.ErrorList {
 	components := reflect.ValueOf(r.Spec.Com)
 	for i := 0; i < components.NumField(); i++ {
 		component := components.Field(i)
-		if component.Kind() != reflect.Ptr || component.IsNil() || component.Elem().Kind() != reflect.Struct {
+		if component.Kind() != reflect.Pointer || component.IsNil() || component.Elem().Kind() != reflect.Struct {
 			continue
 		}
 		spec := component.Elem().FieldByName("ComponentSpec")
