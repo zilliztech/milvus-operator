@@ -216,8 +216,31 @@ func TestStorageCAValidationPreservesExistingWorkload(t *testing.T) {
 
 	ca.Data["ca.crt"] = pemBundle
 	require.NoError(t, r.Update(env.ctx, ca))
-	mc.Spec.Com.VolumeMounts = []corev1.VolumeMount{{Name: "corporate-trust", MountPath: systemCABundlePath}}
-	checkNoRollout("conflicts with standalone volume mount")
+	for _, mountPath := range []string{systemCABundlePath, "/etc/ssl/certs"} {
+		mc.Spec.Com.VolumeMounts = []corev1.VolumeMount{{Name: "corporate-trust", MountPath: mountPath}}
+		checkNoRollout("conflicts with standalone volume mount")
+	}
 	mc.Spec.Com.VolumeMounts = nil
+
+	for _, volumeName := range []string{storageCAVolumeName, storageCATrustVolume} {
+		mc.Spec.Com.Volumes = []v1beta1.Values{{Data: map[string]interface{}{
+			"name": volumeName, "emptyDir": map[string]interface{}{},
+		}}}
+		checkNoRollout("conflicts with standalone volume")
+	}
+	mc.Spec.Com.Volumes = []v1beta1.Values{{Data: map[string]interface{}{"name": 123}}}
+	checkNoRollout("read standalone volume for storage CA validation")
+	mc.Spec.Com.Volumes = nil
+
+	mc.Spec.Com.Standalone.InitContainers = []v1beta1.Values{{Data: map[string]interface{}{
+		"name": storageCAInitName, "image": "user-defined",
+	}}}
+	checkNoRollout("conflicts with standalone init container")
+	mc.Spec.Com.Standalone.InitContainers = nil
+
+	mc.Spec.Dep.Storage.SSL.CACertificateRef = "previous-ca"
+	checkNoRollout("set only one")
+	mc.Spec.Dep.Storage.SSL.CACertificateRef = ""
+
 	require.NoError(t, r.validateStorageCAForWorkloads(env.ctx, mc))
 }
