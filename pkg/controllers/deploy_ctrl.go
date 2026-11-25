@@ -214,7 +214,7 @@ func (c *DeployControllerBizImpl) IsPaused(ctx context.Context, mc v1beta1.Milvu
 }
 
 func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.Milvus) error {
-	_, _, err := c.util.GetDeploys(ctx, mc)
+	currentDeployment, _, err := c.util.GetDeploys(ctx, mc)
 	if err == nil {
 		return nil
 	}
@@ -229,7 +229,11 @@ func (c *DeployControllerBizImpl) HandleCreate(ctx context.Context, mc v1beta1.M
 			return errors.Wrapf(err, "create %s deployment 0", c.component.Name)
 		}
 	case ErrNoLastDeployment:
-		return c.util.CreateDeploy(ctx, mc, nil, 1)
+		currentGroupID, err := GetDeploymentGroupId(currentDeployment)
+		if err != nil {
+			return err
+		}
+		return c.util.CreateDeploy(ctx, mc, nil, 1-currentGroupID)
 	default:
 		return errors.Wrapf(err, "get %s deploys", c.component.Name)
 	}

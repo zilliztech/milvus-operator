@@ -332,8 +332,17 @@ func TestDeployControllerBizImpl_HandleCreate(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("invalid current deployment label", func(t *testing.T) {
+		current := &appsv1.Deployment{}
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(current, nil, ErrNoLastDeployment)
+		assert.ErrorContains(t, bizImpl.HandleCreate(ctx, mc), "parse")
+	})
+
 	t.Run("create deploy 1 failed", func(t *testing.T) {
-		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(nil, nil, ErrNoLastDeployment)
+		current := appsv1.Deployment{}
+		current.Labels = NewComponentAppLabels(mc.Name, QueryNode.Name)
+		v1beta1.Labels().SetGroupID(QueryNode.Name, current.Labels, 0)
+		mockUtil.EXPECT().GetDeploys(ctx, mc).Return(&current, nil, ErrNoLastDeployment)
 		mockUtil.EXPECT().CreateDeploy(ctx, mc, nil, 1).Return(errMock)
 		err := bizImpl.HandleCreate(ctx, mc)
 		assert.Error(t, err)

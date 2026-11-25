@@ -27,9 +27,9 @@ type DeployControllerBizUtil interface {
 	// otherwise return err. in particular:
 	// - return ErrNotFound when no deployment found
 	// - return ErrNoCurrentDeployment when no current deployment found
-	// - return ErrNoLastDeployment when no last deployment found
+	// - return the current deployment with ErrNoLastDeployment when its counterpart is missing
 	GetDeploys(ctx context.Context, mc v1beta1.Milvus) (currentDeployment, lastDeployment *appsv1.Deployment, err error)
-	// CreateDeploy with replica = 0, if groupId != 0, set image to dummy to avoid rolling back and forth
+	// CreateDeploy creates a zero-replica deployment with a dummy image for the inactive group.
 	CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error
 
 	ShouldRollback(ctx context.Context, currentDeploy, lastDeployment *appsv1.Deployment, podTemplate *corev1.PodTemplateSpec) bool
@@ -77,15 +77,17 @@ var _ DeployControllerBizUtil = &DeployControllerBizUtilImpl{}
 
 type DeployControllerBizUtilImpl struct {
 	K8sUtil
-	component MilvusComponent
-	cli       client.Client
+	component        MilvusComponent
+	cli              client.Client
+	replicaSetReader client.Reader
 }
 
 func NewDeployControllerBizUtil(component MilvusComponent, cli client.Client, k8sUtil K8sUtil) *DeployControllerBizUtilImpl {
 	return &DeployControllerBizUtilImpl{
-		component: component,
-		K8sUtil:   k8sUtil,
-		cli:       cli,
+		component:        component,
+		K8sUtil:          k8sUtil,
+		cli:              cli,
+		replicaSetReader: cli,
 	}
 }
 
@@ -151,10 +153,11 @@ func (c *DeployControllerBizUtilImpl) GetDeploys(ctx context.Context, mc v1beta1
 	}
 	// last == nil
 
-	if v1beta1.Labels().GetCurrentGroupId(&mc, c.component.Name) != "0" {
-		return nil, nil, errors.Errorf("unexpected: first deployment is not for group 0, admin please fix this by setting a last deployment for group 0")
+	currentGroupID := v1beta1.Labels().GetCurrentGroupId(&mc, c.component.Name)
+	if currentGroupID != "0" && currentGroupID != "1" {
+		return nil, nil, errors.Errorf("unexpected: current deployment group ID %q must be 0 or 1", currentGroupID)
 	}
-	return nil, nil, ErrNoLastDeployment
+	return current, nil, ErrNoLastDeployment
 }
 
 func componentDeployIsCurrentGroup(mc v1beta1.Milvus, component MilvusComponent, deploy *appsv1.Deployment) bool {
@@ -166,11 +169,28 @@ func formatComponentDeployName(mc v1beta1.Milvus, component MilvusComponent, gro
 }
 
 func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1beta1.Milvus, podTemplate *corev1.PodTemplateSpec, groupId int) error {
+	labels := NewComponentAppLabels(mc.Name, c.component.Name)
+	v1beta1.Labels().SetGroupID(c.component.Name, labels, groupId)
 	if podTemplate == nil {
 		podTemplate = c.RenderPodTemplateWithoutGroupID(mc, nil, c.component, true)
 	}
-	if groupId != 0 {
-		// is not the first deploy, set image to dummy to avoid rolling back and forth
+	currentGroupID := v1beta1.Labels().GetCurrentGroupId(&mc, c.component.Name)
+	if currentGroupID == "" {
+		currentGroupID = "0"
+	}
+	if strconv.Itoa(groupId) != currentGroupID {
+		// A zero-replica Deployment can adopt and scale down orphaned ReplicaSets.
+		// Deployment deletion and ReplicaSet updates reach their caches independently.
+		var replicaSets appsv1.ReplicaSetList
+		if err := c.replicaSetReader.List(ctx, &replicaSets, client.InNamespace(mc.Namespace), client.MatchingLabels(labels)); err != nil {
+			return errors.Wrap(err, "list standby ReplicaSets")
+		}
+		for _, replicaSet := range replicaSets.Items {
+			if replicaSet.Spec.Replicas == nil || *replicaSet.Spec.Replicas > 0 || replicaSet.Status.Replicas > 0 {
+				return errors.Wrapf(ErrRequeue, "standby ReplicaSet %s still has replicas", replicaSet.Name)
+			}
+		}
+		// Give the inactive deployment a dummy image so it never looks like a rollback target.
 		podTemplate.Spec.Containers[0].Image = "dummy"
 		if mc.Spec.Com.DummyImage != "" {
 			podTemplate.Spec.Containers[0].Image = mc.Spec.Com.DummyImage
@@ -184,8 +204,6 @@ func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1bet
 	if err != nil {
 		return errors.Wrap(err, "set controller reference")
 	}
-	labels := NewComponentAppLabels(mc.Name, c.component.Name)
-	v1beta1.Labels().SetGroupID(c.component.Name, labels, groupId)
 	deploy.Labels = labels
 	deploy.Spec.Selector = &metav1.LabelSelector{
 		MatchLabels: labels,

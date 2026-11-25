@@ -54,7 +54,7 @@ func SetupControllers(ctx context.Context, mgr manager.Manager, stopReconcilers 
 			statusSyncer:   statusSyncer,
 		}
 		k8sUtil := NewK8sUtil(mgr.GetClient())
-		bizUtilFactory := NewDeployControllerBizUtilFactory(mgr.GetClient(), k8sUtil)
+		bizUtilFactory := NewDeployControllerBizUtilFactory(mgr.GetClient(), mgr.GetAPIReader(), k8sUtil)
 		modeChangerFactory := NewDeployModeChangerFactory(mgr.GetClient(), k8sUtil)
 		deployCtrlBizFactory := NewDeployControllerBizFactory(modeChangerFactory, bizUtilFactory, mgr.GetClient())
 		rollingModeStatusUpdater := NewRollingModeStatusUpdater(mgr.GetClient(), deployCtrlBizFactory)

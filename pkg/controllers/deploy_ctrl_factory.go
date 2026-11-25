@@ -61,17 +61,21 @@ type DeployControllerBizUtilFactory interface {
 var _ DeployControllerBizUtilFactory = &DeployControllerBizUtilFactoryImpl{}
 
 type DeployControllerBizUtilFactoryImpl struct {
-	cli     client.Client
-	k8sUtil K8sUtil
+	cli       client.Client
+	apiReader client.Reader
+	k8sUtil   K8sUtil
 }
 
-func NewDeployControllerBizUtilFactory(cli client.Client, k8sUtil K8sUtil) *DeployControllerBizUtilFactoryImpl {
+func NewDeployControllerBizUtilFactory(cli client.Client, apiReader client.Reader, k8sUtil K8sUtil) *DeployControllerBizUtilFactoryImpl {
 	return &DeployControllerBizUtilFactoryImpl{
-		cli:     cli,
-		k8sUtil: k8sUtil,
+		cli:       cli,
+		apiReader: apiReader,
+		k8sUtil:   k8sUtil,
 	}
 }
 
 func (f *DeployControllerBizUtilFactoryImpl) GetBizUtil(component MilvusComponent) DeployControllerBizUtil {
-	return NewDeployControllerBizUtil(component, f.cli, f.k8sUtil)
+	util := NewDeployControllerBizUtil(component, f.cli, f.k8sUtil)
+	util.replicaSetReader = f.apiReader
+	return util
 }
