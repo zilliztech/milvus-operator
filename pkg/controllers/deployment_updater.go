@@ -203,6 +203,7 @@ func updatePodTemplate(
 	updateUserDefinedVolumes(template, updater)
 	updateScheduleSpec(template, updater)
 	updateMilvusContainer(template, updater, forceUpdateAll)
+	updateStorageCA(template, updater.GetMilvus(), updater.GetComponent().Name)
 	mc := updater.GetMilvus()
 	injectKafkaSecretsIntoTemplate(template, currentTemplate, mc, updater.GetComponent().Name, updater.GetMergedComponentSpec().Volumes)
 	updateSidecars(template, updater)

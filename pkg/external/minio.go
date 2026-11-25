@@ -29,6 +29,8 @@ type CheckMinIOArgs struct {
 	UseIAM         bool
 	IAMEndpoint    string
 	UseVirtualHost bool
+	// RedactSecrets prevents a response from echoing the Secret values.
+	RedactSecrets bool
 	// SSL Configuration
 	CACertificate      []byte
 	InsecureSkipVerify bool
@@ -131,6 +133,21 @@ func CheckMinIO(args CheckMinIOArgs) error {
 				return err
 			}
 			return isHealthyByServerInfo(st)
+		}
+	}
+	// Scrub OBC credentials before the retry helper logs an endpoint error.
+	if args.RedactSecrets {
+		probe := checkMinio
+		checkMinio = func() error {
+			err := probe()
+			if err != nil {
+				message := err.Error()
+				if (args.AK != "" && strings.Contains(message, args.AK)) ||
+					(args.SK != "" && strings.Contains(message, args.SK)) {
+					return errors.New("storage endpoint error contained credentials")
+				}
+			}
+			return err
 		}
 	}
 	return util.DoWithBackoff("checkMinIO", checkMinio, util.DefaultMaxRetry, util.DefaultBackOffInterval)

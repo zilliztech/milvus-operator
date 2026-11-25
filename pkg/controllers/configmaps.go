@@ -31,23 +31,35 @@ func (r *MilvusReconciler) getMinioAccessInfo(ctx context.Context, mc v1beta1.Mi
 		return "", ""
 	}
 
-	ak, sk, _, _ := storageSecretKeys(secret.Data)
-	return string(ak), string(sk)
-
-}
-
-func storageSecretKeys(data map[string][]byte) ([]byte, []byte, bool, bool) {
-	ak, aok := data[AccessKey]
-	sk, sok := data[SecretKey]
-	if !aok && !sok {
-		ak, aok = data["rootUser"]
-		sk, sok = data["rootPassword"]
+	keys, ok := storageSecretKeys(secret.Data)
+	if !ok || keys == obcStorageCredentialKeys {
+		// OBC credentials are supplied through the pod's Secret key references.
+		return "", ""
 	}
-	return ak, sk, aok, sok
+	return string(secret.Data[keys.access]), string(secret.Data[keys.secret])
 }
 
-// resolveStorageSecretRefEnv accepts the legacy MinIO and upstream Silo secret
-// schemas without copying credentials or changing a user's Secret.
+type storageCredentialKeys struct {
+	access string
+	secret string
+}
+
+var obcStorageCredentialKeys = storageCredentialKeys{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}
+
+func storageSecretKeys(data map[string][]byte) (storageCredentialKeys, bool) {
+	// Preserve the existing format precedence, even if a pair is incomplete.
+	for _, keys := range []storageCredentialKeys{{AccessKey, SecretKey}, {"rootUser", "rootPassword"}} {
+		_, hasAccess := data[keys.access]
+		_, hasSecret := data[keys.secret]
+		if hasAccess || hasSecret {
+			return keys, hasAccess && hasSecret
+		}
+	}
+	keys := obcStorageCredentialKeys
+	return keys, len(data[keys.access]) > 0 && len(data[keys.secret]) > 0
+}
+
+// resolveStorageSecretRefEnv selects the same key pair as the readiness check.
 func (r *MilvusReconciler) resolveStorageSecretRefEnv(ctx context.Context, mc v1beta1.Milvus) ([]corev1.EnvVar, error) {
 	ref := mc.Spec.Dep.Storage.SecretRef
 	env := GetStorageSecretRefEnv(ref)
@@ -55,20 +67,20 @@ func (r *MilvusReconciler) resolveStorageSecretRefEnv(ctx context.Context, mc v1
 		return env, nil
 	}
 	secret := &corev1.Secret{}
-	if err := r.Get(ctx, NamespacedName(mc.Namespace, ref), secret); err != nil {
+	key := NamespacedName(mc.Namespace, ref)
+	if err := r.Get(ctx, key, secret); err != nil {
 		return nil, errors.Wrap(err, "get storage secret for pod environment")
 	}
-	_, legacyAccess := secret.Data[AccessKey]
-	_, legacySecret := secret.Data[SecretKey]
-	_, silo := secret.Data["rootUser"]
-	if !legacyAccess && !legacySecret && silo {
-		for i := range env {
-			key := &env[i].ValueFrom.SecretKeyRef.Key
-			if *key == AccessKey {
-				*key = "rootUser"
-			} else {
-				*key = "rootPassword"
-			}
+	keys, ok := storageSecretKeys(secret.Data)
+	if !ok {
+		return nil, errors.Errorf("storage Secret %s: %s", key, MessageKeyNotExist)
+	}
+	for i := range env {
+		ref := env[i].ValueFrom.SecretKeyRef
+		if ref.Key == AccessKey {
+			ref.Key = keys.access
+		} else {
+			ref.Key = keys.secret
 		}
 	}
 	return env, nil

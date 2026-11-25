@@ -164,6 +164,15 @@ type MilvusStorageSSLConfig struct {
 	// +kubebuilder:validation:Optional
 	CACertificateRef string `json:"caCertificateRef,omitempty"`
 
+	// Name of a ConfigMap in the Milvus namespace containing a PEM CA bundle.
+	// Use this instead of caCertificateRef to supply the CA to the operator and Milvus pods.
+	// +kubebuilder:validation:Optional
+	CAConfigMapRef string `json:"caConfigMapRef,omitempty"`
+
+	// Key in caConfigMapRef containing the CA bundle. Defaults to ca.crt.
+	// +kubebuilder:validation:Optional
+	CAConfigMapKey string `json:"caConfigMapKey,omitempty"`
+
 	// Skip SSL certificate verification (not recommended for production)
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default:=false
