@@ -77,15 +77,17 @@ var _ DeployControllerBizUtil = &DeployControllerBizUtilImpl{}
 
 type DeployControllerBizUtilImpl struct {
 	K8sUtil
-	component MilvusComponent
-	cli       client.Client
+	component        MilvusComponent
+	cli              client.Client
+	replicaSetReader client.Reader
 }
 
 func NewDeployControllerBizUtil(component MilvusComponent, cli client.Client, k8sUtil K8sUtil) *DeployControllerBizUtilImpl {
 	return &DeployControllerBizUtilImpl{
-		component: component,
-		K8sUtil:   k8sUtil,
-		cli:       cli,
+		component:        component,
+		K8sUtil:          k8sUtil,
+		cli:              cli,
+		replicaSetReader: cli,
 	}
 }
 
@@ -178,8 +180,9 @@ func (c *DeployControllerBizUtilImpl) CreateDeploy(ctx context.Context, mc v1bet
 	}
 	if strconv.Itoa(groupId) != currentGroupID {
 		// A zero-replica Deployment can adopt and scale down orphaned ReplicaSets.
+		// Deployment deletion and ReplicaSet updates reach their caches independently.
 		var replicaSets appsv1.ReplicaSetList
-		if err := c.cli.List(ctx, &replicaSets, client.InNamespace(mc.Namespace), client.MatchingLabels(labels)); err != nil {
+		if err := c.replicaSetReader.List(ctx, &replicaSets, client.InNamespace(mc.Namespace), client.MatchingLabels(labels)); err != nil {
 			return errors.Wrap(err, "list standby ReplicaSets")
 		}
 		for _, replicaSet := range replicaSets.Items {
