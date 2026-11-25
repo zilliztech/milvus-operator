@@ -85,6 +85,8 @@ If your Milvus resource and OBC share a name, set `spec.components.activeConfigM
 
 If a Secret contains multiple supported formats, the operator checks `accesskey`/`secretkey` first, then `rootUser`/`rootPassword`, then `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`. The first format with either key present takes precedence and must contain both keys. The OBC keys must also have nonempty values.
 
+When the credential values change in the same Secret, the operator updates the workload template so new Pods read the new values. Keep the old credentials valid until the new Pods are ready.
+
 ## Trust a custom CA for an HTTPS endpoint
 
 Store the PEM CA bundle in a ConfigMap in the Milvus namespace. For a self-signed endpoint, use its public certificate. Set `caConfigMapRef` to the ConfigMap name and enable TLS for both the operator and Milvus. The readiness probe uses the bundle to verify the endpoint. At startup, Milvus pods append it to the image's system CA bundle at `/etc/ssl/certs/ca-certificates.crt` and mount the combined bundle read-only. Restart the pods after replacing the CA bundle.
@@ -104,6 +106,10 @@ spec:
 The default ConfigMap key is `ca.crt`. Set `caConfigMapKey` under `storage.ssl` for bundles using another key, such as OpenShift's `service-ca.crt`. Use one CA reference per endpoint, either `caConfigMapRef` or the existing `caCertificateRef` for a Secret.
 
 See the [external S3 sample with a CA ConfigMap](../../../config/samples/milvus_external_s3_ca_configmap.yaml).
+
+The feature requires the Milvus image to provide `/bin/sh`, `cat`, and a readable CA bundle at `/etc/ssl/certs/ca-certificates.crt`. Put the required roots in a single ConfigMap bundle when moving from a custom system CA mount. The volume names `milvus-storage-ca` and `milvus-storage-trust` and init container name `storage-ca` are reserved when this feature is enabled.
+
+Before downgrading to an operator version that predates these features, switch the storage Secret to a supported legacy key pair and restore the previous CA setup as applicable. Wait for the current operator to update the Pod templates and for the workloads to become ready. Remove the old CA ConfigMap only after its mounts are gone.
 
 
 # Use AWS S3 as External object storage

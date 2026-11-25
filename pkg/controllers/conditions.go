@@ -135,14 +135,8 @@ func GetMinioCondition(ctx context.Context, logger logr.Logger, cli client.Clien
 		insecureSkipVerify = ssl.InsecureSkipVerify
 
 		if ssl.CAConfigMapRef != "" {
-			if ssl.CACertificateRef != "" {
-				return newErrStorageCondResult(v1beta1.ReasonClientErr, "set only one of storage.ssl.caConfigMapRef and storage.ssl.caCertificateRef")
-			}
-			if !info.UseSSL {
-				return newErrStorageCondResult(v1beta1.ReasonClientErr, "storage.ssl.caConfigMapRef requires spec.config.minio.useSSL: true")
-			}
-			if insecureSkipVerify {
-				return newErrStorageCondResult(v1beta1.ReasonClientErr, "storage.ssl.caConfigMapRef requires certificate verification")
+			if err := validateStorageCAOptions(ssl, info.UseSSL); err != nil {
+				return newErrStorageCondResult(v1beta1.ReasonClientErr, err.Error())
 			}
 			var err error
 			caCertificate, err = loadStorageCAConfigMap(ctx, cli, info.Namespace, ssl)

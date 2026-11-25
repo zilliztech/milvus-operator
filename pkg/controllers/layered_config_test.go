@@ -45,7 +45,8 @@ func TestResolveStorageSecretRefEnv(t *testing.T) {
 			r := MilvusReconciler{Client: fake.NewClientBuilder().WithObjects(secret).Build()}
 			mc := v1beta1.Milvus{ObjectMeta: metav1.ObjectMeta{Namespace: "test"}}
 			mc.Spec.Dep.Storage.SecretRef = "storage"
-			env, err := r.resolveStorageSecretRefEnv(context.Background(), mc)
+			env, checksum, err := r.resolveStorageSecretRef(context.Background(), mc)
+			assert.Equal(t, keys[0] == "AWS_ACCESS_KEY_ID", checksum != "")
 			require.NoError(t, err)
 			require.Len(t, env, 4)
 			for i, e := range env {
@@ -53,10 +54,10 @@ func TestResolveStorageSecretRefEnv(t *testing.T) {
 				assert.Empty(t, e.Value)
 			}
 			mc.Spec.Dep.Storage.SecretRef = "missing"
-			_, err = r.resolveStorageSecretRefEnv(context.Background(), mc)
+			_, _, err = r.resolveStorageSecretRef(context.Background(), mc)
 			require.Error(t, err)
 			mc.Spec.Dep.Storage.SecretRef = ""
-			env, err = r.resolveStorageSecretRefEnv(context.Background(), mc)
+			env, _, err = r.resolveStorageSecretRef(context.Background(), mc)
 			require.NoError(t, err)
 			assert.Empty(t, env)
 		})

@@ -199,6 +199,11 @@ func updatePodTemplate(
 	currentTemplate := template.DeepCopy()
 
 	updatePodMeta(template, appLabels, updater)
+	if checksum := updater.GetMilvus().GetAnnotations()[obcStorageSecretChecksumAnnotation]; checksum != "" {
+		template.Annotations[obcStorageSecretChecksumAnnotation] = checksum
+	} else {
+		delete(template.Annotations, obcStorageSecretChecksumAnnotation)
+	}
 	updateInitContainers(template, updater)
 	updateUserDefinedVolumes(template, updater)
 	updateScheduleSpec(template, updater)

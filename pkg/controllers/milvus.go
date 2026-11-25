@@ -61,6 +61,11 @@ func (r *MilvusReconciler) ReconcileMilvus(ctx context.Context, mc v1beta1.Milvu
 		return nil
 	}
 
+	if !isMilvusStoppingForReconcile(mc) {
+		if err := r.validateStorageCAForWorkloads(ctx, &mc); err != nil {
+			return err
+		}
+	}
 	if err := r.ReconcileConfigMaps(ctx, mc); err != nil {
 		return fmt.Errorf("configmap: %w", err)
 	}

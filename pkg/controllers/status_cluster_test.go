@@ -816,3 +816,52 @@ func TestMilvusStatusSyncer_GetMsgStreamCondition_KafkaSecretRef(t *testing.T) {
 		assert.Contains(t, ret.Message, KafkaSaslPasswordKey)
 	})
 }
+
+func TestExternalStorageReadinessIsolatedByMilvus(t *testing.T) {
+	defer gostub.Stub(&endpointCheckCache, NewEndpointCheckCacheImpl()).Reset()
+	syncer := NewMilvusStatusSyncer(context.Background(), nil, logf.Log)
+	first := v1beta1.Milvus{}
+	first.Namespace, first.Name = "a", "first"
+	first.Spec.Dep.Storage.External = true
+	first.Spec.Dep.Storage.Endpoint = "shared-rgw.example.com"
+	first.Spec.Conf.Data = map[string]interface{}{
+		"minio": map[string]interface{}{"bucketName": "first-bucket", "useIAM": true},
+	}
+	second := first.DeepCopy()
+	second.Namespace, second.Name = "b", "second"
+	second.Spec.Conf.Data["minio"].(map[string]interface{})["bucketName"] = "second-bucket"
+
+	probeStarted, releaseProbe := make(chan struct{}), make(chan struct{})
+	var waitForRelease bool
+	defer gostub.Stub(&checkMinIO, func(args external.CheckMinIOArgs) error {
+		if args.Bucket == "second-bucket" {
+			return errors.New("bucket access denied")
+		}
+		if waitForRelease {
+			close(probeStarted)
+			<-releaseProbe
+		}
+		return nil
+	}).Reset()
+
+	ctx := context.Background()
+	condition, err := syncer.GetMinioCondition(ctx, first)
+	assert.NoError(t, err)
+	assert.Equal(t, corev1.ConditionTrue, condition.Status)
+
+	waitForRelease = true
+	probeDone := make(chan struct{})
+	go func() {
+		defer close(probeDone)
+		_, _ = syncer.GetMinioCondition(ctx, first)
+	}()
+	defer func() {
+		close(releaseProbe)
+		<-probeDone
+	}()
+	<-probeStarted
+	condition, err = syncer.GetMinioCondition(ctx, *second)
+	assert.NoError(t, err)
+	assert.Equal(t, corev1.ConditionFalse, condition.Status)
+	assert.Contains(t, condition.Message, "bucket access denied")
+}

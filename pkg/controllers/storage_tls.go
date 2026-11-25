@@ -2,8 +2,11 @@ package controllers
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
+	"path"
 	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,6 +47,66 @@ func loadStorageCAConfigMap(ctx context.Context, cli client.Client, namespace st
 		return nil, fmt.Errorf("storage CA ConfigMap %s has no CA bundle at key %q", name, key)
 	}
 	return bundle, nil
+}
+
+// validateStorageCAForWorkloads runs before changing workloads because the
+// current StorageReady condition can belong to an older CR generation.
+func (r *MilvusReconciler) validateStorageCAForWorkloads(ctx context.Context, mc *v1beta1.Milvus) error {
+	ssl := mc.Spec.Dep.Storage.SSL
+	if ssl == nil || !ssl.Enabled || ssl.CAConfigMapRef == "" {
+		return nil
+	}
+	if err := validateStorageCAOptions(ssl, GetMinioSecure(mc.Spec.Conf.Data)); err != nil {
+		return err
+	}
+	bundle, err := loadStorageCAConfigMap(ctx, r.Client, mc.Namespace, ssl)
+	if err != nil {
+		return err
+	}
+	if !x509.NewCertPool().AppendCertsFromPEM(bundle) {
+		return fmt.Errorf("storage CA ConfigMap %s/%s has no valid PEM certificate at key %q",
+			mc.Namespace, ssl.CAConfigMapRef, storageCAConfigMapKey(ssl))
+	}
+
+	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
+		if IsIdleClusterStandalone(mc.Spec, component) {
+			continue
+		}
+		updater := newMilvusDeploymentUpdater(*mc, r.Scheme, component)
+		spec := updater.GetMergedComponentSpec()
+		for _, mount := range spec.VolumeMounts {
+			mountPath := path.Clean(mount.MountPath)
+			if mountPath == systemCABundlePath || strings.HasPrefix(systemCABundlePath, mountPath+"/") {
+				return fmt.Errorf("storage CA bundle conflicts with %s volume mount at %q", component.Name, mount.MountPath)
+			}
+		}
+		for _, values := range spec.Volumes {
+			var volume corev1.Volume
+			if err := values.AsObject(&volume); err != nil {
+				return fmt.Errorf("read %s volume for storage CA validation: %w", component.Name, err)
+			}
+			if volume.Name == storageCAVolumeName || volume.Name == storageCATrustVolume {
+				return fmt.Errorf("storage CA bundle conflicts with %s volume %q", component.Name, volume.Name)
+			}
+		}
+		if GetContainerIndex(updater.GetInitContainers(), storageCAInitName) >= 0 {
+			return fmt.Errorf("storage CA bundle conflicts with %s init container %q", component.Name, storageCAInitName)
+		}
+	}
+	return nil
+}
+
+func validateStorageCAOptions(ssl *v1beta1.MilvusStorageSSLConfig, useSSL bool) error {
+	switch {
+	case ssl.CACertificateRef != "":
+		return fmt.Errorf("set only one of storage.ssl.caConfigMapRef and storage.ssl.caCertificateRef")
+	case !useSSL:
+		return fmt.Errorf("storage.ssl.caConfigMapRef requires spec.config.minio.useSSL: true")
+	case ssl.InsecureSkipVerify:
+		return fmt.Errorf("storage.ssl.caConfigMapRef requires certificate verification")
+	default:
+		return nil
+	}
 }
 
 func updateStorageCA(template *corev1.PodTemplateSpec, mc *v1beta1.Milvus, component string) {

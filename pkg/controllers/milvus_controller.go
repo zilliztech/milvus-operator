@@ -274,6 +274,9 @@ func (r *MilvusReconciler) mapSecretToMilvusRequests(ctx context.Context, obj cl
 }
 
 func milvusReferencesSecret(milvus *milvusv1beta1.Milvus, secretName string) bool {
+	if storage := milvus.Spec.Dep.Storage; storage.External && storage.SecretRef == secretName {
+		return true
+	}
 	if milvus.Spec.Dep.MsgStreamType != milvusv1beta1.MsgStreamTypeKafka {
 		return false
 	}
