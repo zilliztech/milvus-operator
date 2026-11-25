@@ -93,7 +93,7 @@ jobs:
 
   sit:
     name: System Integration Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
@@ -121,7 +121,7 @@ jobs:
 
   sit-mixture:
     name: System Integration Test for Mixture
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
@@ -148,7 +148,7 @@ jobs:
           make sit-test test_mode=mixture
   sit-new-feature:
     name: System Integration Test for New Feature
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
@@ -175,7 +175,7 @@ jobs:
           make sit-test test_mode=feature
   sit-milvus-upgrade:
     name: System Integration Test for Milvus Upgrade
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -202,7 +202,7 @@ jobs:
           make test-milvus-upgrade
   sit-upgrade:
     name: System Integration Test for Upgrade
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
