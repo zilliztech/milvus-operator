@@ -205,7 +205,7 @@ func TestStorageCAValidationPreservesExistingWorkload(t *testing.T) {
 		t.Helper()
 		require.ErrorContains(t, r.ReconcileMilvus(env.ctx, *mc), expectedError)
 		var current appsv1.Deployment
-		require.NoError(t, r.Get(env.ctx, client.ObjectKeyFromObject(old), &current))
+		require.NoError(t, r.Get(env.ctx, NamespacedName(old.Namespace, old.Name), &current))
 		require.Equal(t, old.Spec.Template, current.Spec.Template)
 	}
 
