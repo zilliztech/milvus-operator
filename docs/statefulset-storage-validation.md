@@ -3,7 +3,7 @@
 This records validation of the behavior described in
 [StatefulSet migration and storage lifecycle](statefulset-storage-lifecycle.md).
 The cluster tests were performed manually on November 26–27, 2026, in isolated
-namespaces on a Kubernetes 1.19-based cluster running Milvus 2.6.15. They are
+namespaces on a Kubernetes 1.19-based cluster running Milvus 2.5.25 and 2.6.15. They are
 supplemental evidence, not a replacement for the repository CI suite.
 
 ## Automated regression coverage
@@ -177,9 +177,88 @@ check. The original migration and loaded collection were resumed without any
 release or additional load call. Query sampling therefore has a gap; this run is
 not evidence of uninterrupted availability across the entire transition.
 
-IndexNode has unit coverage only in this change. DataNode's live check covers
-storage replacement with two replicas, not sustained writes or index building.
+This first component run did not cover live IndexNode replacement, sustained
+writes or index building; the repeated runs below add that coverage.
 The dedicated mount checks do not exercise mmap, DiskANN or tiered-storage I/O.
+
+## Repeated lifecycle validation with continuous writes (November 27)
+
+Operator commit `1738974` was exercised with two isolated Milvus instances:
+2.6.15 with two DataNodes and three QueryNodes in deployment groups (2 + 1), and
+2.5.25 with two IndexNodes. Each instance completed two consecutive attach/detach
+round trips, without a strategy annotation. The 2.6 CR changed both components
+in each update. An additional complete round trip on the same 2.5 instance
+verified a correction to the test driver's client shutdown described below.
+
+All ten storage phases passed their lifecycle assertions. Across 32 intentional
+Pod replacements, sampled observations showed at most one unavailable target
+node **per instance**. Each target Pod was replaced exactly once per phase, in
+component/group/ordinal order, with no observed container restarts or extra
+replacements. Each final state remained stable for at least 35 seconds.
+
+All 16 attached claims passed PVC-reference, filesystem mount-point and marker
+write/read checks. The second round used fresh PVC identities. Every detach
+removed its eligible claims; a final namespace-wide scan found no test data
+claims, independently of labels. All target StatefulSets returned to
+RollingUpdate, CR migration locks cleared, and Service journals had no pending
+migration. Retired-mount history may remain in the journal.
+
+Each run queried an explicit FLAT/L2 collection of 8,192 loaded vectors while
+inserting batches of 128 vectors into a separate, initially 8,192-row IVF_FLAT
+collection. The writer read back each batch's first and last ID; another worker
+flushed periodically. Sampling ran across all storage phases, without the
+mid-migration resumption gap in the earlier run. No existing test collection was
+released or reloaded during a storage phase. After migration, every acknowledged
+new ID was read back, exact row counts matched, and index status reported all
+rows indexed with zero pending index rows.
+
+| Fixture | Round trips | Successful query/search pairs | Acknowledged new rows, all verified | Final indexed rows |
+| --- | --- | --- | --- | --- |
+| 2.6.15, DataNode + grouped QueryNode | 2 | 6,653 | 138,240 | 146,432 |
+| 2.5.25, IndexNode | 2 | 1,102 | 55,552 | 63,744 |
+| 2.5.25, additional round with corrected client shutdown | 1 | 505 | 25,984 | 34,176 |
+
+The first two drivers each failed during **client shutdown after the fourth
+phase's stable window**, before their final data check: their worker clients
+shared a PyMilvus connection alias, and closing one worker's client removed the
+connection used by the other workers and the main client. Each run recorded one
+query and one post-insert read error on requests crossing this shutdown boundary.
+The raw driver failures are retained; these runs are not reported as clean
+driver exits or as zero-error client sessions. All observations completed before
+the stop boundary succeeded, including 108 and 48 periodic flushes respectively.
+
+Independent clients completed both final data checks, including the last
+acknowledged batches. A separate 2.6 query process and port-forward remained
+active across the original driver's shutdown and final verification: 3,375
+query/search pairs succeeded with no observed failures. A focused check also
+verified that joining all workers before closing their shared connection allows
+the final flush, query and search to complete.
+
+After correcting the driver's shutdown order, the additional 2.5 round used new
+test collections on the same instance. Its driver exited successfully, including
+full data verification, with no failures in 505 query/search pairs, 203 write/read
+batches or 23 periodic flushes. This is a complete successful run of the corrected
+driver; the two-round 2.6 run was not repeated solely for that teardown correction.
+
+A preliminary fixture was discarded before these measurements because its
+driver incorrectly required the storage annotation to disappear. An empty `{}`
+journal or retired-mount history is valid; the corrected assertion checks that
+no migration is pending. That fixture was cleaned up and recreated before the
+reported two-round runs, rather than resuming their sampling midway.
+
+Cleanup dropped the test collections, removed the namespace, test RBAC, PVCs,
+PVs and StorageClass, and restored the original operator's full Pod template.
+The six existing Milvus CR specs, 56 business Pod UIDs, three historical QueryNode
+PVC UIDs and the CRD spec matched their baseline snapshots. All six pre-existing
+Milvus instances were healthy.
+
+These tests exercise lifecycle changes, writing and indexing with small datasets;
+they do not establish throughput, zero downtime or general data-durability
+guarantees. The mounts use a dedicated test
+directory; the IVF_FLAT work does not establish mmap, DiskANN or tiered-cache
+I/O on those claims. Live managed-HPA restoration remains untested: this cluster
+does not expose the `autoscaling/v2` API used by managed HPA creation. Its
+suspension/restoration behavior retains unit-test coverage.
 
 ## Limits
 
