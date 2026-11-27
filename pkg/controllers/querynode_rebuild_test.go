@@ -268,3 +268,87 @@ func TestQueryNodeRebuildGraceDeleteErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestQueryNodeRebuildReadFailuresPreserveWorkload(t *testing.T) {
+	for _, failure := range []string{"ReplicaSetList", "PodList"} {
+		t.Run(failure, func(t *testing.T) {
+			ctx := context.Background()
+			r, mc, component, sts := storageRemovalFixture(t, false)
+			mc.Annotations = map[string]string{queryNodeRebuildGracePeriodAnnotation: "60"}
+			dep := &appsv1.Deployment{ObjectMeta: *sts.ObjectMeta.DeepCopy()}
+			dep.ResourceVersion = ""
+			require.NoError(t, r.Create(ctx, dep))
+			rs := &appsv1.ReplicaSet{ObjectMeta: metav1.ObjectMeta{Name: "owned-rs", Namespace: mc.Namespace, UID: "owned-rs", OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(dep, appsv1.SchemeGroupVersion.WithKind("Deployment"))}}}
+			require.NoError(t, r.Create(ctx, rs))
+			injected := errors.New("injected descendant list failure")
+			base := r.Client.(client.WithWatch)
+			calls := 0
+			r.Client = interceptor.NewClient(base, interceptor.Funcs{
+				List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+					_, replicas := list.(*appsv1.ReplicaSetList)
+					_, pods := list.(*corev1.PodList)
+					if (replicas && failure == "ReplicaSetList") || (pods && failure == "PodList") {
+						calls++
+						return injected
+					}
+					return c.List(ctx, list, opts...)
+				},
+				Delete: func(context.Context, client.WithWatch, client.Object, ...client.DeleteOption) error {
+					t.Fatal("failed descendant discovery must prevent deletion")
+					return nil
+				},
+			})
+			require.ErrorIs(t, r.deleteLegacyComponentDeployments(ctx, mc, component), injected)
+			require.Equal(t, 1, calls)
+			current := &appsv1.Deployment{}
+			require.NoError(t, base.Get(ctx, client.ObjectKeyFromObject(dep), current))
+			require.Nil(t, current.DeletionTimestamp)
+			r = &MilvusReconciler{Client: base, Scheme: r.Scheme}
+			require.ErrorIs(t, r.deleteLegacyComponentDeployments(ctx, mc, component), ErrRequeue)
+			require.NoError(t, base.Get(ctx, client.ObjectKeyFromObject(dep), current))
+			require.NotNil(t, current.DeletionTimestamp)
+		})
+	}
+}
+
+func TestQueryNodeRebuildPreservesShorterPodGrace(t *testing.T) {
+	for _, seconds := range []int64{0, 10} {
+		t.Run(time.Duration(seconds).String(), func(t *testing.T) {
+			r, mc, _, sts := storageRemovalFixture(t, false)
+			pod := terminatingRebuildPod(sts, "StatefulSet", "running")
+			pod.DeletionTimestamp, pod.DeletionGracePeriodSeconds = nil, nil
+			pod.Spec.TerminationGracePeriodSeconds = &seconds
+			calls := 0
+			r.Client = interceptor.NewClient(r.Client.(client.WithWatch), interceptor.Funcs{Delete: func(_ context.Context, _ client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				calls++
+				options := (&client.DeleteOptions{}).ApplyOptions(opts)
+				require.Equal(t, seconds, *options.GracePeriodSeconds)
+				require.Positive(t, *options.GracePeriodSeconds)
+				require.Equal(t, pod.UID, *options.Preconditions.UID)
+				return nil
+			}})
+			require.NoError(t, r.deleteQueryNodePodForRebuild(context.Background(), mc, pod, int64Ptr(60)))
+			if seconds == 0 {
+				require.Zero(t, calls)
+			} else {
+				require.Equal(t, 1, calls)
+			}
+		})
+	}
+}
+
+func TestQueryNodeRebuildWithoutOwnedReplicaSets(t *testing.T) {
+	r, mc, component, sts := storageRemovalFixture(t, false)
+	mc.Annotations = map[string]string{queryNodeRebuildGracePeriodAnnotation: "60"}
+	dep := &appsv1.Deployment{ObjectMeta: *sts.ObjectMeta.DeepCopy()}
+	ctx := context.Background()
+	// Identical labels and name do not make a ReplicaSet a descendant.
+	rs := &appsv1.ReplicaSet{ObjectMeta: metav1.ObjectMeta{Name: "foreign-rs", Namespace: mc.Namespace, UID: "foreign-rs", Labels: sts.Labels}}
+	require.NoError(t, r.Create(ctx, rs))
+	r.Client = interceptor.NewClient(r.Client.(client.WithWatch), interceptor.Funcs{Delete: func(context.Context, client.WithWatch, client.Object, ...client.DeleteOption) error {
+		t.Fatal("no owned descendants may be deleted")
+		return nil
+	}})
+	require.NoError(t, r.deleteQueryNodePodsForRebuild(ctx, mc, component, dep))
+	require.ErrorContains(t, r.deleteQueryNodePodsForRebuild(ctx, mc, component, &corev1.Service{ObjectMeta: *sts.ObjectMeta.DeepCopy()}), "unsupported")
+}

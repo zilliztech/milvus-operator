@@ -233,7 +233,11 @@ func TestStatefulSetStorageRemovalMounts(t *testing.T) {
 	state := &statefulSetStorageState{Retired: []string{"removed", "kept", "replacement"}}
 	container := corev1.Container{VolumeMounts: []corev1.VolumeMount{
 		{Name: "removed", MountPath: "/removed"}, {Name: "kept", MountPath: "/kept"}, {Name: "replacement", MountPath: "/replacement"},
-	}, VolumeDevices: []corev1.VolumeDevice{{Name: "removed", DevicePath: "/dev/removed"}}}
+	}, VolumeDevices: []corev1.VolumeDevice{
+		{Name: "removed", DevicePath: "/dev/removed"},
+		{Name: "kept", DevicePath: "/dev/kept"},
+		{Name: "replacement", DevicePath: "/dev/replacement"},
+	}}
 	sts := &appsv1.StatefulSet{Spec: appsv1.StatefulSetSpec{
 		VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{ObjectMeta: metav1.ObjectMeta{Name: "kept"}}},
 		Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{
@@ -245,7 +249,7 @@ func TestStatefulSetStorageRemovalMounts(t *testing.T) {
 	for _, containers := range [][]corev1.Container{sts.Spec.Template.Spec.Containers, sts.Spec.Template.Spec.InitContainers} {
 		for _, c := range containers {
 			require.Equal(t, []corev1.VolumeMount{{Name: "kept", MountPath: "/kept"}, {Name: "replacement", MountPath: "/replacement"}}, c.VolumeMounts)
-			require.Empty(t, c.VolumeDevices)
+			require.Equal(t, []corev1.VolumeDevice{{Name: "kept", DevicePath: "/dev/kept"}, {Name: "replacement", DevicePath: "/dev/replacement"}}, c.VolumeDevices)
 		}
 	}
 }

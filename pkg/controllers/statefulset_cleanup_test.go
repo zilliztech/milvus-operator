@@ -328,6 +328,7 @@ func TestStatefulSetOrphanPVCIdentity(t *testing.T) {
 		require.True(t, orphanedStatefulSetPVCMatches(name, workload), name)
 	}
 	for _, name := range []string{
+		"", "unrelated",
 		"data-" + workload + "-g1-0", "data-" + workload + "-0-snapshot",
 		"data-" + workload + "-+1", "data-" + workload + "-01",
 		"data-" + workload + "-2147483648", "-" + workload + "-0", workload + "-0",
