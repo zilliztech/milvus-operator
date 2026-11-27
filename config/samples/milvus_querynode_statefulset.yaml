@@ -19,13 +19,40 @@
 # (e.g. local-SSD) rejects the change, which is logged and left to the operator.
 # StatefulSet volumeClaimTemplates are immutable after creation, so a replica
 # added later uses the size the StatefulSet was originally created with.
+#
+# Workload migration: setting statefulSet.enabled on an existing Deployment
+# validates the replacement and waits for old Deployment Pods to terminate.
+# This works with no templates (diskless) or with per-replica PVCs as shown below.
+#
+# PVC attach/detach: adding or removing template names rebuilds the StatefulSet,
+# interrupting all its Pods. The operator validates the replacement with an API
+# dry-run, waits for old Pods to disappear, deletes only removed templates' PVCs,
+# then creates the replacement. Retained templates reuse their PVCs; added ones
+# provision PVCs through the StatefulSet controller. Mounts and volumeDevices
+# referencing removed templates are omitted automatically. There is no local-data
+# migration; PVC deletion follows the PV reclaim policy. See
+# docs/statefulset-storage-lifecycle.md for examples and operational limits.
+# Feature-specific paths and activation: docs/statefulset-storage-paths.md.
+# Mounting a PVC alone does not enable mmap, DISKANN or tiered eviction.
 apiVersion: milvus.io/v1beta1
 kind: Milvus
 metadata:
   name: my-release
+  # Optional: accept query interruption and bound old QueryNode termination
+  # during disk attach/detach and Deployment/STS conversion, without releasing
+  # collections. At expiry kubelet may kill the old process. Omit to retain
+  # existing graceful-shutdown behavior. This does not affect other components.
+  # Set before starting the change; adding it to an already terminating Pod
+  # cannot reliably shorten a container stop already running on older kubelets.
+  # annotations:
+  #   milvus.io/querynode-rebuild-grace-period-seconds: "60"
 spec:
   mode: cluster
   dependencies: {}
+  config:
+    # All data-volume mounts below must cover this actual Milvus data path.
+    localStorage:
+      path: /var/lib/milvus/data
   components:
     queryNode:
       replicas: 3
@@ -57,6 +84,10 @@ metadata:
 spec:
   mode: cluster
   dependencies: {}
+  config:
+    # All data-volume mounts below must cover this actual Milvus data path.
+    localStorage:
+      path: /var/lib/milvus/data
   components:
     queryNode:
       volumeMounts:
@@ -94,12 +125,16 @@ metadata:
 spec:
   mode: cluster
   dependencies: {}
+  config:
+    # All data-volume mounts below must cover this actual Milvus data path.
+    localStorage:
+      path: /var/lib/milvus/data
   components:
     dataNode:
       replicas: 2
       volumeMounts:
         - name: dn-local-data
-          mountPath: /var/lib/milvus/dndata
+          mountPath: /var/lib/milvus/data
       statefulSet:
         enabled: true
         volumeClaimTemplates:
@@ -115,7 +150,7 @@ spec:
       replicas: 2
       volumeMounts:
         - name: in-local-data
-          mountPath: /var/lib/milvus/indata
+          mountPath: /var/lib/milvus/data
       statefulSet:
         enabled: true
         volumeClaimTemplates:
@@ -127,4 +162,3 @@ spec:
               resources:
                 requests:
                   storage: 50Gi
-

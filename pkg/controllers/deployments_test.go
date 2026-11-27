@@ -151,6 +151,7 @@ func TestClusterReconciler_ReconcileDeployments_CreateIfNotFound(t *testing.T) {
 				assert.Equal(t, "mc-milvus-querynode", obj.(*appsv1.StatefulSet).Name)
 				return nil
 			})
+		expectNoOrphanedStatefulSetResources(mockClient)
 		// stale-STS cleanup lists StatefulSets (once per STS-capable component).
 		mockClient.EXPECT().
 			List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
@@ -433,6 +434,7 @@ func expectComponentStatefulSetNotFound(mockClient *MockK8sClient) {
 	mockClient.EXPECT().
 		List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
+	expectNoOrphanedStatefulSetResources(mockClient)
 }
 
 func TestGetStorageSecretRefEnv(t *testing.T) {
@@ -745,4 +747,10 @@ func Test_removeVolumeMountsByPath(t *testing.T) {
 			assert.Equal(t, tt.expectedMounts, vms)
 		})
 	}
+}
+
+// No legacy PVCs or headless Services remain to recover after an STS deletion.
+func expectNoOrphanedStatefulSetResources(mockClient *MockK8sClient) {
+	mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaimList{}), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ServiceList{}), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 }

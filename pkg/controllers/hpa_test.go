@@ -8,8 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,6 +20,40 @@ import (
 )
 
 var errHPATest = fmt.Errorf("test error")
+
+func TestDeleteHPAOnLegacyAPI(t *testing.T) {
+	for _, scenario := range []string{"absent", "owned", "external", "read failure"} {
+		t.Run(scenario, func(t *testing.T) {
+			env := newTestEnv(t)
+			defer env.checkMocks()
+			mc := env.Inst
+			mc.Default()
+			env.MockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&autoscalingv2.HorizontalPodAutoscaler{})).
+				Return(&meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "autoscaling", Kind: "HorizontalPodAutoscaler"}, SearchedVersions: []string{"v2"}})
+			env.MockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&autoscalingv1.HorizontalPodAutoscaler{})).
+				DoAndReturn(func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
+					switch scenario {
+					case "absent":
+						return kerrors.NewNotFound(schema.GroupResource{Group: "autoscaling", Resource: "horizontalpodautoscalers"}, key.Name)
+					case "read failure":
+						return errHPATest
+					case "owned":
+						obj.SetOwnerReferences([]metav1.OwnerReference{*metav1.NewControllerRef(&mc, v1beta1.GroupVersion.WithKind("Milvus"))})
+					}
+					return nil
+				})
+			if scenario == "owned" {
+				env.MockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&autoscalingv1.HorizontalPodAutoscaler{})).Return(nil)
+			}
+			err := env.Reconciler.deleteHPAIfExists(env.ctx, mc, Proxy)
+			if scenario == "read failure" {
+				assert.ErrorIs(t, err, errHPATest)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
 func TestReconcileHPAs(t *testing.T) {
 	env := newTestEnv(t)

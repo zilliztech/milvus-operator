@@ -5,10 +5,13 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
@@ -24,6 +27,10 @@ func (r *MilvusReconciler) ReconcileHPAs(ctx context.Context, mc v1beta1.Milvus)
 }
 
 func (r *MilvusReconciler) reconcileComponentHPA(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
+	if componentUsesStatefulSet(mc, component) && hasStorageMigrationLock(mc) {
+		// Restore the declarative HPA after the persisted migration lock clears.
+		return r.deleteHPAIfExists(ctx, mc, component)
+	}
 	hpaSpec := component.GetHPASpec(mc.Spec)
 
 	if hpaSpec == nil || isUpgradeStopping(mc) {
@@ -34,6 +41,11 @@ func (r *MilvusReconciler) reconcileComponentHPA(ctx context.Context, mc v1beta1
 	if hpaSpec.MinReplicas != nil && *hpaSpec.MinReplicas > hpaSpec.MaxReplicas {
 		return errors.Errorf("invalid HPA spec for component %s: minReplicas (%d) must not exceed maxReplicas (%d)",
 			component.Name, *hpaSpec.MinReplicas, hpaSpec.MaxReplicas)
+	}
+
+	// StatefulSet mode takes precedence over QueryNode's two-deployment mode.
+	if componentUsesStatefulSet(mc, component) {
+		return r.reconcileStandardHPA(ctx, mc, component, hpaSpec)
 	}
 
 	// Special handling for QueryNode with 2-deployment mode or RollingModeV3
@@ -77,9 +89,15 @@ func (r *MilvusReconciler) reconcileTwoDeployHPA(ctx context.Context, mc v1beta1
 // External HPAs (e.g. user-managed HPAs in legacy replicas=-1 mode) are left untouched.
 func (r *MilvusReconciler) deleteHPAIfExists(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
 	hpaName := component.GetHPAName(mc.Name)
-	hpa := &autoscalingv2.HorizontalPodAutoscaler{}
+	var hpa client.Object = &autoscalingv2.HorizontalPodAutoscaler{}
 
 	err := r.Get(ctx, NamespacedName(mc.Namespace, hpaName), hpa)
+	if meta.IsNoMatchError(err) {
+		// Cleanup only needs metadata. Older clusters expose HPA through v1 but
+		// not v2; lack of v2 must not break instances without a managed HPA.
+		hpa = &autoscalingv1.HorizontalPodAutoscaler{}
+		err = r.Get(ctx, NamespacedName(mc.Namespace, hpaName), hpa)
+	}
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			return nil
@@ -156,6 +174,9 @@ func (r *MilvusReconciler) buildHPA(ctx context.Context, mc v1beta1.Milvus, comp
 			MaxReplicas: hpaSpec.MaxReplicas,
 		},
 	}
+	if componentUsesStatefulSet(mc, component) {
+		hpa.Spec.ScaleTargetRef.Kind = "StatefulSet"
+	}
 
 	// Set owner reference
 	if err := ctrl.SetControllerReference(&mc, hpa, r.Scheme); err != nil {
@@ -202,7 +223,7 @@ func (r *MilvusReconciler) convertBehavior(behavior v1beta1.Values) *autoscaling
 // hpaSpecNeedsUpdate checks if the HPA spec needs to be updated
 func (r *MilvusReconciler) hpaSpecNeedsUpdate(existing, desired *autoscalingv2.HorizontalPodAutoscaler) bool {
 	// Check scale target ref
-	if existing.Spec.ScaleTargetRef.Name != desired.Spec.ScaleTargetRef.Name {
+	if existing.Spec.ScaleTargetRef != desired.Spec.ScaleTargetRef {
 		return true
 	}
 

@@ -294,6 +294,7 @@ func TestSynthesizeStatefulSetStatus(t *testing.T) {
 
 	t.Run("not available until min ready seconds are satisfied", func(t *testing.T) {
 		sts := base()
+		sts.Spec.MinReadySeconds = 30
 		sts.Status.ObservedGeneration = 5
 		sts.Status.Replicas = 2
 		sts.Status.UpdatedReplicas = 2
@@ -305,6 +306,25 @@ func TestSynthesizeStatefulSetStatus(t *testing.T) {
 		status := synthesizeStatefulSetStatus(QueryNode, sts)
 		assert.False(t, DeploymentReady(status.Status))
 		assert.Equal(t, int32(1), status.Status.UnavailableReplicas)
+	})
+
+	t.Run("legacy API without available replicas", func(t *testing.T) {
+		for ready := int32(0); ready <= desired; ready++ {
+			sts := base()
+			sts.Status = appsv1.StatefulSetStatus{
+				ObservedGeneration: 5, Replicas: desired, UpdatedReplicas: desired,
+				ReadyReplicas: ready, CurrentRevision: "rev-1", UpdateRevision: "rev-1",
+			}
+			status := synthesizeStatefulSetStatus(QueryNode, sts)
+			assert.Equal(t, ready, status.Status.AvailableReplicas)
+			assert.Equal(t, desired-ready, status.Status.UnavailableReplicas)
+			assert.Equal(t, ready == desired, DeploymentReady(status.Status))
+			// A supported nonzero readiness delay must never use this fallback.
+			sts.Spec.MinReadySeconds = 30
+			status = synthesizeStatefulSetStatus(QueryNode, sts)
+			assert.Zero(t, status.Status.AvailableReplicas)
+			assert.False(t, DeploymentReady(status.Status))
+		}
 	})
 
 	t.Run("scale down clamps unavailable replicas at zero", func(t *testing.T) {
@@ -683,6 +703,7 @@ func TestReconcileComponentStatefulSet_Update(t *testing.T) {
 			sts := obj.(*appsv1.StatefulSet)
 			sts.Name = QueryNode.GetDeploymentName(mc.Name)
 			sts.Namespace = mc.Namespace
+			sts.Spec.VolumeClaimTemplates, _ = renderVolumeClaimTemplates(mc, QueryNode)
 			old := int32(1)
 			sts.Spec.Replicas = &old
 			return nil
@@ -779,23 +800,28 @@ func TestCleanupQueryNodeWorkloadMode(t *testing.T) {
 		legacy.OwnerReferences = []metav1.OwnerReference{
 			{UID: mc.UID, Controller: boolPtr(true), Kind: "Milvus", Name: mc.Name},
 		}
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ServiceList{}), gomock.Any(), gomock.Any()).Return(nil)
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
 		mockClient.EXPECT().
 			List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.DeploymentList{}), gomock.Any()).
 			DoAndReturn(func(_ context.Context, raw client.ObjectList, _ ...any) error {
 				raw.(*appsv1.DeploymentList).Items = []appsv1.Deployment{legacy}
 				return nil
 			})
-		mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{})).Return(nil)
+		mockClient.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{}), gomock.Any()).Return(nil)
+		mockClient.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaim{}), gomock.Any()).Return(nil)
+		mockClient.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Pod{}), gomock.Any()).Return(nil)
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.Deployment{}), gomock.Any(), gomock.Any()).Return(nil)
 		// stale-STS pruning lists StatefulSets once per STS-capable component; all empty.
 		mockClient.EXPECT().
 			List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
 			Return(nil).AnyTimes()
 
 		err := r.cleanupStatefulSetWorkloadModes(env.ctx, mc)
-		assert.NoError(t, err)
+		assert.ErrorIs(t, err, ErrRequeue)
 	})
 
-	t.Run("statefulset disabled deletes all statefulsets and services", func(t *testing.T) {
+	t.Run("statefulset disabled begins foreground deletion", func(t *testing.T) {
 		env := newTestEnv(t)
 		defer env.checkMocks()
 		r := env.Reconciler
@@ -817,14 +843,9 @@ func TestCleanupQueryNodeWorkloadMode(t *testing.T) {
 				}
 				return nil
 			}).AnyTimes()
-		mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).Return(nil)
-		mockClient.EXPECT().
-			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).
-			Return(nil)
-		mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).Return(nil)
-
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{}), gomock.Any(), gomock.Any()).Return(nil)
 		err := r.cleanupStatefulSetWorkloadModes(env.ctx, mc)
-		assert.NoError(t, err)
+		assert.ErrorIs(t, err, ErrRequeue)
 	})
 
 	t.Run("statefulset disabled no-op when none exist", func(t *testing.T) {
@@ -839,6 +860,8 @@ func TestCleanupQueryNodeWorkloadMode(t *testing.T) {
 			List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
 			Return(nil).AnyTimes()
 
+		expectNoOrphanedStatefulSetResources(mockClient)
+
 		err := r.cleanupStatefulSetWorkloadModes(env.ctx, mc)
 		assert.NoError(t, err)
 	})
@@ -852,6 +875,12 @@ func TestCleanupQueryNodeWorkloadMode(t *testing.T) {
 		// Desired topology: only group g1.
 		replicas := int32(1)
 		mc.Spec.Com.QueryNode.Groups = []v1beta1.DeploymentGroup{{Name: "g1", Replicas: &replicas}}
+		mockClient.EXPECT().List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.ServiceList{}), gomock.Any(), gomock.Any()).Return(nil)
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
+		mockClient.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{}), gomock.Any()).Return(nil)
+		mockClient.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaim{}), gomock.Any()).Return(nil)
+		mockClient.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Pod{}), gomock.Any()).Return(nil)
 
 		// Cluster has both g1 (desired) and g2 (stale).
 		mkSts := func(name string) appsv1.StatefulSet {
@@ -879,77 +908,13 @@ func TestCleanupQueryNodeWorkloadMode(t *testing.T) {
 			}).AnyTimes()
 		var deleted string
 		mockClient.EXPECT().
-			Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).
+			Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{}), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, obj client.Object, _ ...any) error {
 				deleted = obj.(*appsv1.StatefulSet).Name
 				return nil
 			})
-		mockClient.EXPECT().
-			Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).
-			Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
-
 		err := r.cleanupStatefulSetWorkloadModes(env.ctx, mc)
-		assert.NoError(t, err)
+		assert.ErrorIs(t, err, ErrRequeue)
 		assert.Equal(t, "mc-milvus-querynode-g2", deleted)
 	})
-}
-
-func TestCleanupStaleStatefulSetReclaimsPVCs(t *testing.T) {
-	env := newTestEnv(t)
-	defer env.checkMocks()
-	r := env.Reconciler
-	mockClient := env.MockClient
-	mc := newStatefulSetTestMilvus()
-	mc.Spec.Com.QueryNode.StatefulSet.Enabled = false // revert -> the ungrouped STS is stale
-
-	stale := appsv1.StatefulSet{}
-	stale.Name = "mc-milvus-querynode"
-	stale.Namespace = "ns"
-	stale.OwnerReferences = []metav1.OwnerReference{
-		{UID: mc.UID, Controller: boolPtr(true), Kind: "Milvus", Name: mc.Name},
-	}
-	stale.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{
-		{ObjectMeta: metav1.ObjectMeta{Name: "qn-local-data"}},
-	}
-	mockClient.EXPECT().
-		List(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSetList{}), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, raw client.ObjectList, opts ...client.ListOption) error {
-			if listComponentLabel(opts) == QueryNode.Name {
-				raw.(*appsv1.StatefulSetList).Items = []appsv1.StatefulSet{stale}
-			}
-			return nil
-		}).AnyTimes()
-	mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).Return(nil)
-	// PVC list for reclaim: two belonging to the stale STS, plus a group PVC that
-	// must NOT be deleted (its "-g1-0" tail is non-numeric under the stale prefix).
-	mockClient.EXPECT().
-		List(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaimList{}), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, raw client.ObjectList, _ ...any) error {
-			mk := func(n string) corev1.PersistentVolumeClaim {
-				return corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: n, Namespace: "ns"}}
-			}
-			raw.(*corev1.PersistentVolumeClaimList).Items = []corev1.PersistentVolumeClaim{
-				mk("qn-local-data-mc-milvus-querynode-0"),
-				mk("qn-local-data-mc-milvus-querynode-1"),
-				mk("qn-local-data-mc-milvus-querynode-g1-0"), // group PVC, must survive
-			}
-			return nil
-		})
-	var deletedPVCs []string
-	mockClient.EXPECT().
-		Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.PersistentVolumeClaim{})).
-		DoAndReturn(func(_ context.Context, obj client.Object, _ ...any) error {
-			deletedPVCs = append(deletedPVCs, obj.(*corev1.PersistentVolumeClaim).Name)
-			return nil
-		}).Times(2)
-	mockClient.EXPECT().
-		Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Service{})).
-		Return(k8sErrors.NewNotFound(schema.GroupResource{}, ""))
-
-	err := r.cleanupStaleStatefulSets(env.ctx, mc)
-	assert.NoError(t, err)
-	assert.ElementsMatch(t, []string{
-		"qn-local-data-mc-milvus-querynode-0",
-		"qn-local-data-mc-milvus-querynode-1",
-	}, deletedPVCs, "must delete the stale STS's PVCs but not the group PVC")
 }
