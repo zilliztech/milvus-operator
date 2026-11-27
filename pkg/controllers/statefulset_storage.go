@@ -26,9 +26,10 @@ type statefulSetStorageState struct {
 }
 
 type statefulSetStorageRebuild struct {
-	UID      types.UID `json:"uid"`
-	Claims   []string  `json:"claims"`
-	Replicas int32     `json:"replicas"`
+	UID        types.UID                   `json:"uid"`
+	Claims     []string                    `json:"claims"`
+	Replicas   int32                       `json:"replicas"`
+	Sequential *sequentialStorageMigration `json:"sequential,omitempty"`
 }
 
 func (r *MilvusReconciler) saveStatefulSetStorageState(ctx context.Context, svc *corev1.Service, state *statefulSetStorageState) error {
@@ -76,6 +77,10 @@ func (r *MilvusReconciler) reconcileStatefulSetStorage(
 			return nil, ErrRequeue
 		}
 		return state, nil
+	}
+	if component.Is(QueryNode) && ((state.Pending != nil && state.Pending.Sequential != nil) ||
+		(state.Pending == nil && (mc.Annotations[queryNodeStorageStrategyAnnotation] == "Sequential" || mc.Annotations[queryNodeStorageLockAnnotation] != ""))) {
+		return r.reconcileSequentialStorage(ctx, mc, component, svc, sts, state, changed)
 	}
 	var rebuildGrace *int64
 	if changed || state.Pending != nil {

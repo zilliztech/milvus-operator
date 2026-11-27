@@ -27,6 +27,10 @@ func (r *MilvusReconciler) ReconcileHPAs(ctx context.Context, mc v1beta1.Milvus)
 }
 
 func (r *MilvusReconciler) reconcileComponentHPA(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
+	if component.Is(QueryNode) && mc.Annotations[queryNodeStorageLockAnnotation] != "" {
+		// Restore the declarative HPA after the persisted migration lock clears.
+		return r.deleteHPAIfExists(ctx, mc, component)
+	}
 	hpaSpec := component.GetHPASpec(mc.Spec)
 
 	if hpaSpec == nil || isUpgradeStopping(mc) {

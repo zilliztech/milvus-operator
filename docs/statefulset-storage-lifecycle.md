@@ -83,7 +83,68 @@ mount and provisions new PVCs; it does not recover deleted data.
 Simply removing a template's mount is different: the template and its PVCs remain.
 The existing `_remove` mount marker can unmount a path without deleting its PVC.
 
-## Rebuild lifecycle
+## Sequential QueryNode storage updates (opt-in)
+
+For an existing QueryNode StatefulSet whose name and deployment groups stay the
+same, opt in on the **Milvus CR** before adding or removing claim templates:
+
+```yaml
+metadata:
+  annotations:
+    milvus.io/querynode-storage-update-strategy: Sequential
+```
+
+The default (or explicit `Recreate`) remains the maintenance-window workflow
+described below. This annotation needs no CRD schema change. It does not change
+Deployment/StatefulSet conversion, group split/merge/rename, DataNode or IndexNode
+replacement. Size-only expansion keeps its existing behavior.
+
+Sequential updates follow these steps:
+
+1. Validate the desired StatefulSet and its child Pod/PVCs. Acquire a persistent
+   lock on the Milvus CR and record the original Pod UIDs in the headless Service.
+   The lock serializes QueryNode deployment groups, including across operator
+   restarts. The Milvus spec is frozen during the migration; QueryNode/global
+   `paused` changes are allowed. Restore the original requested spec to resume
+   after an incompatible edit. Do not remove the operator-owned
+   `milvus.io/querynode-storage-migration` annotation or Service journal manually.
+2. Wait for the operator-managed QueryNode HPA to be suspended. External HPAs
+   must be suspended by their owner; the operator refuses to proceed while one
+   targets the migrating StatefulSet. Do not scale the StatefulSet manually
+   during migration. Managed HPA configuration is restored after the lock clears.
+3. Preserve the old Pods and PVCs using orphan deletion of the old StatefulSet.
+   Create a same-name StatefulSet with the new templates and `OnDelete`, and wait
+   for it to adopt the original Pods. This step does not change Pod UIDs or mounts.
+4. Replace one Pod at a time in ascending ordinal order. Before each deletion,
+   all expected Pods must be adopted and continuously Ready for at least 30
+   seconds; unhealthy QueryNode Pods in other groups also stop advancement.
+   The next Pod waits until its predecessor has been recreated and has passed
+   that readiness interval. Ascending order is intentional: an old lower ordinal
+   with incompatible storage can block Kubernetes from recreating a higher one.
+5. Once all Pods of that StatefulSet have been replaced and are stable, delete
+   only claims from removed templates. Retained claims are reused. Live Pods,
+   explicit CR volumes and workload templates (including zero replicas) protect
+   referenced claims; PVC finalizers are respected. Only then release the lock,
+   restore the normal update strategy and let the next group proceed.
+
+The maintenance-mode `milvus.io/querynode-rebuild-grace-period-seconds` annotation
+is **not used** for sequential updates. Each Pod uses its normal termination
+grace; a blocked migration stops progress rather than deliberately shortening
+that grace. Kubernetes can still terminate a Pod when its configured grace
+expires. A pending volume, failed Pod or stuck finalizer leaves the remaining
+Pods running and the migration pending. The operator does not force-delete Pods,
+clear storage finalizers or automatically release/reload collections.
+
+This is controlled Pod replacement, **not a zero-downtime guarantee**. Ready does
+not prove collection-level recovery. Ensure eligible QueryNodes have enough spare
+capacity and suitable collection replicas/resource-group placement before starting.
+A single QueryNode still incurs an interruption. Concurrent node failures or
+external controllers can cause additional disruption beyond the operator's one
+intentional replacement. Monitor real queries throughout the operation. No files
+are copied from an old filesystem to a new PVC, and detaching storage still
+requires usable local storage for mmap, DiskANN and caches.
+
+## Maintenance-window rebuild lifecycle (default)
 
 The operator records a migration journal in the component's headless Service
 annotation `milvus.io/statefulset-storage`. It validates the desired StatefulSet,
@@ -97,7 +158,7 @@ Validating the generated Pod separately is required: older API servers may
 accept a StatefulSet whose Pod template is rejected when the controller actually
 creates the Pod. All preflight requests use dry-run and leave no test resources.
 
-This interrupts **all Pods of the affected StatefulSet**, including when only one
+This default workflow interrupts **all Pods of the affected StatefulSet**, including when only one
 of several templates is added or removed. This is not a rolling storage migration. Each
 deployment group has its own StatefulSet and journal. A paused component does not
 advance this workflow until resumed.

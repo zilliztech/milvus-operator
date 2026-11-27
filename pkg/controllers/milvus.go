@@ -42,6 +42,11 @@ func (r *MilvusReconciler) SetDefaultStatus(ctx context.Context, mc *v1beta1.Mil
 }
 
 func (r *MilvusReconciler) ReconcileAll(ctx context.Context, mc v1beta1.Milvus) error {
+	// Freeze dependency reconciliation too, before the parallel reconcilers
+	// can apply a spec edit made during a sequential storage migration.
+	if _, err := sequentialStorageLock(mc); err != nil {
+		return err
+	}
 	reconcilers := []Func{
 		r.ReconcileEtcd,
 		r.ReconcileMsgStream,
@@ -54,6 +59,9 @@ func (r *MilvusReconciler) ReconcileAll(ctx context.Context, mc v1beta1.Milvus) 
 }
 
 func (r *MilvusReconciler) ReconcileMilvus(ctx context.Context, mc v1beta1.Milvus) error {
+	if _, err := sequentialStorageLock(mc); err != nil {
+		return err
+	}
 	// Status sync can clear dependency conditions before workloads observe an
 	// upgrade stop. Still reconcile zero replicas and suspend managed HPAs.
 	upgradeStopping := isUpgradeStopping(mc) && isMilvusStoppingForReconcile(mc)

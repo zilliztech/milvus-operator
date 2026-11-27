@@ -368,6 +368,10 @@ func (r *MilvusReconciler) scaleDownIdleStandalone(ctx context.Context, mc v1bet
 }
 
 func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.Milvus) error {
+	storageLock, err := sequentialStorageLock(mc)
+	if err != nil {
+		return err
+	}
 	storageEndpointEnv, err := r.getMinioPortEnvIfServiceExists(ctx, mc)
 	if err != nil {
 		return err
@@ -394,6 +398,9 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 
 	var errs = []error{}
 	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
+		if storageLock != nil && component.Is(QueryNode) && component.GetDeploymentName(mc.Name) != storageLock.Workload {
+			continue
+		}
 		if IsIdleClusterStandalone(mc.Spec, component) {
 			if err := r.scaleDownIdleStandalone(ctx, mc); err != nil {
 				errs = append(errs, err)
@@ -409,6 +416,11 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 			err = r.ReconcileComponentDeployment(ctx, mc, component)
 		}
 		if err != nil {
+			// A successful lock/journal write may not yet be visible in the cache.
+			// Stop this pass before another group can start a storage replacement.
+			if component.Is(QueryNode) && (storageLock != nil || mc.Annotations[queryNodeStorageStrategyAnnotation] == "Sequential") {
+				return err
+			}
 			errs = append(errs, err)
 		}
 	}
