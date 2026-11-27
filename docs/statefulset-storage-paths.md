@@ -201,7 +201,11 @@ rendered local-data paths are covered by filesystem claim mounts. It also checks
 the intended components and version-specific feature configuration. This is a
 configuration/rendering test, not a live mmap/DiskANN/tiered-storage E2E. The
 previous lifecycle E2E used a separate test directory and did not establish those
-features' actual I/O paths. Use the runtime checks above for your image and workload.
+features' actual I/O paths. A later [dedicated feature-I/O run](statefulset-storage-feature-io-validation.md)
+verified raw-field mmap and DISKANN builder/query I/O on PVCs in 2.5.25 and 2.6.15,
+plus TTL-driven tiered-cache eviction and cold/hot reads in 2.6.15. It used
+already-mounted PVCs, not storage transitions, and did not run the exact 2.5.27
+sample image. Use the runtime checks above for your image and workload.
 
 Configuration and path decisions were checked against upstream sources:
 

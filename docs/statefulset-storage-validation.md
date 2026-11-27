@@ -260,6 +260,17 @@ I/O on those claims. Live managed-HPA restoration remains untested: this cluster
 does not expose the `autoscaling/v2` API used by managed HPA creation. Its
 suspension/restoration behavior retains unit-test coverage.
 
+## Separate feature-I/O validation
+
+The [dedicated feature-I/O report](statefulset-storage-feature-io-validation.md)
+records a subsequent 2026-11-27 run with actual `/var/lib/milvus/data` PVC mounts:
+raw-field mmap and DISKANN building/searching in Milvus 2.5.25 and 2.6.15, plus
+TTL-driven tiered-cache eviction and cold/hot reads in 2.6.15. It includes
+process mappings and file descriptors, builder file sampling, DISKANN metrics
+and actual process disk reads, and cache/storage counter changes. That run
+started with mounted PVCs; it does not extend the earlier lifecycle workloads
+to storage transitions under these features.
+
 ## Limits
 
 - Historical maintenance-mode tests observed query failures during several transitions.
