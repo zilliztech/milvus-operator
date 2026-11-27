@@ -11,6 +11,32 @@ import (
 	"github.com/zilliztech/milvus-operator/pkg/util"
 )
 
+func TestBuiltInVolumeMountsKeepOrderAndMigrateConfigPath(t *testing.T) {
+	env := newTestEnv(t)
+	defer env.checkMocks()
+	updater := newMilvusDeploymentUpdater(*env.Inst.DeepCopy(), env.Reconciler.Scheme, MilvusStandalone)
+	for _, mounts := range [][]corev1.VolumeMount{
+		{configVolumeMount, toolVolumeMount},
+		{toolVolumeMount, configVolumeMount},
+	} {
+		template := &corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Name: MilvusStandalone.Name, VolumeMounts: append([]corev1.VolumeMount(nil), mounts...),
+		}}}}
+		updateBuiltInVolumeMounts(template, updater)
+		assert.Equal(t, mounts, template.Spec.Containers[0].VolumeMounts)
+	}
+	legacy := configVolumeMount
+	legacy.MountPath = "/milvus/configs/legacy"
+	template := &corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{
+		Name: MilvusStandalone.Name, VolumeMounts: []corev1.VolumeMount{legacy, toolVolumeMount},
+	}}}}
+	updateBuiltInVolumeMounts(template, updater)
+	assert.Equal(t, []corev1.VolumeMount{toolVolumeMount, configVolumeMount}, template.Spec.Containers[0].VolumeMounts)
+	before := template.DeepCopy()
+	updateBuiltInVolumeMounts(template, updater)
+	assert.Equal(t, before, template)
+}
+
 func TestMilvusDeploymentUpdater_KafkaSecretRefEnv(t *testing.T) {
 	env := newTestEnv(t)
 	defer env.checkMocks()

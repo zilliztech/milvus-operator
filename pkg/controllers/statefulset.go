@@ -74,14 +74,24 @@ func (c MilvusComponent) GetStatefulSetServiceName(instance string) string {
 func (r *MilvusReconciler) ReconcileComponentStatefulSet(
 	ctx context.Context, mc v1beta1.Milvus, component MilvusComponent,
 ) error {
-	if err := r.reconcileStatefulSetService(ctx, mc, component); err != nil {
+	service, err := r.reconcileStatefulSetServiceObject(ctx, mc, component)
+	if err != nil {
 		return pkgerr.Wrap(err, "reconcile statefulset headless service")
 	}
 
 	namespacedName := NamespacedName(mc.Namespace, component.GetDeploymentName(mc.Name))
 	old := &appsv1.StatefulSet{}
-	err := r.Get(ctx, namespacedName, old)
+	err = r.Get(ctx, namespacedName, old)
 	if kerrors.IsNotFound(err) {
+		old = nil
+	} else if err != nil {
+		return err
+	}
+	storage, err := r.reconcileStatefulSetStorage(ctx, mc, component, service, old)
+	if err != nil {
+		return err
+	}
+	if old == nil {
 		new := &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      component.GetDeploymentName(mc.Name),
@@ -91,15 +101,21 @@ func (r *MilvusReconciler) ReconcileComponentStatefulSet(
 		if err := r.updateStatefulSet(ctx, mc, new, component); err != nil {
 			return err
 		}
+		storage.removeMounts(new)
+		if storage.Pending != nil && (mc.Spec.Com.EnableManualMode ||
+			newMilvusDeploymentUpdaterWithStorageEndpointEnv(mc, r.Scheme, component, storageEndpointEnvFromContext(ctx)).IsHPAEnabled()) {
+			new.Spec.Replicas = int32Ptr(int(storage.Pending.Replicas))
+		}
 		ctrl.LoggerFrom(ctx).Info("Create StatefulSet", "name", new.Name)
 		return r.Create(ctx, new)
-	} else if err != nil {
-		return err
 	}
 
 	cur := old.DeepCopy()
 	if err := r.updateStatefulSet(ctx, mc, cur, component); err != nil {
 		return err
+	}
+	if !mc.Spec.Com.Paused && !component.GetComponentSpec(mc.Spec).Paused {
+		storage.removeMounts(cur)
 	}
 
 	if !IsEqual(old, cur) {
@@ -437,12 +453,12 @@ func (r *MilvusReconciler) eventf(object runtime.Object, eventtype, reason, mess
 	r.record.Eventf(object, eventtype, reason, messageFmt, args...)
 }
 
-// reconcileStatefulSetService ensures a headless service exists so the
+// reconcileStatefulSetServiceObject ensures a headless service exists so the
 // StatefulSet's pods get stable network identities. QueryNode has no service in
 // Deployment mode, so this is additive.
-func (r *MilvusReconciler) reconcileStatefulSetService(
+func (r *MilvusReconciler) reconcileStatefulSetServiceObject(
 	ctx context.Context, mc v1beta1.Milvus, component MilvusComponent,
-) error {
+) (*corev1.Service, error) {
 	appLabels := component.GetSelectorLabels(mc.Name)
 	namespacedName := NamespacedName(mc.Namespace, component.GetStatefulSetServiceName(mc.Name))
 	old := &corev1.Service{}
@@ -455,22 +471,22 @@ func (r *MilvusReconciler) reconcileStatefulSetService(
 			},
 		}
 		if err := r.updateStatefulSetService(mc, new, component, appLabels); err != nil {
-			return err
+			return nil, err
 		}
 		ctrl.LoggerFrom(ctx).Info("Create StatefulSet headless service", "name", new.Name)
-		return r.Create(ctx, new)
+		return new, r.Create(ctx, new)
 	} else if err != nil {
-		return err
+		return nil, err
 	}
 
 	cur := old.DeepCopy()
 	if err := r.updateStatefulSetService(mc, cur, component, appLabels); err != nil {
-		return err
+		return nil, err
 	}
 	if IsEqual(old, cur) {
-		return nil
+		return cur, nil
 	}
-	return r.Update(ctx, cur)
+	return cur, r.Update(ctx, cur)
 }
 
 func (r *MilvusReconciler) updateStatefulSetService(
@@ -500,6 +516,12 @@ func synthesizeStatefulSetStatus(component MilvusComponent, sts *appsv1.Stateful
 	}
 	ready := sts.Status.ReadyReplicas
 	available := sts.Status.AvailableReplicas
+	// Older API servers omit both minReadySeconds and availableReplicas.
+	// With no minimum readiness duration, a ready replica is available. Keep
+	// respecting availableReplicas when the server supports a readiness delay.
+	if sts.Spec.MinReadySeconds == 0 {
+		available = ready
+	}
 	unavailable := desired - available
 	if unavailable < 0 {
 		unavailable = 0
@@ -579,31 +601,19 @@ func getStatefulSetReplicas(sts *appsv1.StatefulSet) int32 {
 // (plus its per-replica PVCs and headless service) if it exists. Used when a
 // component is being offlined (e.g. IndexNode on 2.6+).
 func (r *MilvusReconciler) deleteComponentStatefulSetIfExists(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
+	if statefulSetCleanupPaused(mc, component) {
+		return ErrRequeue
+	}
 	sts := &appsv1.StatefulSet{}
 	name := component.GetDeploymentName(mc.Name)
 	err := r.Get(ctx, NamespacedName(mc.Namespace, name), sts)
 	if kerrors.IsNotFound(err) {
-		return nil
+		return r.cleanupOrphanedStatefulSetResources(ctx, mc, component, nil)
 	}
 	if err != nil {
 		return pkgerr.Wrapf(err, "get %s statefulset", component.Name)
 	}
-	ctrl.LoggerFrom(ctx).Info("Delete component statefulset", "component", component.Name, "name", name)
-	if err := r.Delete(ctx, sts); err != nil && !kerrors.IsNotFound(err) {
-		return pkgerr.Wrapf(err, "delete %s statefulset", component.Name)
-	}
-	if err := r.deletePVCsForStatefulSet(ctx, mc, component, sts); err != nil {
-		return err
-	}
-	svc := &corev1.Service{}
-	if err := r.Get(ctx, NamespacedName(mc.Namespace, name), svc); err == nil {
-		if err := r.Delete(ctx, svc); err != nil && !kerrors.IsNotFound(err) {
-			return pkgerr.Wrapf(err, "delete %s statefulset service", component.Name)
-		}
-	} else if !kerrors.IsNotFound(err) {
-		return pkgerr.Wrapf(err, "get %s statefulset service", component.Name)
-	}
-	return nil
+	return r.deleteStatefulSetForCleanup(ctx, mc, sts)
 }
 
 // cleanupStatefulSetWorkloadModes reconciles the workload kind for the
@@ -630,6 +640,9 @@ func (r *MilvusReconciler) cleanupStatefulSetWorkloadModes(ctx context.Context, 
 // deleteLegacyComponentDeployments removes any Deployment-based workloads of a
 // component left over after switching it to StatefulSet mode.
 func (r *MilvusReconciler) deleteLegacyComponentDeployments(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
+	if _, err := queryNodeRebuildGracePeriod(mc, component); err != nil {
+		return err
+	}
 	deployments := &appsv1.DeploymentList{}
 	opts := &client.ListOptions{
 		Namespace:     mc.Namespace,
@@ -638,16 +651,65 @@ func (r *MilvusReconciler) deleteLegacyComponentDeployments(ctx context.Context,
 	if err := r.List(ctx, deployments, opts); err != nil {
 		return pkgerr.Wrapf(err, "list legacy %s deployments", component.Name)
 	}
+	for _, deployment := range deployments.Items {
+		if !metav1.IsControlledBy(&deployment, &mc) || deployment.DeletionTimestamp != nil {
+			continue
+		}
+		if err := r.prepareStatefulSetGroupTransition(ctx, mc, component); err != nil {
+			return err
+		}
+		// Validate all replacement groups before deleting any existing workload.
+		for _, workload := range GetComponentWorkloadsBySpec(mc.Spec) {
+			if workload.Name != component.Name {
+				continue
+			}
+			if mc.Spec.Com.Paused || workload.GetComponentSpec(mc.Spec).Paused {
+				return ErrRequeue
+			}
+			storage := &statefulSetStorageState{}
+			service := &corev1.Service{}
+			err := r.Get(ctx, NamespacedName(mc.Namespace, workload.GetStatefulSetServiceName(mc.Name)), service)
+			if err == nil {
+				storage, err = readStatefulSetStorageState(service)
+			} else if kerrors.IsNotFound(err) {
+				err = nil
+			}
+			if err != nil {
+				return err
+			}
+			if err := r.validateStatefulSetReplacement(ctx, mc, workload, storage); err != nil {
+				return err
+			}
+		}
+		break
+	}
+	waiting := false
 	for i := range deployments.Items {
 		deployment := &deployments.Items[i]
 		if !metav1.IsControlledBy(deployment, &mc) {
 			continue
 		}
+		waiting = true
+		if mc.Spec.Com.Paused || component.GetComponentSpec(mc.Spec).Paused {
+			return ErrRequeue
+		}
+		if err := r.deleteQueryNodePodsForRebuild(ctx, mc, component, deployment); err != nil {
+			return err
+		}
+		if deployment.DeletionTimestamp != nil {
+			continue
+		}
 		ctrl.LoggerFrom(ctx).Info("Delete legacy deployment for statefulset mode",
 			"component", component.Name, "name", deployment.Name)
-		if err := r.Delete(ctx, deployment); err != nil && !kerrors.IsNotFound(err) {
+		if err := r.Delete(ctx, deployment, client.PropagationPolicy(metav1.DeletePropagationForeground),
+			client.Preconditions{UID: &deployment.UID, ResourceVersion: &deployment.ResourceVersion}); err != nil && !kerrors.IsNotFound(err) {
 			return pkgerr.Wrapf(err, "delete legacy %s deployment %s", component.Name, deployment.Name)
 		}
+	}
+	if waiting {
+		// Foreground deletion keeps the Deployment present until its ReplicaSets
+		// and Pods are gone. Do not start the replacement StatefulSet earlier.
+		return ErrRequeue
 	}
 	return nil
 }
@@ -659,6 +721,11 @@ func (r *MilvusReconciler) deleteLegacyComponentDeployments(ctx context.Context,
 // empty for a component whose StatefulSet mode is off. This reclaims the
 // StatefulSets of removed groups and of components reverted to Deployment mode.
 func (r *MilvusReconciler) cleanupStaleStatefulSets(ctx context.Context, mc v1beta1.Milvus) error {
+	for _, component := range statefulSetCapableComponents() {
+		if err := r.prepareStatefulSetGroupTransition(ctx, mc, component); err != nil {
+			return err
+		}
+	}
 	desired := map[string]struct{}{}
 	for _, workload := range GetComponentWorkloadsBySpec(mc.Spec) {
 		if componentUsesStatefulSet(mc, workload) {
@@ -666,7 +733,11 @@ func (r *MilvusReconciler) cleanupStaleStatefulSets(ctx context.Context, mc v1be
 		}
 	}
 
+	waiting := false
 	for _, component := range statefulSetCapableComponents() {
+		if statefulSetCleanupPaused(mc, component) {
+			continue
+		}
 		stsList := &appsv1.StatefulSetList{}
 		if err := r.List(ctx, stsList,
 			client.InNamespace(mc.Namespace),
@@ -681,63 +752,25 @@ func (r *MilvusReconciler) cleanupStaleStatefulSets(ctx context.Context, mc v1be
 			if _, ok := desired[sts.Name]; ok {
 				continue
 			}
-			ctrl.LoggerFrom(ctx).Info("Delete stale statefulset", "component", component.Name, "name", sts.Name)
-			if err := r.Delete(ctx, sts); err != nil && !kerrors.IsNotFound(err) {
-				return pkgerr.Wrapf(err, "delete stale statefulset %s", sts.Name)
-			}
-			// Reclaim the per-replica PVCs of the deleted StatefulSet. Kubernetes does
-			// not delete a StatefulSet's PVCs on its own; these components are stateless
-			// caches (data is authoritative in object storage) so leaving them behind
-			// only wastes storage. PVC names are "<templateName>-<stsName>-<ordinal>".
-			if err := r.deletePVCsForStatefulSet(ctx, mc, component, sts); err != nil {
-				return err
-			}
-			// The headless service shares the StatefulSet name.
-			svc := &corev1.Service{}
-			err := r.Get(ctx, NamespacedName(mc.Namespace, sts.Name), svc)
-			if err == nil {
-				if err := r.Delete(ctx, svc); err != nil && !kerrors.IsNotFound(err) {
-					return pkgerr.Wrapf(err, "delete stale statefulset service %s", sts.Name)
+			if err := r.deleteStatefulSetForCleanup(ctx, mc, sts); err != nil {
+				if !pkgerr.Is(err, ErrRequeue) {
+					return err
 				}
-			} else if !kerrors.IsNotFound(err) {
-				return pkgerr.Wrapf(err, "get stale statefulset service %s", sts.Name)
+				waiting = true
 			}
 		}
 	}
-	return nil
-}
-
-// deletePVCsForStatefulSet reclaims all per-replica PVCs provisioned by a
-// (now-deleted) StatefulSet. It matches PVCs by the exact
-// "<templateName>-<stsName>-<ordinal>" naming scheme (ordinal must be numeric),
-// so an ungrouped StatefulSet's cleanup never matches a group's PVCs (whose name
-// has a non-numeric "-<group>-<ordinal>" tail).
-func (r *MilvusReconciler) deletePVCsForStatefulSet(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent, sts *appsv1.StatefulSet) error {
-	prefixes := make([]string, 0, len(sts.Spec.VolumeClaimTemplates))
-	for i := range sts.Spec.VolumeClaimTemplates {
-		prefixes = append(prefixes, sts.Spec.VolumeClaimTemplates[i].Name+"-"+sts.Name+"-")
+	if waiting {
+		return ErrRequeue
 	}
-	if len(prefixes) == 0 {
-		return nil
-	}
-
-	pvcList := &corev1.PersistentVolumeClaimList{}
-	if err := r.List(ctx, pvcList,
-		client.InNamespace(mc.Namespace),
-		client.MatchingLabels(NewComponentAppLabels(mc.Name, component.Name))); err != nil {
-		return pkgerr.Wrapf(err, "list %s pvcs for stale statefulset", component.Name)
-	}
-	for i := range pvcList.Items {
-		pvc := &pvcList.Items[i]
-		if pvc.DeletionTimestamp != nil {
+	// Discover leftovers independently of the StatefulSet list. Deletion failures
+	// and operator restarts must remain recoverable after the old STS disappears.
+	for _, component := range statefulSetCapableComponents() {
+		if statefulSetCleanupPaused(mc, component) {
 			continue
 		}
-		if _, ok := matchStatefulSetPVCOrdinal(pvc.Name, prefixes); !ok {
-			continue
-		}
-		ctrl.LoggerFrom(ctx).Info("Delete stale pvc", "component", component.Name, "pvc", pvc.Name, "statefulset", sts.Name)
-		if err := r.Delete(ctx, pvc); err != nil && !kerrors.IsNotFound(err) {
-			return pkgerr.Wrapf(err, "delete stale pvc %s", pvc.Name)
+		if err := r.cleanupOrphanedStatefulSetResources(ctx, mc, component, desired); err != nil {
+			return err
 		}
 	}
 	return nil

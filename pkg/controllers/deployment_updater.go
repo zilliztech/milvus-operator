@@ -534,7 +534,16 @@ func updateBuiltInVolumeMounts(template *corev1.PodTemplateSpec, updater deploym
 	if updater.GetKafkaSecretRef() != "" {
 		builtInVolumeMounts = append(builtInVolumeMounts, kafkaCAVolumeMount)
 	}
-	removeVolumeMounts(&container.VolumeMounts, MilvusConfigVolumeName)
+	// Remove obsolete config paths, but keep the current mount in its position.
+	// Removing and appending it on every render changes the Pod template order
+	// and can trigger an extra StatefulSet rollout after a storage rebuild.
+	mounts := container.VolumeMounts[:0]
+	for _, mount := range container.VolumeMounts {
+		if mount.Name != MilvusConfigVolumeName || mount.MountPath == configVolumeMount.MountPath {
+			mounts = append(mounts, mount)
+		}
+	}
+	container.VolumeMounts = mounts
 	for _, volumeMount := range builtInVolumeMounts {
 		addVolumeMount(&container.VolumeMounts, volumeMount)
 	}
