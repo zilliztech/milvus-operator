@@ -41,6 +41,14 @@ cleaned up without changing runtime behavior. The controller/API unit suite and
 `golangci-lint v2.15.0 run --timeout 5m` then passed. Cluster tests preceded this
 cleanup; full repository race and integration checks are left to PR CI.
 
+The subsequent storage-path examples add `TestStatefulSetStoragePathSamples`,
+which validates CRs and checks rendered ConfigMaps and StatefulSets together.
+It covers the versioned mmap/DiskANN/tiered-cache configuration and PVC paths
+described in the [storage-path guide](statefulset-storage-paths.md). The
+controller/API suite also passed with `go test -race ./pkg/controllers/... ./apis/...
+-count=1 -timeout=5m`, and lint passed. This rendering test does not execute those
+Milvus features or replace the runtime I/O checks in the guide.
+
 ## Manual cluster validation
 
 The no-release tests used a collection of 128 flushed, loaded 8-dimensional

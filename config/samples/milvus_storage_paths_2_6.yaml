@@ -1,0 +1,74 @@
+# Milvus 2.6.15: QueryNode local cache plus dataNode index-build storage.
+# Replace local-ssd with a real filesystem StorageClass backed by suitable SSDs.
+# DiskANN needs index_type=DISKANN through the SDK; the CR does not create indexes.
+# Capacities/replicas are illustrative. Keep your existing dependencies when
+# adapting this to an existing instance. See docs/statefulset-storage-paths.md.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: milvus-storage-2-6
+spec:
+  mode: cluster
+  dependencies: {}
+  config:
+    localStorage:
+      path: /var/lib/milvus/data
+    queryNode:
+      enableDisk: true
+      mmap:
+        # 2.6.15 uses localStorage.path/cache/<node-id>/... internally.
+        # Do not rely on the deprecated mmapDirPath to place the cache.
+        vectorField: true
+        scalarField: true
+        scalarIndex: true
+        # DISKANN has its own disk access; do not assume it supports index mmap.
+        vectorIndex: false
+      segcore:
+        tieredStorage:
+          warmup:
+            scalarField: sync
+            scalarIndex: sync
+            vectorField: disable
+            vectorIndex: sync
+          evictionEnabled: true
+          backgroundEvictionEnabled: true
+          memoryLowWatermarkRatio: 0.75
+          memoryHighWatermarkRatio: 0.80
+          diskLowWatermarkRatio: 0.75
+          diskHighWatermarkRatio: 0.80
+  components:
+    image: milvusdb/milvus:v2.6.15
+    queryNode:
+      replicas: 1
+      volumeMounts:
+        - name: qn-local-data
+          mountPath: /var/lib/milvus/data
+      statefulSet:
+        enabled: true
+        volumeClaimTemplates:
+          - metadata:
+              name: qn-local-data
+            spec:
+              accessModes: [ReadWriteOnce]
+              volumeMode: Filesystem
+              storageClassName: local-ssd
+              resources:
+                requests:
+                  storage: 100Gi
+    dataNode:
+      replicas: 1
+      volumeMounts:
+        - name: index-build-data
+          mountPath: /var/lib/milvus/data
+      statefulSet:
+        enabled: true
+        volumeClaimTemplates:
+          - metadata:
+              name: index-build-data
+            spec:
+              accessModes: [ReadWriteOnce]
+              volumeMode: Filesystem
+              storageClassName: local-ssd
+              resources:
+                requests:
+                  storage: 100Gi

@@ -1,0 +1,60 @@
+# Milvus 2.5.27: QueryNode local cache plus indexNode index-build storage.
+# Replace local-ssd with a real filesystem StorageClass backed by suitable SSDs.
+# DiskANN needs index_type=DISKANN through the SDK; the CR does not create indexes.
+# Capacities/replicas are illustrative. Keep your existing dependencies when
+# adapting this to an existing instance. See docs/statefulset-storage-paths.md.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: milvus-storage-2-5
+spec:
+  mode: cluster
+  dependencies: {}
+  config:
+    localStorage:
+      path: /var/lib/milvus/data
+    queryNode:
+      enableDisk: true
+      mmap:
+        mmapDirPath: /var/lib/milvus/data/mmap
+        vectorField: true
+        scalarField: true
+        scalarIndex: true
+        # DISKANN has its own disk access; do not assume it supports index mmap.
+        vectorIndex: false
+  components:
+    image: milvusdb/milvus:v2.5.27
+    queryNode:
+      replicas: 1
+      volumeMounts:
+        - name: qn-local-data
+          mountPath: /var/lib/milvus/data
+      statefulSet:
+        enabled: true
+        volumeClaimTemplates:
+          - metadata:
+              name: qn-local-data
+            spec:
+              accessModes: [ReadWriteOnce]
+              volumeMode: Filesystem
+              storageClassName: local-ssd
+              resources:
+                requests:
+                  storage: 100Gi
+    indexNode:
+      replicas: 1
+      volumeMounts:
+        - name: index-build-data
+          mountPath: /var/lib/milvus/data
+      statefulSet:
+        enabled: true
+        volumeClaimTemplates:
+          - metadata:
+              name: index-build-data
+            spec:
+              accessModes: [ReadWriteOnce]
+              volumeMode: Filesystem
+              storageClassName: local-ssd
+              resources:
+                requests:
+                  storage: 100Gi

@@ -32,6 +32,8 @@
 # referencing removed templates are omitted automatically. There is no local-data
 # migration; PVC deletion follows the PV reclaim policy. See
 # docs/statefulset-storage-lifecycle.md for examples and operational limits.
+# Feature-specific paths and activation: docs/statefulset-storage-paths.md.
+# Mounting a PVC alone does not enable mmap, DISKANN or tiered eviction.
 apiVersion: milvus.io/v1beta1
 kind: Milvus
 metadata:
@@ -47,6 +49,10 @@ metadata:
 spec:
   mode: cluster
   dependencies: {}
+  config:
+    # All data-volume mounts below must cover this actual Milvus data path.
+    localStorage:
+      path: /var/lib/milvus/data
   components:
     queryNode:
       replicas: 3
@@ -78,6 +84,10 @@ metadata:
 spec:
   mode: cluster
   dependencies: {}
+  config:
+    # All data-volume mounts below must cover this actual Milvus data path.
+    localStorage:
+      path: /var/lib/milvus/data
   components:
     queryNode:
       volumeMounts:
@@ -115,12 +125,16 @@ metadata:
 spec:
   mode: cluster
   dependencies: {}
+  config:
+    # All data-volume mounts below must cover this actual Milvus data path.
+    localStorage:
+      path: /var/lib/milvus/data
   components:
     dataNode:
       replicas: 2
       volumeMounts:
         - name: dn-local-data
-          mountPath: /var/lib/milvus/dndata
+          mountPath: /var/lib/milvus/data
       statefulSet:
         enabled: true
         volumeClaimTemplates:
@@ -136,7 +150,7 @@ spec:
       replicas: 2
       volumeMounts:
         - name: in-local-data
-          mountPath: /var/lib/milvus/indata
+          mountPath: /var/lib/milvus/data
       statefulSet:
         enabled: true
         volumeClaimTemplates:

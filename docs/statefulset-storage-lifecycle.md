@@ -8,6 +8,9 @@ cannot be combined with `rollingMode: v3`.
 See [validation coverage and limits](statefulset-storage-validation.md) for the
 automated regression coverage and manual cluster test results.
 
+For mmap, DiskANN and tiered-storage configuration with mounts covering the
+actual Milvus data directories, use the [versioned storage-path examples](statefulset-storage-paths.md).
+
 ## Convert an existing Deployment to a diskless StatefulSet
 
 Set `statefulSet.enabled: true` in the existing Milvus CR. The operator validates
@@ -42,6 +45,9 @@ Add a template and its mount to the same CR:
 
 ```yaml
 spec:
+  config:
+    localStorage:
+      path: /var/lib/milvus/data
   components:
     queryNode:
       volumeMounts:
