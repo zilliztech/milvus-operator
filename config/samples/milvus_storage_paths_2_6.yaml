@@ -13,6 +13,17 @@ spec:
   config:
     localStorage:
       path: /var/lib/milvus/data
+    common:
+      # Optional DiskANN tuning, explicitly set to Milvus 2.6.15 defaults.
+      # Creating a DISKANN index through the SDK is still required.
+      DiskIndex:
+        MaxDegree: 56
+        SearchListSize: 100
+        PQCodeBudgetGBRatio: 0.125
+        BuildNumThreadsRatio: 1
+        SearchCacheBudgetGBRatio: 0.1
+        LoadNumThreadRatio: 8
+        BeamWidthRatio: 4
     queryNode:
       enableDisk: true
       mmap:

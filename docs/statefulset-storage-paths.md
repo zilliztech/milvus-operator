@@ -98,6 +98,13 @@ to another type. Turning off tiered eviction does not eliminate local-cache use.
 
 ## DiskANN also needs an application index
 
+Both versioned CR examples explicitly include `spec.config.common.DiskIndex`
+tuning parameters using the defaults from their pinned Milvus versions (2.5.27
+and 2.6.15). This block is optional; it documents the server-side settings rather
+than a workload-specific tuning recommendation. `queryNode.enableDisk: true`
+enables disk-index loading, and the component PVCs back `localStorage.path`.
+Neither these settings nor `queryNode.mmap.vectorIndex` creates a DISKANN index.
+
 On a new test collection with a float-vector field named `embedding`, create the
 index through the SDK. The CR only configures the server and storage:
 
