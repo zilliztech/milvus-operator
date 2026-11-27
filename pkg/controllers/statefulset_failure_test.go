@@ -76,11 +76,13 @@ func TestStatefulSetStorageRechecksJournalSafety(t *testing.T) {
 	for _, scenario := range []string{"missing UID", "owner changed", "retention changed", "paused", "already deleting", "invalid template"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
-			r, mc, component, sts := storageRemovalFixture(t, false)
+			r, mc, component, sts := sequentialFixture(t, false, false)
 			claim := storageRemovalPVC(t, r, sts, "qn-data-"+sts.Name+"-0")
 			mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = nil
 			if scenario != "already deleting" && scenario != "invalid template" {
-				require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), ErrRequeue)
+				require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+				require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+				require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(mc), mc))
 			}
 			expected := ""
 			switch scenario {
@@ -90,7 +92,7 @@ func TestStatefulSetStorageRechecksJournalSafety(t *testing.T) {
 			case "owner changed":
 				sts.OwnerReferences = nil
 				require.NoError(t, r.Update(ctx, sts))
-				expected = "not owned by this Milvus"
+				expected = "foreign StatefulSet"
 			case "retention changed":
 				sts.Spec.PersistentVolumeClaimRetentionPolicy = &appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy{WhenDeleted: appsv1.DeletePersistentVolumeClaimRetentionPolicyType}
 				require.NoError(t, r.Update(ctx, sts))
@@ -103,12 +105,13 @@ func TestStatefulSetStorageRechecksJournalSafety(t *testing.T) {
 				mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = []v1beta1.Values{{Data: map[string]interface{}{"spec": "invalid"}}}
 				expected = "volumeClaimTemplates"
 			}
+			require.NoError(t, r.Update(ctx, mc))
 			base := r.Client.(client.WithWatch)
 			r.Client = interceptor.NewClient(base, interceptor.Funcs{Delete: func(context.Context, client.WithWatch, client.Object, ...client.DeleteOption) error {
 				t.Fatal("unsafe or paused rebuild must not delete anything")
 				return nil
 			}})
-			err := r.ReconcileComponentStatefulSet(ctx, mc, component)
+			err := sequentialStep(t, r, mc, component)
 			if expected == "" {
 				require.ErrorIs(t, err, ErrRequeue)
 			} else {
@@ -120,84 +123,12 @@ func TestStatefulSetStorageRechecksJournalSafety(t *testing.T) {
 	}
 }
 
-func TestStatefulSetStorageAPIFailuresPreservePVC(t *testing.T) {
-	for _, phase := range []string{"before deletion", "terminating", "parent gone"} {
-		for _, failure := range []string{"PodList", "Pod delete", "PersistentVolumeClaimList"} {
-			if failure == "PersistentVolumeClaimList" && phase != "parent gone" {
-				continue
-			}
-			t.Run(phase+"/"+failure, func(t *testing.T) {
-				ctx := context.Background()
-				r, mc, component, sts := storageRemovalFixture(t, false)
-				claim := storageRemovalPVC(t, r, sts, "qn-data-"+sts.Name+"-0")
-				mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = nil
-				mc.Annotations = map[string]string{queryNodeRebuildGracePeriodAnnotation: "60"}
-				require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), ErrRequeue)
-				if phase != "before deletion" {
-					require.NoError(t, r.Delete(ctx, sts))
-					if phase == "parent gone" {
-						finishStorageRemovalDeletion(t, r, sts)
-					}
-				}
-				var pod *corev1.Pod
-				if failure == "Pod delete" {
-					pod = terminatingRebuildPod(sts, "StatefulSet", "old-pod")
-					pod.DeletionTimestamp, pod.DeletionGracePeriodSeconds = nil, nil
-					require.NoError(t, r.Create(ctx, pod))
-				}
-				base := r.Client.(client.WithWatch)
-				injected := errors.New("injected storage API failure")
-				hits := 0
-				r.Client = interceptor.NewClient(base, interceptor.Funcs{
-					List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-						if fmt.Sprintf("%T", list) == "*v1."+failure {
-							hits++
-							return injected
-						}
-						return c.List(ctx, list, opts...)
-					},
-					Delete: func(_ context.Context, _ client.WithWatch, obj client.Object, _ ...client.DeleteOption) error {
-						_, isPod := obj.(*corev1.Pod)
-						require.True(t, isPod && failure == "Pod delete", "no controller/PVC deletion after failure")
-						hits++
-						return injected
-					},
-				})
-				require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), injected)
-				require.Equal(t, 1, hits)
-				require.NoError(t, base.Get(ctx, client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{}))
-				if phase == "before deletion" {
-					current := &appsv1.StatefulSet{}
-					require.NoError(t, base.Get(ctx, client.ObjectKeyFromObject(sts), current))
-					require.Nil(t, current.DeletionTimestamp)
-				}
-				r = &MilvusReconciler{Client: base, Scheme: r.Scheme}
-				if pod != nil {
-					pod.Finalizers = nil
-					require.NoError(t, base.Update(ctx, pod))
-					require.NoError(t, base.Delete(ctx, pod))
-				}
-				if phase == "before deletion" {
-					require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), ErrRequeue)
-				}
-				if phase != "parent gone" {
-					finishStorageRemovalDeletion(t, r, sts)
-				}
-				require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), ErrRequeue)
-				require.True(t, kerrors.IsNotFound(base.Get(ctx, client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{})))
-				require.NoError(t, r.ReconcileComponentStatefulSet(ctx, mc, component))
-			})
-		}
-	}
-}
-
 func TestStatefulSetStorageProtectsPVCReferencedByUnrelatedPod(t *testing.T) {
 	ctx := context.Background()
 	r, mc, component, sts := storageRemovalFixture(t, false)
 	claim := storageRemovalPVC(t, r, sts, "qn-data-"+sts.Name+"-0")
 	mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = nil
-	require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), ErrRequeue)
-	require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), ErrRequeue)
+	legacyStorageDeletion(t, r, mc, sts)
 	finishStorageRemovalDeletion(t, r, sts)
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "reader", Namespace: mc.Namespace}, Spec: corev1.PodSpec{Volumes: []corev1.Volume{{Name: "data", VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: claim.Name}}}}}}
 	require.NoError(t, r.Create(ctx, pod))

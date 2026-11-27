@@ -18,99 +18,18 @@ import (
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
-func TestStatefulSetAttachDetachLifecycle(t *testing.T) {
-	for _, component := range []MilvusComponent{QueryNode, DataNode, IndexNode} {
-		for _, grouped := range []bool{false, true} {
-			if grouped && component.Name == IndexNodeName {
-				continue
-			}
-			name := component.Name
-			if grouped {
-				name += "/group"
-			}
-			t.Run(name, func(t *testing.T) {
-				r, mc, component, sts := storageRemovalFixture(t, grouped, component)
-				ctx := context.Background()
-				// Model an existing diskless StatefulSet. The CR now adds qn-data.
-				sts.Spec.VolumeClaimTemplates = nil
-				for i := range sts.Spec.Template.Spec.Containers {
-					removeVolumeMounts(&sts.Spec.Template.Spec.Containers[i].VolumeMounts, "qn-data")
-				}
-				require.NoError(t, r.Update(ctx, sts))
-				reconcile := func() error { return r.ReconcileComponentStatefulSet(ctx, mc, component) }
-				require.ErrorIs(t, reconcile(), ErrRequeue) // save intent
-				require.ErrorIs(t, reconcile(), ErrRequeue) // validate + delete
-				require.ErrorIs(t, reconcile(), ErrRequeue) // await foreground GC
-				finishStorageRemovalDeletion(t, r, sts)
-				require.NoError(t, reconcile())
-				current := &appsv1.StatefulSet{}
-				require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(sts), current))
-				require.NotEqual(t, sts.UID, current.UID)
-				require.Len(t, current.Spec.VolumeClaimTemplates, 1)
-				require.Equal(t, "qn-data", current.Spec.VolumeClaimTemplates[0].Name)
-				index := GetContainerIndex(current.Spec.Template.Spec.Containers, component.Name)
-				require.GreaterOrEqual(t, index, 0)
-				require.Contains(t, current.Spec.Template.Spec.Containers[index].VolumeMounts,
-					corev1.VolumeMount{Name: "qn-data", MountPath: "/data"})
-				require.ErrorIs(t, reconcile(), ErrRequeue) // finish intent
-				require.NoError(t, reconcile())
-
-				// Fake API has no StatefulSet controller; model the PVC it creates.
-				claim := storageRemovalPVC(t, r, current, "qn-data-"+current.Name+"-0")
-				original := getComponentStatefulSetSpec(mc, component).VolumeClaimTemplates
-				getComponentStatefulSetSpec(mc, component).VolumeClaimTemplates = nil
-				require.ErrorIs(t, reconcile(), ErrRequeue)
-				require.ErrorIs(t, reconcile(), ErrRequeue)
-				finishStorageRemovalDeletion(t, r, current)
-				require.ErrorIs(t, reconcile(), ErrRequeue) // delete removed PVC
-				require.NoError(t, reconcile())
-				require.True(t, kerrors.IsNotFound(r.Get(ctx, client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{})))
-				require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(sts), current))
-				require.Empty(t, current.Spec.VolumeClaimTemplates)
-				index = GetContainerIndex(current.Spec.Template.Spec.Containers, component.Name)
-				require.NotContains(t, current.Spec.Template.Spec.Containers[index].VolumeMounts,
-					corev1.VolumeMount{Name: "qn-data", MountPath: "/data"})
-				// Keeping the retired mount in the CR must not cause a second
-				// rollout after the diskless replacement has started serving.
-				replacementTemplate := current.Spec.Template.DeepCopy()
-				require.ErrorIs(t, reconcile(), ErrRequeue)
-				for i := 0; i < 3; i++ {
-					require.NoError(t, reconcile())
-					require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(sts), current))
-					require.Equal(t, replacementTemplate, &current.Spec.Template, "unchanged CR must preserve replacement Pod template")
-				}
-
-				// Reattaching a retired name must restore its mount and claim template.
-				getComponentStatefulSetSpec(mc, component).VolumeClaimTemplates = original
-				require.ErrorIs(t, reconcile(), ErrRequeue)
-				require.ErrorIs(t, reconcile(), ErrRequeue)
-				finishStorageRemovalDeletion(t, r, current)
-				require.NoError(t, reconcile())
-				require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(sts), current))
-				require.Len(t, current.Spec.VolumeClaimTemplates, 1)
-				index = GetContainerIndex(current.Spec.Template.Spec.Containers, component.Name)
-				require.Contains(t, current.Spec.Template.Spec.Containers[index].VolumeMounts,
-					corev1.VolumeMount{Name: "qn-data", MountPath: "/data"})
-			})
-		}
-	}
-}
-
 func TestStatefulSetAttachPreservesExistingPVC(t *testing.T) {
-	r, mc, component, sts := storageRemovalFixture(t, false)
+	r, mc, component, sts := sequentialFixture(t, false, false)
 	ctx := context.Background()
 	claim := storageRemovalPVC(t, r, sts, "qn-data-"+sts.Name+"-0")
 	additional := sts.Spec.VolumeClaimTemplates[0].DeepCopy()
 	additional.Name = "extra"
 	value := v1beta1.Values{}
 	require.NoError(t, value.FromObject(additional))
-	mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = append(mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates, value)
+	mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = append([]v1beta1.Values{newStatefulSetTestMilvus().Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates[0]}, value)
 	mc.Spec.Com.QueryNode.VolumeMounts = append(mc.Spec.Com.QueryNode.VolumeMounts, corev1.VolumeMount{Name: "extra", MountPath: "/extra"})
-	reconcile := func() error { return r.ReconcileComponentStatefulSet(ctx, mc, component) }
-	require.ErrorIs(t, reconcile(), ErrRequeue)
-	require.ErrorIs(t, reconcile(), ErrRequeue)
-	finishStorageRemovalDeletion(t, r, sts)
-	require.NoError(t, reconcile())
+	require.NoError(t, r.Update(ctx, mc))
+	sequentialFinish(t, r, mc, component, sts)
 	remaining := &corev1.PersistentVolumeClaim{}
 	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(claim), remaining))
 	require.Equal(t, claim.UID, remaining.UID)
@@ -153,7 +72,6 @@ func TestStatefulSetInvalidReplacementPreservesWorkload(t *testing.T) {
 			return c.Create(ctx, obj, opts...)
 		},
 	})
-	require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), ErrRequeue)
 	require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), validationError)
 	current := &appsv1.StatefulSet{}
 	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(sts), current))
@@ -219,7 +137,6 @@ func TestStatefulSetChildValidationPreservesWorkload(t *testing.T) {
 				if source == "Deployment" {
 					require.ErrorIs(t, r.cleanupStatefulSetWorkloadModes(ctx, mc), validationError)
 				} else {
-					require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), ErrRequeue)
 					require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), validationError)
 				}
 				require.True(t, validated)

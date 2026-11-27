@@ -138,7 +138,7 @@ func TestQueryNodeRebuildBoundsOnlyOwnedPods(t *testing.T) {
 	}
 }
 
-func TestQueryNodeRebuildPreservesPVCUntilPodGone(t *testing.T) {
+func TestLegacyStorageRecoveryPreservesPVCUntilPodGone(t *testing.T) {
 	for _, parentGone := range []bool{false, true} {
 		t.Run(map[bool]string{false: "foreground", true: "journal recovery"}[parentGone], func(t *testing.T) {
 			r, mc, component, sts := storageRemovalFixture(t, false)
@@ -147,8 +147,7 @@ func TestQueryNodeRebuildPreservesPVCUntilPodGone(t *testing.T) {
 			mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = nil
 			claim := storageRemovalPVC(t, r, sts, "qn-data-"+sts.Name+"-0")
 			reconcile := func() error { return r.ReconcileComponentStatefulSet(ctx, mc, component) }
-			require.ErrorIs(t, reconcile(), ErrRequeue)
-			require.ErrorIs(t, reconcile(), ErrRequeue)
+			legacyStorageDeletion(t, r, mc, sts)
 			pod := terminatingRebuildPod(sts, "StatefulSet", "old-pod")
 			require.NoError(t, r.Create(ctx, pod))
 			require.NoError(t, r.Delete(ctx, pod))
@@ -166,7 +165,7 @@ func TestQueryNodeRebuildPreservesPVCUntilPodGone(t *testing.T) {
 				},
 			})
 			require.ErrorIs(t, reconcile(), ErrRequeue)
-			require.Equal(t, 1, shortened)
+			require.Zero(t, shortened, "recovery must not issue further Pod deletions")
 			require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{}))
 			// A fresh reconciler resumes using the Service journal and Pod state.
 			r.Client = base
@@ -188,7 +187,6 @@ func TestQueryNodeRebuildInvalidGracePreservesWorkload(t *testing.T) {
 	mc.Annotations = map[string]string{queryNodeRebuildGracePeriodAnnotation: "0"}
 	mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = nil
 	ctx := context.Background()
-	require.ErrorContains(t, r.ReconcileComponentStatefulSet(ctx, mc, component), queryNodeRebuildGracePeriodAnnotation)
 	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(sts), sts))
 	require.Nil(t, sts.DeletionTimestamp)
 	require.ErrorContains(t, r.deleteStatefulSetForCleanup(ctx, mc, sts), queryNodeRebuildGracePeriodAnnotation)
@@ -196,7 +194,7 @@ func TestQueryNodeRebuildInvalidGracePreservesWorkload(t *testing.T) {
 }
 
 func TestQueryNodeRebuildDeletesPodsBeforeControllers(t *testing.T) {
-	for _, source := range []string{"storage", "Deployment", "retired StatefulSet"} {
+	for _, source := range []string{"Deployment", "retired StatefulSet"} {
 		t.Run(source, func(t *testing.T) {
 			r, mc, component, sts := storageRemovalFixture(t, false)
 			ctx := context.Background()
@@ -235,10 +233,6 @@ func TestQueryNodeRebuildDeletesPodsBeforeControllers(t *testing.T) {
 				},
 			})
 			switch source {
-			case "storage":
-				require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), ErrRequeue)
-				require.Empty(t, order)
-				require.ErrorIs(t, r.ReconcileComponentStatefulSet(ctx, mc, component), ErrRequeue)
 			case "Deployment":
 				require.ErrorIs(t, r.deleteLegacyComponentDeployments(ctx, mc, component), ErrRequeue)
 			case "retired StatefulSet":

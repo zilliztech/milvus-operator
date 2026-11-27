@@ -27,7 +27,7 @@ func (r *MilvusReconciler) ReconcileHPAs(ctx context.Context, mc v1beta1.Milvus)
 }
 
 func (r *MilvusReconciler) reconcileComponentHPA(ctx context.Context, mc v1beta1.Milvus, component MilvusComponent) error {
-	if component.Is(QueryNode) && mc.Annotations[queryNodeStorageLockAnnotation] != "" {
+	if componentUsesStatefulSet(mc, component) && hasStorageMigrationLock(mc) {
 		// Restore the declarative HPA after the persisted migration lock clears.
 		return r.deleteHPAIfExists(ctx, mc, component)
 	}

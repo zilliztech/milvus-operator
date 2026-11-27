@@ -83,32 +83,27 @@ mount and provisions new PVCs; it does not recover deleted data.
 Simply removing a template's mount is different: the template and its PVCs remain.
 The existing `_remove` mount marker can unmount a path without deleting its PVC.
 
-## Sequential QueryNode storage updates (opt-in)
+## Sequential storage updates
 
-For an existing QueryNode StatefulSet whose name and deployment groups stay the
-same, opt in on the **Milvus CR** before adding or removing claim templates:
+For existing QueryNode, DataNode and IndexNode StatefulSets whose names and
+deployment groups stay the same, adding or removing claim templates automatically
+uses sequential replacement. No strategy annotation or CRD change is required.
+The earlier `milvus.io/querynode-storage-update-strategy` annotation is ignored,
+including `Recreate`; it cannot enable bulk replacement.
 
-```yaml
-metadata:
-  annotations:
-    milvus.io/querynode-storage-update-strategy: Sequential
-```
-
-The default (or explicit `Recreate`) remains the maintenance-window workflow
-described below. This annotation needs no CRD schema change. It does not change
-Deployment/StatefulSet conversion, group split/merge/rename, DataNode or IndexNode
-replacement. Size-only expansion keeps its existing behavior.
+Deployment/StatefulSet conversion and group split/merge/rename still use their
+separate workload cleanup paths. Size-only expansion keeps its existing behavior.
 
 Sequential updates follow these steps:
 
 1. Validate the desired StatefulSet and its child Pod/PVCs. Acquire a persistent
    lock on the Milvus CR and record the original Pod UIDs in the headless Service.
-   The lock serializes QueryNode deployment groups, including across operator
-   restarts. The Milvus spec is frozen during the migration; QueryNode/global
-   `paused` changes are allowed. Restore the original requested spec to resume
+   The lock serializes all StatefulSet components and deployment groups across
+   operator restarts. The Milvus spec is frozen during migration; global and
+   QueryNode/DataNode/IndexNode `paused` changes are allowed. Restore the original requested spec to resume
    after an incompatible edit. Do not remove the operator-owned
-   `milvus.io/querynode-storage-migration` annotation or Service journal manually.
-2. Wait for the operator-managed QueryNode HPA to be suspended. External HPAs
+   `milvus.io/statefulset-storage-migration` annotation or Service journal manually.
+2. Wait for the operator-managed StatefulSet HPAs to be suspended. External HPAs
    must be suspended by their owner; the operator refuses to proceed while one
    targets the migrating StatefulSet. Do not scale the StatefulSet manually
    during migration. Managed HPA configuration is restored after the lock clears.
@@ -117,7 +112,8 @@ Sequential updates follow these steps:
    for it to adopt the original Pods. This step does not change Pod UIDs or mounts.
 4. Replace one Pod at a time in ascending ordinal order. Before each deletion,
    all expected Pods must be adopted and continuously Ready for at least 30
-   seconds; unhealthy QueryNode Pods in other groups also stop advancement.
+   seconds; unhealthy Pods of the same component in other groups also stop
+   advancement.
    The next Pod waits until its predecessor has been recreated and has passed
    that readiness interval. Ascending order is intentional: an old lower ordinal
    with incompatible storage can block Kubernetes from recreating a higher one.
@@ -138,38 +134,23 @@ clear storage finalizers or automatically release/reload collections.
 This is controlled Pod replacement, **not a zero-downtime guarantee**. Ready does
 not prove collection-level recovery. Ensure eligible QueryNodes have enough spare
 capacity and suitable collection replicas/resource-group placement before starting.
-A single QueryNode still incurs an interruption. Concurrent node failures or
+A single-replica component still incurs an interruption. Concurrent node failures or
 external controllers can cause additional disruption beyond the operator's one
 intentional replacement. Monitor real queries throughout the operation. No files
 are copied from an old filesystem to a new PVC, and detaching storage still
 requires usable local storage for mmap, DiskANN and caches.
 
-## Maintenance-window rebuild lifecycle (default)
+## Workload conversion and retired-group cleanup
 
-The operator records a migration journal in the component's headless Service
-annotation `milvus.io/statefulset-storage`. It validates the desired StatefulSet,
-PVCs and Pod with API dry-runs before deleting the old
-StatefulSet using foreground propagation and waits for its Pods, including terminating Pods,
-to disappear. It then deletes PVCs belonging to removed templates, waits for PVC
-deletion to finish, and creates a StatefulSet using the current configuration.
-The journal allows reconciliation to resume after an operator restart.
-
-Validating the generated Pod separately is required: older API servers may
-accept a StatefulSet whose Pod template is rejected when the controller actually
-creates the Pod. All preflight requests use dry-run and leave no test resources.
-
-This default workflow interrupts **all Pods of the affected StatefulSet**, including when only one
-of several templates is added or removed. This is not a rolling storage migration. Each
-deployment group has its own StatefulSet and journal. A paused component does not
-advance this workflow until resumed.
+Deployment/StatefulSet conversion and group split/merge/rename replace workload
+identities and may interrupt all affected Pods. They do not adopt the old Pods or
+copy local data. A paused component does not advance these operations.
 
 Milvus can wait for segment and channel migration during QueryNode graceful
-shutdown, until migration finishes or its internal timeout expires. If all eligible
-QueryNodes are being deleted together, old Pods can remain terminating while the
-operator waits to create their replacements. Increasing replicas inside that same
-StatefulSet does not remove this limitation. By default the operator preserves the
-existing termination grace period. Ready QueryNodes outside the replacement can
-accept the segments; releasing affected collections is another maintenance option.
+shutdown. If all eligible QueryNodes are removed together, old Pods can remain
+terminating while the operator waits to create replacements. Ready QueryNodes
+outside the replacement may accept the segments; releasing affected collections
+is another maintenance option.
 
 ### Rebuild without releasing loaded collections
 
@@ -186,7 +167,7 @@ The value must be a positive integer number of seconds (within signed 32-bit
 range). An invalid value blocks the QueryNode replacement before deleting its
 workload. This uses existing Kubernetes metadata and needs no CRD schema change.
 
-Configure the annotation **before starting the workload/storage change**. The
+Configure the annotation **before starting the workload conversion or group change**. The
 operator first validates the replacement, deletes its existing QueryNode Pods
 with the configured nonzero grace, and then initiates foreground workload deletion.
 The grace must be present on the first Pod DELETE: Kubernetes 1.19 can continue an
@@ -213,10 +194,10 @@ is not proof that all queries have recovered. Check representative searches and
 queries after the replacement. Local cache rebuild time and disk provisioning
 time are additional to Pod termination.
 
-The annotation applies to QueryNode Deployment -> STS conversion, STS disk
-attach/detach, STS -> Deployment conversion and retired STS/group cleanup. It
-does not affect DataNode/IndexNode, ordinary rolling updates, replica scaling,
-or size-only PVC expansion. Paused components do not advance this workflow.
+The annotation applies to QueryNode Deployment -> STS conversion, STS ->
+Deployment conversion and retired STS/group cleanup. It does not affect sequential
+STS disk attach/detach, DataNode/IndexNode, ordinary rolling updates, replica
+scaling, or size-only PVC expansion. Paused components do not advance this workflow.
 Removing the annotation stops future shortening; it cannot undo a deletion
 deadline already applied. A whole Milvus CR deletion uses its existing shutdown
 path, not this replacement-specific policy.
@@ -229,8 +210,8 @@ without depending on whether that old process has refreshed its configuration.
 PVCs for templates still present in the CR are retained and reused. Only PVCs
 matching the component/group labels and exact
 `<template-name>-<statefulset-name>-<ordinal>` naming convention are eligible for
-cleanup. PVCs referenced by remaining Pods are not deleted. A terminating PVC
-blocks recreation until its deletion completes.
+cleanup. PVCs referenced by remaining Pods are not deleted. A terminating removed PVC blocks completion and the next group until its
+deletion completes.
 
 Mounts and raw block volume devices referencing removed templates are filtered
 from the replacement's main container, sidecars and init containers. The journal
@@ -280,17 +261,16 @@ Unlabelled or ambiguously named historical volumes require manual inspection.
   determines whether the underlying storage is deleted or retained. No data is
   copied to another volume or into the container filesystem. Make sure the
   application can run without this data before changing the CR.
-- A StatefulSet configured with PVC retention `whenDeleted: Delete` is rejected
+- A StatefulSet configured with PVC retention `whenDeleted: Delete` or `whenScaled: Delete` is rejected
   for this workflow, because deleting it could also delete PVCs of templates that
   should remain. Operator-created StatefulSets use the default retention policy.
 - Foreground garbage collection and PVC finalizers are respected. The operator
   does not force-delete Pods or remove storage protection finalizers.
-- Restoring templates before StatefulSet deletion starts cancels the rebuild.
-  Once deletion has started, the replacement follows the current CR, reusing
-  restored templates' PVCs that have not already been deleted. Deleted data cannot
-  be restored by undoing the CR edit.
-- Manually managed and HPA-controlled workloads start the replacement with the
-  replica count recorded before deletion. Other workloads use current CR replicas.
+- Once the sequential migration lock is acquired, finish that migration before
+  editing the spec again. Incompatible edits block progress until the requested
+  spec is restored. Deleted data cannot be restored by undoing a CR edit.
+- Sequential replacements preserve the actual replica count recorded before
+  orphaning, including manually managed and HPA-controlled workloads.
 - This workflow is triggered by adding or removing template names, including
   replacing one template name with another. Reordering templates or changing only
   requested size does not rebuild the StatefulSet. Size increases keep the existing
@@ -304,3 +284,16 @@ Unlabelled or ambiguously named historical volumes require manual inspection.
   Remove templates while keeping the workload in StatefulSet mode; switching
   workload modes or removing an entire group uses the separate workload cleanup
   path.
+
+## Recovering migrations started by an earlier operator
+
+An existing sequential QueryNode migration lock is still recognized and cleared
+when that migration finishes. New migrations use the generic StatefulSet lock.
+
+A legacy bulk-rebuild Service journal is recovery state only. If its old
+StatefulSet has not started deleting, the operator clears the pending record and
+starts sequential migration on the next reconcile. If deletion already started,
+it waits for the old Pods and removed PVCs to disappear, then recreates the
+workload. Recovery does not issue additional bulk Pod/controller deletions or
+shorten Pod termination grace. Retained claims and referenced PVCs remain
+protected. There is no selectable bulk-rebuild mode for new storage changes.

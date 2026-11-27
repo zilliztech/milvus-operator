@@ -21,13 +21,13 @@ import (
 )
 
 const (
-	queryNodeStorageStrategyAnnotation = "milvus.io/querynode-storage-update-strategy"
-	queryNodeStorageLockAnnotation     = "milvus.io/querynode-storage-migration"
-	sequentialStorageOwnerAnnotation   = "milvus.io/storage-migration-source"
-	sequentialStorageReadySeconds      = 30
+	legacyQueryNodeStorageLockAnnotation = "milvus.io/querynode-storage-migration"
+	statefulSetStorageLockAnnotation     = "milvus.io/statefulset-storage-migration"
+	sequentialStorageOwnerAnnotation     = "milvus.io/storage-migration-source"
+	sequentialStorageReadySeconds        = 30
 )
 
-// The CR lock serializes all QueryNode deployment groups and freezes the desired
+// The CR lock serializes all StatefulSet components and deployment groups and freezes the desired
 // spec before the Service journal or StatefulSet is changed. Neither lock relies
 // on controller memory. Pausing is allowed while the spec is frozen.
 type sequentialStorageLockState struct {
@@ -45,32 +45,51 @@ type sequentialStorageMigration struct {
 }
 
 func sequentialStorageSpecHash(mc v1beta1.Milvus) string {
+	return storageSpecHash(mc, false)
+}
+
+func storageSpecHash(mc v1beta1.Milvus, legacy bool) string {
 	copy := mc.DeepCopy()
 	copy.Spec.Com.Paused = false
 	if copy.Spec.Com.QueryNode != nil {
 		copy.Spec.Com.QueryNode.Paused = false
 	}
+	if !legacy {
+		if copy.Spec.Com.DataNode != nil {
+			copy.Spec.Com.DataNode.Paused = false
+		}
+		if copy.Spec.Com.IndexNode != nil {
+			copy.Spec.Com.IndexNode.Paused = false
+		}
+	}
 	data, _ := json.Marshal(copy.Spec)
 	return fmt.Sprintf("%x", sha256.Sum256(data))
 }
 
+func hasStorageMigrationLock(mc v1beta1.Milvus) bool {
+	return mc.Annotations[statefulSetStorageLockAnnotation] != "" || mc.Annotations[legacyQueryNodeStorageLockAnnotation] != ""
+}
+
 func sequentialStorageLock(mc v1beta1.Milvus) (*sequentialStorageLockState, error) {
-	strategy := mc.Annotations[queryNodeStorageStrategyAnnotation]
-	if strategy != "" && strategy != "Sequential" && strategy != "Recreate" {
-		return nil, pkgerr.Errorf("%s must be Sequential or Recreate", queryNodeStorageStrategyAnnotation)
+	var result *sequentialStorageLockState
+	for _, key := range []string{statefulSetStorageLockAnnotation, legacyQueryNodeStorageLockAnnotation} {
+		raw := mc.Annotations[key]
+		if raw == "" {
+			continue
+		}
+		lock := &sequentialStorageLockState{}
+		if err := json.Unmarshal([]byte(raw), lock); err != nil {
+			return nil, pkgerr.Wrap(err, "read StatefulSet storage migration lock")
+		}
+		if lock.Workload == "" || lock.SpecHash != storageSpecHash(mc, key == legacyQueryNodeStorageLockAnnotation) {
+			return nil, pkgerr.New("StatefulSet storage migration is paused: restore the Milvus spec used to start it before changing configuration, replicas or groups")
+		}
+		if result != nil && result.Workload != lock.Workload {
+			return nil, pkgerr.New("conflicting StatefulSet storage migration locks")
+		}
+		result = lock
 	}
-	raw := mc.Annotations[queryNodeStorageLockAnnotation]
-	if raw == "" {
-		return nil, nil
-	}
-	lock := &sequentialStorageLockState{}
-	if err := json.Unmarshal([]byte(raw), lock); err != nil {
-		return nil, pkgerr.Wrap(err, "read QueryNode storage migration lock")
-	}
-	if lock.Workload == "" || lock.SpecHash != sequentialStorageSpecHash(mc) {
-		return nil, pkgerr.New("QueryNode storage migration is paused: restore the Milvus spec used to start it before changing configuration, replicas or groups")
-	}
-	return lock, nil
+	return result, nil
 }
 
 func (r *MilvusReconciler) writeSequentialStorageLock(ctx context.Context, mc v1beta1.Milvus, workload string, acquire bool) error {
@@ -91,14 +110,15 @@ func (r *MilvusReconciler) writeSequentialStorageLock(ctx context.Context, mc v1
 	if current.Annotations == nil {
 		current.Annotations = map[string]string{}
 	}
+	delete(current.Annotations, legacyQueryNodeStorageLockAnnotation)
 	if acquire {
 		data, err := json.Marshal(sequentialStorageLockState{Workload: workload, SpecHash: sequentialStorageSpecHash(mc)})
 		if err != nil {
 			return err
 		}
-		current.Annotations[queryNodeStorageLockAnnotation] = string(data)
+		current.Annotations[statefulSetStorageLockAnnotation] = string(data)
 	} else {
-		delete(current.Annotations, queryNodeStorageLockAnnotation)
+		delete(current.Annotations, statefulSetStorageLockAnnotation)
 	}
 	if err := r.Update(ctx, current); err != nil {
 		return err

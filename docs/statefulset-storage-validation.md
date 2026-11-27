@@ -25,40 +25,38 @@ The controller and API tests cover:
 - Group split, rename, merge, addition, simultaneous detach, partial journal
   write failures, invalid target resources, and recovery when the source
   StatefulSet is already gone. QueryNode and DataNode group cases are covered.
-- Opt-in sequential QueryNode attach/detach, orphan adoption without deleting
+- Automatic sequential QueryNode/DataNode/IndexNode attach/detach, orphan adoption without deleting
   old Pods, ascending replacement, terminating/missing/newly Ready Pod waits,
-  and resuming with a fresh reconciler at each ordinal.
+  and resuming with a fresh reconciler at each ordinal. QueryNode/DataNode groups,
+  attach/detach/reattach, retained claims and ignored legacy strategy values are covered.
 - Persistent spec/group locks, validation before locking, journal and deletion
   failures, foreign replacements, external replica/template changes, unsafe
   PVC retention policies, pause, and GC ownership during orphan adoption.
-- Managed HPA suspension/restoration and external HPA ownership; sequential
+- Managed HPA suspension/restoration for all three components and external HPA ownership; sequential
   PVC cleanup waits for references and finalizers, including workload templates
   with zero replicas.
 
-The following commands passed for the final implementation used by the group
-cluster tests:
+The current controller/API implementation passed:
 
 ```sh
-go test ./pkg/controllers/... ./apis/... -count=1 -timeout=2m
-go vet ./pkg/controllers/... ./apis/...
+go test -race ./pkg/controllers/... ./apis/... -count=1 -timeout=5m
+golangci-lint run --timeout 5m  # v2.15.0
 git diff --check
 ```
 
-Before submission on November 27, `make code-check` also passed. Lint identified
-an unused wrapper and two test branches to express as switches; these were
-cleaned up without changing runtime behavior. The controller/API unit suite and
-`golangci-lint v2.15.0 run --timeout 5m` then passed. Cluster tests preceded this
-cleanup; full repository race and integration checks are left to PR CI.
+`TestStatefulSetStoragePathSamples` parses the versioned CR examples, runs
+defaulting and admission validation, and checks rendered ConfigMaps and
+StatefulSets together. It covers the mmap/DiskANN/tiered-cache configuration and
+PVC paths described in the [storage-path guide](statefulset-storage-paths.md).
+This rendering test does not execute those Milvus features or replace runtime
+I/O checks. Full repository integration checks remain separate from this scoped
+local suite.
 
-The subsequent storage-path examples add `TestStatefulSetStoragePathSamples`,
-which validates CRs and checks rendered ConfigMaps and StatefulSets together.
-It covers the versioned mmap/DiskANN/tiered-cache configuration and PVC paths
-described in the [storage-path guide](statefulset-storage-paths.md). The
-controller/API suite also passed with `go test -race ./pkg/controllers/... ./apis/...
--count=1 -timeout=5m`, and lint passed. This rendering test does not execute those
-Milvus features or replace the runtime I/O checks in the guide.
+## Historical maintenance-mode cluster validation (November 26)
 
-## Maintenance-mode cluster validation (November 26)
+These results predate removal of bulk storage replacement. They remain evidence
+for the original conversion/group-cleanup behavior; attach/detach now use only
+sequential migration. They are not test results for the current storage path.
 
 The no-release tests used a collection of 128 flushed, loaded 8-dimensional
 vectors. After baseline setup, no collection release or additional load call was
@@ -92,7 +90,10 @@ After the group-history fix, an additional run verified:
 | Reattach a retired template name | A new PVC used the current CR's 30Gi request and passed a file read/write check. |
 | Detach and change groups in one CR update | The target omitted stale mounts, all QueryNode PVCs were removed, and queries recovered. |
 
-## Sequential QueryNode cluster validation (November 27)
+## Initial sequential QueryNode cluster validation (November 27)
+
+This run used the earlier opt-in QueryNode implementation. The default behavior
+and additional components are verified separately below.
 
 A separate Kubernetes mechanism probe used three Pods to verify same-name
 StatefulSet orphan/adoption for diskless → attached → detached storage. Adoption
@@ -139,13 +140,54 @@ Earlier fixture attempts used AUTOINDEX, including a client shortcut that ignore
 the supplied FLAT parameters. Their exact-nearest-neighbor assertions are invalid
 as availability evidence and are excluded from the final FLAT results.
 
+## Automatic sequential component validation (November 27)
+
+The updated runtime was tested without a strategy annotation, using two DataNodes
+and three QueryNodes in two groups (2 + 1). A single CR update requested storage
+changes for both components. The fixture used the same explicit FLAT/L2 schema,
+8,192 loaded vectors and dedicated 20Gi test mounts as the earlier query test.
+
+Attach and detach passed. All five original Pod identities were replaced in
+component/group order, with at most one unavailable node in sampled API
+observations. All five mounted PVCs passed marker write/read checks; no QueryNode
+or DataNode PVC remained after detach. All three StatefulSets returned to
+RollingUpdate, the migration lock cleared, and each final state stayed stable
+for at least 35 seconds.
+
+Attach deliberately waited on a missing StorageClass. Restarting the operator
+left the other four Pod UIDs unchanged for at least 35 seconds before provisioning
+was enabled. During detach, test-owned PVC finalizers held cleanup after QueryNode
+group a recovered. The test confirmed that the old operator Pod disappeared and
+its replacement was Ready while group b's Pod UID remained unchanged for 38.43
+seconds; only the test-owned finalizers were then removed.
+
+The resumed monitor collected 3,536 query/search pairs with no observed failures;
+the maximum duration of a pair was 0.4914 seconds. No collection release or
+additional load call occurred during migration. These observations do not establish
+a general availability or performance guarantee.
+
+Cleanup removed the isolated namespace, test RBAC, PVCs, PVs and StorageClass.
+The original operator's full Pod template was restored. Baseline checks preserved
+six existing Milvus CR specs, 56 business Pod UIDs, three historical QueryNode PVC
+UIDs and the CRD spec; all pre-existing Milvus instances remained healthy.
+
+The first driver stopped at its Pending-state assertion. The driver was corrected
+to wait for a Pending Pod with a new UID before starting the storage-stall restart
+check. The original migration and loaded collection were resumed without any
+release or additional load call. Query sampling therefore has a gap; this run is
+not evidence of uninterrupted availability across the entire transition.
+
+IndexNode has unit coverage only in this change. DataNode's live check covers
+storage replacement with two replicas, not sustained writes or index building.
+The dedicated mount checks do not exercise mmap, DiskANN or tiered-storage I/O.
+
 ## Limits
 
-- Maintenance-mode tests observed query failures during several transitions.
-  Neither mode's tests establish zero downtime, a recovery-time guarantee, or
+- Historical maintenance-mode tests observed query failures during several transitions.
+  These tests do not establish zero downtime, a recovery-time guarantee, or
   continuous write safety.
-- The final group run exercised QueryNode. DataNode's new group scenarios are
-  covered by unit tests; they were not run against a live cluster in that run.
+- Group split/merge/rename runtime coverage remains QueryNode-only. DataNode
+  groups have unit coverage; the new component run uses ungrouped DataNodes.
 - The earlier complete lifecycle matrix was not repeated in full after the
   group-history fix. The final group run did repeat attach/detach and restart
   recovery with the changed code.

@@ -22,11 +22,11 @@ import (
 	"github.com/zilliztech/milvus-operator/apis/milvus.io/v1beta1"
 )
 
-func sequentialFixture(t *testing.T, attach, grouped bool) (*MilvusReconciler, *v1beta1.Milvus, MilvusComponent, *appsv1.StatefulSet) {
+func sequentialFixture(t *testing.T, attach, grouped bool, components ...MilvusComponent) (*MilvusReconciler, *v1beta1.Milvus, MilvusComponent, *appsv1.StatefulSet) {
 	t.Helper()
-	r, mc, component, sts := storageRemovalFixture(t, grouped)
+	r, mc, component, sts := storageRemovalFixture(t, grouped, components...)
 	require.NoError(t, autoscalingv1.AddToScheme(r.Scheme))
-	mc.Annotations = map[string]string{queryNodeStorageStrategyAnnotation: "Sequential", queryNodeRebuildGracePeriodAnnotation: "1"}
+	mc.Annotations = map[string]string{queryNodeRebuildGracePeriodAnnotation: "1"}
 	if attach {
 		sts.Spec.VolumeClaimTemplates = nil
 		for i := range sts.Spec.Template.Spec.Containers {
@@ -34,7 +34,7 @@ func sequentialFixture(t *testing.T, attach, grouped bool) (*MilvusReconciler, *
 		}
 		require.NoError(t, r.Update(context.Background(), sts))
 	} else {
-		mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = nil
+		getComponentStatefulSetSpec(mc, component).VolumeClaimTemplates = nil
 	}
 	require.NoError(t, r.Create(context.Background(), &mc))
 	for i := 0; i < 3; i++ {
@@ -97,80 +97,86 @@ func sequentialAdopt(t *testing.T, r *MilvusReconciler, mc *v1beta1.Milvus, comp
 }
 
 func TestSequentialStorageLifecycle(t *testing.T) {
-	for _, attach := range []bool{true, false} {
-		for _, grouped := range []bool{false, true} {
-			t.Run(fmt.Sprintf("attach=%t/grouped=%t", attach, grouped), func(t *testing.T) {
-				r, mc, component, old := sequentialFixture(t, attach, grouped)
-				ctx := context.Background()
-				var claims []*corev1.PersistentVolumeClaim
-				if !attach {
+	for _, node := range []MilvusComponent{QueryNode, DataNode, IndexNode} {
+		for _, attach := range []bool{true, false} {
+			for _, grouped := range []bool{false, true} {
+				if grouped && node.Is(IndexNode) {
+					continue
+				}
+				t.Run(fmt.Sprintf("%s/attach=%t/grouped=%t", node.Name, attach, grouped), func(t *testing.T) {
+					r, mc, component, old := sequentialFixture(t, attach, grouped, node)
+					ctx := context.Background()
+					var claims []*corev1.PersistentVolumeClaim
+					if !attach {
+						for i := 0; i < 3; i++ {
+							claims = append(claims, storageRemovalPVC(t, r, old, fmt.Sprintf("qn-data-%s-%d", old.Name, i)))
+						}
+					}
+					deletes := []string{}
+					r.Client = interceptor.NewClient(r.Client.(client.WithWatch), interceptor.Funcs{Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+						options := (&client.DeleteOptions{}).ApplyOptions(opts)
+						if _, ok := obj.(*appsv1.StatefulSet); ok {
+							require.NotNil(t, options.PropagationPolicy)
+							require.Equal(t, metav1.DeletePropagationOrphan, *options.PropagationPolicy)
+						}
+						if _, ok := obj.(*corev1.Pod); ok {
+							require.Nil(t, options.GracePeriodSeconds, "maintenance annotation must not truncate sequential shutdown")
+							deletes = append(deletes, obj.GetName())
+						}
+						return c.Delete(ctx, obj, opts...)
+					}})
+					for i := 0; i < 3; i++ { // lock, journal, orphan
+						require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+					}
+					current := sequentialAdopt(t, r, mc, component, old)
 					for i := 0; i < 3; i++ {
-						claims = append(claims, storageRemovalPVC(t, r, old, fmt.Sprintf("qn-data-%s-%d", old.Name, i)))
+						// Restart the reconciler at every ordinal, retaining only API state.
+						r = &MilvusReconciler{Client: r.Client, Scheme: r.Scheme}
+						require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+						require.Len(t, deletes, i+1)
+						name := fmt.Sprintf("%s-%d", old.Name, i)
+						require.Equal(t, name, deletes[i])
+						pod := &corev1.Pod{}
+						require.NoError(t, r.Get(ctx, NamespacedName(mc.Namespace, name), pod))
+						require.NotNil(t, pod.DeletionTimestamp)
+						for j := i + 1; j < 3; j++ {
+							peer := &corev1.Pod{}
+							require.NoError(t, r.Get(ctx, NamespacedName(mc.Namespace, fmt.Sprintf("%s-%d", old.Name, j)), peer))
+							require.Nil(t, peer.DeletionTimestamp)
+							require.Equal(t, types.UID(fmt.Sprintf("old-%d", j)), peer.UID)
+						}
+						for _, claim := range claims {
+							require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{}))
+						}
+						require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+						require.Len(t, deletes, i+1, "terminating Pod blocks the next deletion")
+						pod.Finalizers = nil
+						require.NoError(t, r.Update(ctx, pod))
+						require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+						fresh := sequentialCreatePod(t, r, current, i, types.UID(fmt.Sprintf("new-%d", i)))
+						fresh.Status.Conditions[0].LastTransitionTime = metav1.Now()
+						require.NoError(t, r.Status().Update(ctx, fresh))
+						require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+						require.Len(t, deletes, i+1, "new Pod must stay Ready before advancing")
+						fresh.Status.Conditions[0].LastTransitionTime = metav1.NewTime(time.Now().Add(-time.Minute))
+						require.NoError(t, r.Status().Update(ctx, fresh))
 					}
-				}
-				deletes := []string{}
-				r.Client = interceptor.NewClient(r.Client.(client.WithWatch), interceptor.Funcs{Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
-					options := (&client.DeleteOptions{}).ApplyOptions(opts)
-					if _, ok := obj.(*appsv1.StatefulSet); ok {
-						require.NotNil(t, options.PropagationPolicy)
-						require.Equal(t, metav1.DeletePropagationOrphan, *options.PropagationPolicy)
+					for i := 0; i < 6; i++ {
+						err := sequentialStep(t, r, mc, component)
+						require.True(t, err == nil || errors.Is(err, ErrRequeue), "%v", err)
 					}
-					if _, ok := obj.(*corev1.Pod); ok {
-						require.Nil(t, options.GracePeriodSeconds, "maintenance annotation must not truncate sequential shutdown")
-						deletes = append(deletes, obj.GetName())
-					}
-					return c.Delete(ctx, obj, opts...)
-				}})
-				for i := 0; i < 3; i++ { // lock, journal, orphan
-					require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
-				}
-				current := sequentialAdopt(t, r, mc, component, old)
-				for i := 0; i < 3; i++ {
-					// Restart the reconciler at every ordinal, retaining only API state.
-					r = &MilvusReconciler{Client: r.Client, Scheme: r.Scheme}
-					require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
-					require.Len(t, deletes, i+1)
-					name := fmt.Sprintf("%s-%d", old.Name, i)
-					require.Equal(t, name, deletes[i])
-					pod := &corev1.Pod{}
-					require.NoError(t, r.Get(ctx, NamespacedName(mc.Namespace, name), pod))
-					require.NotNil(t, pod.DeletionTimestamp)
-					for j := i + 1; j < 3; j++ {
-						peer := &corev1.Pod{}
-						require.NoError(t, r.Get(ctx, NamespacedName(mc.Namespace, fmt.Sprintf("%s-%d", old.Name, j)), peer))
-						require.Nil(t, peer.DeletionTimestamp)
-						require.Equal(t, types.UID(fmt.Sprintf("old-%d", j)), peer.UID)
-					}
+					require.Empty(t, mc.Annotations[statefulSetStorageLockAnnotation])
+					require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(current), current))
+					require.Equal(t, appsv1.RollingUpdateStatefulSetStrategyType, current.Spec.UpdateStrategy.Type)
 					for _, claim := range claims {
-						require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{}))
+						require.True(t, kerrors.IsNotFound(r.Get(ctx, client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{})))
 					}
-					require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
-					require.Len(t, deletes, i+1, "terminating Pod blocks the next deletion")
-					pod.Finalizers = nil
-					require.NoError(t, r.Update(ctx, pod))
-					require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
-					fresh := sequentialCreatePod(t, r, current, i, types.UID(fmt.Sprintf("new-%d", i)))
-					fresh.Status.Conditions[0].LastTransitionTime = metav1.Now()
-					require.NoError(t, r.Status().Update(ctx, fresh))
-					require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
-					require.Len(t, deletes, i+1, "new Pod must stay Ready before advancing")
-					fresh.Status.Conditions[0].LastTransitionTime = metav1.NewTime(time.Now().Add(-time.Minute))
-					require.NoError(t, r.Status().Update(ctx, fresh))
-				}
-				for i := 0; i < 6; i++ {
-					err := sequentialStep(t, r, mc, component)
-					require.True(t, err == nil || errors.Is(err, ErrRequeue), "%v", err)
-				}
-				require.Empty(t, mc.Annotations[queryNodeStorageLockAnnotation])
-				require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(current), current))
-				require.Equal(t, appsv1.RollingUpdateStatefulSetStrategyType, current.Spec.UpdateStrategy.Type)
-				for _, claim := range claims {
-					require.True(t, kerrors.IsNotFound(r.Get(ctx, client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{})))
-				}
-				require.Len(t, deletes, 3)
-			})
+					require.Len(t, deletes, 3)
+				})
+			}
 		}
 	}
+
 }
 
 func TestSequentialStorageLocksSpecAndGroups(t *testing.T) {
@@ -241,16 +247,16 @@ func TestSequentialStorageExternalHPAAndAdmission(t *testing.T) {
 func TestSequentialStorageJournalValidation(t *testing.T) {
 	mc := newStatefulSetTestMilvus()
 	for _, raw := range []string{"{", "{}", `{"workload":"x","specHash":"wrong"}`} {
-		mc.Annotations = map[string]string{queryNodeStorageLockAnnotation: raw}
+		mc.Annotations = map[string]string{statefulSetStorageLockAnnotation: raw}
 		_, err := sequentialStorageLock(mc)
 		require.Error(t, err)
 	}
-	mc.Annotations = map[string]string{queryNodeStorageStrategyAnnotation: "unknown"}
+	mc.Annotations = map[string]string{"milvus.io/querynode-storage-update-strategy": "Recreate"}
 	_, err := sequentialStorageLock(mc)
-	require.Error(t, err)
+	require.NoError(t, err)
 	data, err := json.Marshal(sequentialStorageLockState{Workload: "x", SpecHash: sequentialStorageSpecHash(mc)})
 	require.NoError(t, err)
-	mc.Annotations = map[string]string{queryNodeStorageLockAnnotation: string(data)}
+	mc.Annotations = map[string]string{statefulSetStorageLockAnnotation: string(data)}
 	_, err = sequentialStorageLock(mc)
 	require.NoError(t, err)
 }
@@ -356,46 +362,58 @@ func TestSequentialStorageClaimProtection(t *testing.T) {
 }
 
 func TestSequentialStorageSuspendsManagedHPA(t *testing.T) {
-	r, mc, component, sts := sequentialFixture(t, true, false)
-	require.NoError(t, autoscalingv2.AddToScheme(r.Scheme))
-	ctx := context.Background()
-	require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
-	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(mc), mc))
-	// The HPA reconciler uses v2 on modern servers; test the suspension decision
-	// through its normal deletion path, including owner protection.
-	for _, external := range []bool{false, true} {
-		hpa := &autoscalingv1.HorizontalPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: component.GetHPAName(mc.Name), Namespace: mc.Namespace}, Spec: autoscalingv1.HorizontalPodAutoscalerSpec{ScaleTargetRef: autoscalingv1.CrossVersionObjectReference{Kind: "StatefulSet", Name: sts.Name}, MaxReplicas: 5}}
-		if !external {
-			require.NoError(t, SetControllerReference(mc, hpa, r.Scheme))
-		}
-		require.NoError(t, r.Create(ctx, hpa))
-		err := r.sequentialStorageCheckHPA(ctx, *mc, sts.Name)
-		if external {
-			require.ErrorContains(t, err, "suspend external HPA")
-		} else {
-			require.ErrorIs(t, err, ErrRequeue)
-		}
-		require.NoError(t, r.Delete(ctx, hpa))
+	for _, node := range []MilvusComponent{QueryNode, DataNode, IndexNode} {
+		t.Run(node.Name, func(t *testing.T) {
+			r, mc, component, sts := sequentialFixture(t, true, false, node)
+			require.NoError(t, autoscalingv2.AddToScheme(r.Scheme))
+			ctx := context.Background()
+			require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+			require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(mc), mc))
+			// The HPA reconciler uses v2 on modern servers; test the suspension decision
+			// through its normal deletion path, including owner protection.
+			for _, external := range []bool{false, true} {
+				hpa := &autoscalingv1.HorizontalPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: component.GetHPAName(mc.Name), Namespace: mc.Namespace}, Spec: autoscalingv1.HorizontalPodAutoscalerSpec{ScaleTargetRef: autoscalingv1.CrossVersionObjectReference{Kind: "StatefulSet", Name: sts.Name}, MaxReplicas: 5}}
+				if !external {
+					require.NoError(t, SetControllerReference(mc, hpa, r.Scheme))
+				}
+				require.NoError(t, r.Create(ctx, hpa))
+				err := r.sequentialStorageCheckHPA(ctx, *mc, sts.Name)
+				if external {
+					require.ErrorContains(t, err, "suspend external HPA")
+				} else {
+					require.ErrorIs(t, err, ErrRequeue)
+				}
+				require.NoError(t, r.Delete(ctx, hpa))
+			}
+			managed := &autoscalingv2.HorizontalPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: component.GetHPAName(mc.Name), Namespace: mc.Namespace}}
+			require.NoError(t, SetControllerReference(mc, managed, r.Scheme))
+			require.NoError(t, r.Create(ctx, managed))
+			require.NoError(t, r.reconcileComponentHPA(ctx, *mc, component))
+			require.True(t, kerrors.IsNotFound(r.Get(ctx, client.ObjectKeyFromObject(managed), &autoscalingv2.HorizontalPodAutoscaler{})))
+			external := &autoscalingv2.HorizontalPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: component.GetHPAName(mc.Name), Namespace: mc.Namespace}}
+			require.NoError(t, r.Create(ctx, external))
+			require.NoError(t, r.reconcileComponentHPA(ctx, *mc, component))
+			require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(external), &autoscalingv2.HorizontalPodAutoscaler{}))
+			require.NoError(t, r.Delete(ctx, external))
+			delete(mc.Annotations, statefulSetStorageLockAnnotation)
+			hpa := &v1beta1.HPASpec{MinReplicas: int32Ptr(2), MaxReplicas: 6}
+			switch node.Name {
+			case QueryNodeName:
+				mc.Spec.Com.QueryNode.HPA = hpa
+			case DataNodeName:
+				mc.Spec.Com.DataNode.HPA = hpa
+			case IndexNodeName:
+				mc.Spec.Com.IndexNode.HPA = hpa
+			}
+			require.NoError(t, r.reconcileComponentHPA(ctx, *mc, component))
+			restored := &autoscalingv2.HorizontalPodAutoscaler{}
+			require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(managed), restored))
+			require.Equal(t, int32(2), *restored.Spec.MinReplicas)
+			require.Equal(t, int32(6), restored.Spec.MaxReplicas)
+			require.Equal(t, "StatefulSet", restored.Spec.ScaleTargetRef.Kind)
+			require.Equal(t, sts.Name, restored.Spec.ScaleTargetRef.Name)
+		})
 	}
-	managed := &autoscalingv2.HorizontalPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: component.GetHPAName(mc.Name), Namespace: mc.Namespace}}
-	require.NoError(t, SetControllerReference(mc, managed, r.Scheme))
-	require.NoError(t, r.Create(ctx, managed))
-	require.NoError(t, r.reconcileComponentHPA(ctx, *mc, component))
-	require.True(t, kerrors.IsNotFound(r.Get(ctx, client.ObjectKeyFromObject(managed), &autoscalingv2.HorizontalPodAutoscaler{})))
-	external := &autoscalingv2.HorizontalPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: component.GetHPAName(mc.Name), Namespace: mc.Namespace}}
-	require.NoError(t, r.Create(ctx, external))
-	require.NoError(t, r.reconcileComponentHPA(ctx, *mc, component))
-	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(external), &autoscalingv2.HorizontalPodAutoscaler{}))
-	require.NoError(t, r.Delete(ctx, external))
-	delete(mc.Annotations, queryNodeStorageLockAnnotation)
-	mc.Spec.Com.QueryNode.HPA = &v1beta1.HPASpec{MinReplicas: int32Ptr(2), MaxReplicas: 6}
-	require.NoError(t, r.reconcileComponentHPA(ctx, *mc, component))
-	restored := &autoscalingv2.HorizontalPodAutoscaler{}
-	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(managed), restored))
-	require.Equal(t, int32(2), *restored.Spec.MinReplicas)
-	require.Equal(t, int32(6), restored.Spec.MaxReplicas)
-	require.Equal(t, "StatefulSet", restored.Spec.ScaleTargetRef.Kind)
-	require.Equal(t, sts.Name, restored.Spec.ScaleTargetRef.Name)
 }
 
 func TestSequentialStorageRejectsUnsafeRetention(t *testing.T) {
@@ -412,9 +430,266 @@ func TestSequentialStorageRejectsUnsafeRetention(t *testing.T) {
 			}
 			require.NoError(t, r.Update(context.Background(), sts))
 			require.Error(t, sequentialStep(t, r, mc, component))
-			require.Empty(t, mc.Annotations[queryNodeStorageLockAnnotation])
+			require.Empty(t, mc.Annotations[statefulSetStorageLockAnnotation])
 			require.NoError(t, r.Get(context.Background(), client.ObjectKeyFromObject(sts), sts))
 			require.Nil(t, sts.DeletionTimestamp)
 		})
 	}
+}
+
+// Model only Kubernetes GC/adoption and Pod recreation; all migration decisions
+// still go through the reconciler and its persisted CR/Service journals.
+func sequentialFinish(t *testing.T, r *MilvusReconciler, mc *v1beta1.Milvus, component MilvusComponent, old *appsv1.StatefulSet) *appsv1.StatefulSet {
+	t.Helper()
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+	}
+	current := sequentialAdopt(t, r, mc, component, old)
+	for i := 0; i < 3; i++ {
+		require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+		pod := &corev1.Pod{}
+		require.NoError(t, r.Get(ctx, NamespacedName(mc.Namespace, fmt.Sprintf("%s-%d", old.Name, i)), pod))
+		require.NotNil(t, pod.DeletionTimestamp)
+		pod.Finalizers = nil
+		require.NoError(t, r.Update(ctx, pod))
+		sequentialCreatePod(t, r, current, i, types.UID(fmt.Sprintf("%s-pod-%d", current.UID, i)))
+	}
+	for i := 0; i < 6; i++ {
+		err := sequentialStep(t, r, mc, component)
+		require.True(t, err == nil || errors.Is(err, ErrRequeue), "%v", err)
+	}
+	require.False(t, hasStorageMigrationLock(*mc))
+	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(current), current))
+	return current
+}
+
+func TestSequentialStorageRoundTripWithoutStrategyChoice(t *testing.T) {
+	for _, node := range []MilvusComponent{QueryNode, DataNode, IndexNode} {
+		for _, strategy := range []string{"", "Recreate", "Sequential"} {
+			t.Run(node.Name+"/"+strategy, func(t *testing.T) {
+				r, mc, component, old := sequentialFixture(t, true, false, node)
+				ctx := context.Background()
+				if strategy != "" {
+					mc.Annotations["milvus.io/querynode-storage-update-strategy"] = strategy
+				}
+				require.NoError(t, r.Update(ctx, mc))
+				original := getComponentStatefulSetSpec(*mc, component).VolumeClaimTemplates
+				for _, attach := range []bool{true, false, true} {
+					if attach {
+						getComponentStatefulSetSpec(*mc, component).VolumeClaimTemplates = original
+					} else {
+						getComponentStatefulSetSpec(*mc, component).VolumeClaimTemplates = nil
+					}
+					require.NoError(t, r.Update(ctx, mc))
+					old = sequentialFinish(t, r, mc, component, old)
+					index := GetContainerIndex(old.Spec.Template.Spec.Containers, component.Name)
+					mount := corev1.VolumeMount{Name: "qn-data", MountPath: "/data"}
+					if attach {
+						require.Len(t, old.Spec.VolumeClaimTemplates, 1)
+						require.Contains(t, old.Spec.Template.Spec.Containers[index].VolumeMounts, mount)
+					} else {
+						require.Empty(t, old.Spec.VolumeClaimTemplates)
+						require.NotContains(t, old.Spec.Template.Spec.Containers[index].VolumeMounts, mount)
+					}
+					template := old.Spec.Template.DeepCopy()
+					for i := 0; i < 3; i++ {
+						require.NoError(t, sequentialStep(t, r, mc, component))
+						require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(old), old))
+						require.Equal(t, template, &old.Spec.Template)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestSequentialStorageRetainsOtherClaimsAndManagedReplicas(t *testing.T) {
+	for _, mode := range []string{"manual", "hpa"} {
+		t.Run(mode, func(t *testing.T) {
+			r, mc, component, old := sequentialFixture(t, false, false)
+			ctx := context.Background()
+			kept := old.Spec.VolumeClaimTemplates[0].DeepCopy()
+			kept.Name = "keep"
+			old.Spec.VolumeClaimTemplates = append(old.Spec.VolumeClaimTemplates, *kept)
+			require.NoError(t, r.Update(ctx, old))
+			value := v1beta1.Values{}
+			require.NoError(t, value.FromObject(kept))
+			mc.Spec.Com.QueryNode.StatefulSet.VolumeClaimTemplates = []v1beta1.Values{value}
+			if mode == "manual" {
+				mc.Spec.Com.EnableManualMode = true
+			} else {
+				mc.Spec.Com.QueryNode.Replicas = int32Ptr(-1)
+			}
+			require.NoError(t, r.Update(ctx, mc))
+			removed := storageRemovalPVC(t, r, old, "qn-data-"+old.Name+"-0")
+			retained := storageRemovalPVC(t, r, old, "keep-"+old.Name+"-0")
+			unrelated := storageRemovalPVC(t, r, old, "qn-data-"+old.Name+"-other-0")
+			current := sequentialFinish(t, r, mc, component, old)
+			require.Equal(t, int32(3), *current.Spec.Replicas)
+			require.Len(t, current.Spec.VolumeClaimTemplates, 1)
+			require.True(t, kerrors.IsNotFound(r.Get(ctx, client.ObjectKeyFromObject(removed), &corev1.PersistentVolumeClaim{})))
+			for _, claim := range []*corev1.PersistentVolumeClaim{retained, unrelated} {
+				actual := &corev1.PersistentVolumeClaim{}
+				require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(claim), actual))
+				require.Equal(t, claim.UID, actual.UID)
+			}
+		})
+	}
+}
+
+func TestSequentialStorageLegacyLockRecovery(t *testing.T) {
+	r, mc, component, old := sequentialFixture(t, true, false)
+	ctx := context.Background()
+	data, err := json.Marshal(sequentialStorageLockState{Workload: old.Name, SpecHash: storageSpecHash(*mc, true)})
+	require.NoError(t, err)
+	mc.Annotations[legacyQueryNodeStorageLockAnnotation] = string(data)
+	require.NoError(t, r.Update(ctx, mc))
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue) // journal
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue) // orphan
+	current := sequentialAdopt(t, r, mc, component, old)
+	for i := 0; i < 3; i++ {
+		require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+		pod := &corev1.Pod{}
+		require.NoError(t, r.Get(ctx, NamespacedName(mc.Namespace, fmt.Sprintf("%s-%d", old.Name, i)), pod))
+		pod.Finalizers = nil
+		require.NoError(t, r.Update(ctx, pod))
+		sequentialCreatePod(t, r, current, i, types.UID(fmt.Sprintf("new-%d", i)))
+	}
+	for i := 0; i < 5; i++ {
+		err := sequentialStep(t, r, mc, component)
+		require.True(t, err == nil || errors.Is(err, ErrRequeue), "%v", err)
+	}
+	require.False(t, hasStorageMigrationLock(*mc))
+}
+
+func TestSequentialStorageSerializesComponentsAndAllowsPause(t *testing.T) {
+	r, mc, component, sts := sequentialFixture(t, true, false)
+	ctx := context.Background()
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(mc), mc))
+	for _, other := range []MilvusComponent{DataNode, IndexNode} {
+		require.ErrorIs(t, r.writeSequentialStorageLock(ctx, *mc, other.GetDeploymentName(mc.Name), true), ErrRequeue)
+		_, err := r.reconcileSequentialStorage(ctx, *mc, other, nil, sts, &statefulSetStorageState{}, true)
+		require.ErrorIs(t, err, ErrRequeue)
+	}
+	for _, node := range []MilvusComponent{QueryNode, DataNode, IndexNode} {
+		_, m, _, _ := sequentialFixture(t, true, false, node)
+		data, err := json.Marshal(sequentialStorageLockState{Workload: "active", SpecHash: sequentialStorageSpecHash(*m)})
+		require.NoError(t, err)
+		m.Annotations[statefulSetStorageLockAnnotation] = string(data)
+		m.Spec.Com.Paused = true
+		switch node.Name {
+		case QueryNodeName:
+			m.Spec.Com.QueryNode.Paused = true
+		case DataNodeName:
+			m.Spec.Com.DataNode.Paused = true
+		case IndexNodeName:
+			m.Spec.Com.IndexNode.Paused = true
+		}
+		_, err = sequentialStorageLock(*m)
+		require.NoError(t, err)
+	}
+}
+
+func TestSequentialStorageRetriesReplacementAndCleanupWrites(t *testing.T) {
+	r, mc, component, old := sequentialFixture(t, false, false)
+	ctx := context.Background()
+	claim := storageRemovalPVC(t, r, old, "qn-data-"+old.Name+"-0")
+	injected := errors.New("injected sequential write failure")
+	failure := "lock"
+	base := r.Client.(client.WithWatch)
+	r.Client = interceptor.NewClient(base, interceptor.Funcs{
+		Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+			options := (&client.CreateOptions{}).ApplyOptions(opts)
+			if _, ok := obj.(*appsv1.StatefulSet); ok && failure == "create" && len(options.DryRun) == 0 {
+				return injected
+			}
+			return c.Create(ctx, obj, opts...)
+		},
+		Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+			switch obj.(type) {
+			case *v1beta1.Milvus:
+				if failure == "lock" {
+					return injected
+				}
+			case *corev1.Service:
+				if failure == "journal" {
+					return injected
+				}
+			}
+			return c.Update(ctx, obj, opts...)
+		},
+		Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+			options := (&client.DeleteOptions{}).ApplyOptions(opts)
+			require.NotNil(t, options.Preconditions)
+			require.Equal(t, obj.GetUID(), *options.Preconditions.UID)
+			require.Equal(t, obj.GetResourceVersion(), *options.Preconditions.ResourceVersion)
+			if _, ok := obj.(*corev1.PersistentVolumeClaim); ok && failure == "pvc" {
+				return injected
+			}
+			return c.Delete(ctx, obj, opts...)
+		},
+	})
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), injected)
+	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(old), old))
+	require.Nil(t, old.DeletionTimestamp)
+	failure = ""
+	for i := 0; i < 3; i++ {
+		require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+	}
+	// Orphan the Pods, then fail the actual replacement create (preflight passed).
+	for i := 0; i < 3; i++ {
+		pod := &corev1.Pod{}
+		require.NoError(t, r.Get(ctx, NamespacedName(mc.Namespace, fmt.Sprintf("%s-%d", old.Name, i)), pod))
+		pod.OwnerReferences = nil
+		require.NoError(t, r.Update(ctx, pod))
+	}
+	finishStorageRemovalDeletion(t, r, old)
+	failure = "create"
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), injected)
+	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{}))
+	failure = ""
+	r = &MilvusReconciler{Client: r.Client, Scheme: r.Scheme}
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+	current := &appsv1.StatefulSet{}
+	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(old), current))
+	for i := 0; i < 3; i++ {
+		pod := &corev1.Pod{}
+		require.NoError(t, r.Get(ctx, NamespacedName(mc.Namespace, fmt.Sprintf("%s-%d", old.Name, i)), pod))
+		require.Nil(t, pod.DeletionTimestamp)
+		require.NoError(t, SetControllerReference(current, pod, r.Scheme))
+		require.NoError(t, r.Update(ctx, pod))
+	}
+	for i := 0; i < 3; i++ {
+		require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+		pod := &corev1.Pod{}
+		require.NoError(t, r.Get(ctx, NamespacedName(mc.Namespace, fmt.Sprintf("%s-%d", old.Name, i)), pod))
+		pod.Finalizers = nil
+		require.NoError(t, r.Update(ctx, pod))
+		sequentialCreatePod(t, r, current, i, types.UID(fmt.Sprintf("new-%d", i)))
+	}
+	failure = "pvc"
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), injected)
+	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(claim), claim))
+	claim.Finalizers = []string{"test/hold"}
+	require.NoError(t, r.Update(ctx, claim))
+	failure = ""
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+	require.True(t, hasStorageMigrationLock(*mc), "PVC finalizer blocks releasing the lock")
+	require.NoError(t, r.Get(ctx, client.ObjectKeyFromObject(claim), claim))
+	require.NotNil(t, claim.DeletionTimestamp)
+	claim.Finalizers = nil
+	require.NoError(t, r.Update(ctx, claim))
+	failure = "journal"
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), injected)
+	failure = ""
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+	failure = "lock"
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), injected)
+	failure = ""
+	require.ErrorIs(t, sequentialStep(t, r, mc, component), ErrRequeue)
+	require.NoError(t, sequentialStep(t, r, mc, component))
+	require.False(t, hasStorageMigrationLock(*mc))
 }

@@ -398,7 +398,7 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 
 	var errs = []error{}
 	for _, component := range GetComponentWorkloadsBySpec(mc.Spec) {
-		if storageLock != nil && component.Is(QueryNode) && component.GetDeploymentName(mc.Name) != storageLock.Workload {
+		if storageLock != nil && componentUsesStatefulSet(mc, component) && component.GetDeploymentName(mc.Name) != storageLock.Workload {
 			continue
 		}
 		if IsIdleClusterStandalone(mc.Spec, component) {
@@ -418,7 +418,7 @@ func (r *MilvusReconciler) ReconcileDeployments(ctx context.Context, mc v1beta1.
 		if err != nil {
 			// A successful lock/journal write may not yet be visible in the cache.
 			// Stop this pass before another group can start a storage replacement.
-			if component.Is(QueryNode) && (storageLock != nil || mc.Annotations[queryNodeStorageStrategyAnnotation] == "Sequential") {
+			if componentUsesStatefulSet(mc, component) {
 				return err
 			}
 			errs = append(errs, err)
